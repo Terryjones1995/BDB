@@ -24,6 +24,24 @@ const LEVELS = [
   {key:'pro',     name:'Pro',        short:'PRO', skill:20, go:'movetime 1800', note:'Full-strength Stockfish. BDB never made it to the pros. His engine did.'}
 ];
 
+/* ---------- settings ---------- */
+const TCS = [
+  {key:'off',   name:'No clock'},
+  {key:'1+0',   name:'Bullet 1+0',  base:60,  inc:0},
+  {key:'3+2',   name:'Blitz 3+2',   base:180, inc:2},
+  {key:'5+0',   name:'Blitz 5+0',   base:300, inc:0},
+  {key:'10+0',  name:'Rapid 10+0',  base:600, inc:0},
+  {key:'15+10', name:'Rapid 15+10', base:900, inc:10}
+];
+const DEFAULTS = {tc:'off', anim:'full', talk:'normal', cam:'locked', evalbar:true, legal:true, autoQueen:false};
+let settings = {...DEFAULTS};
+try { Object.assign(settings, JSON.parse(store.get('cc-settings') || '{}')); } catch(e){}
+const saveSettings = () => store.set('cc-settings', JSON.stringify(settings));
+const tcOf = k => TCS.find(t => t.key === k) || TCS[0];
+const animScale = () => settings.anim === 'off' ? 0 : settings.anim === 'fast' ? .5 : 1;
+const noFx = () => REDUCED || settings.anim === 'off';
+const HINT_LEVELS = ['rec','jv','varsity'];
+
 /* ---------- trash talk ---------- */
 const L = {
   start:["Tip-off. BDB's playing like it's Florida tryouts. Same result incoming, hopefully.",
@@ -63,6 +81,8 @@ const L = {
   hint:["The scout says this one. First time a scout's talked to anyone around here.","Hint's lit up. BDB is furious, he never got coaching."],
   win:["You beat BDB. He's calling it a moral victory.","Checkmate. BDB wants a rematch and a better ref.","Game over. BDB's averaging zero wins per game now."],
   lose:["BDB won. Nobody tell him, he'll never shut up.","Checkmate. BDB's taking a victory lap around the break room.","BDB got you. He's bringing this up every shift."],
+  flagYou:["Out of time. BDB's never been early to anything, but he beat the clock.","You flagged. Even BDB watched the clock better than that, and it's his best stat."],
+  flagHim:["BDB ran out of time. Clock-watching rated 100, apparently not this clock.","BDB flagged. First time he's ever lost track of a clock."],
   draw:["Draw. BDB's counting it as a win anyway.","Nobody wins. BDB's used to that."]
 };
 const KILL = {
@@ -376,6 +396,7 @@ const ease = {
   back: p => { const c=1.70158, c3=c+1; return 1 + c3*Math.pow(p-1,3) + c*Math.pow(p-1,2); }
 };
 function tween(dur, fn, e = ease.io){
+  dur *= animScale();
   if (REDUCED || dur <= 0){ fn(1, 1); return Promise.resolve(); }
   return new Promise(res => tweens.push({t:0, dur, fn, e, res}));
 }
@@ -665,8 +686,13 @@ function refreshHud(){
   fill($('trayYou'), took.you, bdbColor); fill($('trayBdb'), took.bdb, playerColor);
   $('advYou').textContent = mat > 0 ? '+' + mat : '';
   $('advBdb').textContent = mat < 0 ? '+' + (-mat) : '';
-  $('undoBtn').disabled = busy || !game.history().length;
-  $('hintBtn').disabled = busy || over || game.turn() !== playerColor;
+  $('undoBtn').disabled = busy || !!clock || !game.history().length;
+  $('undoBtn').title = clock ? 'No takebacks with the clock on' : '';
+  const hintsOk = HINT_LEVELS.includes(level.key);
+  const hb = $('hintBtn');
+  hb.disabled = busy || over || game.turn() !== playerColor || !hintsOk;
+  hb.lastChild.textContent = hintsOk ? 'Hint' : 'No hints';
+  hb.title = hintsOk ? '' : `No hints on ${level.name}. BDB never got coaching either.`;
   // move list
   const tb = $('moves'); tb.innerHTML = '';
   const startBlack = game.fen() && hist.length && hist[0].color === 'b';
@@ -710,6 +736,7 @@ function updateEval(score, stm){
 }
 function statusForTurn(){
   if (over) return;
+  if (game.turn() === playerColor && !splashUp) clockStart(playerColor);
   if (game.turn() === playerColor) setStatus(game.in_check() ? 'check' : '', game.in_check() ? 'Check! Your move' : 'Your move');
 }
 
@@ -724,7 +751,7 @@ async function animateMove(mv, who){
   innerOf(A).position.y = 0;
   const to = sqPos(mv.to);
   if (V){
-    if (REDUCED){ dispose(V); A.position.copy(to); }
+    if (noFx()){ post('event', `${who === 'bdb' ? 'BDB' : 'You'} · ${KILL[mv.piece].name}`, null, who); dispose(V); A.position.copy(to); }
     else await KILLS[mv.piece](A, V, to, who);
   } else if (mv.piece === 'n'){
     const ai = innerOf(A);
@@ -771,14 +798,16 @@ function talkAfter(mv, who, score){
   // every capture, either way, gets a roast, then a deck roast (or the engine's mate call) right after
   if (mv.captured) return sayThen(pick(you ? L.youTake[mv.captured] : L.heTakes[mv.captured]), call || undefined);
   if (call) return sayText(call);
+  if (settings.talk === 'quiet') return;
   if (mv.promotion) return say(you ? L.promoteYou : L.promoteHim);
   if (game.in_check()) return say(you ? L.checkHim : L.checkYou);
   if (mv.flags.includes('k') || mv.flags.includes('q')) return say(you ? L.castleYou : L.castleHim);
-  if (Math.random() < (you ? .18 : .5)) roast();
+  const odds = settings.talk === 'nonstop' ? (you ? .6 : 1) : (you ? .18 : .5);
+  if (Math.random() < odds) roast();
 }
 function checkEnd(){
   if (!game.game_over()) return false;
-  over = true; busy = false; clearSelection();
+  over = true; busy = false; clearSelection(); clockStop(false);
   let eyebrow, title, line;
   if (game.in_checkmate()){
     const youWon = game.turn() !== playerColor;
@@ -801,6 +830,7 @@ function checkEnd(){
 async function playerMove(from, to, promotion){
   const mv = game.move({from, to, promotion});
   if (!mv) return;
+  clockStop(true);
   clearSelection(); busy = true; refreshHud();
   const tok = token;
   await animateMove(mv, 'you');
@@ -818,12 +848,14 @@ async function bdbMove(){
   const tok = token;
   busy = true; refreshHud();
   setStatus('think', 'BDB is thinking');
-  if (Math.random() < .3) say(L.think);
+  if (settings.talk !== 'quiet' && Math.random() < (settings.talk === 'nonstop' ? .6 : .3)) say(L.think);
   const started = performance.now();
-  const uci = await engine.best(game.fen(), level.skill, level.go);
+  clockStart(bdbColor());
+  const uci = await engine.best(game.fen(), level.skill, goFor());
   if (tok !== token) return;
+  clockStop(true);
   const elapsed = performance.now() - started;
-  if (elapsed < 450) await wait((450 - elapsed)/1000);
+  if (!clock && elapsed < 450) await wait((450 - elapsed)/1000);
   if (tok !== token) return;
   let mv = null;
   const score = engine.score;
@@ -850,7 +882,7 @@ function select(sq){
   const p = pieces.get(sq);
   if (p) tween(.18, t => { innerOf(p).position.y = .25*t; }, ease.out);
   setOverlay(selRing, sq);
-  for (const m of targets){
+  for (const m of (settings.legal ? targets : [])){
     if (targetGroup.children.some(c => c.userData.sq === m.to)) continue;
     const isCap = !!m.captured;
     const d = new THREE.Mesh(isCap ? capGeo : dotGeo, isCap ? capMat : dotMat);
@@ -859,6 +891,7 @@ function select(sq){
   }
 }
 function promoChoice(){
+  if (settings.autoQueen) return Promise.resolve('q');
   return new Promise(res => {
     const box = $('promo'); box.hidden = false;
     box.querySelectorAll('button').forEach(b => {
@@ -939,17 +972,18 @@ function flyTo(pos, dur = 1.1){
 function newGame(){
   token++; engine.cancel(); engine.newGame();
   game = new Chess(); over = false; busy = false; evalState = 0;
+  currentTc = settings.tc; resetClock();
   $('end').hidden = true; $('promo').hidden = true;
   clearSelection(); setOverlay(hintFrom, null); setOverlay(hintTo, null);
   rebuildPieces(); refreshMarks(); refreshHud();
   setEvalColors(); updateEval(null);
-  post('sys', `New game · You're ${playerColor === 'w' ? 'White' : 'Black'} · BDB on ${level.name}`);
+  post('sys', `New game · You're ${playerColor === 'w' ? 'White' : 'Black'} · BDB on ${level.name}` + (clock ? ` · ${tcOf(settings.tc).name}` : ''));
   say(L.start);
   if (playerColor === 'b'){ setTimeout(()=>{ if (!over && game.turn() !== playerColor) bdbMove(); }, 700); setStatus('think', 'BDB is thinking'); }
   else statusForTurn();
 }
 function undo(){
-  if (busy || !game.history().length) return;
+  if (busy || clock || !game.history().length) return;
   token++; engine.cancel();
   game.undo();
   while (game.turn() !== playerColor && game.history().length) game.undo();
@@ -959,7 +993,7 @@ function undo(){
   if (game.turn() !== playerColor) bdbMove(); else statusForTurn();
 }
 async function hint(){
-  if (busy || over || game.turn() !== playerColor) return;
+  if (busy || over || game.turn() !== playerColor || !HINT_LEVELS.includes(level.key)) return;
   busy = true; refreshHud(); setStatus('scout', 'Scout looking');
   const tok = token;
   const uci = await engine.best(game.fen(), 20, 'movetime 700');
@@ -1023,9 +1057,10 @@ function paintSplash(){
   lvlSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.key === level.key));
   $('sideSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.side === sideChoice));
   $('lvlNote').textContent = level.note;
+  if (typeof paintSettings === 'function') paintSettings();
 }
 function showSplash(){
-  splashUp = true; token++; engine.cancel(); busy = false;
+  splashUp = true; token++; engine.cancel(); busy = false; clockStop(false);
   const s = $('splash'); s.hidden = false; s.classList.remove('gone');
   controls.autoRotate = !REDUCED; paintSplash();
 }
@@ -1041,6 +1076,97 @@ document.addEventListener('keydown', e => {
   if (!$('splash').hidden && (e.key === 'Enter')){ $('play').click(); }
   if (e.key === 'Escape') clearSelection();
 });
+
+/* ---------- clocks ---------- */
+const bdbColor = () => playerColor === 'w' ? 'b' : 'w';
+let clock = null; // {w, b, inc, run, last} in ms
+function resetClock(){
+  const tc = tcOf(settings.tc);
+  clock = tc.base ? {w:tc.base*1000, b:tc.base*1000, inc:tc.inc*1000, run:null, last:0} : null;
+  $('clockYou').hidden = $('clockBdb').hidden = !clock;
+  drawClocks();
+}
+function clockStart(c){ if (!clock || over) return; clockStop(false); clock.run = c; clock.last = performance.now(); drawClocks(); }
+function clockStop(addInc){
+  if (!clock || !clock.run) return;
+  clock[clock.run] -= performance.now() - clock.last;
+  if (addInc && clock[clock.run] > 0) clock[clock.run] += clock.inc;
+  clock.run = null; drawClocks();
+}
+function fmtClock(ms){
+  ms = Math.max(0, ms);
+  if (ms < 10000) return (ms/1000).toFixed(1);
+  const s = Math.ceil(ms/1000); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
+}
+function drawClocks(){
+  if (!clock) return;
+  const now = performance.now();
+  for (const c of ['w','b']){
+    let ms = clock[c]; if (clock.run === c) ms -= now - clock.last;
+    const el = c === playerColor ? $('clockYou') : $('clockBdb');
+    const t = fmtClock(ms); if (el.textContent !== t) el.textContent = t;
+    el.classList.toggle('run', clock.run === c); el.classList.toggle('low', ms < 20000);
+    if (ms <= 0 && clock.run === c && !over) flag(c);
+  }
+}
+// thinking budget for BDB when he's on the clock
+function goFor(){
+  if (!clock || !level.go.startsWith('movetime')) return level.go;
+  const n = +level.go.split(' ')[1], rem = clock[bdbColor()];
+  return 'movetime ' + Math.round(Math.max(120, Math.min(n, rem/35 + clock.inc*.7)));
+}
+function flag(c){
+  clock[c] = 0; clock.run = null; drawClocks();
+  token++; engine.cancel();
+  over = true; busy = false; clearSelection();
+  const youLost = c === playerColor;
+  const eyebrow = 'Out of time', title = youLost ? 'BDB wins on time' : 'You win on time';
+  const line = pick(youLost ? L.flagYou : L.flagHim);
+  post('sys', `${eyebrow} · ${title}`); sayText(line); setStatus('over', eyebrow);
+  $('endEyebrow').textContent = eyebrow; $('endTitle').textContent = title; $('endLine').textContent = line;
+  setTimeout(()=>{ if (over) $('end').hidden = false; }, 900);
+  refreshHud();
+}
+
+/* ---------- settings panel ---------- */
+function segment(el, opts, get, set){
+  el.innerHTML = '';
+  for (const [val, label] of opts){
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.dataset.v = val;
+    b.onclick = () => { set(val); saveSettings(); paintSettings(); applySettings(); };
+    el.appendChild(b);
+  }
+  el._get = get;
+}
+function toggle(el, key){ el.onclick = () => { settings[key] = !settings[key]; saveSettings(); paintSettings(); applySettings(); }; el._key = key; }
+const tcOpts = TCS.map(t => [t.key, t.key === 'off' ? 'Off' : t.key]);
+segment($('setTc'), tcOpts, () => settings.tc, v => settings.tc = v);
+segment($('tcSeg'), tcOpts, () => settings.tc, v => settings.tc = v);
+segment($('setAnim'), [['full','Full'],['fast','Fast'],['off','Off']], () => settings.anim, v => settings.anim = v);
+segment($('setTalk'), [['nonstop','Nonstop'],['normal','Normal'],['quiet','Quiet']], () => settings.talk, v => settings.talk = v);
+segment($('setCam'), [['locked','Locked'],['free','Free']], () => settings.cam, v => settings.cam = v);
+toggle($('setEval'), 'evalbar'); toggle($('setLegal'), 'legal'); toggle($('setQueen'), 'autoQueen');
+function paintSettings(){
+  for (const id of ['setTc','tcSeg','setAnim','setTalk','setCam']){
+    const el = $(id); el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === el._get()));
+  }
+  for (const id of ['setEval','setLegal','setQueen']) $(id).setAttribute('aria-checked', !!settings[$(id)._key]);
+  $('setNote').textContent = (!splashUp && settings.tc !== currentTc) ? 'Clock change starts next game.' : '';
+}
+let currentTc = settings.tc;
+function applySettings(){
+  controls.enableRotate = settings.cam === 'free';
+  for (const id of ['evalbar','evalTop','evalBot']) $(id).hidden = !settings.evalbar;
+  if (!settings.legal) while (targetGroup.children.length) targetGroup.remove(targetGroup.children[0]);
+  else if (selected) select(selected);
+}
+function openSettings(){ paintSettings(); $('settings').hidden = false; $('setDone').focus(); }
+function closeSettings(){ $('settings').hidden = true; }
+$('setBtn').onclick = openSettings; $('setBtn2').onclick = openSettings;
+$('setClose').onclick = closeSettings; $('setDone').onclick = closeSettings;
+$('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
+$('setNew').onclick = () => { closeSettings(); if (!splashUp){ currentTc = settings.tc; newGame(); } };
+paintSettings(); applySettings();
 
 /* ---------- loop ---------- */
 function resize(){
@@ -1058,10 +1184,10 @@ function resize(){
 }
 new ResizeObserver(resize).observe(stage);
 resize();
-const clock = new THREE.Clock();
+const frameClock = new THREE.Clock();
 const shakeOff = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), .05);
+  const dt = Math.min(frameClock.getDelta(), .1);
   for (let i = tweens.length-1; i >= 0; i--){
     const tw = tweens[i]; tw.t += dt;
     const p = Math.min(1, tw.t / tw.dur);
@@ -1071,6 +1197,7 @@ renderer.setAnimationLoop(() => {
   for (const u of [...updaters]) u(dt);
   if (selRing.visible) selRing.material.opacity = .65 + Math.sin(performance.now()/180)*.3;
   if (checkMark.visible) checkMark.material.opacity = .4 + Math.sin(performance.now()/150)*.2;
+  if (clock && clock.run) drawClocks();
   if (!flying) controls.update();
   if (shakeAmt > 0){
     shakeOff.set((Math.random()-.5)*shakeAmt, (Math.random()-.5)*shakeAmt, (Math.random()-.5)*shakeAmt);
@@ -1083,4 +1210,4 @@ renderer.setAnimationLoop(() => {
 rebuildPieces(); refreshHud(); showSplash();
 setStatus('', 'Pick a side');
 // test hook for automated checks
-window.__cc = { load(fen){ token++; engine.cancel(); game.load(fen); over=false; busy=false; clearSelection(); rebuildPieces(); refreshMarks(); refreshHud(); statusForTurn(); }, get game(){ return game; }, get busy(){ return busy; }, get over(){ return over; }, get pieces(){ return pieces; }, onSquare, newGame, undo, KILLS, engine, setPlayer(c){ playerColor = c; } };
+window.__cc = { clk(){ return clock && {run:clock.run, w:Math.round(clock.w), b:Math.round(clock.b)}; }, rot(){ return controls.enableRotate; }, load(fen){ token++; engine.cancel(); game.load(fen); over=false; busy=false; clearSelection(); rebuildPieces(); refreshMarks(); refreshHud(); statusForTurn(); }, get game(){ return game; }, get busy(){ return busy; }, get over(){ return over; }, get pieces(){ return pieces; }, onSquare, newGame, undo, KILLS, engine, setPlayer(c){ playerColor = c; } };

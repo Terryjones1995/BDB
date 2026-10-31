@@ -211,6 +211,32 @@ button{font-family:inherit}
 .endbox p{margin:0;color:var(--muted);line-height:1.4}
 .endbox .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 
+/* clocks */
+.clock{flex:none;font:500 26px/1 var(--f-led);color:var(--ink);background:#070b13;border:1px solid #1e2738;border-radius:8px;padding:5px 9px 2px;
+  min-width:68px;text-align:center;font-variant-numeric:tabular-nums}
+.clock.run{color:var(--led);border-color:rgba(255,181,71,.5);text-shadow:0 0 8px rgba(255,181,71,.55)}
+.clock.low{color:var(--bad);border-color:rgba(255,90,74,.6)}
+.clock.low.run{animation:blink 1s steps(1) infinite}
+/* settings */
+.modal-wrap{position:fixed;inset:0;z-index:25;display:grid;place-items:center;background:rgba(3,8,20,.62);padding:16px}
+.modal{width:min(560px,100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;background:linear-gradient(180deg,#0e1d3f,#081227);
+  border:1px solid rgba(242,193,78,.4);border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.6);animation:drop .35s cubic-bezier(.2,.9,.25,1.2)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--line)}
+.modal-head h3{margin:0;font-family:var(--f-display);font-weight:400;font-size:24px}
+.x{border:0;background:rgba(255,255,255,.06);color:var(--ink);width:36px;height:36px;border-radius:10px;font-size:22px;line-height:1;cursor:pointer}
+.sets{overflow:auto;padding:6px 18px}
+.srow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.05);flex-wrap:wrap}
+.srow b{display:block;font:800 14px/1.2 var(--f-body)}
+.srow small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:3px;max-width:30ch}
+.srow .seg{background:rgba(4,10,24,.8)}
+.switch{position:relative;flex:none;width:50px;height:28px;border-radius:999px;border:0;background:#24375f;cursor:pointer;transition:background .2s}
+.switch::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#cfd8ea;transition:transform .2s}
+.switch[aria-checked="true"]{background:var(--orange)}
+.switch[aria-checked="true"]::after{transform:translateX(22px);background:#fff}
+.modal-foot{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;padding:14px 18px;border-top:1px solid var(--line)}
+.note{color:var(--gold);font-size:12.5px;margin-right:auto;align-self:center}
+.gear svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+
 /* ---- phones and narrow windows ---- */
 .grab{display:none;width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);margin:8px auto 0;border:0;padding:0;cursor:pointer}
 @media (max-width:900px){
@@ -238,7 +264,10 @@ button{font-family:inherit}
   .dock{bottom:10px;gap:2px;padding:5px;max-width:calc(100% - 20px)}
   .dk{min-width:54px;padding:7px 6px 6px;font-size:9px}
   .dk svg{width:20px;height:20px}
+  .clock{font-size:22px;min-width:58px;padding:4px 7px 1px}
+  .state{display:none}
 }
+@media (max-width:520px){ .gear .gl{display:none} }
 @media (max-width:520px){ .top .pill:not(.chatBtn):not(#levelPill){display:none} .brand .cw{display:none} }
 @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
 </style>
@@ -268,6 +297,10 @@ button{font-family:inherit}
       <div class="seg" role="group" aria-labelledby="lvlLbl" id="lvlSeg"></div>
       <p class="lvl-note" id="lvlNote"></p>
     </div>
+    <div class="pick">
+      <label id="tcLbl">Clock</label>
+      <div class="seg" role="group" aria-labelledby="tcLbl" id="tcSeg"></div>
+    </div>
     <button type="button" class="btn primary big" id="play" style="animation:drop .6s .5s both">Play BDB</button>
   </div>
 </section>
@@ -282,6 +315,7 @@ button{font-family:inherit}
     <div class="spacer"></div>
     <button type="button" class="pill" id="levelPill" aria-label="Change level">Level <span class="led" id="hLevel">D1</span></button>
     <span class="pill" style="cursor:default">Move <span class="led" id="hMove">1</span></span>
+    <button type="button" class="pill gear" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="gl">Settings</span></button>
     <button type="button" class="pill chatBtn" id="chatBtn" aria-label="Open trash talk">Chat</button>
   </header>
 
@@ -299,6 +333,7 @@ button{font-family:inherit}
         <div class="psub"><span class="caps" id="trayBdb"></span><span class="adv" id="advBdb"></span></div>
       </div>
       <span class="state" id="stateBdb">Waiting</span>
+      <span class="clock" id="clockBdb" hidden>5:00</span>
     </div>
 
     <div class="float speech" id="speech" aria-live="polite"><span class="tag" id="tally"></span><span id="sayText">Lacing up. Still talks about Florida.</span></div>
@@ -310,12 +345,14 @@ button{font-family:inherit}
         <div class="psub"><span class="caps" id="trayYou"></span><span class="adv" id="advYou"></span></div>
       </div>
       <span class="state" id="statusText">Your move</span>
+      <span class="clock" id="clockYou" hidden>5:00</span>
     </div>
 
     <nav class="float dock" aria-label="Game controls">
       <button type="button" class="dk primary" id="newBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New</button>
       <button type="button" class="dk" id="undoBtn"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
       <button type="button" class="dk" id="hintBtn"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>Hint</button>
+      <button type="button" class="dk" id="setBtn2"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</button>
       <button type="button" class="dk" id="viewBtn"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>View</button>
     </nav>
 
@@ -345,6 +382,22 @@ button{font-family:inherit}
       <div class="chips" id="chips"></div>
     </div>
   </aside>
+</div>
+
+<div class="modal-wrap" id="settings" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+    <div class="modal-head"><h3 id="setTitle">Settings</h3><button type="button" class="x" id="setClose" aria-label="Close settings">×</button></div>
+    <div class="sets">
+      <div class="srow"><div><b>Clock</b><small>Speed chess. No takebacks when the clock is on. Starts with your next game.</small></div><div class="seg" id="setTc"></div></div>
+      <div class="srow"><div><b>Animations</b><small>Kill moves and piece movement. Fast is good for bullet.</small></div><div class="seg" id="setAnim"></div></div>
+      <div class="srow"><div><b>BDB's mouth</b><small>How much he talks. Quiet still roasts every capture.</small></div><div class="seg" id="setTalk"></div></div>
+      <div class="srow"><div><b>Camera</b><small>Locked keeps the board still. Zoom always works.</small></div><div class="seg" id="setCam"></div></div>
+      <div class="srow"><div><b>Eval bar</b><small>Stockfish's read on who's winning.</small></div><button type="button" class="switch" role="switch" id="setEval" aria-label="Eval bar"></button></div>
+      <div class="srow"><div><b>Show legal moves</b><small>Dots where the selected piece can go.</small></div><button type="button" class="switch" role="switch" id="setLegal" aria-label="Show legal moves"></button></div>
+      <div class="srow"><div><b>Auto-queen</b><small>Promote straight to a queen, no picker.</small></div><button type="button" class="switch" role="switch" id="setQueen" aria-label="Auto-queen"></button></div>
+    </div>
+    <div class="modal-foot"><span class="note" id="setNote"></span><button type="button" class="btn" id="setNew">New game with these</button><button type="button" class="btn primary" id="setDone">Done</button></div>
+  </div>
 </div>
 
 <div class="endbox-wrap" id="end" hidden>
