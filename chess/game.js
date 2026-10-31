@@ -167,7 +167,7 @@ scene.fog = new THREE.Fog(0x050c1c, 22, 46);
 const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120);
 camera.position.set(0, 10.5, 10.2);
 const controls = new OrbitControls(camera, renderer.domElement);
-Object.assign(controls, {enablePan:false, enableDamping:true, dampingFactor:.08, minDistance:8, maxDistance:22,
+Object.assign(controls, {enablePan:false, enableDamping:true, dampingFactor:.08, minDistance:8, maxDistance:34,
   minPolarAngle:.2, maxPolarAngle:1.28, rotateSpeed:.6, autoRotateSpeed:.7});
 controls.target.set(0, 0, 0);
 
@@ -853,7 +853,23 @@ renderer.domElement.addEventListener('pointerup', e => {
 });
 
 /* ---------- camera ---------- */
-const VIEW = c => c === 'w' ? new THREE.Vector3(0, 10.5, 10.2) : new THREE.Vector3(0, 10.5, -10.2);
+// Fit the camera so the whole frame (and the tallest back-rank pieces) stays inside the view at any size.
+const FIT_PTS = [];
+for (const x of [-4.68, 4.68]) for (const z of [-4.68, 4.68]) for (const y of [-.3, .07]) FIT_PTS.push(new THREE.Vector3(x, y, z));
+for (const x of [-3.5, 3.5]) for (const z of [-3.5, 3.5]) FIT_PTS.push(new THREE.Vector3(x, 1.4, z));
+const fitCam = new THREE.PerspectiveCamera();
+function fitDistance(dir){
+  fitCam.copy(camera); fitCam.updateProjectionMatrix();
+  let lo = 6, hi = 40;
+  for (let i=0;i<22;i++){
+    const d = (lo+hi)/2;
+    fitCam.position.copy(dir).multiplyScalar(d); fitCam.lookAt(0,0,0); fitCam.updateMatrixWorld();
+    const ok = FIT_PTS.every(c => { const p = c.clone().project(fitCam); return Math.abs(p.x) < .93 && Math.abs(p.y) < .93; });
+    if (ok) hi = d; else lo = d;
+  }
+  return hi;
+}
+const VIEW = c => { const dir = new THREE.Vector3(0, 10.5, c === 'w' ? 10.2 : -10.2).normalize(); return dir.multiplyScalar(fitDistance(dir)); };
 let flying = false;
 function flyTo(pos, dur = 1.1){
   const from = camera.position.clone();
@@ -944,6 +960,11 @@ function resize(){
   camera.aspect = w / h;
   camera.fov = w < 520 ? 44 : 38;
   camera.updateProjectionMatrix();
+  // if the frame no longer fits after a resize, back the camera off along its current angle
+  if (!flying){
+    const dir = camera.position.clone().normalize(), need = fitDistance(dir);
+    if (camera.position.length() < need - .01) camera.position.copy(dir.multiplyScalar(need));
+  }
 }
 new ResizeObserver(resize).observe(stage);
 resize();
