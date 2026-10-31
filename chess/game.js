@@ -33,9 +33,9 @@ const TCS = [
   {key:'10+0',  name:'Rapid 10+0',  base:600, inc:0},
   {key:'15+10', name:'Rapid 15+10', base:900, inc:10}
 ];
-const DEFAULTS = {tc:'off', anim:'full', talk:'normal', cam:'locked', evalbar:true, legal:true, autoQueen:false};
+const DEFAULTS = {v:2, tc:'off', anim:'full', talk:'normal', cam:'free', evalbar:true, legal:true, autoQueen:false};
 let settings = {...DEFAULTS};
-try { Object.assign(settings, JSON.parse(store.get('cc-settings') || '{}')); } catch(e){}
+try { const saved = JSON.parse(store.get('cc-settings') || '{}'); if (saved.v !== 2) delete saved.cam; Object.assign(settings, saved, {v:2}); } catch(e){}
 const saveSettings = () => store.set('cc-settings', JSON.stringify(settings));
 const tcOf = k => TCS.find(t => t.key === k) || TCS[0];
 const animScale = () => settings.anim === 'off' ? 0 : settings.anim === 'fast' ? .5 : 1;
@@ -926,20 +926,35 @@ async function onSquare(sq){
 }
 const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
 let down = null;
-renderer.domElement.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY}; });
+function squareAt(e){
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(ptr, camera);
+  for (const h of ray.intersectObjects([...tiles, ...pieces.values()], true)){
+    let o = h.object;
+    while (o && !(o.userData && o.userData.square)) o = o.parent;
+    if (o) return o.userData.square;
+  }
+  return null;
+}
+// A press that starts on one of your pieces, or on a square you can move to, never turns the camera.
+// Press anywhere else and drag to spin the board. Capture phase so this runs before the camera controls see it.
+renderer.domElement.addEventListener('pointerdown', e => {
+  down = {x:e.clientX, y:e.clientY};
+  if (flying || splashUp) return;
+  const sq = squareAt(e), cell = sq && game.get(sq);
+  const mine = cell && cell.color === playerColor && game.turn() === playerColor;
+  const target = selected && targets.some(m => m.to === sq);
+  controls.enabled = !(mine || target);
+}, {capture:true});
+const releaseCam = () => { if (!flying) controls.enabled = true; };
+window.addEventListener('pointerup', releaseCam); window.addEventListener('pointercancel', releaseCam);
 renderer.domElement.addEventListener('pointerup', e => {
   if (!down) return;
   const moved = Math.hypot(e.clientX-down.x, e.clientY-down.y); down = null;
   if (moved > 8) return;
-  const r = renderer.domElement.getBoundingClientRect();
-  ptr.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1);
-  ray.setFromCamera(ptr, camera);
-  const hits = ray.intersectObjects([...tiles, ...pieces.values()], true);
-  for (const h of hits){
-    let o = h.object;
-    while (o && !(o.userData && o.userData.square)) o = o.parent;
-    if (o){ onSquare(o.userData.square); return; }
-  }
+  const sq = squareAt(e);
+  if (sq) onSquare(sq);
 });
 
 /* ---------- camera ---------- */
@@ -1210,4 +1225,4 @@ renderer.setAnimationLoop(() => {
 rebuildPieces(); refreshHud(); showSplash();
 setStatus('', 'Pick a side');
 // test hook for automated checks
-window.__cc = { clk(){ return clock && {run:clock.run, w:Math.round(clock.w), b:Math.round(clock.b)}; }, rot(){ return controls.enableRotate; }, load(fen){ token++; engine.cancel(); game.load(fen); over=false; busy=false; clearSelection(); rebuildPieces(); refreshMarks(); refreshHud(); statusForTurn(); }, get game(){ return game; }, get busy(){ return busy; }, get over(){ return over; }, get pieces(){ return pieces; }, onSquare, newGame, undo, KILLS, engine, setPlayer(c){ playerColor = c; } };
+window.__cc = { cam(){ return camera.position.toArray().map(v=>+v.toFixed(2)); }, screenOf(sq){ const p = sqPos(sq).setY(.3).project(camera), r = renderer.domElement.getBoundingClientRect(); return [r.left + (p.x+1)/2*r.width, r.top + (1-p.y)/2*r.height]; }, clk(){ return clock && {run:clock.run, w:Math.round(clock.w), b:Math.round(clock.b)}; }, rot(){ return controls.enableRotate; }, load(fen){ token++; engine.cancel(); game.load(fen); over=false; busy=false; clearSelection(); rebuildPieces(); refreshMarks(); refreshHud(); statusForTurn(); }, get game(){ return game; }, get busy(){ return busy; }, get over(){ return over; }, get pieces(){ return pieces; }, onSquare, newGame, undo, KILLS, engine, setPlayer(c){ playerColor = c; } };
