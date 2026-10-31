@@ -271,7 +271,7 @@ button{font-family:inherit}
 @media (max-width:520px){ .top .pill:not(.chatBtn):not(#levelPill){display:none} .brand .cw{display:none} }
 @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
 </style>
-<script src="../assets/roasts.js"></script>
+<script src="../assets/roasts.js?v=1031-1750"></script>
 <script src="vendor/chess.js"></script>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
@@ -396,7 +396,7 @@ button{font-family:inherit}
       <div class="srow"><div><b>Show legal moves</b><small>Dots where the selected piece can go.</small></div><button type="button" class="switch" role="switch" id="setLegal" aria-label="Show legal moves"></button></div>
       <div class="srow"><div><b>Auto-queen</b><small>Promote straight to a queen, no picker.</small></div><button type="button" class="switch" role="switch" id="setQueen" aria-label="Auto-queen"></button></div>
     </div>
-    <div class="modal-foot"><span class="note" id="setNote"></span><button type="button" class="btn" id="setNew">New game with these</button><button type="button" class="btn primary" id="setDone">Done</button></div>
+    <div class="modal-foot"><span class="note" id="setNote"></span><span class="note" style="color:var(--dim);margin-right:0">Build 1031-1750</span><button type="button" class="btn" id="setNew">New game with these</button><button type="button" class="btn primary" id="setDone">Done</button></div>
   </div>
 </div>
 
@@ -413,6 +413,6 @@ button{font-family:inherit}
   </div>
 </div>
 
-<script type="module" src="game.js"></script>
+<script type="module" src="game.js?v=1031-1750"></script>
 </body>
 </html>
