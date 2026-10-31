@@ -75,13 +75,28 @@ const KILL = {
 };
 const pick = a => a[Math.floor(Math.random()*a.length)];
 
-const sayEl = $('sayText'), tallyEl = $('tally'), avEl = $('av');
-let typeId = null, msgId = 0;
+const sayEl = $('sayText'), tallyEl = $('tally'), avEl = $('av'), speechEl = $('speech'), feedEl = $('feed');
+let typeId = null, msgId = 0, quietT = null;
+function moveTag(){ const n = game ? game.fen().split(' ')[5] : 1; return 'Move ' + n; }
+function post(kind, text, meta, who){
+  const li = document.createElement('li');
+  if (kind === 'bdb'){ li.className = 'msg'; li.innerHTML = '<span class="mav" aria-hidden="true"></span><div class="mb"><span class="meta"></span><span class="t"></span></div>'; }
+  else if (kind === 'you'){ li.className = 'msg you'; li.innerHTML = '<div class="mb"><span class="meta"></span><span class="t"></span></div>'; }
+  else { li.className = 'msg event ' + (kind === 'sys' ? 'sys' : (who === 'bdb' ? 'bdb' : '')); li.innerHTML = '<span class="ev"></span>'; }
+  if (kind === 'bdb' || kind === 'you'){ li.querySelector('.meta').textContent = meta || ''; li.querySelector('.t').textContent = text; }
+  else li.querySelector('.ev').textContent = text;
+  feedEl.appendChild(li);
+  while (feedEl.children.length > 140) feedEl.firstChild.remove();
+  const pane = $('paneTalk'); pane.scrollTop = pane.scrollHeight;
+}
 function sayText(t, tag){
   msgId++;
   tallyEl.textContent = tag || '';
-  clearInterval(typeId);
+  post('bdb', t, (tag ? tag + ' · ' : 'BDB · ') + moveTag());
+  clearInterval(typeId); clearTimeout(quietT);
+  speechEl.classList.remove('quiet','pop'); void speechEl.offsetWidth; speechEl.classList.add('pop');
   avEl.classList.remove('talk'); void avEl.offsetWidth; avEl.classList.add('talk');
+  quietT = setTimeout(()=>speechEl.classList.add('quiet'), 7000 + t.length*40);
   if (REDUCED){ sayEl.textContent = t; return; }
   let i = 0; sayEl.textContent = ''; sayEl.classList.add('typing');
   typeId = setInterval(()=>{ i = Math.min(t.length, i+2); sayEl.textContent = t.slice(0,i);
@@ -450,11 +465,12 @@ function flash(pos, color, intensity = 60, dur = .35){
   tween(dur, p => { l.intensity = intensity*(1-p); }, ease.out).then(()=>scene.remove(l));
 }
 function banner(type, who){
-  if (REDUCED) return;
+  if (REDUCED){ post('event', `${who === 'bdb' ? 'BDB' : 'You'} · ${KILL[type].name}`, null, who); return; }
   const d = document.createElement('div');
   d.className = 'kill' + (who === 'bdb' ? ' bdb' : '');
   d.innerHTML = `${KILL[type].name}<small>${KILL[type].sub}</small>`;
-  stage.appendChild(d); setTimeout(()=>d.remove(), 1300);
+  stage.parentElement.appendChild(d); setTimeout(()=>d.remove(), 1300);
+  post('event', `${who === 'bdb' ? 'BDB' : 'You'} · ${KILL[type].name} · ${KILL[type].sub}`, null, who);
 }
 function bolt(from, to){
   const pts = [from.clone()];
@@ -635,23 +651,62 @@ function refreshMarks(){
 const VAL = {p:1, n:3, b:3, r:5, q:9, k:0};
 const GLYPH = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛'};
 function refreshHud(){
-  $('hLevel').textContent = level.short;
+  $('hLevel').textContent = level.short; $('lvlBadge').textContent = level.name;
   $('hMove').textContent = game.fen().split(' ')[5];
+  $('youColor').textContent = playerColor === 'w' ? 'White' : 'Black';
   let mat = 0;
   for (const row of game.board()) for (const c of row) if (c) mat += (c.color===playerColor ? 1 : -1) * VAL[c.type];
-  $('hMat').textContent = (mat>0?'+':'') + mat;
+  const hist = game.history({verbose:true});
   const took = {you:[], bdb:[]};
-  for (const m of game.history({verbose:true})) if (m.captured) (m.color===playerColor ? took.you : took.bdb).push(m.captured);
+  for (const m of hist) if (m.captured) (m.color===playerColor ? took.you : took.bdb).push(m.captured);
   const order = t => 'qrbnp'.indexOf(t);
   const bdbColor = playerColor === 'w' ? 'b' : 'w';
-  const fill = (el, list, colorCls) => { el.className = 'pcs ' + colorCls; el.textContent = list.sort((a,b)=>order(a)-order(b)).map(t=>GLYPH[t]+'︎').join(''); };
+  const fill = (el, list, colorCls) => { el.className = 'caps ' + colorCls; el.textContent = list.sort((a,b)=>order(a)-order(b)).map(t=>GLYPH[t]+'︎').join(''); };
   fill($('trayYou'), took.you, bdbColor); fill($('trayBdb'), took.bdb, playerColor);
-  $('adv').textContent = mat > 0 ? '+' + mat : '';
+  $('advYou').textContent = mat > 0 ? '+' + mat : '';
+  $('advBdb').textContent = mat < 0 ? '+' + (-mat) : '';
   $('undoBtn').disabled = busy || !game.history().length;
   $('hintBtn').disabled = busy || over || game.turn() !== playerColor;
+  // move list
+  const tb = $('moves'); tb.innerHTML = '';
+  const startBlack = game.fen() && hist.length && hist[0].color === 'b';
+  for (let i=0, n=1; i<hist.length; n++){
+    const tr = document.createElement('tr');
+    const w = (i===0 && startBlack) ? null : hist[i++];
+    const b = hist[i] && hist[i].color === 'b' ? hist[i++] : null;
+    tr.innerHTML = `<td>${n}.</td><td></td><td></td>`;
+    tr.children[1].textContent = w ? w.san : '…'; tr.children[2].textContent = b ? b.san : '';
+    tb.appendChild(tr);
+  }
+  const lastTd = tb.lastElementChild && (tb.lastElementChild.children[2].textContent ? tb.lastElementChild.children[2] : tb.lastElementChild.children[1]);
+  if (lastTd) lastTd.classList.add('last');
+  $('movesEmpty').hidden = hist.length > 0;
+  const mp = $('paneMoves'); if (!mp.hidden) mp.scrollTop = mp.scrollHeight;
 }
 function setStatus(kind, text){
-  const s = $('status'); s.className = 'status' + (kind ? ' ' + kind : ''); $('statusText').textContent = text;
+  const cy = $('cardYou'), cb = $('cardBdb');
+  cy.classList.toggle('turn', kind === '' || kind === 'check' || kind === 'scout');
+  cy.classList.toggle('check', kind === 'check');
+  cb.classList.toggle('thinking', kind === 'think');
+  cb.classList.toggle('turn', kind === 'think');
+  $('statusText').textContent = kind === 'think' ? 'Waiting' : text;
+  $('stateBdb').textContent = kind === 'think' ? 'Thinking' : (kind === 'over' ? '' : 'Waiting');
+}
+// eval bar, always drawn from your side (your colour at the bottom)
+function setEvalColors(){
+  const bar = $('evalbar');
+  bar.style.setProperty('--evbot', playerColor === 'w' ? '#efe3cc' : '#0e121d');
+  bar.style.setProperty('--evtop', playerColor === 'w' ? '#0e121d' : '#efe3cc');
+}
+function updateEval(score, stm){
+  const fill = $('evalFill'), top = $('evalTop'), bot = $('evalBot');
+  if (!score){ fill.style.height = '50%'; top.textContent = ''; bot.textContent = '0.0'; return; }
+  const sgn = stm === playerColor ? 1 : -1;
+  let pct, label;
+  if (score.type === 'mate'){ const m = score.v * sgn; pct = m > 0 ? 100 : 0; label = 'M' + Math.abs(score.v); }
+  else { const cp = score.v * sgn; pct = 50 + 50*(2/(1+Math.exp(-cp/250))-1); label = (Math.abs(cp)/100).toFixed(1); }
+  fill.style.height = pct + '%';
+  if (pct >= 50){ bot.textContent = label; top.textContent = ''; } else { top.textContent = label; bot.textContent = ''; }
 }
 function statusForTurn(){
   if (over) return;
@@ -735,8 +790,9 @@ function checkEnd(){
     eyebrow = game.in_stalemate() ? 'Stalemate' : game.in_threefold_repetition() ? 'Draw by repetition' : game.insufficient_material() ? 'Draw, not enough pieces' : 'Draw by 50-move rule';
     title = 'Nobody wins'; line = pick(L.draw);
   }
+  post('sys', `${eyebrow} · ${title}`);
   sayText(line);
-  setStatus('', eyebrow);
+  setStatus('over', eyebrow);
   $('endEyebrow').textContent = eyebrow; $('endTitle').textContent = title; $('endLine').textContent = line;
   setTimeout(()=>{ if (over) $('end').hidden = false; }, REDUCED ? 0 : 1400);
   refreshHud();
@@ -771,6 +827,7 @@ async function bdbMove(){
   if (tok !== token) return;
   let mv = null;
   const score = engine.score;
+  updateEval(score, game.turn());
   if (uci) mv = game.move({from:uci.slice(0,2), to:uci.slice(2,4), promotion:uci[4] || undefined});
   if (!mv){ const f = fallbackMove(); if (!f) return; mv = game.move({from:f.from, to:f.to, promotion:f.promotion}); }
   await animateMove(mv, 'bdb');
@@ -864,12 +921,13 @@ function fitDistance(dir){
   for (let i=0;i<22;i++){
     const d = (lo+hi)/2;
     fitCam.position.copy(dir).multiplyScalar(d); fitCam.lookAt(0,0,0); fitCam.updateMatrixWorld();
-    const ok = FIT_PTS.every(c => { const p = c.clone().project(fitCam); return Math.abs(p.x) < .93 && Math.abs(p.y) < .93; });
+    const ok = FIT_PTS.every(c => { const p = c.clone().project(fitCam); return Math.abs(p.x) < .9 && p.y < .74 && p.y > -.72; });
     if (ok) hi = d; else lo = d;
   }
   return hi;
 }
-const VIEW = c => { const dir = new THREE.Vector3(0, 10.5, c === 'w' ? 10.2 : -10.2).normalize(); return dir.multiplyScalar(fitDistance(dir)); };
+// tall (portrait) screens get a more overhead angle so the board fills more of the height
+const VIEW = c => { const tall = camera.aspect < .85; const dir = new THREE.Vector3(0, tall ? 13 : 10.5, (c === 'w' ? 1 : -1) * (tall ? 6.2 : 10.2)).normalize(); return dir.multiplyScalar(fitDistance(dir)); };
 let flying = false;
 function flyTo(pos, dur = 1.1){
   const from = camera.position.clone();
@@ -884,6 +942,8 @@ function newGame(){
   $('end').hidden = true; $('promo').hidden = true;
   clearSelection(); setOverlay(hintFrom, null); setOverlay(hintTo, null);
   rebuildPieces(); refreshMarks(); refreshHud();
+  setEvalColors(); updateEval(null);
+  post('sys', `New game · You're ${playerColor === 'w' ? 'White' : 'Black'} · BDB on ${level.name}`);
   say(L.start);
   if (playerColor === 'b'){ setTimeout(()=>{ if (!over && game.turn() !== playerColor) bdbMove(); }, 700); setStatus('think', 'BDB is thinking'); }
   else statusForTurn();
@@ -895,15 +955,16 @@ function undo(){
   while (game.turn() !== playerColor && game.history().length) game.undo();
   over = false; $('end').hidden = true;
   clearSelection(); rebuildPieces(); refreshMarks(); refreshHud();
-  say(L.undo);
+  post('sys', 'Takeback'); say(L.undo);
   if (game.turn() !== playerColor) bdbMove(); else statusForTurn();
 }
 async function hint(){
   if (busy || over || game.turn() !== playerColor) return;
-  busy = true; refreshHud(); setStatus('think', 'Scout is watching');
+  busy = true; refreshHud(); setStatus('scout', 'Scout looking');
   const tok = token;
   const uci = await engine.best(game.fen(), 20, 'movetime 700');
   if (tok !== token) return;
+  updateEval(engine.score, game.turn());
   busy = false; refreshHud(); statusForTurn();
   let from, to;
   if (uci){ from = uci.slice(0,2); to = uci.slice(2,4); }
@@ -918,6 +979,35 @@ $('undoBtn').onclick = undo;
 $('hintBtn').onclick = hint;
 $('viewBtn').onclick = () => { if (!flying) flyTo(VIEW(playerColor), .8); };
 $('lvlBtn').onclick = () => { $('end').hidden = true; showSplash(); };
+$('levelPill').onclick = () => showSplash();
+const TAUNTS = [
+  {t:'2.0 points per game?', r:["It was 2.0 in a good year, thank you.","Points are a social construct.","Quality over quantity. Mostly neither."]},
+  {t:'Nice lanyard.', r:["It's the only chain I got. Show some respect.","Lanyard's elite. Rated 99, like my confidence."]},
+  {t:'Florida called.', r:["Tell them I'm on break. Then busy.","Florida doesn't call. I checked. Constantly."]},
+  {t:"You're washed.", r:["Washed? I was never dry.","I'm not washed. I'm on a different schedule."]},
+  {t:'Check the scoreboard.', r:["Scoreboard's been broken since tryouts.","I don't look at scoreboards. They look at me, then look away."]},
+  {t:'Clock in, BDB.', r:["Already did. Twice. By accident.","Clock-watching rated 100. I'm on it."]},
+  {t:'GG, easy.', r:["Easy for you. I've got a shift after this.","Don't GG yet. My engine's still thinking. I'm not."]},
+  {t:'Resign.', r:["BDB doesn't resign. BDB gets cut. Different thing.","I don't quit. I get released."]}
+];
+const chipsEl = $('chips');
+for (const tt of TAUNTS){
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = tt.t;
+  b.onclick = () => {
+    post('you', tt.t, 'You · ' + moveTag());
+    chipsEl.querySelectorAll('button').forEach(x => x.disabled = true);
+    setTimeout(()=>{ sayText(pick(tt.r)); chipsEl.querySelectorAll('button').forEach(x => x.disabled = false); }, REDUCED ? 0 : 800);
+  };
+  chipsEl.appendChild(b);
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  $('paneTalk').hidden = b.dataset.tab !== 'talk'; $('paneMoves').hidden = b.dataset.tab !== 'moves';
+  const pane = b.dataset.tab === 'talk' ? $('paneTalk') : $('paneMoves'); pane.scrollTop = pane.scrollHeight;
+});
+$('chatBtn').onclick = () => $('rail').classList.toggle('open');
+$('grab').onclick = () => $('rail').classList.remove('open');
+$('speech').onclick = () => { if (matchMedia('(max-width:900px)').matches) $('rail').classList.add('open'); };
 
 /* ---------- title screen ---------- */
 let sideChoice = store.get('cc-side') || 'w';
