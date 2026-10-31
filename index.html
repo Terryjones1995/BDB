@@ -1,0 +1,955 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Klondike solitaire where every card is BDB. 52 cards, 100 roasts.">
+<meta property="og:title" content="Charleston Solitaire">
+<meta property="og:description" content="52 cards. 100 roasts. One guy who averaged 2.0 points a game.">
+<meta property="og:image" content="assets/face.jpg">
+<link rel="icon" href="assets/face.jpg">
+<title>Charleston Solitaire</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Barlow+Condensed:wght@600;700&family=Figtree:wght@400;600;700;800&display=swap">
+<style>
+/* Layout: arena at night. Jumbotron scoreboard up top, BDB on the mic, then a wood-railed blue felt table with a center-court ring. Single dark look by design. */
+:root{
+  --arena:#050c1c;
+  --felt:#11397f;
+  --felt-deep:#08204a;
+  --rail-hi:#c99140;
+  --rail-lo:#5c3a12;
+  --ink:#eef2fb;
+  --muted:#8fa3cc;
+  --orange:#ff8a2b;
+  --orange-deep:#a34c0c;
+  --gold:#f2c14e;
+  --led:#ffb547;
+  --btn:#1f4186;
+  --btn-deep:#0b1f47;
+  --panel:rgba(4,10,24,.78);
+  --line:rgba(255,255,255,.1);
+  --card:#fbf8f2;
+  --card-ink:#1b1f2a;
+  --card-red:#cf3326;
+  --bad:#ff6b5b;
+  --f-display:"Bowlby One","Arial Black",Impact,sans-serif;
+  --f-led:"Teko","Barlow Condensed","Arial Narrow",sans-serif;
+  --f-rank:"Barlow Condensed","Arial Narrow",sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,sans-serif;
+  --cw:80px; --ch:112px;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{min-height:100%}
+body{
+  margin:0;background:var(--arena);color:var(--ink);font-family:var(--f-body);
+  background-image:
+    radial-gradient(ellipse 28% 60% at 14% -8%,rgba(90,150,255,.34),transparent 70%),
+    radial-gradient(ellipse 28% 60% at 86% -8%,rgba(90,150,255,.3),transparent 70%),
+    radial-gradient(ellipse 80% 45% at 50% 112%,rgba(255,138,43,.2),transparent 70%);
+  background-attachment:fixed;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+}
+.wrap{max-width:880px;margin:0 auto;padding-block:16px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:14px}
+
+/* ---- HUD ---- */
+.hud{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px 20px}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.logo{position:relative;width:56px;height:58px;flex:none}
+.logo i{position:absolute;left:12px;top:4px;width:32px;height:44px;border-radius:5px;background:var(--face) center 28%/cover;
+  border:2px solid var(--card);box-shadow:0 4px 10px rgba(0,0,0,.5);transform-origin:50% 110%}
+.logo i:nth-child(1){transform:rotate(-20deg)}
+.logo i:nth-child(3){transform:rotate(20deg)}
+.eyebrow{font:800 11px/1 var(--f-body);letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+h1{font-family:var(--f-display);font-weight:400;margin:5px 0 0;font-size:clamp(24px,5vw,38px);line-height:.92;
+  text-shadow:0 3px 0 #0b1f45,0 8px 18px rgba(0,0,0,.5);text-wrap:balance}
+h1 span,.splash h2 span{color:var(--orange);text-shadow:0 3px 0 var(--orange-deep),0 8px 18px rgba(0,0,0,.5)}
+
+.jumbo{display:flex;gap:6px;background:#070b13;border:2px solid #1e2738;border-radius:12px;padding:6px;
+  box-shadow:0 0 0 1px #000,0 10px 24px rgba(0,0,0,.5)}
+.jumbo .cell{position:relative;min-width:74px;padding:6px 12px 3px;border-radius:7px;background:#0d1320;text-align:center;overflow:hidden}
+.jumbo .cell::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle,rgba(0,0,0,.5) 1px,transparent 1.5px) 0 0/3px 3px}
+.jumbo small{display:block;font:800 9px/1 var(--f-body);letter-spacing:.2em;text-transform:uppercase;color:#6c7891;margin-bottom:3px}
+.jumbo b{display:block;font:500 34px/1 var(--f-led);color:var(--led);text-shadow:0 0 8px rgba(255,181,71,.65);font-variant-numeric:tabular-nums}
+.jumbo b.tick{animation:tick .35s ease}
+@keyframes tick{40%{color:#fff;text-shadow:0 0 14px #fff}}
+
+/* ---- buttons ---- */
+.bar{display:flex;flex-wrap:wrap;gap:10px}
+.btn{font:800 13px/1 var(--f-body);letter-spacing:.07em;text-transform:uppercase;color:var(--ink);
+  background:var(--btn);border:0;border-radius:10px;padding:11px 16px 10px;cursor:pointer;
+  box-shadow:0 4px 0 var(--btn-deep),0 6px 14px rgba(0,0,0,.35);transition:transform .08s,box-shadow .08s,filter .15s}
+.btn:hover{filter:brightness(1.12)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--btn-deep),0 2px 6px rgba(0,0,0,.35)}
+.btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.btn.primary{background:var(--orange);color:#1f1004;box-shadow:0 4px 0 var(--orange-deep),0 6px 14px rgba(0,0,0,.35)}
+.btn.primary:active{box-shadow:0 1px 0 var(--orange-deep)}
+.btn.gold{background:var(--gold);color:#241a00;box-shadow:0 4px 0 #8a6410,0 6px 14px rgba(0,0,0,.35);animation:glow 1.4s ease infinite}
+@keyframes glow{50%{filter:brightness(1.18)}}
+.btn:disabled{opacity:.4;cursor:default;filter:none}
+.btn.big{font-size:18px;padding:17px 36px 15px;border-radius:14px}
+
+/* ---- BDB on the mic ---- */
+.mic{display:flex;gap:16px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  padding:12px 16px;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);min-height:68px}
+.who{position:relative;flex:none}
+.avatar{width:56px;height:56px;border-radius:50%;background:var(--face) center 32%/cover;
+  box-shadow:0 0 0 3px var(--orange),0 6px 16px rgba(0,0,0,.45)}
+.avatar.talk{animation:bob .4s ease 3}
+@keyframes bob{50%{transform:translateY(-3px) rotate(-5deg)}}
+.live{position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);background:#e0312b;color:#fff;
+  font:800 9px/1 var(--f-body);letter-spacing:.14em;padding:3px 6px 2px;border-radius:4px;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.live::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:#fff;margin-right:4px;vertical-align:1px;animation:blink 1.2s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.mic-body{flex:1;min-width:0}
+.meta{display:flex;justify-content:space-between;gap:10px;font:800 10px/1 var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.meta span:last-child{color:var(--muted);letter-spacing:.1em}
+#sayText{font:600 16px/1.38 var(--f-body);min-height:2.76em;max-width:68ch}
+#sayText.typing::after{content:"▌";color:var(--orange);margin-left:1px;animation:blink .6s steps(1) infinite}
+
+/* ---- table ---- */
+.table{border-radius:26px;padding:clamp(6px,1.2vw,11px);
+  background:linear-gradient(160deg,var(--rail-hi),var(--rail-lo) 55%,#3a2409);
+  box-shadow:0 26px 54px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 0 rgba(0,0,0,.35)}
+.felt{position:relative;border-radius:19px;padding:clamp(8px,2.2vw,22px);overflow:hidden;
+  background:radial-gradient(ellipse at 50% 35%,var(--felt) 0%,var(--felt-deep) 100%);
+  box-shadow:inset 0 0 0 2px rgba(242,193,78,.28),inset 0 0 70px rgba(0,0,0,.55)}
+.felt::before{content:"";position:absolute;inset:0;opacity:.13;mix-blend-mode:overlay;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.court{position:absolute;left:50%;top:56%;width:min(46vw,300px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  border:2px solid rgba(255,255,255,.07);pointer-events:none;display:grid;place-items:center}
+.court::before{content:"";position:absolute;inset:34%;border-radius:50%;border:2px solid rgba(255,255,255,.06)}
+.court span{font-family:var(--f-display);font-size:min(9vw,56px);color:rgba(255,255,255,.05);letter-spacing:.04em}
+.court::after{content:"";position:absolute;left:-200%;right:-200%;top:50%;border-top:2px solid rgba(255,255,255,.05)}
+
+#board{position:relative;width:100%;touch-action:none;z-index:1}
+.slot{position:absolute;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.09);
+  background:rgba(0,0,0,.16);border:1.5px dashed rgba(255,255,255,.2);box-sizing:border-box;
+  display:grid;place-items:center;color:rgba(255,255,255,.28);font-family:var(--f-rank);font-weight:700;font-size:calc(var(--cw)*.34)}
+.slot.found{border-style:solid;border-color:rgba(242,193,78,.35);color:rgba(242,193,78,.45);background:rgba(242,193,78,.06)}
+.slot.stock{cursor:pointer}
+.slot.stock::after{content:"↻";font-size:calc(var(--cw)*.5)}
+
+/* ---- cards ---- */
+.card{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.09);box-sizing:border-box;
+  transition:transform .32s cubic-bezier(.2,.8,.25,1),translate .15s ease,box-shadow .15s ease;will-change:transform;cursor:pointer;
+  background:var(--card);color:var(--card-ink);box-shadow:0 1px 2px rgba(0,0,0,.35),0 0 0 1px rgba(0,0,0,.15)}
+.card.red{color:var(--card-red)}
+.card.dragging{transition:none;box-shadow:0 18px 30px rgba(0,0,0,.5);translate:0 -4px}
+.card.nomove{transition:none}
+@media (hover:hover){#board .card:not(.down):not(.dragging):hover{translate:0 -3px;box-shadow:0 8px 16px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.15)}}
+.card .face{position:absolute;inset:0;border-radius:inherit}
+.card.down .face{display:none}
+.card .back{display:none;position:absolute;inset:0;border-radius:inherit;overflow:hidden;
+  background:repeating-linear-gradient(45deg,#1a4590 0 5px,#143a7c 5px 10px);box-shadow:inset 0 0 0 calc(var(--cw)*.035) var(--card)}
+.card.down .back{display:block}
+.back::before{content:"";position:absolute;inset:9%;border:1.5px solid var(--gold);border-radius:calc(var(--cw)*.05);
+  background:var(--face) center 30%/cover;filter:grayscale(1) contrast(1.25);opacity:.32}
+.back::after{content:"BDB";position:absolute;inset:0;display:grid;place-items:center;font-family:var(--f-display);
+  color:var(--gold);font-size:calc(var(--cw)*.24);letter-spacing:.02em;text-shadow:0 2px 0 #0b1f45}
+.corner{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:.9;font-family:var(--f-rank);font-weight:700}
+.corner .r{font-size:calc(var(--cw)*.26);letter-spacing:-.04em}
+.corner .s{font-size:calc(var(--cw)*.2)}
+.corner.tl{top:4%;left:6%}
+.corner.br{bottom:4%;right:6%;transform:rotate(180deg)}
+.pic{position:absolute;background:var(--face) center 34%/cover}
+.pic.round{width:56%;aspect-ratio:1;left:22%;top:50%;transform:translateY(-50%);border-radius:50%;box-shadow:0 0 0 calc(var(--cw)*.025) currentColor}
+.pic.ace{width:66%;left:17%;box-shadow:0 0 0 calc(var(--cw)*.025) var(--gold),0 0 0 calc(var(--cw)*.05) currentColor}
+.bigsuit{position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--cw)*1.05);opacity:.12;line-height:1}
+.pic.frame{left:21%;right:21%;top:23%;bottom:21%;border-radius:calc(var(--cw)*.04);background-position:center 22%;background-size:140%;
+  box-shadow:0 0 0 calc(var(--cw)*.025) currentColor}
+.hat{position:absolute;left:50%;transform:translateX(-50%);pointer-events:none}
+.hat.k{top:-25%;width:66%}
+.hat.q{top:-14%;width:62%}
+.hat.j{top:-36%;width:42%}
+.ribbon{position:absolute;left:-6%;right:-6%;bottom:-10%;text-align:center;background:currentColor;border-radius:3px;
+  font:700 calc(var(--cw)*.11)/1.35 var(--f-rank);letter-spacing:.14em}
+.ribbon span{color:var(--card)}
+.small .ribbon{display:none}
+.card.hint{animation:hint .9s ease 2}
+@keyframes hint{50%{box-shadow:0 0 0 4px var(--gold),0 0 22px var(--gold)}}
+.card.land{animation:land .55s ease}
+@keyframes land{40%{box-shadow:0 0 0 4px var(--gold),0 0 28px var(--gold)}}
+.card.shake{animation:shake .3s ease}
+@keyframes shake{25%{translate:-5px 0}75%{translate:5px 0}}
+.pop-score{position:absolute;z-index:900;pointer-events:none;transform:translateX(-50%);
+  font:600 calc(var(--cw)*.4)/1 var(--f-led);color:var(--gold);text-shadow:0 2px 0 #3d2a00,0 0 12px rgba(242,193,78,.6);animation:rise .95s ease-out forwards}
+.pop-score.neg{color:var(--bad);text-shadow:0 2px 0 #3d0a05}
+@keyframes rise{0%{opacity:0;translate:0 8px}15%{opacity:1}100%{opacity:0;translate:0 -40px}}
+
+.foot{color:var(--muted);font-size:12px;text-align:center;margin:0}
+kbd{font:700 11px var(--f-body);border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:1px 5px}
+
+/* ---- title screen ---- */
+.splash{position:fixed;inset:0;z-index:80;overflow:auto;display:grid;place-items:center;background:var(--arena);
+  background-image:inherit;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.splash.gone{animation:out .45s ease forwards}
+@keyframes out{to{opacity:0;transform:scale(1.04);visibility:hidden}}
+.splash-in{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;max-width:540px}
+.fan{position:relative;width:min(360px,88vw);height:clamp(180px,42vw,230px);--cw:clamp(78px,22vw,112px);--ch:calc(var(--cw)*1.4)}
+.fan .card{left:50%;top:22px;margin-left:calc(var(--cw)/-2);transform-origin:50% 125%;cursor:default;
+  transition:none;animation:fan .9s cubic-bezier(.2,.9,.25,1.15) both;animation-delay:var(--d);box-shadow:0 10px 24px rgba(0,0,0,.5)}
+@keyframes fan{from{transform:rotate(0) translateY(60px);opacity:0}to{transform:rotate(var(--a));opacity:1}}
+.splash h2{font-family:var(--f-display);font-weight:400;margin:0;font-size:clamp(40px,11vw,76px);line-height:.88;
+  text-shadow:0 4px 0 #0b1f45,0 12px 26px rgba(0,0,0,.6);animation:drop .7s .35s cubic-bezier(.2,.9,.25,1.2) both}
+@keyframes drop{from{opacity:0;transform:translateY(-24px) scale(.95)}}
+.splash p{margin:0;color:var(--muted);font-size:15px;line-height:1.45;max-width:40ch}
+.splash .eyebrow{animation:drop .6s .2s both}
+.rise-in{animation:drop .6s .6s both}
+.seg{display:inline-flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+.seg button{font:800 12px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:transparent;
+  border:0;border-radius:8px;padding:10px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--btn);color:var(--ink)}
+.seg button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+/* ---- win ---- */
+#fx{position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none}
+#win{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:rgba(3,8,20,.62);padding:16px}
+.winbox{background:linear-gradient(180deg,#132a5c,#0a1838);border:2px solid var(--gold);border-radius:20px;padding:26px 22px 24px;
+  width:min(380px,100%);text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;
+  box-shadow:0 30px 70px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12);animation:drop .45s cubic-bezier(.2,.9,.25,1.2)}
+.winbox .avatar{width:104px;height:104px;box-shadow:0 0 0 5px var(--gold),0 0 0 9px var(--orange),0 12px 30px rgba(0,0,0,.5)}
+.winbox h3{font-family:var(--f-display);font-weight:400;margin:2px 0 0;font-size:28px;line-height:1.02;text-wrap:balance}
+.winbox p{margin:0;color:var(--muted);line-height:1.4}
+.winbox .jumbo{margin:4px 0 6px}
+
+@media (max-width:560px){
+  .jumbo{width:100%}
+  .jumbo .cell{flex:1;min-width:0}
+  .mic{padding:10px 12px;gap:12px}
+  .avatar{width:48px;height:48px}
+  #sayText{font-size:15px}
+  .btn{padding:10px 12px 9px;font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){
+  .card{transition:none}
+  .avatar.talk,.card.hint,.card.land,.card.shake,.fan .card,.splash h2,.splash .eyebrow,.rise-in,.winbox,.btn.gold,.live::before,.jumbo b.tick{animation:none}
+  .pop-score{animation-duration:.01s}
+}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{font-size:14px}img{max-width:100%}</style>
+</head>
+<body>
+<section class="splash" id="splash">
+  <div class="splash-in">
+    <div class="fan" id="fan"></div>
+    <div class="eyebrow">BDB Entertainment presents</div>
+    <h2>Charleston<br><span>Solitaire</span></h2>
+    <p class="rise-in">52 cards. 100 roasts. One guy who averaged 2.0 points a game and still thinks he's got it.</p>
+    <div class="seg rise-in" role="group" aria-label="Draw mode">
+      <button type="button" id="sd1" aria-pressed="true">Draw 1</button>
+      <button type="button" id="sd3" aria-pressed="false">Draw 3</button>
+    </div>
+    <button type="button" class="btn primary big rise-in" id="play">Deal me in</button>
+  </div>
+</section>
+
+<div class="wrap">
+  <header class="hud">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div>
+        <div class="eyebrow">BDB Entertainment</div>
+        <h1>Charleston <span>Solitaire</span></h1>
+      </div>
+    </div>
+    <div class="jumbo" aria-label="Scoreboard">
+      <div class="cell"><small>Time</small><b id="time">0:00</b></div>
+      <div class="cell"><small>Moves</small><b id="moves">0</b></div>
+      <div class="cell"><small>Score</small><b id="score">0</b></div>
+    </div>
+  </header>
+
+  <div class="bar">
+    <button type="button" class="btn primary" id="new">New deal</button>
+    <button type="button" class="btn" id="undo">Undo</button>
+    <button type="button" class="btn" id="hint">Hint</button>
+    <button type="button" class="btn" id="mode">Draw 1</button>
+    <button type="button" class="btn gold" id="finish" hidden>Finish it</button>
+  </div>
+
+  <section class="mic" aria-live="polite">
+    <div class="who"><div class="avatar" id="av"></div><span class="live">LIVE</span></div>
+    <div class="mic-body">
+      <div class="meta"><span>BDB on the mic</span><span id="tally"></span></div>
+      <div id="sayText">Warming up. Mostly just stretching his stories.</div>
+    </div>
+  </section>
+
+  <main class="table">
+    <div class="felt">
+      <div class="court" aria-hidden="true"><span>BDB</span></div>
+      <div id="board"></div>
+    </div>
+  </main>
+  <p class="foot">Drag cards, or tap one to send it where it fits. <kbd>Z</kbd> undo · <kbd>H</kbd> hint · <kbd>Space</kbd> deal a card · <kbd>N</kbd> new deal</p>
+</div>
+
+<canvas id="fx" hidden></canvas>
+<div id="win" hidden>
+  <div class="winbox">
+    <div class="avatar"></div>
+    <div class="eyebrow">Final buzzer</div>
+    <h3 id="winTitle">You beat all 52 of him</h3>
+    <p id="winLine"></p>
+    <div class="jumbo">
+      <div class="cell"><small>Time</small><b id="wTime">0:00</b></div>
+      <div class="cell"><small>Moves</small><b id="wMoves">0</b></div>
+      <div class="cell"><small>Score</small><b id="wScore">0</b></div>
+    </div>
+    <p id="wBest" style="font-size:13px"></p>
+    <button type="button" class="btn primary big" id="again">Run it back</button>
+  </div>
+</div>
+
+<script>
+const FACE = "assets/face.jpg";
+document.documentElement.style.setProperty('--face', `url(${FACE})`);
+const faceImg = new Image(); faceImg.src = FACE;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const SUITS = ['♠','♥','♦','♣'];
+const RANKS = ['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const isRed = s => s===1 || s===2;
+const HATS = {
+  k:`<svg class="hat k" viewBox="0 0 100 62"><path d="M6 58 L10 16 L30 36 L50 4 L70 36 L90 16 L94 58 Z" fill="#f2c14e" stroke="#8a6410" stroke-width="3" stroke-linejoin="round"/><rect x="6" y="48" width="88" height="10" fill="#d9a72f" stroke="#8a6410" stroke-width="3"/><circle cx="50" cy="9" r="5" fill="#cf3326"/><circle cx="12" cy="18" r="4" fill="#2f6fd6"/><circle cx="88" cy="18" r="4" fill="#2f6fd6"/><circle cx="50" cy="53" r="3.5" fill="#cf3326"/></svg>`,
+  q:`<svg class="hat q" viewBox="0 0 100 40"><path d="M4 36 Q50 -6 96 36 L88 36 Q50 8 12 36 Z" fill="#dfe6f0" stroke="#7c8aa3" stroke-width="2.5"/><path d="M50 2 L58 18 L50 26 L42 18 Z" fill="#ff5fa2" stroke="#9c2a5d" stroke-width="2"/><circle cx="26" cy="22" r="4" fill="#ff5fa2"/><circle cx="74" cy="22" r="4" fill="#ff5fa2"/></svg>`,
+  j:`<svg class="hat j" viewBox="0 0 60 80"><path d="M30 8 L56 76 L4 76 Z" fill="#ff8a2b" stroke="#8a3d07" stroke-width="3" stroke-linejoin="round"/><path d="M18 42 L42 42 M11 60 L49 60" stroke="#2f6fd6" stroke-width="7"/><circle cx="30" cy="8" r="7" fill="#f2c14e" stroke="#8a6410" stroke-width="2"/></svg>`
+};
+
+/* ---------- jokes ---------- */
+const ROASTS = [
+"BDB averages 2.0 points a game. That card just outscored him.",
+"Florida's athletic department has no record of BDB. He says that's a cover-up.",
+"99 confidence, 2 points per game. The math has never once bothered him.",
+"He played power forward. Mostly forward about how good he used to be.",
+"BDB's scholarship got folded into employee benefits. Dental counts as a full ride, right?",
+"Card dealt. That's the first assist of BDB's career.",
+"You've dealt more cards than shots he made in Florida.",
+"BDB still checks his phone in case a scout calls. It's the shift scheduler every time.",
+"From fast breaks to slot breaks. Truly a tragic arc.",
+"His signature move is clocking in. Nobody on earth can guard it.",
+"Rated 100 at clock-watching. Finally, a perfect score.",
+"Break Room MVP three seasons running. The vending machine wants a rematch.",
+"BDB's vertical leap is measured in lanyard lengths.",
+"His highlight reel is 9 seconds long and 6 of them are warmups.",
+"The only thing BDB ever dunked was a donut in break room coffee.",
+"\"Part-time scorer\" is generous. Seasonal at best.",
+"Undrafted and unbothered. Mostly undrafted.",
+"That card has better hands than BDB had in the post.",
+"BDB holds a basketball in every photo so people believe him.",
+"The ball in his photo is a prop. It has never seen a net.",
+"BDB once boxed out a coworker for the last slice of pizza. Best rebound of his life.",
+"His free throw percentage is classified. By him.",
+"Free agent status: available, as soon as someone covers his Tuesday.",
+"BDB's agent is his shift supervisor.",
+"He wears glasses so he can read the schedule from across the floor.",
+"That beard has logged more minutes than BDB did in Florida.",
+"Card dealt. BDB just hit a career high in passes.",
+"Basketball stories: 98. Basketball skills: not rated, for legal reasons.",
+"He's told the Florida story so many times it's eligible for a jersey retirement.",
+"BDB thinks game film is the camera footage of him clocking in.",
+"Coaches called him a project. The project got cancelled.",
+"He's been waiting on a scout since flip phones.",
+"Only man alive to go from full court press to full shift press.",
+"BDB's jersey number matched his points per game. Two.",
+"His dream was the big lights. Now it's the big lights over a slot bank.",
+"If confidence were points, he'd be in the Hall of Fame. It's not. He isn't.",
+"BDB calls his lanyard \"the chain.\"",
+"He treats a five minute break like a halftime speech.",
+"BDB still stretches before shifts. Hamstrings ready for the walk to the break room.",
+"The time clock is the only thing BDB has never missed.",
+"BDB doesn't have a crossover. He has a cross-schedule.",
+"He tried out for the team and the team tried out a different guy.",
+"That card came out faster than BDB on a fast break. Low bar, but still.",
+"Built for the spotlight. The spotlight has respectfully declined.",
+"BDB's best stat line: 0 points, 2 fouls, 47 stories afterward.",
+"In BDB's version he dropped 30 that night. In everyone else's he had a sandwich.",
+"He says he's a stretch four. The only thing stretching is the truth.",
+"BDB has more nicknames than career buckets.",
+"His cardio is walking to the far end of the floor to clock out.",
+"1 elite lanyard, 0 rings. He says they're basically the same thing.",
+"He calls payday a championship. 26 titles a year. Dynasty.",
+"Somewhere in Florida, a recruiter still flinches at the name.",
+"Group chat legend status: 100%. Replies to his basketball stories: 0%.",
+"BDB reads his own stats page for motivation. It's a short read.",
+"Scouts said he had a high motor. They meant he talks a lot.",
+"Only power forward with less power than a slot machine button.",
+"BDB's handle is like the ice machine at work. Broken more often than not.",
+"Every card in this deck has outscored him. Every single one.",
+"He could've gone pro. Pro at telling you he could've gone pro.",
+"BDB tried to toss a receipt in the trash. Missed. By the whole trash can.",
+"His basketball IQ is mostly vocabulary.",
+"BDB doesn't have a jump shot. He has a jump story.",
+"This is BDB's rookie card. It is also his only card.",
+"When BDB dribbles, the ball files a complaint.",
+"99 confidence. Every scouting report on him starts with \"Well...\"",
+"Averaged 2 a game and still asks if you've seen his tape.",
+"BDB isn't a has-been. You have to be first.",
+"He walks into work like he's being announced. He is not being announced.",
+"BDB still does a pre-shift huddle. Alone. In the parking lot.",
+"You could fit his career stats on a card and still have room for this joke.",
+"BDB's knees are still in Florida. The rest of him had to move on.",
+"He wants his jersey hung up. It's hanging in his closet. Close enough.",
+"His vertical is about one badge scan high.",
+"BDB brings the same energy every shift. Somebody please ask him to bring less.",
+"He calls his locker the war room. It has one granola bar in it.",
+"Most action a deck has seen from BDB since tryouts.",
+"He says the ref cost him the scholarship. There was no ref. It was practice.",
+"BDB has been about to get back in shape for one full Olympic cycle.",
+"His shot selection is like his parking. Confidently wrong.",
+"Big nickname, small scoring average. Scientists are still puzzled.",
+"Turns out D1 dreams meant Day 1 of a 40-hour week.",
+"BDB says \"back when I was playing\" like it was a decade. It was one semester.",
+"His mixtape has one track, and it's the time clock beep.",
+"BDB is undefeated in break room arguments about 2000s basketball.",
+"Confidence of a lottery pick, stats of a lottery ticket.",
+"Every card you deal, a coach in Florida relaxes a little more.",
+"You're dealing faster than BDB ever got back on defence.",
+"He says he left Florida on his own terms. Florida says \"who?\"",
+"BDB's fadeaway is how his stories fade away when you ask for proof.",
+"The man got cut and still asked to be in the team photo.",
+"Three moves: clock in, clock out, and \"let me tell you about Florida.\"",
+"His defence was like casino carpet. Everybody walked all over it.",
+"BDB thinks a box score is how many snacks fit in the break room box.",
+"Solitaire. Finally a game where BDB can't get benched.",
+"He doesn't miss shots. He \"passes to the rim.\"",
+"BDB says he's still elite. The schedule lists him as casual.",
+"BDB once called a timeout at a staff meeting. Nobody granted it.",
+"He signs his work emails \"PF.\" Nobody has asked him to stop. Everybody wants to.",
+"BDB's mom still has his recruitment letter framed. It's a form letter.",
+"Roast 100. That's 98 more roasts than points per game."
+];
+const LINES = {
+  deal:["Fresh shuffle. 52 BDBs and not one of them can shoot.","New deal. BDB says he's never been dealt a fair hand.","Deal 'em. Florida isn't watching anyway.","52 cards, 52 BDBs, 104 points combined if they all have a good night.","Welcome to the only league that'll still put him on every card."],
+  found:["Nothing but net. BDB has heard of this.","That's a bucket. More than he had all season.","Stack 'em like chips.","And one! BDB just learned what that means.","Banked it off the glass. BDB called glass on the last one too. He was lying."],
+  tab:["Red on black. Better ball movement than BDB's old team.","Clean pass. BDB never got one of those.","Sure, move him. He's used to getting moved off the roster.","Rotating BDBs. Coach used to do that a lot. Mostly to the bench."],
+  king:["King BDB. The crown is the only thing he's ever won.","Long live the King of the break room."],
+  queen:["Yes, that's BDB in a tiara. Florida took everything else.","Queen BDB. Still more poise than his jump shot."],
+  jack:["Party hat BDB. Dressed for a celebration he's never had.","Jack of all trades. Master of clocking in."],
+  bad:["Can't go there. Like BDB can't go to his left.","Air ball. BDB's seen a lot of these up close.","That's a turnover. BDB's specialty.","Red on red? Even BDB's coach knew better.","Nope. Travelling. BDB knows that call by heart."],
+  undo:["Undo. BDB wishes Florida had one of these.","Rewinding the tape. Unlike BDB's, there's actually something on it.","Taking it back. BDB's been doing that with his stories for years."],
+  recycle:["Back through the deck. BDB never got a second chance either.","Round two. More rounds than BDB's tryout lasted.","Recycling the pile. Like BDB's Florida story."],
+  hint:["BDB says make that move. He's been right once before.","Look at the glowing one. BDB's glasses saw it first.","Trust BDB on this. Actually, maybe don't. It's a hint, it's right."],
+  stuck:["No moves left. BDB knows the feeling. Ask him about Florida.","You're cooked. Deal again. BDB never got to."],
+  idle:["Still there? Looks like BDB isn't the only one on break.","Take your time. BDB's used to waiting on a call that never comes.","Any day now. BDB's scout has been saying that for years."],
+  finish:["Finishing it. First time BDB has finished anything.","Victory lap. BDB has never taken one of these."],
+  win:["52 BDBs defeated. Closest game he's ever played.","You beat all of him. Not hard, he averages 2.","BDB wants a rematch. BDB always wants a rematch.","Florida called. They want you instead."]
+};
+
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+};
+const sayEl = document.getElementById('sayText'), tallyEl = document.getElementById('tally'), avEl = document.getElementById('av');
+const lastLine = {};
+function say(cat, chance=1){
+  if (Math.random() > chance) return;
+  const arr = LINES[cat]; let t;
+  do { t = arr[Math.floor(Math.random()*arr.length)]; } while (arr.length > 1 && t === lastLine[cat]);
+  lastLine[cat] = t; sayText(t);
+}
+let roastOrder = null, roastPos = 0;
+function shuffleRoasts(){
+  roastOrder = ROASTS.map((_,i)=>i);
+  for (let i=roastOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [roastOrder[i],roastOrder[j]]=[roastOrder[j],roastOrder[i]]; }
+  roastPos = 0;
+}
+try { const o = JSON.parse(store.get('cs-roasts')); if (o && o.order && o.order.length===ROASTS.length){ roastOrder=o.order; roastPos=o.pos||0; } } catch(e){}
+if (!roastOrder) shuffleRoasts();
+function roast(){
+  if (roastPos >= roastOrder.length) shuffleRoasts();
+  const n = roastOrder[roastPos++];
+  store.set('cs-roasts', JSON.stringify({order:roastOrder,pos:roastPos}));
+  sayText(ROASTS[n], `Roast ${roastPos} / ${ROASTS.length}`);
+}
+let typeId = null;
+function sayText(t, tag){
+  if (tag) tallyEl.textContent = tag;
+  clearInterval(typeId);
+  avEl.classList.remove('talk'); void avEl.offsetWidth; avEl.classList.add('talk');
+  if (REDUCED){ sayEl.textContent = t; return; }
+  let i = 0; sayEl.textContent = ''; sayEl.classList.add('typing');
+  typeId = setInterval(()=>{
+    i = Math.min(t.length, i+2); sayEl.textContent = t.slice(0,i);
+    if (i >= t.length){ clearInterval(typeId); sayEl.classList.remove('typing'); }
+  }, 18);
+}
+
+/* ---------- state ---------- */
+let S = null, history = [], timerId = null, idleId = null, autoRunning = false, dealing = false, token = 0;
+let drawN = store.get('cs-draw') === '3' ? 3 : 1;
+
+function newGame(){
+  const deck = [];
+  for (let s=0;s<4;s++) for (let r=1;r<=13;r++) deck.push({id:s*13+r-1,s,r,up:false});
+  for (let i=deck.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [deck[i],deck[j]]=[deck[j],deck[i]]; }
+  const tab = [[],[],[],[],[],[],[]];
+  for (let i=0;i<7;i++) for (let j=i;j<7;j++){ const c=deck.pop(); c.up = (j===i); tab[j].push(c); }
+  token++;
+  S = {stock:deck, waste:[], found:[[],[],[],[]], tab, moves:0, score:0, elapsed:0, started:false, won:false, drawN};
+  history = []; autoRunning = false;
+  stopTimer(); updateStats();
+  document.getElementById('win').hidden = true; stopFx();
+  // gather everything onto the deck, then deal it out row by row
+  for (const el of cardEls){ setFace(el,false); el.classList.add('nomove'); el.style.transitionDelay=''; place(el, colX(0), 0, 1); }
+  const delays = {}; let k = 0;
+  for (let i=0;i<7;i++) for (let j=i;j<7;j++) delays[tab[j][i].id] = (k++) * (REDUCED ? 0 : 55);
+  dealing = true;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    for (const el of cardEls) el.classList.remove('nomove');
+    layout(delays);
+    setTimeout(()=>{ dealing = false; }, REDUCED ? 0 : k*55 + 350);
+  }));
+  say('deal'); bumpIdle();
+}
+
+const snapshot = () => JSON.stringify({stock:S.stock,waste:S.waste,found:S.found,tab:S.tab,moves:S.moves,score:S.score});
+function pushHist(){ history.push(snapshot()); if (history.length>300) history.shift(); }
+function undo(){
+  if (!S || !history.length || S.won || autoRunning || dealing) return;
+  Object.assign(S, JSON.parse(history.pop())); S.moves++;
+  layout(); updateStats(); say('undo'); bumpIdle();
+}
+
+/* ---------- rules ---------- */
+function pileOf(src){
+  if (src.t==='tab') return S.tab[src.i];
+  if (src.t==='found') return S.found[src.i];
+  if (src.t==='waste') return S.waste;
+  return S.stock;
+}
+function canPlace(cards, dst){
+  const c = cards[0];
+  if (dst.t==='found'){
+    if (cards.length!==1) return false;
+    const p = S.found[dst.i], top = p[p.length-1];
+    return top ? (top.s===c.s && top.r===c.r-1) : c.r===1;
+  }
+  if (dst.t==='tab'){
+    const p = S.tab[dst.i], top = p[p.length-1];
+    if (!top) return c.r===13;
+    return top.up && isRed(top.s)!==isRed(c.s) && top.r===c.r+1;
+  }
+  return false;
+}
+function doMove(src, idx, dst, quiet){
+  const from = pileOf(src), to = pileOf(dst), before = S.score;
+  pushHist();
+  const cards = from.splice(idx);
+  to.push(...cards);
+  startTimer(); S.moves++;
+  if (dst.t==='found') S.score += 10;
+  else if (src.t==='waste' && dst.t==='tab') S.score += 5;
+  else if (src.t==='found' && dst.t==='tab') S.score = Math.max(0, S.score-15);
+  let flipped = false;
+  if (src.t==='tab'){ const t = from[from.length-1]; if (t && !t.up){ t.up = true; S.score += 5; flipped = true; } }
+  layout(); updateStats(); bumpIdle();
+  const lead = cardEls[cards[0].id];
+  if (S.score !== before) popScore(S.score-before, lead._x + CW/2, lead._y - CW*0.1);
+  if (dst.t==='found'){ lead.classList.remove('land'); void lead.offsetWidth; lead.classList.add('land'); }
+  if (!quiet){
+    const c = cards[0];
+    if (flipped) roast();
+    else if (dst.t==='found') say('found', .6);
+    else if (c.r===13 && dst.t==='tab' && S.tab[dst.i].length===cards.length) say('king');
+    else if (c.r===12 && Math.random()<.35) say('queen');
+    else if (c.r===11 && Math.random()<.35) say('jack');
+    else say('tab', .3);
+  }
+  checkWin();
+  return true;
+}
+function draw(){
+  if (!S || S.won || autoRunning || dealing) return;
+  if (!S.stock.length){
+    if (!S.waste.length) return;
+    pushHist();
+    const before = S.score;
+    S.stock = S.waste.reverse().map(c=>(c.up=false,c)); S.waste = [];
+    S.score = Math.max(0, S.score - (S.drawN===1 ? 100 : 20));
+    S.moves++; startTimer(); layout(); updateStats(); say('recycle'); bumpIdle();
+    if (S.score !== before) popScore(S.score-before, colX(0)+CW/2, CH*0.3);
+    return;
+  }
+  pushHist();
+  const n = Math.min(S.drawN, S.stock.length);
+  for (let i=0;i<n;i++){ const c = S.stock.pop(); c.up = true; S.waste.push(c); }
+  S.moves++; startTimer(); layout(); updateStats(); roast(); bumpIdle();
+}
+function locate(id){
+  for (let i=0;i<7;i++){ const k=S.tab[i].findIndex(c=>c.id===id); if (k>=0) return {src:{t:'tab',i}, idx:k}; }
+  for (let i=0;i<4;i++){ const k=S.found[i].findIndex(c=>c.id===id); if (k>=0) return {src:{t:'found',i}, idx:k}; }
+  let k=S.waste.findIndex(c=>c.id===id); if (k>=0) return {src:{t:'waste'}, idx:k};
+  k=S.stock.findIndex(c=>c.id===id); return {src:{t:'stock'}, idx:k};
+}
+function movable(loc){
+  const p = pileOf(loc.src), c = p[loc.idx];
+  if (!c || !c.up) return false;
+  if (loc.src.t==='tab') return true;
+  return loc.idx === p.length-1;
+}
+function smartMove(loc){
+  const p = pileOf(loc.src), cards = p.slice(loc.idx);
+  if (cards.length===1 && loc.src.t!=='found'){
+    for (let i=0;i<4;i++) if (canPlace(cards,{t:'found',i})) return doMove(loc.src, loc.idx, {t:'found',i});
+  }
+  const order = [];
+  for (let i=0;i<7;i++) if (S.tab[i].length) order.push(i);
+  for (let i=0;i<7;i++) if (!S.tab[i].length) order.push(i);
+  for (const i of order){
+    if (loc.src.t==='tab' && loc.src.i===i) continue;
+    if (!S.tab[i].length && loc.src.t==='tab' && loc.idx===0) continue;
+    if (canPlace(cards,{t:'tab',i})) return doMove(loc.src, loc.idx, {t:'tab',i});
+  }
+  return false;
+}
+
+/* ---------- hints ---------- */
+function findHint(){
+  const wTop = S.waste[S.waste.length-1];
+  const tops = [];
+  if (wTop) tops.push({src:{t:'waste'}, idx:S.waste.length-1});
+  for (let i=0;i<7;i++) if (S.tab[i].length) tops.push({src:{t:'tab',i}, idx:S.tab[i].length-1});
+  for (const l of tops) for (let f=0;f<4;f++) if (canPlace([pileOf(l.src)[l.idx]],{t:'found',i:f})) return l;
+  for (let i=0;i<7;i++){
+    const p = S.tab[i], k = p.findIndex(c=>c.up); if (k<0) continue;
+    if (k===0 && p[0].r===13) continue;
+    for (let j=0;j<7;j++){ if (j===i) continue;
+      if (canPlace(p.slice(k),{t:'tab',i:j}) && (k>0 || S.tab[j].length)) return {src:{t:'tab',i}, idx:k}; }
+  }
+  if (wTop) for (let j=0;j<7;j++) if (canPlace([wTop],{t:'tab',i:j})) return {src:{t:'waste'}, idx:S.waste.length-1};
+  if (S.stock.length || S.waste.length) return 'draw';
+  return null;
+}
+function hint(){
+  if (!S || S.won || dealing) return;
+  const h = findHint();
+  if (!h){ say('stuck'); return; }
+  if (h==='draw'){
+    sayText(S.stock.length ? "Nothing on the table. Deal another BDB off the deck." : "Flip the pile back over. BDB loves a second chance he didn't earn.");
+    const t = S.stock[S.stock.length-1]; flash(t ? cardEls[t.id] : null); return;
+  }
+  say('hint'); flash(cardEls[pileOf(h.src)[h.idx].id]);
+}
+function flash(el){ if (!el) return; el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint'); }
+
+/* ---------- auto finish / win ---------- */
+function canFinish(){ return S && !S.won && !S.stock.length && !S.waste.length && S.tab.every(p=>p.every(c=>c.up)); }
+function autoFinish(){
+  if (autoRunning || dealing) return; autoRunning = true; say('finish');
+  const tok = token;
+  const step = () => {
+    if (tok!==token || S.won){ autoRunning=false; return; }
+    for (let i=0;i<7;i++){ const p=S.tab[i]; if (!p.length) continue;
+      for (let f=0;f<4;f++) if (canPlace([p[p.length-1]],{t:'found',i:f})){ doMove({t:'tab',i},p.length-1,{t:'found',i:f},true); setTimeout(step, 85); return; } }
+    autoRunning = false;
+  };
+  step();
+}
+function checkWin(){
+  if (!S.found.every(p=>p.length===13)) return;
+  S.won = true; stopTimer(); clearTimeout(idleId);
+  say('win');
+  const best = +store.get('cs-best') || 0;
+  let bestTxt;
+  if (!best || S.elapsed < best){ store.set('cs-best', S.elapsed); bestTxt = 'New best time.'; }
+  else bestTxt = 'Best time: ' + fmt(best);
+  document.getElementById('wTime').textContent = fmt(S.elapsed);
+  document.getElementById('wMoves').textContent = S.moves;
+  document.getElementById('wScore').textContent = S.score;
+  document.getElementById('wBest').textContent = bestTxt;
+  document.getElementById('winLine').textContent = LINES.win[Math.floor(Math.random()*LINES.win.length)];
+  setTimeout(cascade, 400);
+}
+
+/* ---------- timer / stats ---------- */
+const fmt = s => Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+function startTimer(){ if (S.started) return; S.started = true; timerId = setInterval(()=>{ S.elapsed++; document.getElementById('time').textContent = fmt(S.elapsed); },1000); }
+function stopTimer(){ clearInterval(timerId); timerId = null; }
+const shown = {};
+function setLed(id, v){
+  const el = document.getElementById(id);
+  if (shown[id] !== v){ el.textContent = v; if (shown[id] !== undefined && !REDUCED){ el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); } shown[id] = v; }
+}
+function updateStats(){
+  document.getElementById('time').textContent = fmt(S.elapsed);
+  setLed('moves', S.moves); setLed('score', S.score);
+  document.getElementById('undo').disabled = !history.length;
+  document.getElementById('finish').hidden = !canFinish();
+}
+function bumpIdle(){ clearTimeout(idleId); idleId = setTimeout(()=>{ if (S && !S.won){ say('idle'); bumpIdle(); } }, 45000); }
+
+/* ---------- cards ---------- */
+const board = document.getElementById('board');
+const cardEls = [];
+let CW=80, CH=112, GAP=10;
+
+function cardHTML(id){
+  const s = Math.floor(id/13), r = id%13+1;
+  const corner = `<div class="r">${RANKS[r]}</div><div class="s">${SUITS[s]}</div>`;
+  let mid;
+  if (r>=11){
+    const key = r===13?'k':r===12?'q':'j', name = r===13?'KING':r===12?'QUEEN':'JACK';
+    mid = `<div class="pic frame">${HATS[key]}<div class="ribbon"><span>${name}</span></div></div>`;
+  } else if (r===1) mid = `<div class="bigsuit">${SUITS[s]}</div><div class="pic round ace"></div>`;
+  else mid = `<div class="pic round"></div>`;
+  return `<div class="face"><div class="corner tl">${corner}</div>${mid}<div class="corner br">${corner}</div></div><div class="back"></div>`;
+}
+function buildCard(id){
+  const s = Math.floor(id/13), r = id%13+1;
+  const el = document.createElement('div');
+  el.className = 'card down' + (isRed(s)?' red':'');
+  el.dataset.id = id;
+  el.innerHTML = cardHTML(id);
+  el.setAttribute('aria-label', `${RANKS[r]} of ${['spades','hearts','diamonds','clubs'][s]}`);
+  el._wantUp = false;
+  board.appendChild(el);
+  return el;
+}
+function setFace(el, up, delay=0){
+  el._wantUp = up;
+  if (!up){ clearTimeout(el._ft); el._ft = null; el.classList.add('down'); return; }
+  if (!el.classList.contains('down') || el._ft) return;
+  const tok = token;
+  const go = () => { el._ft = null; if (tok===token && el._wantUp) flipUp(el); };
+  if (delay) el._ft = setTimeout(go, delay + 260); else go();
+}
+function flipUp(el){
+  if (REDUCED || !el.animate){ el.classList.remove('down'); return; }
+  const a = el.animate([{scale:'1 1'},{scale:'0 1'}],{duration:110,easing:'ease-in'});
+  a.onfinish = () => {
+    if (!el._wantUp) return;
+    el.classList.remove('down');
+    el.animate([{scale:'0 1'},{scale:'1.06 1.06',offset:.7},{scale:'1 1'}],{duration:190,easing:'ease-out'});
+  };
+}
+
+const slots = {};
+function buildSlots(){
+  const mk = (cls, txt) => { const d=document.createElement('div'); d.className='slot '+cls; if (txt) d.textContent=txt; board.appendChild(d); return d; };
+  slots.stock = mk('stock');
+  slots.waste = mk('waste');
+  slots.found = [0,1,2,3].map(()=>mk('found','A'));
+  slots.tab = [0,1,2,3,4,5,6].map(()=>mk('tab','K'));
+  slots.stock.addEventListener('click', draw);
+}
+function measure(){
+  const w = board.clientWidth;
+  GAP = Math.max(4, Math.min(14, w*0.018));
+  CW = Math.min(100, (w - GAP*6)/7);
+  CH = CW*1.4;
+  document.documentElement.style.setProperty('--cw', CW+'px');
+  document.documentElement.style.setProperty('--ch', CH+'px');
+  board.classList.toggle('small', CW < 62);
+}
+const colX = i => i*(CW+GAP);
+const tabY = () => CH + GAP*2.4;
+const downOff = () => CW*0.13, upOff = () => CW*0.33;
+function place(el, x, y, z){ el.style.transform = `translate(${x}px,${y}px)`; el.style.zIndex = z; el._x = x; el._y = y; }
+function posSlots(){
+  const ps = (el,x,y)=>{ el.style.left=x+'px'; el.style.top=y+'px'; };
+  ps(slots.stock, colX(0), 0); ps(slots.waste, colX(1), 0);
+  slots.found.forEach((s,i)=>ps(s, colX(3+i), 0));
+  slots.tab.forEach((s,i)=>ps(s, colX(i), tabY()));
+}
+function layout(delays){
+  posSlots();
+  delays = delays || {};
+  let maxY = tabY()+CH;
+  const put = (c, x, y, z) => {
+    const el = cardEls[c.id], d = delays[c.id] || 0;
+    el.style.transitionDelay = d ? d+'ms' : '';
+    place(el, x, y, z); setFace(el, c.up, d);
+  };
+  S.stock.forEach((c,k)=>put(c, colX(0), -Math.min(k,24)*0.15, 10+k));
+  const wl = S.waste.length;
+  S.waste.forEach((c,k)=>{
+    let x = colX(1);
+    if (S.drawN===3){ const v = k-(wl-3); if (v>0) x += v*CW*0.24; }
+    put(c, x, 0, 100+k);
+  });
+  S.found.forEach((p,i)=>p.forEach((c,k)=>put(c, colX(3+i), 0, 200+k)));
+  S.tab.forEach((p,i)=>{
+    let y = tabY();
+    p.forEach((c,k)=>{ put(c, colX(i), y, 300+k); if (k<p.length-1) y += c.up ? upOff() : downOff(); });
+    maxY = Math.max(maxY, y+CH);
+  });
+  board.style.height = (maxY + CW*1.1) + 'px';
+}
+function popScore(delta, x, y){
+  const d = document.createElement('div');
+  d.className = 'pop-score' + (delta<0 ? ' neg' : '');
+  d.textContent = (delta>0?'+':'') + delta;
+  d.style.left = x+'px'; d.style.top = y+'px';
+  board.appendChild(d); setTimeout(()=>d.remove(), 1000);
+}
+
+/* ---------- input ---------- */
+let drag = null;
+board.addEventListener('pointerdown', e=>{
+  if (!S || S.won || autoRunning || dealing) return;
+  const el = e.target.closest('.card'); if (!el) return;
+  const loc = locate(+el.dataset.id);
+  if (loc.src.t==='stock'){ draw(); return; }
+  if (!movable(loc)) return;
+  const cards = pileOf(loc.src).slice(loc.idx);
+  drag = {loc, cards, els:cards.map(c=>cardEls[c.id]), sx:e.clientX, sy:e.clientY, moved:false,
+    origin:cards.map(c=>({x:cardEls[c.id]._x,y:cardEls[c.id]._y}))};
+  el.setPointerCapture?.(e.pointerId);
+  e.preventDefault();
+});
+board.addEventListener('pointermove', e=>{
+  if (!drag) return;
+  const dx = e.clientX-drag.sx, dy = e.clientY-drag.sy;
+  if (!drag.moved && Math.hypot(dx,dy) < 6) return;
+  if (!drag.moved){ drag.moved = true; drag.els.forEach((el,k)=>{ el.classList.add('dragging'); el.style.zIndex = 1000+k; }); }
+  drag.els.forEach((el,k)=>{ el.style.transform = `translate(${drag.origin[k].x+dx}px,${drag.origin[k].y+dy}px)`; });
+});
+function endDrag(e){
+  if (!drag) return;
+  const d = drag; drag = null;
+  d.els.forEach(el=>el.classList.remove('dragging'));
+  if (!d.moved){
+    if (!smartMove(d.loc)){ say('bad', .8); const el=d.els[0]; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+    return;
+  }
+  const dx = e.clientX-d.sx, dy = e.clientY-d.sy;
+  const cx = d.origin[0].x+dx, cy = d.origin[0].y+dy;
+  const targets = [];
+  for (let i=0;i<4;i++) targets.push({dst:{t:'found',i}, x:colX(3+i), y:0, h:CH});
+  for (let i=0;i<7;i++){
+    const p = S.tab[i], last = p.length ? cardEls[p[p.length-1].id] : null;
+    const top = tabY(), bottom = last ? last._y + CH : top + CH;
+    targets.push({dst:{t:'tab',i}, x:colX(i), y:top, h:bottom-top});
+  }
+  let best=null, bestA=0;
+  for (const t of targets){
+    if (d.loc.src.t===t.dst.t && d.loc.src.i===t.dst.i) continue;
+    const ox = Math.max(0, Math.min(cx+CW, t.x+CW) - Math.max(cx, t.x));
+    const oy = Math.max(0, Math.min(cy+CH, t.y+t.h) - Math.max(cy, t.y));
+    const a = ox*oy;
+    if (a>bestA && canPlace(d.cards, t.dst)){ bestA=a; best=t; }
+  }
+  if (best) doMove(d.loc.src, d.loc.idx, best.dst);
+  else { layout(); if (Math.hypot(dx,dy) > CW*0.6) say('bad', .5); }
+}
+board.addEventListener('pointerup', endDrag);
+board.addEventListener('pointercancel', ()=>{ if (drag){ drag.els.forEach(el=>el.classList.remove('dragging')); drag=null; layout(); } });
+
+/* ---------- controls ---------- */
+const modeBtn = document.getElementById('mode'), sd1 = document.getElementById('sd1'), sd3 = document.getElementById('sd3');
+function showMode(){ modeBtn.textContent = 'Draw ' + drawN; sd1.setAttribute('aria-pressed', drawN===1); sd3.setAttribute('aria-pressed', drawN===3); }
+function setMode(n){ drawN = n; store.set('cs-draw', n); showMode(); }
+sd1.onclick = () => setMode(1);
+sd3.onclick = () => setMode(3);
+modeBtn.onclick = () => {
+  setMode(drawN===1 ? 3 : 1);
+  if (S && !S.started){ S.drawN = drawN; sayText(drawN===3 ? "Draw 3. Hard mode. BDB never picked hard mode in his life." : "Draw 1. Training wheels, like BDB's rec league."); }
+  else sayText(`Draw ${drawN} starts next deal. Finish this one. BDB never finished anything either, don't be like him.`);
+};
+showMode();
+
+const splash = document.getElementById('splash');
+function start(){
+  if (splash.hidden || splash.classList.contains('gone')) return;
+  splash.classList.add('gone');
+  setTimeout(()=>{ splash.hidden = true; }, REDUCED ? 0 : 450);
+  newGame();
+}
+document.getElementById('play').onclick = start;
+document.getElementById('new').onclick = () => { if (!dealing) newGame(); };
+document.getElementById('again').onclick = newGame;
+document.getElementById('undo').onclick = undo;
+document.getElementById('hint').onclick = hint;
+document.getElementById('finish').onclick = autoFinish;
+document.addEventListener('keydown', e=>{
+  const k = e.key.toLowerCase();
+  if (!splash.hidden){ if (k==='enter' || k===' '){ e.preventDefault(); start(); } return; }
+  if ((e.metaKey||e.ctrlKey) && k==='z'){ e.preventDefault(); undo(); return; }
+  if (e.metaKey||e.ctrlKey||e.altKey) return;
+  if (k==='z') undo(); else if (k==='h') hint(); else if (k==='n' && !dealing) newGame();
+  else if (k===' '){ e.preventDefault(); draw(); }
+});
+window.addEventListener('resize', ()=>{
+  measure();
+  for (const el of cardEls) el.classList.add('nomove');
+  if (S) layout(); else idleStack();
+  requestAnimationFrame(()=>requestAnimationFrame(()=>cardEls.forEach(el=>el.classList.remove('nomove'))));
+});
+
+/* ---------- win cascade ---------- */
+const fx = document.getElementById('fx'); let fxRun = null;
+function drawCardCanvas(ctx, c, x, y, w, h){
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x,y,w,h,w*0.09) : ctx.rect(x,y,w,h);
+  ctx.fillStyle = '#fbf8f2'; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 1; ctx.stroke();
+  const col = isRed(c.s) ? '#cf3326' : '#1b1f2a';
+  const d = w*0.6, cx = x+w/2, cy = y+h/2;
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, d/2, 0, Math.PI*2); ctx.clip();
+  if (faceImg.complete) ctx.drawImage(faceImg, cx-d/2, cy-d/2, d, d);
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(cx, cy, d/2, 0, Math.PI*2); ctx.strokeStyle = col; ctx.lineWidth = w*0.03; ctx.stroke();
+  ctx.fillStyle = col; ctx.font = `700 ${w*0.24}px "Barlow Condensed", sans-serif`; ctx.textBaseline = 'top';
+  ctx.fillText(RANKS[c.r], x+w*0.07, y+h*0.04);
+  ctx.font = `${w*0.18}px sans-serif`; ctx.fillText(SUITS[c.s], x+w*0.08, y+h*0.04+w*0.24);
+}
+function cascade(){
+  const showWin = () => { stopFx(); document.getElementById('win').hidden = false; };
+  if (REDUCED){ showWin(); return; }
+  fx.hidden = false; fx.style.pointerEvents = 'auto';
+  const dpr = window.devicePixelRatio||1;
+  fx.width = innerWidth*dpr; fx.height = innerHeight*dpr;
+  const ctx = fx.getContext('2d'); ctx.scale(dpr,dpr);
+  const br = board.getBoundingClientRect();
+  const queue = [];
+  for (let r=13;r>=1;r--) for (let f=0;f<4;f++){ const c = S.found[f][r-1]; if (c) queue.push({c, f}); }
+  let cur = null;
+  const tick = () => {
+    if (!cur){
+      const n = queue.shift();
+      if (!n){ showWin(); return; }
+      cur = {c:n.c, x:br.left+colX(3+n.f), y:br.top, vx:(Math.random()<.5?-1:1)*(2+Math.random()*4), vy:-Math.random()*8};
+    }
+    for (let i=0;i<2;i++){
+      cur.vy += 0.5; cur.x += cur.vx; cur.y += cur.vy;
+      if (cur.y + CH > innerHeight){ cur.y = innerHeight-CH; cur.vy = -cur.vy*0.78; }
+      drawCardCanvas(ctx, cur.c, cur.x, cur.y, CW, CH);
+    }
+    if (cur.x < -CW || cur.x > innerWidth) cur = null;
+    fxRun = requestAnimationFrame(tick);
+  };
+  fx.onclick = showWin;
+  fxRun = requestAnimationFrame(tick);
+}
+function stopFx(){ cancelAnimationFrame(fxRun); fxRun=null; fx.hidden = true; fx.style.pointerEvents='none'; const c=fx.getContext('2d'); c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,fx.width,fx.height); }
+
+/* ---------- boot ---------- */
+function idleStack(){
+  posSlots();
+  cardEls.forEach((el,k)=>{ setFace(el,false); place(el, colX(0), -Math.min(k,24)*0.15, 10+k); });
+  board.style.height = (tabY() + CH*2) + 'px';
+}
+buildSlots();
+for (let id=0;id<52;id++) cardEls.push(buildCard(id));
+measure();
+idleStack();
+// title-screen fan: J, Q, K, A, 10
+const fan = document.getElementById('fan');
+[[49,-24],[11,-12],[25,0],[26,12],[35,24]].forEach(([id,a],i)=>{
+  const el = document.createElement('div');
+  el.className = 'card' + (isRed(Math.floor(id/13)) ? ' red' : '');
+  el.innerHTML = cardHTML(id);
+  el.style.setProperty('--a', a+'deg'); el.style.setProperty('--d', (i*90)+'ms');
+  el.style.zIndex = i===2 ? 5 : 5-Math.abs(i-2);
+  fan.appendChild(el);
+});
+</script>
+
+</body>
+</html>
