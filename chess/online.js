@@ -13,6 +13,14 @@ const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, '').
 const initials = n => clean(n, 40).split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
 export { initials };
 
+// Close a modal from its dark backdrop only when the press both starts and ends there,
+// so drag-selecting text in an input and letting go outside the box doesn't close it.
+export function backdropClose(wrap, close){
+  let downOnBackdrop = false;
+  wrap.addEventListener('pointerdown', e => { downOnBackdrop = e.target === wrap; });
+  wrap.addEventListener('click', e => { if (downOnBackdrop && e.target === wrap) close(); downOnBackdrop = false; });
+}
+
 export function initOnline(G){
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
@@ -312,7 +320,7 @@ export function initOnline(G){
   function openLobby(){ paint(); $('online').hidden = false; }
   function closeLobby(){ $('online').hidden = true; }
   $('onClose').onclick = closeLobby;
-  $('online').addEventListener('click', e => { if (e.target.id === 'online') closeLobby(); });
+  backdropClose($('online'), closeLobby);
   $('onlinePill').onclick = openLobby;
 
   connect();

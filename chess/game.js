@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { RoomEnvironment } from './vendor/RoomEnvironment.js';
-import { initOnline, initials } from './online.js';
+import { initOnline, initials, backdropClose } from './online.js';
 
 /* =========================================================
    Charleston Chess: 3D chess vs BDB, or vs friends online
@@ -1416,7 +1416,7 @@ function openSettings(){ paintSettings(); $('settings').hidden = false; $('setDo
 function closeSettings(){ $('settings').hidden = true; }
 $('setBtn').onclick = openSettings; $('setBtn2').onclick = openSettings;
 $('setClose').onclick = closeSettings; $('setDone').onclick = closeSettings;
-$('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
+backdropClose($('settings'), closeSettings);
 $('setNew').onclick = () => { closeSettings(); if (!splashUp && !pvp){ currentTc = settings.tc; newGame(); } };
 paintSettings(); applySettings();
 
