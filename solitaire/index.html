@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Klondike solitaire where every card is BDB. 52 cards, 100 roasts.">
+<meta name="description" content="Klondike solitaire where every card is BDB. 52 cards, 500+ roasts.">
 <meta property="og:title" content="Charleston Solitaire">
 <meta property="og:image" content="../assets/face.jpg">
 <link rel="icon" href="../assets/face.jpg">
@@ -279,7 +279,7 @@ kbd{font:700 11px var(--f-body);border:1px solid rgba(255,255,255,.25);border-ra
 }
 </style>
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{font-size:14px}img{max-width:100%}</style>
-<script src="../assets/roasts.js"></script>
+<script src="../assets/roasts.js?v=1101-1711"></script>
 </head>
 <body>
 <section class="splash" id="splash">
@@ -288,7 +288,7 @@ kbd{font:700 11px var(--f-body);border:1px solid rgba(255,255,255,.25);border-ra
     <div class="fan" id="fan"></div>
     <div class="eyebrow">BDB Entertainment presents</div>
     <h2>Charleston<br><span>Solitaire</span></h2>
-    <p class="rise-in">52 cards. 100 roasts. One guy who averaged 2.0 points a game and still thinks he's got it.</p>
+    <p class="rise-in">52 cards. 500+ roasts. One guy who averaged 2.0 points a game and still thinks he's got it.</p>
     <div class="seg rise-in" role="group" aria-label="Draw mode">
       <button type="button" id="sd1" aria-pressed="true">Draw 1</button>
       <button type="button" id="sd3" aria-pressed="false">Draw 3</button>
@@ -401,108 +401,7 @@ const HATS = {
 };
 
 /* ---------- jokes ---------- */
-const ROASTS = [
-"BDB averages 2.0 points a game. That card just outscored him.",
-"Florida's athletic department has no record of BDB. He says that's a cover-up.",
-"99 confidence, 2 points per game. The math has never once bothered him.",
-"He played power forward. Mostly forward about how good he used to be.",
-"BDB's scholarship got folded into employee benefits. Dental counts as a full ride, right?",
-"Card dealt. That's the first assist of BDB's career.",
-"You've dealt more cards than shots he made in Florida.",
-"BDB still checks his phone in case a scout calls. It's the shift scheduler every time.",
-"From fast breaks to slot breaks. Truly a tragic arc.",
-"His signature move is clocking in. Nobody on earth can guard it.",
-"Rated 100 at clock-watching. Finally, a perfect score.",
-"Break Room MVP three seasons running. The vending machine wants a rematch.",
-"BDB's vertical leap is measured in lanyard lengths.",
-"His highlight reel is 9 seconds long and 6 of them are warmups.",
-"The only thing BDB ever dunked was a donut in break room coffee.",
-"\"Part-time scorer\" is generous. Seasonal at best.",
-"Undrafted and unbothered. Mostly undrafted.",
-"That card has better hands than BDB had in the post.",
-"BDB holds a basketball in every photo so people believe him.",
-"The ball in his photo is a prop. It has never seen a net.",
-"BDB once boxed out a coworker for the last slice of pizza. Best rebound of his life.",
-"His free throw percentage is classified. By him.",
-"Free agent status: available, as soon as someone covers his Tuesday.",
-"BDB's agent is his shift supervisor.",
-"He wears glasses so he can read the schedule from across the floor.",
-"That beard has logged more minutes than BDB did in Florida.",
-"Card dealt. BDB just hit a career high in passes.",
-"Basketball stories: 98. Basketball skills: not rated, for legal reasons.",
-"He's told the Florida story so many times it's eligible for a jersey retirement.",
-"BDB thinks game film is the camera footage of him clocking in.",
-"Coaches called him a project. The project got cancelled.",
-"He's been waiting on a scout since flip phones.",
-"Only man alive to go from full court press to full shift press.",
-"BDB's jersey number matched his points per game. Two.",
-"His dream was the big lights. Now it's the big lights over a slot bank.",
-"If confidence were points, he'd be in the Hall of Fame. It's not. He isn't.",
-"BDB calls his lanyard \"the chain.\"",
-"He treats a five minute break like a halftime speech.",
-"BDB still stretches before shifts. Hamstrings ready for the walk to the break room.",
-"The time clock is the only thing BDB has never missed.",
-"BDB doesn't have a crossover. He has a cross-schedule.",
-"He tried out for the team and the team tried out a different guy.",
-"That card came out faster than BDB on a fast break. Low bar, but still.",
-"Built for the spotlight. The spotlight has respectfully declined.",
-"BDB's best stat line: 0 points, 2 fouls, 47 stories afterward.",
-"In BDB's version he dropped 30 that night. In everyone else's he had a sandwich.",
-"He says he's a stretch four. The only thing stretching is the truth.",
-"BDB has more nicknames than career buckets.",
-"His cardio is walking to the far end of the floor to clock out.",
-"1 elite lanyard, 0 rings. He says they're basically the same thing.",
-"He calls payday a championship. 26 titles a year. Dynasty.",
-"Somewhere in Florida, a recruiter still flinches at the name.",
-"Group chat legend status: 100%. Replies to his basketball stories: 0%.",
-"BDB reads his own stats page for motivation. It's a short read.",
-"Scouts said he had a high motor. They meant he talks a lot.",
-"Only power forward with less power than a slot machine button.",
-"BDB's handle is like the ice machine at work. Broken more often than not.",
-"Every card in this deck has outscored him. Every single one.",
-"He could've gone pro. Pro at telling you he could've gone pro.",
-"BDB tried to toss a receipt in the trash. Missed. By the whole trash can.",
-"His basketball IQ is mostly vocabulary.",
-"BDB doesn't have a jump shot. He has a jump story.",
-"This is BDB's rookie card. It is also his only card.",
-"When BDB dribbles, the ball files a complaint.",
-"99 confidence. Every scouting report on him starts with \"Well...\"",
-"Averaged 2 a game and still asks if you've seen his tape.",
-"BDB isn't a has-been. You have to be first.",
-"He walks into work like he's being announced. He is not being announced.",
-"BDB still does a pre-shift huddle. Alone. In the parking lot.",
-"You could fit his career stats on a card and still have room for this joke.",
-"BDB's knees are still in Florida. The rest of him had to move on.",
-"He wants his jersey hung up. It's hanging in his closet. Close enough.",
-"His vertical is about one badge scan high.",
-"BDB brings the same energy every shift. Somebody please ask him to bring less.",
-"He calls his locker the war room. It has one granola bar in it.",
-"Most action a deck has seen from BDB since tryouts.",
-"He says the ref cost him the scholarship. There was no ref. It was practice.",
-"BDB has been about to get back in shape for one full Olympic cycle.",
-"His shot selection is like his parking. Confidently wrong.",
-"Big nickname, small scoring average. Scientists are still puzzled.",
-"Turns out D1 dreams meant Day 1 of a 40-hour week.",
-"BDB says \"back when I was playing\" like it was a decade. It was one semester.",
-"His mixtape has one track, and it's the time clock beep.",
-"BDB is undefeated in break room arguments about 2000s basketball.",
-"Confidence of a lottery pick, stats of a lottery ticket.",
-"Every card you deal, a coach in Florida relaxes a little more.",
-"You're dealing faster than BDB ever got back on defence.",
-"He says he left Florida on his own terms. Florida says \"who?\"",
-"BDB's fadeaway is how his stories fade away when you ask for proof.",
-"The man got cut and still asked to be in the team photo.",
-"Three moves: clock in, clock out, and \"let me tell you about Florida.\"",
-"His defence was like casino carpet. Everybody walked all over it.",
-"BDB thinks a box score is how many snacks fit in the break room box.",
-"Solitaire. Finally a game where BDB can't get benched.",
-"He doesn't miss shots. He \"passes to the rim.\"",
-"BDB says he's still elite. The schedule lists him as casual.",
-"BDB once called a timeout at a staff meeting. Nobody granted it.",
-"He signs his work emails \"PF.\" Nobody has asked him to stop. Everybody wants to.",
-"BDB's mom still has his recruitment letter framed. It's a form letter.",
-"Roast 100. That's 98 more roasts than points per game."
-];
+const ROASTS = (window.ROASTS || []).concat(window.ROASTS_SOLITAIRE || []);
 const LINES = {
   deal:["Fresh shuffle. 52 BDBs and not one of them can shoot.","New deal. BDB says he's never been dealt a fair hand.","Deal 'em. Florida isn't watching anyway.","52 cards, 52 BDBs, 104 points combined if they all have a good night.","Welcome to the only league that'll still put him on every card."],
   found:["Nothing but net. BDB has heard of this.","That's a bucket. More than he had all season.","Stack 'em like chips.","And one! BDB just learned what that means.","Banked it off the glass. BDB called glass on the last one too. He was lying."],

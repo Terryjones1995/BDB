@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/OrbitControls.js';
 import { RoomEnvironment } from './vendor/RoomEnvironment.js';
+import { initOnline, initials } from './online.js';
 
 /* =========================================================
-   Charleston Chess: 3D chess vs BDB
-   Rules: chess.js. Opponent: Stockfish.js in a Web Worker.
+   Charleston Chess: 3D chess vs BDB, or vs friends online
+   Rules: chess.js. Opponent: Stockfish.js in a Web Worker, or a real person through online.js.
    ========================================================= */
 
 const Chess = window.Chess;
@@ -83,6 +84,20 @@ const L = {
   lose:["BDB won. Nobody tell him, he'll never shut up.","Checkmate. BDB's taking a victory lap around the break room.","BDB got you. He's bringing this up every shift."],
   flagYou:["Out of time. BDB's never been early to anything, but he beat the clock.","You flagged. Even BDB watched the clock better than that, and it's his best stat."],
   flagHim:["BDB ran out of time. Clock-watching rated 100, apparently not this clock.","BDB flagged. First time he's ever lost track of a clock."],
+  pvpStart:[o=>`Online match. You vs ${o}. BDB's on commentary, the closest he's ever gotten to a broadcast job.`,
+    o=>`${o} has entered the arena. BDB is calling this one from the break room.`,
+    o=>`You vs ${o}. Winner gets bragging rights. Loser gets compared to BDB.`],
+  pvpYouTake:[(o,p)=>`You took ${o}'s ${p}. ${o} is playing defence like BDB.`, (o,p)=>`There goes ${o}'s ${p}. That's a BDB-level turnover.`,
+    (o,p)=>`${o} just lost a ${p}. BDB says he's seen worse. He's done worse.`, (o,p)=>`${o}'s ${p} got cut faster than BDB at tryouts.`],
+  pvpOppTake:[(o,p)=>`${o} took your ${p}. You're getting cooked like BDB in Florida.`, (o,p)=>`Your ${p} is gone. ${o} is celebrating like it's a buzzer beater.`,
+    (o,p)=>`${o} grabbed your ${p}. BDB felt that one in his knees.`, (o,p)=>`${o} stole your ${p}. That's more steals than BDB had all season.`],
+  pvpCheckOpp:[o=>`Check on ${o}. Sweating like BDB at a fitness test.`, o=>`${o}'s king is running like it's the end of a shift.`],
+  pvpCheckYou:[o=>`${o} puts you in check. Don't panic. Panic is BDB's move.`, o=>`Check from ${o}. Your king needs a better agent than BDB had.`],
+  pvpCastle:[w=>`${w} castled. Safer than any of BDB's career moves.`, w=>`${w} tucked the king away. BDB tucks his stats away the same way.`],
+  pvpPromote:[w=>`${w} promoted a pawn. That's more promotions than BDB's ever gotten.`],
+  pvpWin:[o=>`You beat ${o}. ${o} is officially the BDB of this lobby.`, o=>`Checkmate. ${o} is asking BDB for tips. Bad idea.`],
+  pvpLose:[o=>`${o} got you. BDB says welcome to the club.`, o=>`Checkmate by ${o}. You just had a full BDB moment.`],
+  pvpDraw:[o=>`Draw with ${o}. Everybody's a little bit BDB today.`, o=>`Nobody wins. BDB calls that a moral victory for both of you.`],
   draw:["Draw. BDB's counting it as a win anyway.","Nobody wins. BDB's used to that."]
 };
 const KILL = {
@@ -102,8 +117,9 @@ function post(kind, text, meta, who){
   const li = document.createElement('li');
   if (kind === 'bdb'){ li.className = 'msg'; li.innerHTML = '<span class="mav" aria-hidden="true"></span><div class="mb"><span class="meta"></span><span class="t"></span></div>'; }
   else if (kind === 'you'){ li.className = 'msg you'; li.innerHTML = '<div class="mb"><span class="meta"></span><span class="t"></span></div>'; }
-  else { li.className = 'msg event ' + (kind === 'sys' ? 'sys' : (who === 'bdb' ? 'bdb' : '')); li.innerHTML = '<span class="ev"></span>'; }
-  if (kind === 'bdb' || kind === 'you'){ li.querySelector('.meta').textContent = meta || ''; li.querySelector('.t').textContent = text; }
+  else if (kind === 'opp'){ li.className = 'msg oppmsg'; li.innerHTML = '<span class="mav opp" aria-hidden="true"></span><div class="mb"><span class="meta"></span><span class="t"></span></div>'; li.querySelector('.mav').textContent = initials(who || '?'); }
+  else { li.className = 'msg event ' + (kind === 'sys' ? 'sys' : (who && who !== 'you' ? 'bdb' : '')); li.innerHTML = '<span class="ev"></span>'; }
+  if (kind === 'bdb' || kind === 'you' || kind === 'opp'){ li.querySelector('.meta').textContent = meta || ''; li.querySelector('.t').textContent = text; }
   else li.querySelector('.ev').textContent = text;
   feedEl.appendChild(li);
   while (feedEl.children.length > 140) feedEl.firstChild.remove();
@@ -115,7 +131,7 @@ function sayText(t, tag){
   post('bdb', t, (tag ? tag + ' · ' : 'BDB · ') + moveTag());
   clearInterval(typeId); clearTimeout(quietT);
   speechEl.classList.remove('quiet','pop'); void speechEl.offsetWidth; speechEl.classList.add('pop');
-  avEl.classList.remove('talk'); void avEl.offsetWidth; avEl.classList.add('talk');
+  if (!pvp){ avEl.classList.remove('talk'); void avEl.offsetWidth; avEl.classList.add('talk'); }
   quietT = setTimeout(()=>speechEl.classList.add('quiet'), 7000 + t.length*40);
   if (REDUCED){ sayEl.textContent = t; return; }
   let i = 0; sayEl.textContent = ''; sayEl.classList.add('typing');
@@ -130,16 +146,16 @@ function sayThen(line, next){
   setTimeout(()=>{ if (id === msgId) (typeof next === 'string' ? sayText(next) : roast()); }, 2600 + line.length*25);
 }
 // shared roast deck with solitaire
-const ROASTS = window.ROASTS || [];
+const ROASTS = (window.ROASTS || []).concat(window.ROASTS_CHESS || []);
 let roastOrder = null, roastPos = 0;
 function shuffleRoasts(){ roastOrder = ROASTS.map((_,i)=>i); for (let i=roastOrder.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [roastOrder[i],roastOrder[j]]=[roastOrder[j],roastOrder[i]]; } roastPos = 0; }
-try { const o = JSON.parse(store.get('cs-roasts')); if (o && o.order && o.order.length===ROASTS.length){ roastOrder=o.order; roastPos=o.pos||0; } } catch(e){}
+try { const o = JSON.parse(store.get('cc-roasts')); if (o && o.order && o.order.length===ROASTS.length){ roastOrder=o.order; roastPos=o.pos||0; } } catch(e){}
 if (!roastOrder) shuffleRoasts();
 function roast(){
   if (!ROASTS.length) return;
   if (roastPos >= roastOrder.length) shuffleRoasts();
   const n = roastOrder[roastPos++];
-  store.set('cs-roasts', JSON.stringify({order:roastOrder,pos:roastPos}));
+  store.set('cc-roasts', JSON.stringify({order:roastOrder,pos:roastPos}));
   sayText(ROASTS[n], `Roast ${roastPos} / ${ROASTS.length}`);
 }
 
@@ -485,13 +501,15 @@ function flash(pos, color, intensity = 60, dur = .35){
   const l = new THREE.PointLight(color, intensity, 9, 1.5); l.position.set(pos.x, 1.2, pos.z); scene.add(l);
   tween(dur, p => { l.intensity = intensity*(1-p); }, ease.out).then(()=>scene.remove(l));
 }
+const whoName = who => who === 'you' ? 'You' : who === 'opp' && pvp ? pvp.oppName : 'BDB';
 function banner(type, who){
-  if (REDUCED){ post('event', `${who === 'bdb' ? 'BDB' : 'You'} · ${KILL[type].name}`, null, who); return; }
+  if (REDUCED){ post('event', `${whoName(who)} · ${KILL[type].name}`, null, who); return; }
   const d = document.createElement('div');
-  d.className = 'kill' + (who === 'bdb' ? ' bdb' : '');
-  d.innerHTML = `${KILL[type].name}<small>${KILL[type].sub}</small>`;
+  d.className = 'kill' + (who !== 'you' ? ' bdb' : '');
+  d.innerHTML = `${KILL[type].name}<small></small>`;
+  d.querySelector('small').textContent = who === 'opp' ? `${whoName(who)} · ${KILL[type].sub}` : KILL[type].sub;
   stage.parentElement.appendChild(d); setTimeout(()=>d.remove(), 1300);
-  post('event', `${who === 'bdb' ? 'BDB' : 'You'} · ${KILL[type].name} · ${KILL[type].sub}`, null, who);
+  post('event', `${whoName(who)} · ${KILL[type].name} · ${KILL[type].sub}`, null, who);
 }
 function bolt(from, to){
   const pts = [from.clone()];
@@ -672,7 +690,13 @@ function refreshMarks(){
 const VAL = {p:1, n:3, b:3, r:5, q:9, k:0};
 const GLYPH = {p:'♟', n:'♞', b:'♝', r:'♜', q:'♛'};
 function refreshHud(){
-  $('hLevel').textContent = level.short; $('lvlBadge').textContent = level.name;
+  $('hLevel').textContent = pvp ? 'LIVE' : level.short; $('lvlBadge').textContent = pvp ? 'Online' : level.name;
+  if (pvp){
+    const db = $('drawBtn');
+    db.disabled = over || busy || pvp.drawOffered || game.history().length < 2;
+    db.querySelector('span').textContent = pvp.drawOffered ? 'Offered' : 'Draw';
+    $('resignBtn').disabled = over;
+  }
   $('hMove').textContent = game.fen().split(' ')[5];
   $('youColor').textContent = playerColor === 'w' ? 'White' : 'Black';
   let mat = 0;
@@ -716,7 +740,7 @@ function setStatus(kind, text){
   cb.classList.toggle('thinking', kind === 'think');
   cb.classList.toggle('turn', kind === 'think');
   $('statusText').textContent = kind === 'think' ? 'Waiting' : text;
-  $('stateBdb').textContent = kind === 'think' ? 'Thinking' : (kind === 'over' ? '' : 'Waiting');
+  $('stateBdb').textContent = kind === 'think' ? (pvp ? 'Their move' : 'Thinking') : (kind === 'over' ? '' : 'Waiting');
 }
 // eval bar, always drawn from your side (your colour at the bottom)
 function setEvalColors(){
@@ -736,6 +760,7 @@ function updateEval(score, stm){
 }
 function statusForTurn(){
   if (over) return;
+  if (pvp && game.turn() !== playerColor){ clockStart(oppColor()); setStatus('think', 'Their move'); return; }
   if (game.turn() === playerColor && !splashUp) clockStart(playerColor);
   if (game.turn() === playerColor) setStatus(game.in_check() ? 'check' : '', game.in_check() ? 'Check! Your move' : 'Your move');
 }
@@ -751,7 +776,7 @@ async function animateMove(mv, who){
   innerOf(A).position.y = 0;
   const to = sqPos(mv.to);
   if (V){
-    if (noFx()){ post('event', `${who === 'bdb' ? 'BDB' : 'You'} · ${KILL[mv.piece].name}`, null, who); dispose(V); A.position.copy(to); }
+    if (noFx()){ post('event', `${whoName(who)} · ${KILL[mv.piece].name}`, null, who); dispose(V); A.position.copy(to); }
     else await KILLS[mv.piece](A, V, to, who);
   } else if (mv.piece === 'n'){
     const ai = innerOf(A);
@@ -791,8 +816,20 @@ function engineCall(score){
   if (Math.abs(score.v) < 250) evalState = 0;
   return null;
 }
+const PNAME = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen'};
 function talkAfter(mv, who, score){
   const you = who === 'you';
+  if (pvp){
+    const o = pvp.oppName;
+    if (game.in_checkmate() || game.in_draw()) return;
+    if (mv.captured) return sayThen(pick(you ? L.pvpYouTake : L.pvpOppTake)(o, PNAME[mv.captured]));
+    if (settings.talk === 'quiet') return;
+    if (mv.promotion) return sayText(pick(L.pvpPromote)(you ? 'You' : o));
+    if (game.in_check()) return sayText(pick(you ? L.pvpCheckOpp : L.pvpCheckYou)(o));
+    if (mv.flags.includes('k') || mv.flags.includes('q')) return sayText(pick(L.pvpCastle)(you ? 'You' : o));
+    if (Math.random() < (settings.talk === 'nonstop' ? .55 : .2)) roast();
+    return;
+  }
   if (game.in_checkmate() || game.in_draw()) return;
   const call = you ? null : engineCall(score);
   // every capture, either way, gets a roast, then a deck roast (or the engine's mate call) right after
@@ -808,36 +845,187 @@ function talkAfter(mv, who, score){
 function checkEnd(){
   if (!game.game_over()) return false;
   over = true; busy = false; clearSelection(); clockStop(false);
-  let eyebrow, title, line;
+  const o = pvp && pvp.oppName;
   if (game.in_checkmate()){
     const youWon = game.turn() !== playerColor;
-    eyebrow = 'Checkmate'; title = youWon ? 'You beat BDB' : 'BDB got you'; line = pick(youWon ? L.win : L.lose);
-    if (youWon && !REDUCED){
-      for (let i=0;i<5;i++) setTimeout(()=>burst({pos:new THREE.Vector3((Math.random()-.5)*6, 1, (Math.random()-.5)*6), count:80, color:pick([0xf2c14e,0xff8a2b,0xffffff,0x6aa2ff]), speed:4, up:6, life:1.6}), i*220);
-    }
+    finish('Checkmate', youWon ? (o ? `You beat ${o}` : 'You beat BDB') : (o ? `${o} wins` : 'BDB got you'),
+      o ? pick(youWon ? L.pvpWin : L.pvpLose)(o) : pick(youWon ? L.win : L.lose), youWon, 1400);
   } else {
-    eyebrow = game.in_stalemate() ? 'Stalemate' : game.in_threefold_repetition() ? 'Draw by repetition' : game.insufficient_material() ? 'Draw, not enough pieces' : 'Draw by 50-move rule';
-    title = 'Nobody wins'; line = pick(L.draw);
+    const eyebrow = game.in_stalemate() ? 'Stalemate' : game.in_threefold_repetition() ? 'Draw by repetition' : game.insufficient_material() ? 'Draw, not enough pieces' : 'Draw by 50-move rule';
+    finish(eyebrow, 'Nobody wins', o ? pick(L.pvpDraw)(o) : pick(L.draw), false, 1400);
+  }
+  return true;
+}
+// one place that ends every game: mate, draw, time, resign, opponent leaving
+function finish(eyebrow, title, line, confetti, delay = 900){
+  over = true; busy = false; clearSelection(); clockStop(false);
+  if (confetti && !noFx()){
+    for (let i=0;i<5;i++) setTimeout(()=>burst({pos:new THREE.Vector3((Math.random()-.5)*6, 1, (Math.random()-.5)*6), count:80, color:pick([0xf2c14e,0xff8a2b,0xffffff,0x6aa2ff]), speed:4, up:6, life:1.6}), i*220);
   }
   post('sys', `${eyebrow} · ${title}`);
   sayText(line);
   setStatus('over', eyebrow);
   $('endEyebrow').textContent = eyebrow; $('endTitle').textContent = title; $('endLine').textContent = line;
-  setTimeout(()=>{ if (over) $('end').hidden = false; }, REDUCED ? 0 : 1400);
+  if (pvp){ pvp.rematch = null; online.setStatus('idle'); }
+  paintEnd();
+  setTimeout(()=>{ if (over) $('end').hidden = false; }, REDUCED ? 0 : delay);
   refreshHud();
-  return true;
 }
 async function playerMove(from, to, promotion){
   const mv = game.move({from, to, promotion});
   if (!mv) return;
   clockStop(true);
+  if (pvp){
+    online.send('move', {ply:game.history().length, from, to, promotion:mv.promotion || null, clock: clock ? {w:Math.round(clock.w), b:Math.round(clock.b)} : null});
+    if (pvp.drawOffered) pvp.drawOffered = false;
+  }
   clearSelection(); busy = true; refreshHud();
   const tok = token;
   await animateMove(mv, 'you');
   if (tok !== token) return;
-  talkAfter(mv, 'you'); refreshHud();
+  talkAfter(mv, 'you');
+  if (pvp){ busy = false; refreshHud(); if (checkEnd()) return; statusForTurn(); drainRemote(); return; }
+  refreshHud();
   if (checkEnd()) return;
   bdbMove();
+}
+
+/* ---------- online match ---------- */
+let pvp = null;            // {mid, oppName, tc, drawOffered, rematch}
+const remoteQ = [];
+const oppColor = () => playerColor === 'w' ? 'b' : 'w';
+function onRemoteMove(d){
+  if (!d || typeof d.from !== 'string' || typeof d.to !== 'string') return;
+  remoteQ.push(d); drainRemote();
+}
+async function drainRemote(){
+  if (!pvp || busy || over || !remoteQ.length) return;
+  const d = remoteQ.shift();
+  if (d.ply !== game.history().length + 1 || game.turn() === playerColor){ online.send('sync-req', {}); return; }
+  const mv = game.move({from:d.from, to:d.to, promotion:d.promotion || undefined});
+  if (!mv){ online.send('sync-req', {}); return; }
+  clockStop(false);
+  if (clock && d.clock && Number.isFinite(d.clock[mv.color])) clock[mv.color] = Math.max(0, d.clock[mv.color]);
+  busy = true; refreshHud();
+  const tok = token;
+  await animateMove(mv, 'opp');
+  if (tok !== token) return;
+  talkAfter(mv, 'opp');
+  busy = false; refreshHud();
+  if (checkEnd()) return;
+  statusForTurn();
+  drainRemote();
+}
+function uciList(){ return game.history({verbose:true}).map(m => m.from + m.to + (m.promotion || '')); }
+function adoptMoves(list, clk){
+  const g = new Chess();
+  for (const u of list){ if (!g.move({from:u.slice(0,2), to:u.slice(2,4), promotion:u[4] || undefined})) return; }
+  token++; remoteQ.length = 0;
+  game = g; busy = false;
+  if (clock && clk){ clock.w = clk.w; clock.b = clk.b; clock.run = null; }
+  clearSelection(); rebuildPieces(); refreshMarks(); refreshHud();
+  if (!checkEnd()) statusForTurn();
+}
+function onRemote(t, d){
+  if (!pvp) return;
+  const o = pvp.oppName;
+  switch (t){
+    case 'move': onRemoteMove(d); break;
+    case 'chat': {
+      const text = String(d.text || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 140);
+      if (text) post('opp', text, `${o} · ${moveTag()}`, o);
+      break;
+    }
+    case 'sync-req': online.send('sync', {moves:uciList(), clock: clock ? {w:Math.round(clock.w), b:Math.round(clock.b)} : null}); break;
+    case 'sync': if (Array.isArray(d.moves) && d.moves.length >= game.history().length) adoptMoves(d.moves.slice(0, 600).map(String), d.clock); break;
+    case 'resign': if (!over) finish('Resigned', `You beat ${o}`, `${o} resigned. Didn't even make it to the final buzzer.`, true); break;
+    case 'leave': if (!over) finish('Opponent left', `You beat ${o}`, `${o} left the game. BDB calls that a forfeit. He'd know.`, true); else { post('sys', `${o} left`); pvp.gone = true; paintEnd(); } break;
+    case 'flag': if (!over){ if (clock) clock[oppColor()] = 0; drawClocks(); finish('Out of time', `You beat ${o} on time`, `${o} ran out of time. Clock-watching rated 100? Not today.`, true); } break;
+    case 'flag-claim': if (!over && clock){ clockStop(false); const left = clock[playerColor]; if (left < 1500){ clock[playerColor] = 0; drawClocks(); finish('Out of time', `${o} wins on time`, pick(L.flagYou), false); } else online.send('sync', {moves:uciList(), clock:{w:Math.round(clock.w), b:Math.round(clock.b)}}); } break;
+    case 'draw-offer':
+      if (over) break;
+      post('sys', `${o} offered a draw`);
+      online.toast({title:`${o} offers a draw`, sub:'Take the split, or keep playing.', timeout:20000, actions:[
+        {label:'Accept draw', primary:true, fn:() => { if (over) return; online.send('draw-yes', {}); finish('Draw agreed', 'Nobody wins', pick(L.pvpDraw)(o)); }},
+        {label:'Keep playing', fn:() => { online.send('draw-no', {}); post('sys', 'You declined the draw'); }}
+      ], onTimeout:() => online.send('draw-no', {})});
+      break;
+    case 'draw-yes': if (!over && pvp.drawOffered) finish('Draw agreed', 'Nobody wins', pick(L.pvpDraw)(o)); break;
+    case 'draw-no': pvp.drawOffered = false; post('sys', `${o} wants to keep playing`); refreshHud(); break;
+    case 'rematch':
+      if (!over) break;
+      if (pvp.rematch === 'sent'){ online.acceptRematch(); break; }
+      pvp.rematch = 'got'; paintEnd();
+      post('sys', `${o} wants a rematch`);
+      online.toast({title:`${o} wants a rematch`, sub:'Colors swap.', timeout:30000, actions:[
+        {label:'Run it back', primary:true, fn:() => { if (pvp && over) online.acceptRematch(); }},
+        {label:'No thanks', fn:() => {}}
+      ]});
+      break;
+  }
+}
+function oppLeft(){
+  if (!pvp) return;
+  const o = pvp.oppName;
+  pvp.gone = true;
+  if (!over) finish('Opponent left', `You beat ${o}`, `${o} disconnected. BDB calls that a forfeit. He'd know.`, true);
+  else { post('sys', `${o} left`); paintEnd(); }
+}
+function startMatch({mid, myColor, tc, oppName}){
+  token++; engine.cancel(); remoteQ.length = 0;
+  pvp = {mid, oppName, tc, drawOffered:false, rematch:null, gone:false};
+  playerColor = myColor;
+  game = new Chess(); over = false; busy = false; evalState = 0;
+  currentTc = tc; resetClock(tc);
+  splashUp = false; controls.autoRotate = false;
+  const s = $('splash'); if (!s.hidden){ s.classList.add('gone'); setTimeout(()=>{ s.hidden = true; }, REDUCED ? 0 : 450); }
+  $('end').hidden = true; $('promo').hidden = true; $('settings').hidden = true;
+  clearSelection(); setOverlay(hintFrom, null); setOverlay(hintTo, null);
+  rebuildPieces(); refreshMarks(); applyMode(); refreshHud(); updateEval(null);
+  post('sys', `Online match · You vs ${oppName} · You're ${myColor === 'w' ? 'White' : 'Black'}` + (clock ? ` · ${tcOf(tc).name}` : ''));
+  sayText(pick(L.pvpStart)(oppName));
+  statusForTurn();
+  flyTo(VIEW(playerColor));
+}
+// leave an online game for good (resigns first if it's still going)
+function exitPvp(){
+  if (!pvp) return;
+  if (!over) online.send('resign', {});
+  online.leaveMatch();
+  pvp = null; remoteQ.length = 0;
+  applyMode();
+}
+function applyMode(){
+  const on = !!pvp;
+  $('oppName').textContent = on ? pvp.oppName : 'BDB';
+  $('av').className = 'pav ' + (on ? 'opp' : 'bdb');
+  $('oppIni').textContent = on ? initials(pvp.oppName) : '';
+  $('lvlBadge').textContent = on ? 'Online' : level.name;
+  $('ppgBadge').hidden = on;
+  speechEl.classList.toggle('announcer', on);
+  for (const id of ['undoBtn','hintBtn']) $(id).hidden = on;
+  for (const id of ['drawBtn','resignBtn']) $(id).hidden = !on;
+  $('newBtn').lastChild.textContent = on ? 'Lobby' : 'New';
+  $('levelPill').firstChild.textContent = on ? 'Match ' : 'Level ';
+  $('chatForm').hidden = !on;
+  $('setNew').hidden = on;
+  for (const id of ['evalbar','evalTop','evalBot']) $(id).hidden = on || !settings.evalbar;
+  paintChips();
+  paintEnd();
+}
+function paintEnd(){
+  const again = $('againBtn'), lvl = $('lvlBtn');
+  if (!pvp){ again.textContent = 'Run it back'; again.disabled = false; lvl.textContent = 'Change level'; return; }
+  lvl.textContent = 'Back to lobby';
+  again.disabled = pvp.gone || pvp.rematch === 'sent';
+  again.textContent = pvp.gone ? 'Opponent left' : pvp.rematch === 'sent' ? 'Waiting…' : pvp.rematch === 'got' ? 'Accept rematch' : 'Rematch';
+}
+// two-tap confirm for dock buttons that end the game
+function armed(btn, label, fn){
+  if (btn.classList.contains('armed')){ btn.classList.remove('armed'); btn.querySelector('span').textContent = btn.dataset.label; fn(); return; }
+  btn.dataset.label = btn.querySelector('span').textContent;
+  btn.classList.add('armed'); btn.querySelector('span').textContent = label;
+  setTimeout(()=>{ if (btn.classList.contains('armed')){ btn.classList.remove('armed'); btn.querySelector('span').textContent = btn.dataset.label; } }, 3000);
 }
 function fallbackMove(){
   const ms = game.moves({verbose:true});
@@ -985,6 +1173,7 @@ function flyTo(pos, dur = 1.1){
 
 /* ---------- game lifecycle ---------- */
 function newGame(){
+  exitPvp(); online.setStatus('bdb');
   token++; engine.cancel(); engine.newGame();
   game = new Chess(); over = false; busy = false; evalState = 0;
   currentTc = settings.tc; resetClock();
@@ -998,7 +1187,7 @@ function newGame(){
   else statusForTurn();
 }
 function undo(){
-  if (busy || clock || !game.history().length) return;
+  if (pvp || busy || clock || !game.history().length) return;
   token++; engine.cancel();
   game.undo();
   while (game.turn() !== playerColor && game.history().length) game.undo();
@@ -1008,7 +1197,7 @@ function undo(){
   if (game.turn() !== playerColor) bdbMove(); else statusForTurn();
 }
 async function hint(){
-  if (busy || over || game.turn() !== playerColor || !HINT_LEVELS.includes(level.key)) return;
+  if (pvp || busy || over || game.turn() !== playerColor || !HINT_LEVELS.includes(level.key)) return;
   busy = true; refreshHud(); setStatus('scout', 'Scout looking');
   const tok = token;
   const uci = await engine.best(game.fen(), 20, 'movetime 700');
@@ -1022,13 +1211,43 @@ async function hint(){
   select(from);
   setOverlay(hintFrom, from); setOverlay(hintTo, to);
 }
-$('newBtn').onclick = () => newGame();
-$('againBtn').onclick = () => newGame();
+$('newBtn').onclick = () => {
+  if (!pvp) return newGame();
+  if (over){ online.openLobby(); return; }
+  armed($('newBtn'), 'Resign?', () => { exitPvp(); showSplash(); online.openLobby(); });
+};
+// the dock's New button has no inner span; give it one so armed() can relabel it
+{ const nb = $('newBtn'); const t = nb.lastChild; const sp = document.createElement('span'); sp.textContent = t.textContent.trim(); nb.replaceChild(sp, t); }
+$('againBtn').onclick = () => {
+  if (!pvp) return newGame();
+  if (pvp.gone) return;
+  if (pvp.rematch === 'got'){ online.acceptRematch(); return; }
+  pvp.rematch = 'sent'; online.offerRematch(); post('sys', 'Rematch offered'); paintEnd();
+};
+$('resignBtn').onclick = () => {
+  if (!pvp || over) return;
+  armed($('resignBtn'), 'Sure?', () => { online.send('resign', {}); finish('Resigned', `${pvp.oppName} wins`, 'You resigned. BDB respects it. He has been cut before too.', false); });
+};
+$('drawBtn').onclick = () => {
+  if (!pvp || over || pvp.drawOffered) return;
+  pvp.drawOffered = true; online.send('draw-offer', {}); post('sys', 'You offered a draw'); refreshHud();
+};
+$('playFriend').onclick = () => online.openLobby();
+$('chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = $('chatIn'), text = inp.value.trim().slice(0, 140);
+  if (!text || !pvp) return;
+  online.send('chat', {text}); post('you', text, 'You · ' + moveTag()); inp.value = '';
+});
 $('undoBtn').onclick = undo;
 $('hintBtn').onclick = hint;
 $('viewBtn').onclick = () => { if (!flying) flyTo(VIEW(playerColor), .8); };
-$('lvlBtn').onclick = () => { $('end').hidden = true; showSplash(); };
-$('levelPill').onclick = () => showSplash();
+$('lvlBtn').onclick = () => {
+  $('end').hidden = true;
+  if (pvp){ exitPvp(); showSplash(); online.openLobby(); return; }
+  showSplash();
+};
+$('levelPill').onclick = () => { if (pvp) online.openLobby(); else showSplash(); };
 const TAUNTS = [
   {t:'2.0 points per game?', r:["It was 2.0 in a good year, thank you.","Points are a social construct.","Quality over quantity. Mostly neither."]},
   {t:'Nice lanyard.', r:["It's the only chain I got. Show some respect.","Lanyard's elite. Rated 99, like my confidence."]},
@@ -1039,16 +1258,25 @@ const TAUNTS = [
   {t:'GG, easy.', r:["Easy for you. I've got a shift after this.","Don't GG yet. My engine's still thinking. I'm not."]},
   {t:'Resign.', r:["BDB doesn't resign. BDB gets cut. Different thing.","I don't quit. I get released."]}
 ];
+const PVP_TAUNTS = ['You play like BDB.', 'Clock’s ticking.', 'Nice move… not.', 'Is that your best?', 'Lucky.', 'GG', 'Rematch?', 'BDB would’ve seen that.'];
 const chipsEl = $('chips');
-for (const tt of TAUNTS){
-  const b = document.createElement('button'); b.type = 'button'; b.textContent = tt.t;
-  b.onclick = () => {
-    post('you', tt.t, 'You · ' + moveTag());
-    chipsEl.querySelectorAll('button').forEach(x => x.disabled = true);
-    setTimeout(()=>{ sayText(pick(tt.r)); chipsEl.querySelectorAll('button').forEach(x => x.disabled = false); }, REDUCED ? 0 : 800);
-  };
-  chipsEl.appendChild(b);
+let chipLock = 0;
+function paintChips(){
+  chipsEl.innerHTML = '';
+  for (const tt of (pvp ? PVP_TAUNTS.map(t => ({t})) : TAUNTS)){
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = tt.t;
+    b.onclick = () => {
+      if (Date.now() < chipLock) return;
+      chipLock = Date.now() + (pvp ? 1200 : 900);
+      post('you', tt.t, 'You · ' + moveTag());
+      if (pvp){ online.send('chat', {text:tt.t}); return; }
+      chipsEl.querySelectorAll('button').forEach(x => x.disabled = true);
+      setTimeout(()=>{ sayText(pick(tt.r)); chipsEl.querySelectorAll('button').forEach(x => x.disabled = false); }, REDUCED ? 0 : 800);
+    };
+    chipsEl.appendChild(b);
+  }
 }
+paintChips();
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
   $('paneTalk').hidden = b.dataset.tab !== 'talk'; $('paneMoves').hidden = b.dataset.tab !== 'moves';
@@ -1075,6 +1303,7 @@ function paintSplash(){
   if (typeof paintSettings === 'function') paintSettings();
 }
 function showSplash(){
+  exitPvp(); online.setStatus('idle');
   splashUp = true; token++; engine.cancel(); busy = false; clockStop(false);
   const s = $('splash'); s.hidden = false; s.classList.remove('gone');
   controls.autoRotate = !REDUCED; paintSplash();
@@ -1088,15 +1317,15 @@ $('play').onclick = () => {
   flyTo(VIEW(playerColor));
 };
 document.addEventListener('keydown', e => {
-  if (!$('splash').hidden && (e.key === 'Enter')){ $('play').click(); }
+  if (!$('splash').hidden && e.key === 'Enter' && $('online').hidden && $('settings').hidden && document.activeElement.tagName !== 'INPUT'){ $('play').click(); }
   if (e.key === 'Escape') clearSelection();
 });
 
 /* ---------- clocks ---------- */
 const bdbColor = () => playerColor === 'w' ? 'b' : 'w';
 let clock = null; // {w, b, inc, run, last} in ms
-function resetClock(){
-  const tc = tcOf(settings.tc);
+function resetClock(key){
+  const tc = tcOf(key || settings.tc);
   clock = tc.base ? {w:tc.base*1000, b:tc.base*1000, inc:tc.inc*1000, run:null, last:0} : null;
   $('clockYou').hidden = $('clockBdb').hidden = !clock;
   drawClocks();
@@ -1121,7 +1350,8 @@ function drawClocks(){
     const el = c === playerColor ? $('clockYou') : $('clockBdb');
     const t = fmtClock(ms); if (el.textContent !== t) el.textContent = t;
     el.classList.toggle('run', clock.run === c); el.classList.toggle('low', ms < 20000);
-    if (ms <= 0 && clock.run === c && !over) flag(c);
+    const grace = pvp && c !== playerColor ? -2500 : 0;
+    if (ms <= grace && clock.run === c && !over) flag(c);
   }
 }
 // thinking budget for BDB when he's on the clock
@@ -1131,6 +1361,13 @@ function goFor(){
   return 'movetime ' + Math.round(Math.max(120, Math.min(n, rem/35 + clock.inc*.7)));
 }
 function flag(c){
+  if (pvp){
+    clock[c] = 0; clock.run = null; drawClocks();
+    const o = pvp.oppName;
+    if (c === playerColor){ online.send('flag', {}); finish('Out of time', `${o} wins on time`, pick(L.flagYou), false); }
+    else { online.send('flag-claim', {}); finish('Out of time', `You beat ${o} on time`, `${o} ran out of time. Clock-watching rated 100? Not today.`, true); }
+    return;
+  }
   clock[c] = 0; clock.run = null; drawClocks();
   token++; engine.cancel();
   over = true; busy = false; clearSelection();
@@ -1171,7 +1408,7 @@ function paintSettings(){
 let currentTc = settings.tc;
 function applySettings(){
   controls.enableRotate = settings.cam === 'free';
-  for (const id of ['evalbar','evalTop','evalBot']) $(id).hidden = !settings.evalbar;
+  for (const id of ['evalbar','evalTop','evalBot']) $(id).hidden = !settings.evalbar || !!pvp;
   if (!settings.legal) while (targetGroup.children.length) targetGroup.remove(targetGroup.children[0]);
   else if (selected) select(selected);
 }
@@ -1180,8 +1417,18 @@ function closeSettings(){ $('settings').hidden = true; }
 $('setBtn').onclick = openSettings; $('setBtn2').onclick = openSettings;
 $('setClose').onclick = closeSettings; $('setDone').onclick = closeSettings;
 $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
-$('setNew').onclick = () => { closeSettings(); if (!splashUp){ currentTc = settings.tc; newGame(); } };
+$('setNew').onclick = () => { closeSettings(); if (!splashUp && !pvp){ currentTc = settings.tc; newGame(); } };
 paintSettings(); applySettings();
+
+/* ---------- online lobby ---------- */
+const online = initOnline({
+  store,
+  tcName: k => tcOf(k).name,
+  tcOptions: () => TCS.map(t => [t.key, t.key === 'off' ? 'Off' : t.key]),
+  validTc: k => tcOf(k).key,
+  isOver: () => !pvp || over,
+  startMatch, remote: onRemote, oppLeft
+});
 
 /* ---------- loop ---------- */
 function resize(){
@@ -1225,4 +1472,4 @@ renderer.setAnimationLoop(() => {
 rebuildPieces(); refreshHud(); showSplash();
 setStatus('', 'Pick a side');
 // test hook for automated checks
-window.__cc = { cam(){ return camera.position.toArray().map(v=>+v.toFixed(2)); }, screenOf(sq){ const p = sqPos(sq).setY(.3).project(camera), r = renderer.domElement.getBoundingClientRect(); return [r.left + (p.x+1)/2*r.width, r.top + (1-p.y)/2*r.height]; }, clk(){ return clock && {run:clock.run, w:Math.round(clock.w), b:Math.round(clock.b)}; }, rot(){ return controls.enableRotate; }, load(fen){ token++; engine.cancel(); game.load(fen); over=false; busy=false; clearSelection(); rebuildPieces(); refreshMarks(); refreshHud(); statusForTurn(); }, get game(){ return game; }, get busy(){ return busy; }, get over(){ return over; }, get pieces(){ return pieces; }, onSquare, newGame, undo, KILLS, engine, setPlayer(c){ playerColor = c; } };
+window.__cc = { get pvp(){ return pvp; }, get color(){ return playerColor; }, setClk(c, ms){ if (clock){ clockStop(false); clock[c] = ms; statusForTurn(); } }, cam(){ return camera.position.toArray().map(v=>+v.toFixed(2)); }, screenOf(sq){ const p = sqPos(sq).setY(.3).project(camera), r = renderer.domElement.getBoundingClientRect(); return [r.left + (p.x+1)/2*r.width, r.top + (1-p.y)/2*r.height]; }, clk(){ return clock && {run:clock.run, w:Math.round(clock.w), b:Math.round(clock.b)}; }, rot(){ return controls.enableRotate; }, load(fen){ token++; engine.cancel(); game.load(fen); over=false; busy=false; clearSelection(); rebuildPieces(); refreshMarks(); refreshHud(); statusForTurn(); }, get game(){ return game; }, get busy(){ return busy; }, get over(){ return over; }, get pieces(){ return pieces; }, onSquare, newGame, undo, KILLS, engine, setPlayer(c){ playerColor = c; } };

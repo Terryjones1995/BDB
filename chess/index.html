@@ -237,6 +237,68 @@ button{font-family:inherit}
 .note{color:var(--gold);font-size:12.5px;margin-right:auto;align-self:center}
 .gear svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
 
+/* online: opponent card, announcer bubble, chat, lobby, toasts */
+.pav.opp{display:grid;place-items:center;background:linear-gradient(160deg,#ff8a2b,#a34c0c);box-shadow:0 0 0 3px var(--orange);
+  font:800 17px/1 var(--f-body);color:#1f1004;letter-spacing:.02em}
+.pav .ini{position:relative}
+.speech.announcer{padding-left:54px}
+.speech.announcer::before{display:none}
+.speech.announcer::after{content:"";position:absolute;left:12px;top:12px;width:32px;height:32px;border-radius:50%;
+  background:url(../assets/face.jpg) center 32%/cover;box-shadow:0 0 0 2px var(--orange)}
+.msg .mav.opp{background:linear-gradient(160deg,#ff8a2b,#a34c0c);display:grid;place-items:center;font:800 11px/1 var(--f-body);color:#1f1004}
+.msg.oppmsg .mb{background:#1f2e52;border-color:rgba(255,138,43,.35)}
+.chatform{display:flex;gap:6px;margin-top:8px}
+.chatform input{flex:1;min-width:0;background:#0b1731;border:1px solid var(--line);border-radius:10px;color:var(--ink);font:600 14px/1 var(--f-body);padding:10px 12px;-webkit-user-select:text;user-select:text}
+.chatform input:focus{outline:2px solid var(--gold);outline-offset:1px}
+.chatform button{border:0;border-radius:10px;background:var(--orange);color:#1f1004;font:800 12px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;padding:0 14px;cursor:pointer}
+.dk.warn{color:#ffb4aa}
+.dk.armed{background:var(--bad);color:#fff}
+#onlinePill .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+#onlinePill.has .dot{background:#4ade80;box-shadow:0 0 8px #4ade80}
+.btn.sm{font-size:11px;padding:9px 12px 8px;box-shadow:0 3px 0 var(--btn-deep)}
+.btn.sm.primary{box-shadow:0 3px 0 var(--orange-deep)}
+.btn.ghost{background:transparent;box-shadow:inset 0 0 0 1px var(--line)}
+.btn:disabled{opacity:.4;cursor:default;filter:none;transform:none}
+.btn.friend{background:transparent;box-shadow:inset 0 0 0 2px var(--orange);color:var(--ink)}
+.onsec{padding:14px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.onsec:last-child{border-bottom:0}
+.onsec h4{margin:0 0 10px;font:800 11px/1 var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.onrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.onname{flex:1;min-width:180px;background:#0b1731;border:1px solid var(--line);border-radius:10px;color:var(--ink);font:700 15px/1 var(--f-body);padding:11px 12px;-webkit-user-select:text;user-select:text}
+.onname:focus{outline:2px solid var(--gold);outline-offset:1px}
+.onstatus{color:var(--muted);font-size:13px;margin:0 0 10px}
+.plist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:min(260px,34dvh);overflow:auto}
+.prow{display:flex;align-items:center;gap:12px;background:#0d1a36;border:1px solid var(--line);border-radius:12px;padding:9px 10px}
+.prow.waiting{border-color:rgba(242,193,78,.5)}
+.pini{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(160deg,#2a4f9c,#14274f);
+  font:800 13px/1 var(--f-body);box-shadow:0 0 0 2px rgba(255,255,255,.14)}
+.pmeta{flex:1;min-width:0}
+.pmeta b{display:block;font:800 14px/1.2 var(--f-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pmeta small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+.pmeta small.busy{color:var(--orange)}
+.onempty{color:var(--dim);font-size:13px;text-align:center;padding:14px 8px;border:1px dashed var(--line);border-radius:12px}
+.onbusy{color:var(--gold);font-size:12.5px;margin:8px 0 0}
+.linkrow{display:flex;gap:8px;margin-top:4px}
+.linkrow input{flex:1;min-width:0;background:#0b1731;border:1px solid var(--line);border-radius:10px;color:var(--ink);font:600 13px/1 var(--f-body);padding:10px 12px;-webkit-user-select:text;user-select:text}
+.onmeta{color:var(--muted);font-size:12.5px;margin:8px 0 0}
+.toasts{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:40;display:flex;flex-direction:column;gap:10px;
+  width:min(400px,calc(100% - 24px));pointer-events:none}
+.toast{position:relative;overflow:hidden;pointer-events:auto;background:linear-gradient(180deg,#132a5c,#0a1838);border:1px solid rgba(242,193,78,.45);border-radius:16px;
+  padding:13px 14px 14px;box-shadow:0 18px 40px rgba(0,0,0,.55);animation:toastIn .3s cubic-bezier(.2,.9,.25,1.2)}
+.toast.challenge{border-color:var(--orange);box-shadow:0 0 0 1px rgba(255,138,43,.35),0 18px 40px rgba(0,0,0,.55)}
+.toast.bad{border-color:rgba(255,90,74,.6)}
+.toast.out{animation:toastOut .25s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(-14px) scale(.97)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px)}}
+.toast .tt{font:800 15px/1.25 var(--f-body)}
+.toast .ts{color:var(--muted);font-size:13px;line-height:1.35;margin-top:3px}
+.toast .ta{display:flex;gap:8px;margin-top:11px}
+.tbtn{flex:1;border:0;border-radius:10px;padding:10px 12px;font:800 12px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;
+  background:rgba(255,255,255,.08);color:var(--ink)}
+.tbtn.primary{background:var(--orange);color:#1f1004}
+.tbar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:var(--orange);transform-origin:0 50%;animation:tbar linear forwards}
+@keyframes tbar{to{transform:scaleX(0)}}
+
 /* ---- phones and narrow windows ---- */
 .grab{display:none;width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.25);margin:8px auto 0;border:0;padding:0;cursor:pointer}
 @media (max-width:900px){
@@ -267,11 +329,11 @@ button{font-family:inherit}
   .clock{font-size:22px;min-width:58px;padding:4px 7px 1px}
   .state{display:none}
 }
-@media (max-width:520px){ .gear .gl{display:none} }
+@media (max-width:520px){ .gear .gl{display:none} #onlinePill .gl{display:none} }
 @media (max-width:520px){ .top .pill:not(.chatBtn):not(#levelPill){display:none} .brand .cw{display:none} }
 @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
 </style>
-<script src="../assets/roasts.js?v=1031-1750"></script>
+<script src="../assets/roasts.js?v=1101-1711"></script>
 <script src="vendor/chess.js"></script>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
 </head>
@@ -301,7 +363,10 @@ button{font-family:inherit}
       <label id="tcLbl">Clock</label>
       <div class="seg" role="group" aria-labelledby="tcLbl" id="tcSeg"></div>
     </div>
-    <button type="button" class="btn primary big" id="play" style="animation:drop .6s .5s both">Play BDB</button>
+    <div class="onrow" style="justify-content:center;animation:drop .6s .5s both">
+      <button type="button" class="btn primary big" id="play">Play BDB</button>
+      <button type="button" class="btn friend big" id="playFriend">Play a friend</button>
+    </div>
   </div>
 </section>
 
@@ -315,6 +380,7 @@ button{font-family:inherit}
     <div class="spacer"></div>
     <button type="button" class="pill" id="levelPill" aria-label="Change level">Level <span class="led" id="hLevel">D1</span></button>
     <span class="pill" style="cursor:default">Move <span class="led" id="hMove">1</span></span>
+    <button type="button" class="pill" id="onlinePill" aria-label="Play online"><span class="dot"></span><span class="gl">Online</span> <span class="led" id="onCount">0</span></button>
     <button type="button" class="pill gear" id="setBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="gl">Settings</span></button>
     <button type="button" class="pill chatBtn" id="chatBtn" aria-label="Open trash talk">Chat</button>
   </header>
@@ -327,9 +393,9 @@ button{font-family:inherit}
     <div class="float evaltxt" id="evalBot">0.0</div>
 
     <div class="float pcard" id="cardBdb">
-      <div class="pav bdb" id="av"><span class="ring"></span></div>
+      <div class="pav bdb" id="av"><span class="ring"></span><span class="ini" id="oppIni"></span></div>
       <div class="pinfo">
-        <div class="pname">BDB <span class="badge" id="lvlBadge">D1</span><span class="badge alt">2.0 PPG</span></div>
+        <div class="pname"><span id="oppName">BDB</span> <span class="badge" id="lvlBadge">D1</span><span class="badge alt" id="ppgBadge">2.0 PPG</span></div>
         <div class="psub"><span class="caps" id="trayBdb"></span><span class="adv" id="advBdb"></span></div>
       </div>
       <span class="state" id="stateBdb">Waiting</span>
@@ -350,6 +416,8 @@ button{font-family:inherit}
 
     <nav class="float dock" aria-label="Game controls">
       <button type="button" class="dk primary" id="newBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New</button>
+      <button type="button" class="dk" id="drawBtn" hidden><svg viewBox="0 0 24 24"><path d="M7 11h10M7 15h10"/><circle cx="12" cy="12" r="9"/></svg><span>Draw</span></button>
+      <button type="button" class="dk warn" id="resignBtn" hidden><svg viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/></svg><span>Resign</span></button>
       <button type="button" class="dk" id="undoBtn"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>Undo</button>
       <button type="button" class="dk" id="hintBtn"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>Hint</button>
       <button type="button" class="dk" id="setBtn2"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Settings</button>
@@ -380,6 +448,7 @@ button{font-family:inherit}
     <div class="talkback">
       <div class="lbl">Talk back</div>
       <div class="chips" id="chips"></div>
+      <form class="chatform" id="chatForm" hidden autocomplete="off"><input id="chatIn" maxlength="140" placeholder="Talk your trash…" aria-label="Chat message"><button type="submit">Send</button></form>
     </div>
   </aside>
 </div>
@@ -396,9 +465,44 @@ button{font-family:inherit}
       <div class="srow"><div><b>Show legal moves</b><small>Dots where the selected piece can go.</small></div><button type="button" class="switch" role="switch" id="setLegal" aria-label="Show legal moves"></button></div>
       <div class="srow"><div><b>Auto-queen</b><small>Promote straight to a queen, no picker.</small></div><button type="button" class="switch" role="switch" id="setQueen" aria-label="Auto-queen"></button></div>
     </div>
-    <div class="modal-foot"><span class="note" id="setNote"></span><span class="note" style="color:var(--dim);margin-right:0">Build 1031-1750</span><button type="button" class="btn" id="setNew">New game with these</button><button type="button" class="btn primary" id="setDone">Done</button></div>
+    <div class="modal-foot"><span class="note" id="setNote"></span><span class="note" style="color:var(--dim);margin-right:0">Build 1101-1711</span><button type="button" class="btn" id="setNew">New game with these</button><button type="button" class="btn primary" id="setDone">Done</button></div>
   </div>
 </div>
+
+<div class="modal-wrap" id="online" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onTitle">
+    <div class="modal-head"><h3 id="onTitle">Play a friend</h3><button type="button" class="x" id="onClose" aria-label="Close">×</button></div>
+    <div class="sets">
+      <div class="onsec">
+        <h4>Your name</h4>
+        <div class="onrow"><input class="onname" id="onName" maxlength="24" aria-label="Your name"></div>
+      </div>
+      <div class="onsec">
+        <h4>Match settings</h4>
+        <div class="onrow" style="margin-bottom:8px"><div class="seg" id="onTc" role="group" aria-label="Clock"></div></div>
+        <div class="onrow"><div class="seg" id="onColor" role="group" aria-label="Your color"></div></div>
+      </div>
+      <div class="onsec">
+        <h4>Online now</h4>
+        <p class="onstatus" id="onStatus">Connecting to the lobby…</p>
+        <ul class="plist" id="onList"></ul>
+        <div class="onempty" id="onEmpty">Nobody else is on the chess page right now.</div>
+        <p class="onbusy" id="onBusy" hidden>Finish or resign your current match to challenge someone new.</p>
+      </div>
+      <div class="onsec">
+        <h4>Invite link</h4>
+        <button type="button" class="btn primary" id="onInvite">Create invite link</button>
+        <div id="onInviteBox" hidden>
+          <div class="linkrow"><input id="onLink" readonly aria-label="Invite link"><button type="button" class="btn sm primary" id="onCopy">Copy link</button></div>
+          <p class="onmeta" id="onInviteMeta"></p>
+          <button type="button" class="btn sm ghost" id="onCancelInvite" style="margin-top:8px">Cancel invite</button>
+        </div>
+        <p class="onmeta">Send it to a friend. The match starts as soon as they open it. Keep this page open while you wait.</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
 
 <div class="endbox-wrap" id="end" hidden>
   <div class="endbox">
@@ -413,6 +517,6 @@ button{font-family:inherit}
   </div>
 </div>
 
-<script type="module" src="game.js?v=1031-1750"></script>
+<script type="module" src="game.js?v=1101-1711"></script>
 </body>
 </html>

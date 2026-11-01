@@ -6,11 +6,14 @@ Play: https://terryjones1995.github.io/BDB/
 
 ## Charleston Solitaire (`/solitaire`)
 Klondike with BDB on all 52 cards. Draw 1 or 3, drag or tap to move, undo, hints, auto-finish,
-best time, and a roast every time you deal a card. Win and BDB shows up as a paper cutout to celebrate.
+best time, and a roast every time you deal a card (525 lines in the deck). Win and BDB shows up as a paper cutout to celebrate.
 
 ## Charleston Chess (`/chess`)
 3D chess against BDB on a parquet court.
-- Five levels, from Rec League up to Pro (full-strength Stockfish)
+- Play BDB: five levels, from Rec League up to Pro (full-strength Stockfish)
+- Play friends online: lobby of everyone on the chess page, challenges, invite links, clocks,
+  chat and taunts, draw offers, rematches. Peer-to-peer (no server), so a few strict networks may block it
+- 500+ trash-talk lines shared across both games (`assets/roasts.js`)
 - Every piece has its own kill move: Pawn Shiv, Horse Kick, Diagonal Slice, Tower Slam, Royal Blast, King's Stomp
 - BDB trash talks every capture and calls out forced mates ("Mate in 4. Trash can.")
 - Undo, hints, promotion picker, and the full rules (castling, en passant, draws)
@@ -19,3 +22,4 @@ best time, and a roast every time you deal a card. Win and BDB shows up as a pap
 - Chess engine: [Stockfish.js](https://github.com/nmrugg/stockfish.js) (GPL, see `chess/engine/LICENSE.txt`)
 - Chess rules: [chess.js](https://github.com/jhlywa/chess.js) (BSD, see `chess/vendor/chess.js.LICENSE.txt`)
 - 3D: [three.js](https://threejs.org) (MIT, see `chess/vendor/three.LICENSE.txt`)
+- Online play: [Trystero](https://github.com/dmotz/trystero) (MIT, see `chess/vendor/trystero.LICENSE.txt`). Add `?net=local` to test two tabs without internet.
