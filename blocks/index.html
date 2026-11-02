@@ -59,8 +59,8 @@ kbd{font:700 11px var(--f-body);border:1px solid rgba(255,255,255,.25);border-ra
     <p>Stack the blocks, clear the lines, land a BDB BUCKET. It's the most organized BDB has been all shift.</p>
     <ul class="k-how" id="how">
       <li><b>← →</b> move, <b>↓</b> soft drop, <b>Space</b> hard drop.</li>
-      <li><b>↑</b> or <b>X</b> rotate right, <b>Z</b> rotate left, <b>C</b> or <b>Shift</b> hold.</li>
-      <li>On a phone: use the buttons, or <b>tap</b> the field to rotate, <b>drag</b> to move, <b>swipe down</b> to drop.</li>
+      <li><b>Right-click</b>, <b>↑</b> or <b>X</b> rotate right, <b>Z</b> rotate left, <b>C</b> or <b>Shift</b> hold.</li>
+      <li>On a phone: <b>hold and drag</b> anywhere to move, <b>tap</b> to rotate, <b>swipe down</b> to drop, <b>swipe up</b> to hold.</li>
       <li>Clear 4 lines at once for a <b>BDB BUCKET</b>. Every 10 lines it speeds up. <b>P</b> pauses.</li>
     </ul>
     <div class="k-row"><button type="button" class="k-btn primary big" id="play">Clock in</button></div>
@@ -190,8 +190,8 @@ function resize(){
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); cx.setTransform(DPR, 0, 0, DPR, 0, 0);
   sprites.clear();
   touch = matchMedia('(pointer: coarse)').matches || W < 640;
-  pad.hidden = !touch;
-  const padH = touch ? pad.offsetHeight + 12 : 0, m = 10;
+  pad.hidden = true;   // phones play by holding and dragging anywhere on the screen
+  const padH = 0, m = 10;
   const cSide = Math.floor(Math.min((H - 2 * m - padH) / 20.5, (W - 2 * m - 28) / 19.4));
   if (W >= 640 && cSide >= 14){
     mode = 'side'; cell = Math.min(cSide, 46);
@@ -209,7 +209,7 @@ function resize(){
     cell = Math.max(10, cell);
     const colW = Math.round(Math.max(66, cell * 3.1));
     F.w = cell * 10; F.h = cell * VIS;
-    F.x = Math.round((W - (F.w + 8 + colW)) / 2); F.y = Math.round(8 + cell * .6);
+    F.x = Math.round((W - (F.w + 8 + colW)) / 2); F.y = Math.round(Math.max(8 + cell * .6, (H - (F.h + 8 + bubH)) / 2));   // centre board + bubble now there's no button pad
     const cxl = F.x + F.w + 8;
     holdBox = {x: cxl, y: F.y, w: colW, h: Math.round(colW * .78)};
     nextBox = {x: cxl, y: holdBox.y + holdBox.h + 8, w: colW, h: Math.round(colW * .78 + colW * 1.15)};
@@ -360,12 +360,13 @@ pad.querySelectorAll('button').forEach(b => {
 let sw = null;
 cv.addEventListener('pointerdown', e => {
   if (!live()) return;
+  if (e.pointerType === 'mouse'){ if (e.button === 2){ e.preventDefault(); G.rotate(1); } return; }   // desktop: right-click rotates, arrows move
   sw = {id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), moved: false};
   try { cv.setPointerCapture(e.pointerId); } catch(_){}
 });
 cv.addEventListener('pointermove', e => {
   if (!sw || e.pointerId !== sw.id || !live()) return;
-  const step = Math.max(14, cell * .9);
+  const step = Math.max(12, cell * .8);
   let dx = e.clientX - sw.lx;
   while (Math.abs(dx) >= step){ const d = Math.sign(dx); G.move(d); sw.lx += d * step; dx -= d * step; sw.moved = true; }
   const dy = e.clientY - sw.ly, el = performance.now() - sw.t, fast = (e.clientY - sw.y) / Math.max(1, el) > .6;
@@ -381,6 +382,7 @@ function endSwipe(e){
 }
 cv.addEventListener('pointerup', endSwipe);
 cv.addEventListener('pointercancel', () => { sw = null; });
+stage.addEventListener('contextmenu', e => e.preventDefault());   // right-click is rotate, not the browser menu
 
 $('play').onclick = start; $('again').onclick = start;
 $('pause').onclick = () => { togglePause(); $('pause').blur(); };
