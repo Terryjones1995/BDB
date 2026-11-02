@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Free Throw Frenzy</title>
+<meta name="description" content="Sixty seconds of arcade hoops on BDB's own backboard. Beat his 2.0 PPG.">
+<meta property="og:title" content="Free Throw Frenzy">
+<meta property="og:image" content="../assets/face.jpg">
+<link rel="icon" href="../assets/face.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="../assets/kit.css">
+<style>
+/* Free Throw Frenzy: the ball sits low and centre, so the dock moves to the top-left and the HUD stays top-right. */
+.k-app{grid-template-columns:minmax(0,1fr)}
+.k-dock{left:12px;top:12px;bottom:auto;transform:none}
+.k-hud .cell.fire b{color:#fff;text-shadow:0 0 10px var(--orange),0 0 22px #ff3d00}
+.k-hud .cell.fire small{color:var(--orange)}
+.k-hud .cell.final b{color:var(--bad);text-shadow:0 0 10px rgba(255,90,74,.8)}
+.k-hud .cell.final small{color:var(--bad)}
+#hStreak small{white-space:nowrap}
+@media (max-width:420px){ .k-top .k-pill{padding:7px 9px;letter-spacing:.08em} .k-brand{font-size:15px} }
+@media (max-width:640px){
+  .k-dock{left:8px;top:8px;padding:4px;gap:4px;border-radius:13px}
+  .k-dock .k-dk{min-width:46px;padding:6px 4px 5px}
+  .k-hud{top:8px;right:8px;padding:4px;gap:4px}
+  .k-hud .cell{padding:4px 7px 2px}
+  .k-say{left:8px;bottom:8px;max-width:calc(100% - 16px)}
+}
+</style>
+<script src="../assets/roasts.js"></script>
+<script src="../assets/kit.js"></script>
+</head>
+<body class="k">
+
+<section class="k-splash" id="splash">
+  <div class="k-splash-in">
+    <a class="k-home" href="../">← All games</a>
+    <div class="k-face" aria-hidden="true"></div>
+    <div class="k-eyebrow">BDB Arcade presents</div>
+    <h2>Free Throw <span>Frenzy</span></h2>
+    <p>Sixty seconds on BDB's own hoop, his face right on the glass. He averaged 2.0 a game. Make him feel it.</p>
+    <ul class="k-how">
+      <li><b>Drag up and let go</b> to shoot. Point the flick at the hoop; a longer drag means more power.</li>
+      <li><b>Keyboard:</b> hold <b>Space</b> to charge, let go to shoot. <b>← →</b> aim, <b>↓</b> recentres.</li>
+      <li><b>2</b> a bucket, <b>3</b> for a swish. Streaks multiply. Five straight and you're on fire.</li>
+      <li>The hoop starts moving at 30 seconds. The <b>last 10 seconds</b> are double points.</li>
+      <li><b>P</b> pauses.</li>
+    </ul>
+    <div class="k-row"><button type="button" class="k-btn primary big" id="play">Play</button></div>
+  </div>
+</section>
+
+<div class="k-app">
+  <header class="k-top">
+    <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
+    <div class="k-brand">Free Throw <span>Frenzy</span></div>
+    <div class="k-spacer"></div>
+    <span class="k-pill">Best <span class="k-led" id="best">0</span></span>
+    <button type="button" class="k-pill" id="mute" aria-label="Sound">Sound on</button>
+  </header>
+  <main class="k-stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="k-float k-hud k-jumbo">
+      <div class="cell"><small>Score</small><b id="hScore">0</b></div>
+      <div class="cell" id="cTime"><small>Time</small><b id="hTime">60</b></div>
+      <div class="cell" id="cStreak"><small id="hStreakL">Streak</small><b id="hStreak">0</b></div>
+    </div>
+    <div class="k-float k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
+    <nav class="k-float k-dock" aria-label="Game controls">
+      <button type="button" class="k-dk primary" id="restart"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Restart</button>
+      <button type="button" class="k-dk" id="pause"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>Pause</button>
+    </nav>
+  </main>
+</div>
+
+<div class="k-modal" id="end" hidden>
+  <div class="k-box">
+    <div class="bigav"></div>
+    <div class="k-eyebrow" id="endEyebrow">Final buzzer</div>
+    <h3 id="endTitle"></h3>
+    <p id="endLine"></p>
+    <div class="k-jumbo k-stats" id="endStats"></div>
+    <div id="endScoresWrap" style="width:100%"><div class="k-label" style="margin-bottom:8px">Your top 5 on this device</div><ol class="k-scores" id="endScores"></ol></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="again">Run it back</button><a class="k-btn" href="../" style="text-decoration:none">All games</a></div>
+  </div>
+</div>
+
+<script>
+/* ===== Free Throw Frenzy ===== */
+const EXTRA = [
+  "BDB's free throw form has been described as 'a shopping cart with one bad wheel.'",
+  "BDB calls the free throw line 'the lonely spot.' He spent a lot of time near it. Not on it.",
+  "BDB says Pop-A-Shot doesn't count as basketball. He's 0 for 1 lifetime at the mall.",
+  "The rim on BDB's driveway hoop is still in the box. Since 2011.",
+  "BDB's shot chart is just a sad face drawn over the paint."
+];
+BDB.init({game:'freethrow', extra: EXTRA});
+
+/* ---------- lines (all BDB, all game-specific) ---------- */
+const L = {
+  start: [
+    "Sixty seconds on BDB's own hoop. His face is on the glass. Aim for it.",
+    "BDB averaged 2.0 a game. One bucket and you're tied. No pressure.",
+    "Clock's running. BDB is great at watching clocks. Shooting, less so.",
+    "Free throws. BDB's least favourite kind of throw. Which is all of them."
+  ],
+  miss: [
+    "Brick. BDB felt that one in his knees.",
+    "Off the rim. Same thing happened to BDB's scholarship.",
+    "That shot had BDB form. Not a compliment.",
+    "BDB says the rim is crooked. He's been saying that for fifteen years.",
+    "You shot that like it was the last ten minutes of a shift.",
+    "Clang. BDB just smiled for the first time all night.",
+    "Rattled out. BDB calls that 'almost.' He has a lot of almosts.",
+    "Miss. BDB is nodding like a coach. He has never coached.",
+    "That's a BDB special. Full confidence, zero bucket.",
+    "Front rim. BDB knows that spot. It was basically his office.",
+    "In and out. BDB's whole career in one shot.",
+    "Nope. Even BDB's glasses saw that coming."
+  ],
+  air: [
+    "Airball. BDB used to call those lob passes.",
+    "Didn't even draw iron. BDB is weirdly proud of you.",
+    "Airball. That one's out looking for a scout too.",
+    "Nothing but air. Just like BDB's stat sheet.",
+    "BDB airballed in warmups once. Okay, every warmup."
+  ],
+  make: [
+    "Bucket. That's a full BDB game in one shot.",
+    "That went in. BDB is pretending he didn't see it.",
+    "Nice. BDB says he taught you that. He did not.",
+    "Two points. BDB needed a whole night for that.",
+    "Count it. BDB has never heard those words about himself."
+  ],
+  swish: [
+    "Swish. BDB says he's done that. In warmups. Once. Maybe.",
+    "Nothing but net. BDB's face on the glass looks offended.",
+    "Pure. BDB has watched that replay zero times and hates it already.",
+    "Swish for three. That's more than BDB's average and he knows it."
+  ],
+  bank: [
+    "Glass. BDB's face did all the work on that one.",
+    "Banked it off BDB's forehead. He'll take the assist.",
+    "Off the glass and in. BDB is claiming that as a rebound."
+  ],
+  streak3: [
+    "Three straight. BDB says it's the ball. It's not the ball.",
+    "Okay. BDB is clapping. Slowly. Arms mostly crossed.",
+    "Three in a row. BDB's longest streak was three straight shifts.",
+    "Fine. That's decent. BDB said that through his teeth."
+  ],
+  fire: [
+    "You're on fire. BDB has never been this warm on a court.",
+    "On fire! BDB is fanning himself with his lanyard.",
+    "Five straight. BDB is quietly calling a scout. For you.",
+    "Heat check. BDB wants it on record that he's not impressed. He's impressed."
+  ],
+  fireOut: [
+    "Fire's out. BDB put it out with one look.",
+    "And it's over. BDB knows that feeling. Since Florida.",
+    "Streak's done. BDB is back to telling his high school stories."
+  ],
+  streak10: [
+    "Ten straight. BDB wants your autograph. Ironically. Mostly.",
+    "Ten in a row. That's more makes than BDB had in Florida."
+  ],
+  hoop: [
+    "Hoop's moving now. BDB says that's how he practised. It wasn't.",
+    "Moving target. Like BDB's start date with the pros.",
+    "BDB pulled the pin on the hoop. Good luck, shooter."
+  ],
+  faster: [
+    "Faster now. BDB set it to 'Florida tryout' speed.",
+    "Hoop's sprinting. First time anything moved fast around BDB."
+  ],
+  final: [
+    "Ten seconds. Double points. BDB lives for the last ten minutes of a shift.",
+    "Final ten! BDB is counting it down like it's clock out."
+  ],
+  buzzer: [
+    "Beat the buzzer! BDB has only ever beaten the parking lot rush.",
+    "At the horn! BDB has never hit one of those. Not even in his dreams. Okay, in his dreams."
+  ],
+  endBubble: [
+    "That's the horn. BDB says he'd have hit more. He would not have.",
+    "Game over. BDB is already telling people he let you win.",
+    "Final buzzer. BDB is putting his backboard face away until next time."
+  ]
+};
+const PPG = [
+  [2,   "You just passed BDB's season average. With one shot."],
+  [4,   "4 points. That's two BDB games. A whole road trip."],
+  [6,   "6 points. BDB would need three games and a nap."],
+  [10,  "Double digits. BDB has never seen those next to his name."],
+  [16,  "16 points. Eight BDB games. That's his month, if he played. He didn't."],
+  [20,  "20 points. Ten BDB games. You're a highlight reel ahead of him."],
+  [30,  "30 piece. BDB needs fifteen games to get there."],
+  [40,  "40 points. Twenty BDB games. That's his college career, if it existed."],
+  [60,  "60 points. Thirty BDB games. You just lapped his whole résumé."],
+  [80,  "80. BDB is calling a scout for you. The scout won't pick up either."],
+  [100, "Triple digits. Fifty BDB games of scoring. Please leave some for him."],
+  [150, "150. BDB wants to know if you're free for his Tuesday rec league."],
+  [200, "200 points. A hundred BDB games. He has retired. Again."],
+  [300, "300. BDB has asked us to stop telling him the number."]
+];
+
+/* ---------- setup ---------- */
+const $ = id => document.getElementById(id);
+const cv = $('cv'), cx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+const G = 9.8, BR = .105, RIM_Y = 3.05, RIM_R = .245, RIM_Z = 4.2, BOARD_Z = RIM_Z + .38;
+const BOARD_W = 2.0, BOARD_BOT = 2.85, BOARD_TOP = 4.1, SQ_W = .8, SQ_BOT = 3.14, SQ_TOP = 3.86;
+const CAMY = 1.75, CAMZ = -1.6, LX = 0, LY = 1.15, LZ = .35, WALL_Z = 8.5, PANEL_Z = .6, PANEL_Y = 1.0;
+const ROUND = 60;
+let F = 600, CX = 0, CY = 0, bgLayer = null, panelLayer = null;
+const P = (x, y, z) => { const s = F / (z - CAMZ); return [CX + x * s, CY - (y - CAMY) * s, s]; };
+
+function resize(){
+  const r = $('stage').getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(1, r.width); H = Math.max(1, r.height);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const portrait = W / H < .85;
+  const rimFrac = portrait ? .3 : .3, ballFrac = portrait ? .7 : .82;
+  const dzR = RIM_Z - CAMZ, dz0 = LZ - CAMZ;
+  F = (ballFrac - rimFrac) * H / ((RIM_Y - CAMY) / dzR + (CAMY - LY) / dz0);
+  F = Math.min(F, W * dzR / 2.7);
+  CX = W / 2; CY = rimFrac * H + (RIM_Y - CAMY) * F / dzR;
+  buildLayers();
+}
+
+/* ---------- static layers (arena + cabinet), rebuilt on resize ---------- */
+function layer(){ const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); return [c, g]; }
+function rr(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+function faceCircle(g, x, y, r){ g.save(); g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.clip(); if (BDB.faceImg.complete && BDB.faceImg.naturalWidth) g.drawImage(BDB.faceImg, 20, 18, 220, 220, x - r, y - r, r * 2, r * 2); else { g.fillStyle = '#c98a5a'; g.fill(); } g.restore(); }
+
+function buildLayers(){
+  let g;
+  [bgLayer, g] = layer();
+  let gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#02060f'); gr.addColorStop(1, '#0a1838');
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  const sW = F / (WALL_Z - CAMZ);
+  const wallTop = P(0, 8, WALL_Z)[1], wallBot = P(0, 0, WALL_Z)[1];
+  gr = g.createLinearGradient(0, wallTop, 0, wallBot); gr.addColorStop(0, '#040a1a'); gr.addColorStop(1, '#0c1f4a');
+  g.fillStyle = gr; g.fillRect(0, wallTop, W, wallBot - wallTop);
+  // empty seats, row after row of them
+  for (let r = 0; r < 9; r++){
+    const y0 = .25 + r * .5, [, rowB] = P(0, y0, WALL_Z), [, rowT] = P(0, y0 + .5, WALL_Z);
+    g.fillStyle = r % 2 ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.18)'; g.fillRect(0, rowT, W, rowB - rowT);
+    const shade = 1 - r * .06;
+    for (let i = -30; i <= 30; i++){
+      const x = i * .52; if (i % 12 === 0) continue;
+      const [sx, sy] = P(x - .2, y0 + .36, WALL_Z); if (sx < -40 || sx > W + 40) continue;
+      const w = .4 * sW, h = .3 * sW;
+      g.fillStyle = `rgb(${Math.round(29 * shade)},${Math.round(63 * shade)},${Math.round(134 * shade)})`; rr(g, sx, sy, w, h, Math.min(4, w * .2)); g.fill();
+      g.fillStyle = `rgba(120,170,255,${.25 * shade})`; g.fillRect(sx + w * .12, sy + 1, w * .76, Math.max(1, h * .14));
+    }
+  }
+  // the one fan who showed up: BDB, in row 4
+  { const [fx, fy] = P(2.35, 2.5, WALL_Z); faceCircle(g, fx, fy, .2 * sW); g.strokeStyle = 'rgba(255,138,43,.7)'; g.lineWidth = 1.5; g.beginPath(); g.arc(fx, fy, .2 * sW, 0, 7); g.stroke(); }
+  // ribbon board
+  { const [, rT] = P(0, 5.25, WALL_Z), [, rB] = P(0, 4.85, WALL_Z);
+    g.fillStyle = '#04070e'; g.fillRect(0, rT, W, rB - rT);
+    g.fillStyle = 'rgba(255,181,71,.18)'; g.fillRect(0, rT, W, 1); g.fillRect(0, rB - 1, W, 1);
+    g.font = `500 ${Math.max(10, (rB - rT) * .82)}px Teko, "Arial Narrow", sans-serif`; g.textBaseline = 'middle'; g.fillStyle = '#ffb547';
+    g.shadowColor = 'rgba(255,181,71,.7)'; g.shadowBlur = 6;
+    const msg = 'BDB ARENA   ·   ATTENDANCE TONIGHT: 0   ·   HOME OF THE 2.0 PPG   ·   ';
+    const mw = g.measureText(msg).width; for (let x = -((W / 2) % mw) - mw * .3; x < W; x += mw) g.fillText(msg, x, (rT + rB) / 2 + 1);
+    g.shadowBlur = 0; }
+  // hanging banners
+  for (const bx of [-3.3, 3.3]){
+    const [x1, y1] = P(bx - .5, 7.0, WALL_Z), [x2, y2] = P(bx + .5, 5.35, WALL_Z); const w = x2 - x1, h = y2 - y1;
+    if (x2 < 0 || x1 > W) continue;
+    g.fillStyle = '#0d2a66'; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y1); g.lineTo(x2, y2); g.lineTo(x1 + w / 2, y2 - h * .12); g.lineTo(x1, y2); g.closePath(); g.fill();
+    g.strokeStyle = '#ff8a2b'; g.lineWidth = Math.max(1.5, w * .04); g.stroke();
+    faceCircle(g, x1 + w / 2, y1 + h * .27, w * .26);
+    g.fillStyle = '#eef2fb'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `${w * .26}px "Bowlby One", Impact, sans-serif`; g.fillText('BDB', x1 + w / 2, y1 + h * .58);
+    g.fillStyle = '#f2c14e'; g.font = `600 ${w * .2}px Teko, sans-serif`; g.fillText(bx < 0 ? '2.0 PPG' : 'BENCH LEGEND', x1 + w / 2, y1 + h * .74);
+    g.textAlign = 'start';
+  }
+  // spotlights
+  g.globalCompositeOperation = 'lighter';
+  for (const lx of [.18, .5, .82]){
+    const rg = g.createRadialGradient(W * lx, -H * .1, 0, W * lx, -H * .1, H * .75);
+    rg.addColorStop(0, 'rgba(90,150,255,.16)'); rg.addColorStop(1, 'rgba(90,150,255,0)'); g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  }
+  g.globalCompositeOperation = 'source-over';
+  // floor
+  gr = g.createLinearGradient(0, wallBot, 0, H); gr.addColorStop(0, '#5d3618'); gr.addColorStop(.35, '#9a6232'); gr.addColorStop(1, '#c4844a');
+  g.fillStyle = gr; g.fillRect(0, wallBot, W, H - wallBot);
+  g.strokeStyle = 'rgba(60,30,8,.35)'; g.lineWidth = 1;
+  for (let x = -14; x <= 14; x += .3){ const a = P(x, 0, WALL_Z), b = P(x, 0, -1.1); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  for (let j = 0, z = .2; z < WALL_Z; z += .75, j++){
+    for (let i = -46; i < 46; i++){ if ((i * 7 + j * 3) % 5) continue; const a = P(i * .3, 0, z), b = P(i * .3 + .3, 0, z); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  }
+  // lane paint, baseline, BDB decal
+  const base = BOARD_Z + 1.2;
+  const lane = [P(-2.45, 0, -.2), P(2.45, 0, -.2), P(2.45, 0, base), P(-2.45, 0, base)];
+  g.fillStyle = 'rgba(255,138,43,.28)'; g.beginPath(); lane.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2; g.stroke();
+  { const a = P(-14, 0, base), b = P(14, 0, base); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  { const [dx, dy, s] = P(0, 0, 2.4), [, dy2] = P(0, 0, 2.9);
+    g.save(); g.translate(dx, dy); g.scale(1, Math.max(.12, (dy - dy2) / (s * .9))); g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `${s * .9}px "Bowlby One", Impact, sans-serif`; g.fillStyle = 'rgba(255,255,255,.16)'; g.fillText('BDB', 0, 0); g.restore(); }
+  // hoop track
+  { const a = P(-2.2, 0, BOARD_Z + .55), b = P(2.2, 0, BOARD_Z + .55); g.strokeStyle = '#141b2b'; g.lineWidth = Math.max(3, .08 * a[2]); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  const fg = g.createRadialGradient(W / 2, wallBot + (H - wallBot) * .2, 0, W / 2, wallBot + (H - wallBot) * .2, W * .6);
+  fg.addColorStop(0, 'rgba(255,220,170,.16)'); fg.addColorStop(1, 'rgba(255,220,170,0)'); g.fillStyle = fg; g.fillRect(0, wallBot, W, H - wallBot);
+
+  // cabinet panel in front of the shooter
+  [panelLayer, g] = layer();
+  const top = P(0, PANEL_Y, PANEL_Z)[1];
+  gr = g.createLinearGradient(0, top, 0, H); gr.addColorStop(0, '#16295a'); gr.addColorStop(.25, '#0b1834'); gr.addColorStop(1, '#050b19');
+  g.fillStyle = gr; g.fillRect(0, top, W, H - top);
+  g.fillStyle = '#ff8a2b'; g.fillRect(0, top, W, 4); g.fillStyle = '#a34c0c'; g.fillRect(0, top + 4, W, 2);
+  const [bx, by, bs] = P(LX, LY, LZ), br = BR * bs;
+  g.fillStyle = '#02050c'; g.beginPath(); g.ellipse(bx, top + 4, br * 1.25, br * .32, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(255,138,43,.6)'; g.lineWidth = 2; g.beginPath(); g.ellipse(bx, top + 4, br * 1.25, br * .32, 0, 0, Math.PI); g.stroke();
+  const ph = H - top;
+  if (ph > 60){
+    const sz = Math.min(ph * .34, W * .072, 46);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `600 ${sz}px Teko, "Arial Narrow", sans-serif`;
+    g.fillStyle = '#ffb547'; g.shadowColor = 'rgba(255,181,71,.8)'; g.shadowBlur = 10;
+    const ly = top + Math.min(ph * .5, br + 10 + sz * .7);
+    g.fillText('FREE THROW FRENZY', bx, ly); g.shadowBlur = 0;
+    g.font = `800 ${Math.max(9, sz * .3)}px Figtree, sans-serif`; g.fillStyle = 'rgba(143,163,204,.8)';
+    g.fillText('BDB ARCADE  ·  2.0 PPG CERTIFIED', bx, ly + sz * .62);
+  }
+}
+
+/* ---------- audio ---------- */
+const AU = (() => {
+  let ac = null, nb = null;
+  function A(){ if (BDB.sfx.muted) return null; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch(e){ return null; } return ac; }
+  function noise(dur, freq, q, vol, type = 'bandpass', delay = 0){
+    const a = A(); if (!a) return;
+    if (!nb){ nb = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime + delay;
+    s.buffer = nb; f.type = type; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    s.connect(f).connect(g).connect(a.destination); s.start(t); s.stop(t + dur + .05);
+  }
+  function tone(freq, dur, type, vol, slide = 0, delay = 0){
+    const a = A(); if (!a) return;
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + delay;
+    o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .006); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .05);
+  }
+  return {
+    shoot(){ noise(.14, 900, .8, .05); },
+    swish(){ noise(.3, 2600, .6, .16); noise(.22, 5200, .9, .06, 'bandpass', .05); },
+    net(){ noise(.2, 1800, .7, .08); },
+    clang(i){ i = Math.min(1, i); tone(1180, .3, 'triangle', .06 * i + .01); tone(1770, .16, 'square', .012 * i + .004); tone(560, .35, 'sine', .05 * i + .01); },
+    board(i){ tone(150, .14, 'sine', .14 * Math.min(1, i) + .03, -60); noise(.07, 700, 1, .05); },
+    bounce(i){ tone(110, .12, 'sine', .16 * Math.min(1, i), -50); },
+    buzzer(){ tone(165, 1.0, 'sawtooth', .07); tone(168, 1.0, 'square', .035); },
+    beep(hi){ tone(hi ? 1320 : 880, .09, 'square', .045); },
+    whoosh(){ noise(.5, 600, .5, .08, 'lowpass'); tone(220, .5, 'sawtooth', .02, 400); }
+  };
+})();
+
+/* ---------- state ---------- */
+let state = 'menu', paused = false;
+let score = 0, makes = 0, attempts = 0, streak = 0, bestStreak = 0, onFire = false;
+let elapsed = 0, timeLeft = ROUND, final = false, moving = false, faster = false, buzzerT = 0, lastBeep = 99;
+let hx = 0, hvx = 0, hAmp = 0, hOmega = 0, hPhase = 0;
+let balls = [], ready = true, readyT = 0, spawnA = 1, queued = null;
+let parts = [], floats = [], shake = 0, netK = 0, netSway = 0, boardFlash = 0, faceWiggle = 0, faceGlow = 0;
+let drag = null, kb = false, aimX = 0, charging = false, charge = 0, chargeDir = 1, lastP = -1, keys = {};
+let nextPPG = 0, roastsDone = {};
+const bestNow = () => (BDB.scores()[0] || {s:0}).s;
+$('best').textContent = BDB.fmt(bestNow());
+
+/* talk pacing: prio 2 always, prio 1 soon (queued), prio 0 only when it's been quiet */
+let lastTalk = -99, pendingTalk = null;
+const nowS = () => performance.now() / 1000;
+function sayNow(src, tag){ lastTalk = nowS(); pendingTalk = null; if (src === 'roast') BDB.roast(); else if (Array.isArray(src)) BDB.line(src, tag); else BDB.say(src, tag); }
+function talk(src, prio = 0, tag){
+  const gap = nowS() - lastTalk;
+  if (prio >= 2) return sayNow(src, tag);
+  if (prio === 1){ if (gap > 1.8) sayNow(src, tag); else pendingTalk = {src, tag}; return; }
+  if (gap > 4.5 && !pendingTalk) sayNow(src, tag);
+}
+
+function start(){
+  BDB.hideSplash(); BDB.hideEnd();
+  state = 'play'; paused = false; $('pause').lastChild.textContent = 'Pause';
+  score = makes = attempts = streak = bestStreak = 0; onFire = false;
+  elapsed = 0; timeLeft = ROUND; final = moving = faster = false; buzzerT = 0; lastBeep = 99;
+  hx = hvx = hAmp = hOmega = hPhase = 0;
+  balls = []; ready = true; readyT = 0; spawnA = 0; queued = null; parts = []; floats = []; drag = null; charging = false; lastP = -1;
+  nextPPG = 0; roastsDone = {}; pendingTalk = null;
+  $('stage').classList.remove('final');
+  talk(L.start, 2, 'Tip-off');
+  BDB.shout('GO'); BDB.sfx.big();
+}
+
+function end(){
+  state = 'over'; charging = false; drag = null;
+  const res = BDB.addScore(score);
+  $('best').textContent = BDB.fmt(res.list[0].s);
+  if (res.isBest && score > 0) BDB.sfx.big(); else BDB.sfx.bad();
+  const g = score / 2, gs = (g % 1 ? g.toFixed(1) : String(g));
+  let line;
+  if (score === 0) line = "Zero. You matched BDB on a regular night. He's thrilled to have company.";
+  else if (score <= 10) line = `${score} points. That's ${gs} BDB games. He'd call it a hot streak.`;
+  else if (score <= 40) line = `${score} points. That's ${gs} BDB games, which is a full season of his highlights.`;
+  else if (score <= 100) line = `${score} points. That's ${gs} BDB games. His agent wants a word. He doesn't have an agent.`;
+  else line = `${score} points. That's ${gs} BDB games. BDB has asked us to stop showing you this number.`;
+  const acc = attempts ? Math.round(makes / attempts * 100) : 0;
+  talk(L.endBubble, 2, 'Final');
+  BDB.showEnd({eyebrow: 'Final buzzer', title: res.isBest && score > 0 ? 'New best' : `${score} points`, line,
+    stats: [['Points', BDB.fmt(score)], ['Makes', `${makes}/${attempts}`], ['Accuracy', acc + '%'], ['Best streak', bestStreak]], scores: res});
+}
+
+/* ---------- shooting ---------- */
+const SPEED0 = 6.8, SPEED1 = 9.8, ANG = 68 * Math.PI / 180;
+function launchVel(p, tx){
+  const s = SPEED0 + Math.max(0, Math.min(1, p)) * (SPEED1 - SPEED0);
+  const vz = s * Math.cos(ANG), vy = s * Math.sin(ANG), t = (RIM_Z - LZ) / vz;
+  return [(tx - LX) / t, vy, vz];
+}
+function shoot(p, tx){
+  if (state !== 'play' || paused) return false;
+  if (!ready){ queued = {p, tx}; return false; }
+  // gentle aim assist: shots close to where the hoop will be get pulled in; wild ones stay wild
+  const s0 = SPEED0 + Math.max(0, Math.min(1, p)) * (SPEED1 - SPEED0), T = (RIM_Z - LZ) / (s0 * Math.cos(ANG)) + .25;
+  const hxF = hAmp * Math.sin(hPhase + hOmega * T), err = tx - hxF, ae = Math.abs(err);
+  const k = ae < .2 ? .35 : ae > .5 ? 1 : .35 + .65 * ((ae - .2) / .3);
+  tx = hxF + err * k;
+  const [vx, vy, vz] = launchVel(p, tx);
+  balls.push({x: LX, y: LY, z: LZ, vx, vy, vz, age: 0, rot: 0, rimHits: 0, board: false, above: false, made: false, resolved: false, floored: false, fade: 1, fire: onFire, final, trailT: 0});
+  ready = false; readyT = .3; spawnA = 0; attempts++; lastP = p; AU.shoot();
+  return true;
+}
+function screenRef(){ const b = P(LX, LY, LZ), r = P(0, RIM_Y, RIM_Z); return {bx: b[0], by: b[1], bs: b[2], ry: r[1], sR: r[2], ref: b[1] - r[1]}; }
+function dragShot(d){
+  const up = d.y0 - d.y; if (up < 16) return;
+  const S = screenRef();
+  const p = up / (S.ref * .92);
+  const dirX = (d.x - d.x0) / up;
+  const tsx = S.bx + dirX * S.ref;
+  shoot(p, (tsx - CX) / S.sR);
+}
+
+/* ---------- physics ---------- */
+function stepBall(b, h, hx, hvx, ev){
+  const py = b.y;
+  b.vy -= G * h;
+  b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
+  if (b.y > RIM_Y + BR) b.above = true;
+  // backboard front face
+  if (b.vz > 0 && b.z + BR > BOARD_Z && b.z < BOARD_Z && Math.abs(b.x - hx) < BOARD_W / 2 + BR * .3 && b.y > BOARD_BOT - BR * .3 && b.y < BOARD_TOP + BR * .3){
+    b.z = BOARD_Z - BR; ev(b, 'board', b.vz); b.vz = -b.vz * .52; b.vx = b.vx * .85 + hvx * .15; b.vy *= .92; b.board = true;
+  }
+  // rim: closest point on the ring
+  const dx = b.x - hx, dz = b.z - RIM_Z, hd = Math.hypot(dx, dz) || 1e-6;
+  const px = hx + dx / hd * RIM_R, pz = RIM_Z + dz / hd * RIM_R;
+  let nx = b.x - px, ny = b.y - RIM_Y, nz = b.z - pz; const d = Math.hypot(nx, ny, nz), minD = BR + .012;
+  if (d < minD && d > 1e-6){
+    nx /= d; ny /= d; nz /= d;
+    b.x += nx * (minD - d); b.y += ny * (minD - d); b.z += nz * (minD - d);
+    const rvx = b.vx - hvx, vn = rvx * nx + b.vy * ny + b.vz * nz;
+    if (vn < 0){
+      const e = .5, t = .9;
+      let ux = rvx - vn * nx, uy = b.vy - vn * ny, uz = b.vz - vn * nz;
+      b.vx = ux * t - e * vn * nx + hvx; b.vy = uy * t - e * vn * ny; b.vz = uz * t - e * vn * nz;
+      b.vx += (Math.random() - .5) * .04; b.vz += (Math.random() - .5) * .04;
+      if (-vn > .5) ev(b, 'rim', -vn);
+      b.rimHits++;
+    }
+  }
+  // net drag
+  if (b.y < RIM_Y && b.y > RIM_Y - .48 && hd < RIM_R && b.vy < 0){
+    b.vy *= 1 - 2.4 * h; b.vx += (hx - b.x) * 7 * h + (hvx - b.vx) * 2 * h; b.vz += (RIM_Z - b.z) * 7 * h - b.vz * 2 * h;
+  }
+  // through the hoop, from above
+  if (!b.made && b.above && py >= RIM_Y && b.y < RIM_Y && hd < RIM_R - .015){ b.made = true; ev(b, 'made', 0); }
+  // floor, back wall
+  if (b.y < BR){
+    b.y = BR;
+    if (b.vy < -.6) ev(b, 'bounce', -b.vy);
+    b.vy = -b.vy * .6; if (Math.abs(b.vy) < .5) b.vy = 0;
+    b.vx *= .9; b.vz *= .9;
+    if (!b.floored){ b.floored = true; ev(b, 'floor', 0); }
+  }
+  if (b.y <= BR + .001){ b.vx *= 1 - .7 * h; b.vz *= 1 - .7 * h; }
+  if (b.z > WALL_Z - BR){ b.z = WALL_Z - BR; b.vz = -Math.abs(b.vz) * .5; }
+  b.rot -= h * (6 + Math.abs(b.vz) * 1.4);
+}
+// headless check used by tests: where does a shot of power p, aimed at tx, end up with the hoop at hoopX?
+function sim(p, tx, hoopX = 0){
+  const [vx, vy, vz] = launchVel(p, tx);
+  const b = {x: LX, y: LY, z: LZ, vx, vy, vz, rot: 0, rimHits: 0, board: false, above: false, made: false, floored: false};
+  for (let i = 0; i < 2000 && !b.floored; i++) stepBall(b, 1 / 400, hoopX, 0, () => {});
+  return b.made ? (b.rimHits === 0 && !b.board ? 'swish' : b.board ? 'bank' : 'rim-in') : (b.rimHits || b.board ? 'miss' : 'air');
+}
+
+function onEvent(b, type, v){
+  if (type === 'rim'){ AU.clang(v / 4); if (v > 1.5) addShake(.18 * Math.min(1, v / 5)); sparks(b, 4, '#ffb547'); }
+  else if (type === 'board'){ AU.board(v / 6); boardFlash = 1; }
+  else if (type === 'bounce'){ if (b.fade > .3) AU.bounce(v / 5); }
+  else if (type === 'made'){ netK = 1; netSway = (b.x - hx) * 6; if (!b.resolved){ b.resolved = true; scoreMake(b); } }
+  else if (type === 'floor'){ if (!b.resolved){ b.resolved = true; scoreMiss(b); } }
+}
+
+function scoreMake(b){
+  makes++; streak++; bestStreak = Math.max(bestStreak, streak);
+  const swish = b.rimHits === 0 && !b.board, bank = b.board;
+  const base = swish ? 3 : 2, mult = streak >= 5 ? 3 : streak >= 3 ? 2 : 1, dbl = b.final ? 2 : 1;
+  const pts = base * mult * dbl, before = score; score += pts;
+  const wasFire = onFire; onFire = streak >= 5;
+  const [rx, ry] = P(hx, RIM_Y - .25, RIM_Z);
+  floats.push({x: rx, y: ry, text: '+' + pts, sub: swish ? 'SWISH' : bank ? 'BANK' : 'BUCKET', color: swish ? '#f2c14e' : '#ffffff', life: 1.1});
+  burst(rx, ry, swish ? 26 : 14, swish ? ['#f2c14e', '#ff8a2b', '#ffffff', '#4ade80'] : ['#ff8a2b', '#ffb547'], swish ? 1 : .7);
+  if (onFire) burst(rx, ry, 16, ['#ffdd55', '#ff8a2b', '#ff3d00'], 1.1);
+  if (swish) AU.swish(); else AU.net();
+  BDB.sfx.good(); faceGlow = 1; $('hScore').classList.remove('tick'); void $('hScore').offsetWidth; $('hScore').classList.add('tick');
+  // commentary, most important first
+  let ms = null; while (nextPPG < PPG.length && score >= PPG[nextPPG][0]){ ms = PPG[nextPPG][1]; nextPPG++; }
+  if (state === 'buzzer'){ talk(L.buzzer, 1, 'At the horn'); BDB.shout('AT THE HORN'); }
+  else if (ms) talk(ms, 1, '2.0 PPG watch');
+  else if (streak === 5){ talk(L.fire, 1, 'On fire'); }
+  else if (streak === 10){ talk(L.streak10, 1, 'Streak'); }
+  else if (streak === 3){ talk(L.streak3, 1, 'Streak'); }
+  else if (swish && Math.random() < .7) talk(L.swish, 0, 'Swish');
+  else if (bank) talk(L.bank, 0);
+  else if (Math.random() < .4) talk(L.make, 0);
+  if (onFire && !wasFire){ BDB.shout('ON FIRE'); AU.whoosh(); addShake(.25); }
+  else if (streak === 3) BDB.shout('×2 STREAK');
+  else if (swish && pts >= 9) BDB.shout('SWISH +' + pts);
+}
+function scoreMiss(b){
+  const wasFire = onFire;
+  streak = 0; onFire = false; faceWiggle = 1;
+  const air = b.rimHits === 0 && !b.board;
+  if (wasFire){ talk(L.fireOut, 1, 'Fire out'); BDB.shout('FIRE OUT', true); }
+  else if (air) talk(L.air, 0, 'Airball');
+  else if (Math.random() < .85) talk(L.miss, 0, 'Miss');
+}
+
+/* ---------- particles ---------- */
+function burst(x, y, n, colors, pow = 1){
+  if (BDB.reduced) n = Math.ceil(n / 3);
+  for (let i = 0; i < n; i++){ const a = Math.random() * Math.PI * 2, s = (60 + Math.random() * 220) * pow;
+    parts.push({x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120 * pow, g: 420, life: .6 + Math.random() * .5, max: 1.1, size: 2 + Math.random() * 3.5, color: BDB.pick(colors), rect: Math.random() < .5}); }
+}
+function sparks(b, n, color){ const [sx, sy] = P(b.x, b.y, b.z); for (let i = 0; i < n; i++) parts.push({x: sx, y: sy, vx: (Math.random() - .5) * 240, vy: -Math.random() * 180, g: 600, life: .35, max: .35, size: 2, color}); }
+function addShake(v){ if (!BDB.reduced) shake = Math.max(shake, v); }
+
+/* ---------- input ---------- */
+cv.addEventListener('pointerdown', e => {
+  if (state !== 'play' || paused) return;
+  const r = cv.getBoundingClientRect();
+  drag = {id: e.pointerId, x0: e.clientX - r.left, y0: e.clientY - r.top, x: e.clientX - r.left, y: e.clientY - r.top};
+  kb = false; try { cv.setPointerCapture(e.pointerId); } catch(_){}
+});
+cv.addEventListener('pointermove', e => { if (!drag || e.pointerId !== drag.id) return; const r = cv.getBoundingClientRect(); drag.x = e.clientX - r.left; drag.y = e.clientY - r.top; });
+function endDrag(e, cancel){ if (!drag || e.pointerId !== drag.id) return; const d = drag; drag = null; if (!cancel) dragShot(d); }
+cv.addEventListener('pointerup', e => endDrag(e, false));
+cv.addEventListener('pointercancel', e => endDrag(e, true));
+
+function togglePause(){ if (state !== 'play') return; paused = !paused; charging = false; drag = null; $('pause').lastChild.textContent = paused ? 'Resume' : 'Pause'; }
+$('play').onclick = start; $('again').onclick = start; $('restart').onclick = start; $('pause').onclick = togglePause;
+$('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; };
+$('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
+addEventListener('keydown', e => {
+  const k = e.key;
+  if (k === 'Enter' && (state === 'menu' || state === 'over')){ e.preventDefault(); start(); return; }
+  if (k === ' ' && state === 'menu'){ e.preventDefault(); start(); return; }
+  if (k === 'p' || k === 'P'){ togglePause(); return; }
+  if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowDown' || k === 'ArrowUp'){ e.preventDefault(); keys[k] = true; kb = true; if (k === 'ArrowDown') aimX = 0; }
+  if (k === ' '){
+    e.preventDefault();
+    if (state === 'play' && !paused && !charging && !e.repeat){ charging = true; charge = 0; chargeDir = 1; kb = true; }
+  }
+});
+addEventListener('keyup', e => {
+  keys[e.key] = false;
+  if (e.key === ' ' && charging){ charging = false; shoot(charge, aimX); }
+});
+addEventListener('blur', () => { keys = {}; charging = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play' && !paused) togglePause(); });
+new ResizeObserver(resize).observe($('stage')); resize();
+BDB.faceImg.addEventListener('load', () => buildLayers());
+
+/* ---------- loop ---------- */
+let last = performance.now(), hudCache = {};
+function setHud(id, v){ if (hudCache[id] !== v){ hudCache[id] = v; $(id).textContent = v; } }
+function update(dt){
+  if (state === 'play' || state === 'buzzer'){
+    if (state === 'play'){
+      elapsed += dt; timeLeft = Math.max(0, ROUND - elapsed);
+      if (!moving && (elapsed >= 30 || score >= 50)){ moving = true; talk(L.hoop, 1, 'Hoop moving'); BDB.shout('HOOP ON THE MOVE'); }
+      if (moving && !faster && elapsed >= 45){ faster = true; talk(L.faster, 1, 'Faster'); }
+      if (!final && timeLeft <= 10){ final = true; $('stage').classList.add('final'); BDB.shout('DOUBLE POINTS'); talk(L.final, 1, 'Final ten'); }
+      for (const t of [15, 40]) if (!roastsDone[t] && elapsed >= t){ roastsDone[t] = true; talk('roast', 1, null); }
+      if (final){ const s = Math.ceil(timeLeft); if (s < lastBeep && s > 0){ lastBeep = s; AU.beep(s <= 3); } }
+      if (timeLeft <= 0){ state = 'buzzer'; buzzerT = 0; AU.buzzer(); addShake(.35); BDB.shout('BUZZER'); charging = false; drag = null; queued = null; }
+      // keyboard aim and charge
+      if (keys.ArrowLeft) aimX = Math.max(-1.4, aimX - 1.1 * dt);
+      if (keys.ArrowRight) aimX = Math.min(1.4, aimX + 1.1 * dt);
+      if (charging){ charge += chargeDir * dt / 1.05; if (charge > 1){ charge = 1; chargeDir = -1; } if (charge < 0){ charge = 0; chargeDir = 1; } }
+      if (!ready){ readyT -= dt; if (readyT <= 0){ ready = true; if (queued){ const q = queued; queued = null; shoot(q.p, q.tx); } } }
+    } else {
+      buzzerT += dt;
+      const live = balls.some(b => !b.resolved);
+      if (buzzerT > 2.6 || (buzzerT > .9 && !live)) end();
+    }
+    // hoop slide
+    const targetAmp = moving ? .55 : 0, targetOm = !moving ? 0 : final ? 1.45 : faster ? 1.15 : .75;
+    hAmp += (targetAmp - hAmp) * Math.min(1, dt * 1.5); hOmega += (targetOm - hOmega) * Math.min(1, dt * 1.2);
+    hPhase += hOmega * dt; const nhx = hAmp * Math.sin(hPhase); hvx = (nhx - hx) / Math.max(dt, 1e-4); hx = nhx;
+    // balls
+    const N = 8, h = dt / N;
+    for (const b of balls){
+      for (let i = 0; i < N; i++) stepBall(b, h, hx, hvx, onEvent);
+      b.age += dt;
+      if (!b.resolved && b.age > 5){ b.resolved = true; scoreMiss(b); }
+      if (b.age > 5.5 || (b.floored && (b.z < 1.3 || b.age > 2.6)) || (b.floored && Math.hypot(b.vx, b.vz) < .25 && b.vy === 0)) b.fade -= dt * 3;
+      if (b.fire && !b.floored && !BDB.reduced){ b.trailT -= dt; if (b.trailT <= 0){ b.trailT = .012; const [sx, sy, s] = P(b.x, b.y, b.z); for (let i = 0; i < 2; i++) parts.push({x: sx + (Math.random() - .5) * BR * s, y: sy + (Math.random() - .5) * BR * s, vx: (Math.random() - .5) * 40, vy: -40 - Math.random() * 60, g: -60, life: .45, max: .45, size: BR * s * (.6 + Math.random() * .5), color: BDB.pick(['#ffdd55', '#ff8a2b', '#ff3d00']), flame: true}); } }
+    }
+    balls = balls.filter(b => b.fade > 0);
+  }
+  spawnA = Math.min(1, spawnA + dt * 5);
+  netK = Math.max(0, netK - dt * 1.8); netSway *= Math.exp(-dt * 4); boardFlash = Math.max(0, boardFlash - dt * 4);
+  faceWiggle = Math.max(0, faceWiggle - dt * 1.4); faceGlow = Math.max(0, faceGlow - dt * 2);
+  shake = Math.max(0, shake - dt * 1.6);
+  for (const p of parts){ p.life -= dt; p.vy += (p.g || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  parts = parts.filter(p => p.life > 0);
+  for (const f of floats){ f.life -= dt; f.y -= 50 * dt; }
+  floats = floats.filter(f => f.life > 0);
+  if (pendingTalk && nowS() - lastTalk > 1.8){ const p = pendingTalk; sayNow(p.src, p.tag); }
+  // HUD
+  setHud('hScore', String(score)); setHud('hTime', state === 'menu' ? '60' : String(Math.ceil(timeLeft)));
+  const mult = streak >= 5 ? 3 : streak >= 3 ? 2 : 1;
+  setHud('hStreak', mult > 1 ? `${streak} ×${mult}` : String(streak)); setHud('hStreakL', onFire ? 'On fire' : 'Streak');
+  $('cStreak').classList.toggle('fire', onFire); $('cTime').classList.toggle('final', final && state !== 'over');
+}
+
+/* ---------- drawing ---------- */
+function drawBall(b, alpha = 1){
+  const [sx, sy, s] = P(b.x, b.y, b.z), r = BR * s;
+  cx.save(); cx.globalAlpha = alpha * Math.max(0, Math.min(1, b.fade == null ? 1 : b.fade));
+  if (b.fire){ const fg = cx.createRadialGradient(sx, sy, r * .6, sx, sy, r * 2.1); fg.addColorStop(0, 'rgba(255,140,40,.55)'); fg.addColorStop(1, 'rgba(255,60,0,0)'); cx.fillStyle = fg; cx.beginPath(); cx.arc(sx, sy, r * 2.1, 0, 7); cx.fill(); }
+  const g = cx.createRadialGradient(sx - r * .35, sy - r * .4, r * .1, sx, sy, r);
+  g.addColorStop(0, '#ffb26b'); g.addColorStop(.55, '#e8681a'); g.addColorStop(1, '#8a360a');
+  cx.fillStyle = g; cx.beginPath(); cx.arc(sx, sy, r, 0, Math.PI * 2); cx.fill();
+  cx.save(); cx.beginPath(); cx.arc(sx, sy, r, 0, Math.PI * 2); cx.clip();
+  cx.translate(sx, sy); cx.rotate(b.rot || 0); cx.strokeStyle = 'rgba(30,12,2,.85)'; cx.lineWidth = Math.max(1, r * .07);
+  cx.beginPath(); cx.moveTo(-r, 0); cx.lineTo(r, 0); cx.moveTo(0, -r); cx.lineTo(0, r);
+  cx.moveTo(-r * .45, -r); cx.quadraticCurveTo(r * .15, 0, -r * .45, r); cx.moveTo(r * .45, -r); cx.quadraticCurveTo(-r * .15, 0, r * .45, r); cx.stroke();
+  cx.restore();
+  cx.strokeStyle = 'rgba(40,14,2,.6)'; cx.lineWidth = Math.max(1, r * .05); cx.beginPath(); cx.arc(sx, sy, r, 0, Math.PI * 2); cx.stroke();
+  cx.restore();
+}
+function drawShadow(b){
+  const [sx, sy, s] = P(b.x, 0, b.z), r = BR * s, k = Math.max(0, 1 - b.y / 5);
+  cx.fillStyle = `rgba(0,0,0,${.35 * k * (b.fade == null ? 1 : Math.max(0, b.fade))})`; cx.beginPath(); cx.ellipse(sx, sy, r * (1.3 - k * .3), r * .32, 0, 0, Math.PI * 2); cx.fill();
+}
+function rimArc(a0, a1){
+  cx.beginPath();
+  for (let i = 0; i <= 20; i++){ const a = a0 + (a1 - a0) * i / 20, p = P(hx + Math.cos(a) * RIM_R, RIM_Y, RIM_Z + Math.sin(a) * RIM_R); i ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1]); }
+}
+function drawHoopBack(){
+  const sB = P(hx, BOARD_BOT, BOARD_Z)[2];
+  // pole, base pad, arm
+  const pz = BOARD_Z + .55, [p1x, p1y, ps] = P(hx, BOARD_BOT + .35, pz), [, p2y] = P(hx, 0, pz);
+  const pg = cx.createLinearGradient(p1x - .08 * ps, 0, p1x + .08 * ps, 0); pg.addColorStop(0, '#1b2333'); pg.addColorStop(.5, '#4a5770'); pg.addColorStop(1, '#151c2a');
+  cx.fillStyle = pg; cx.fillRect(p1x - .08 * ps, p1y, .16 * ps, p2y - p1y);
+  const [b1x, b1y] = P(hx - .22, .45, pz), [b2x, b2y] = P(hx + .22, 0, pz);
+  cx.fillStyle = '#1a2335'; rr(cx, b1x, b1y, b2x - b1x, b2y - b1y, 6 * ps / 100); cx.fill();
+  cx.fillStyle = '#ff8a2b'; cx.fillRect(b1x, b1y + 3, b2x - b1x, Math.max(2, (b2y - b1y) * .08));
+  const [ax1, ay1] = P(hx - .06, BOARD_BOT + .42, pz), [ax2, ay2] = P(hx + .06, BOARD_BOT + .28, BOARD_Z);
+  cx.fillStyle = '#2a3346'; cx.fillRect(Math.min(ax1, ax2), ay1, Math.abs(ax2 - ax1) + .12 * ps, ay2 - ay1 + 2);
+  // backboard
+  const [x1, y1, s] = P(hx - BOARD_W / 2, BOARD_TOP, BOARD_Z), [x2, y2] = P(hx + BOARD_W / 2, BOARD_BOT, BOARD_Z);
+  cx.fillStyle = 'rgba(170,205,255,.16)'; cx.fillRect(x1, y1, x2 - x1, y2 - y1);
+  // face square
+  const [f1x, f1y] = P(hx - SQ_W / 2, SQ_TOP, BOARD_Z), [f2x, f2y] = P(hx + SQ_W / 2, SQ_BOT, BOARD_Z);
+  const fw = f2x - f1x, fh = f2y - f1y, wig = BDB.reduced ? 0 : Math.sin(faceWiggle * 30) * faceWiggle;
+  cx.save(); cx.beginPath(); cx.rect(f1x, f1y, fw, fh); cx.clip();
+  cx.translate(f1x + fw / 2, f1y + fh / 2); cx.rotate(wig * .08); cx.translate(wig * fw * .04, 0);
+  if (BDB.faceImg.complete && BDB.faceImg.naturalWidth) cx.drawImage(BDB.faceImg, 0, 10, 260, 234, -fw / 2 - 2, -fh / 2 - 2, fw + 4, fh + 4);
+  else { cx.fillStyle = '#c98a5a'; cx.fillRect(-fw / 2, -fh / 2, fw, fh); }
+  cx.restore();
+  if (faceGlow > 0){ cx.fillStyle = `rgba(242,193,78,${faceGlow * .3})`; cx.fillRect(f1x, f1y, fw, fh); }
+  cx.strokeStyle = faceGlow > 0 ? '#f2c14e' : '#ff8a2b'; cx.lineWidth = Math.max(2, .045 * s); cx.strokeRect(f1x, f1y, fw, fh);
+  // glass sheen and frame
+  const sg = cx.createLinearGradient(x1, y1, x2, y2); sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.42, 'rgba(255,255,255,.13)'); sg.addColorStop(.5, 'rgba(255,255,255,0)'); sg.addColorStop(.62, 'rgba(255,255,255,.07)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+  cx.fillStyle = sg; cx.fillRect(x1, y1, x2 - x1, y2 - y1);
+  if (boardFlash > 0){ cx.fillStyle = `rgba(255,255,255,${boardFlash * .22})`; cx.fillRect(x1, y1, x2 - x1, y2 - y1); }
+  cx.strokeStyle = 'rgba(238,242,251,.95)'; cx.lineWidth = Math.max(2, .05 * s); cx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  cx.fillStyle = '#ff8a2b'; cx.fillRect(x1, y2 - Math.max(2, .05 * s), x2 - x1, Math.max(3, .07 * s));
+  // bracket
+  const q = [P(hx - .08, RIM_Y, BOARD_Z), P(hx + .08, RIM_Y, BOARD_Z), P(hx + .06, RIM_Y, RIM_Z + RIM_R), P(hx - .06, RIM_Y, RIM_Z + RIM_R)];
+  cx.fillStyle = '#b8480c'; cx.beginPath(); q.forEach((p, i) => i ? cx.lineTo(p[0], p[1]) : cx.moveTo(p[0], p[1])); cx.closePath(); cx.fill();
+  const pb = P(hx, RIM_Y, BOARD_Z), pb2 = P(hx, RIM_Y - .14, BOARD_Z); cx.fillStyle = '#7d3208'; cx.fillRect(pb[0] - .09 * sB, pb[1], .18 * sB, pb2[1] - pb[1]);
+  // back half of the rim
+  const sR = P(hx, RIM_Y, RIM_Z)[2];
+  cx.lineCap = 'round'; cx.strokeStyle = '#a63f08'; cx.lineWidth = Math.max(2, .035 * sR); rimArc(0, Math.PI); cx.stroke();
+}
+function drawNetAndRimFront(){
+  const sR = P(hx, RIM_Y, RIM_Z)[2], NS = 14;
+  const rings = [[RIM_R, 0], [.19, -.17], [.155, -.32], [.13, -.46]];
+  const pt = (k, a) => { const [r0, dy] = rings[k]; const kk = k / 3, r = r0 + netK * .025 * Math.sin(netK * 9) * kk, y = RIM_Y + dy - netK * .08 * kk, sw = netSway * .02 * kk * Math.sin(netK * 8 + k);
+    return P(hx + Math.cos(a) * r + sw, y, RIM_Z + Math.sin(a) * r); };
+  cx.strokeStyle = 'rgba(238,242,251,.78)'; cx.lineWidth = Math.max(1, .011 * sR); cx.beginPath();
+  for (let k = 0; k < 3; k++) for (let i = 0; i < NS; i++){
+    const a = (i + (k % 2) * .5) / NS * Math.PI * 2, a1 = a + Math.PI / NS, a2 = a - Math.PI / NS;
+    const p = pt(k, a), q1 = pt(k + 1, a1), q2 = pt(k + 1, a2);
+    cx.moveTo(p[0], p[1]); cx.lineTo(q1[0], q1[1]); cx.moveTo(p[0], p[1]); cx.lineTo(q2[0], q2[1]);
+  }
+  cx.stroke();
+  cx.lineCap = 'round'; cx.strokeStyle = '#ff6a1a'; cx.lineWidth = Math.max(2.5, .04 * sR); rimArc(Math.PI, Math.PI * 2); cx.stroke();
+  cx.strokeStyle = 'rgba(255,200,150,.6)'; cx.lineWidth = Math.max(1, .012 * sR); rimArc(Math.PI * 1.15, Math.PI * 1.85); cx.stroke();
+}
+function drawAim(){
+  const S = screenRef(), br = BR * S.bs;
+  let p = null, tsx = null;
+  if (drag && state === 'play'){ const up = drag.y0 - drag.y; if (up > 6){ p = Math.min(1.08, up / (S.ref * .92)); tsx = S.bx + (drag.x - drag.x0) / up * S.ref; } }
+  if (kb && state === 'play' && !drag){ tsx = CX + aimX * S.sR; if (charging) p = charge; }
+  if (tsx != null){
+    // direction line toward the rim plane
+    const len = p == null ? S.ref * .55 : S.ref * (.25 + Math.min(1, p) * .6);
+    const dx = tsx - S.bx, dy = -S.ref, L0 = Math.hypot(dx, dy), ux = dx / L0, uy = dy / L0;
+    cx.save(); cx.setLineDash([6, 8]); cx.lineWidth = 3; cx.strokeStyle = 'rgba(242,193,78,.75)';
+    cx.beginPath(); cx.moveTo(S.bx + ux * br * 1.3, S.by + uy * br * 1.3); cx.lineTo(S.bx + ux * len, S.by + uy * len); cx.stroke(); cx.setLineDash([]);
+    const ex = S.bx + ux * len, ey = S.by + uy * len; cx.fillStyle = '#f2c14e'; cx.beginPath(); cx.moveTo(ex + ux * 10, ey + uy * 10); cx.lineTo(ex - uy * 7 - ux * 4, ey + ux * 7 - uy * 4); cx.lineTo(ex + uy * 7 - ux * 4, ey - ux * 7 - uy * 4); cx.closePath(); cx.fill();
+    if (kb && !drag){ cx.strokeStyle = 'rgba(242,193,78,.8)'; cx.lineWidth = 2; cx.beginPath(); cx.ellipse(tsx, S.ry, RIM_R * S.sR, RIM_R * S.sR * .28, 0, 0, Math.PI * 2); cx.stroke(); }
+    cx.restore();
+  }
+  if (p != null){
+    const gh = Math.min(140, S.ref * .45), gw = 12, gx = S.bx + br + 18, gy = S.by - gh / 2;
+    cx.fillStyle = 'rgba(4,10,24,.8)'; rr(cx, gx - 3, gy - 3, gw + 6, gh + 6, 7); cx.fill();
+    const pc = Math.min(1, p), gr = cx.createLinearGradient(0, gy + gh, 0, gy); gr.addColorStop(0, '#4ade80'); gr.addColorStop(.6, '#f2c14e'); gr.addColorStop(1, '#ff5a4a');
+    cx.fillStyle = gr; cx.fillRect(gx, gy + gh * (1 - pc), gw, gh * pc);
+    if (lastP >= 0){ const ly = gy + gh * (1 - Math.min(1, lastP)); cx.fillStyle = '#eef2fb'; cx.fillRect(gx - 5, ly - 1, gw + 10, 2); }
+  }
+}
+function render(){
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cx.clearRect(0, 0, W, H);
+  if (shake > 0){ const m = shake * 14; cx.translate((Math.random() - .5) * m, (Math.random() - .5) * m); }
+  if (bgLayer) cx.drawImage(bgLayer, 0, 0, W, H);
+  for (const b of balls) if (b.z > PANEL_Z) drawShadow(b);
+  drawHoopBack();
+  const far = balls.filter(b => b.z >= RIM_Z - .1).sort((a, b) => b.z - a.z);
+  const mid = balls.filter(b => b.z < RIM_Z - .1 && b.z >= PANEL_Z).sort((a, b) => b.z - a.z);
+  const near = balls.filter(b => b.z < PANEL_Z);
+  far.forEach(b => drawBall(b)); drawNetAndRimFront(); mid.forEach(b => drawBall(b));
+  if (panelLayer) cx.drawImage(panelLayer, 0, 0, W, H);
+  if (state !== 'over'){
+    const roll = 1 - spawnA, rb = {x: LX + roll * 1.2, y: LY, z: LZ, rot: roll * 8, fire: onFire, fade: 1};
+    if (ready || spawnA < 1) drawBall(rb, ready ? 1 : spawnA);
+  }
+  near.forEach(b => drawBall(b));
+  // particles
+  for (const p of parts){
+    const a = Math.max(0, p.life / p.max);
+    if (p.flame){ cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a * .55; cx.fillStyle = p.color; cx.beginPath(); cx.arc(p.x, p.y, p.size * a, 0, 7); cx.fill(); cx.globalCompositeOperation = 'source-over'; }
+    else { cx.globalAlpha = a; cx.fillStyle = p.color; if (p.rect) cx.fillRect(p.x, p.y, p.size * 1.6, p.size); else { cx.beginPath(); cx.arc(p.x, p.y, p.size, 0, 7); cx.fill(); } }
+  }
+  cx.globalAlpha = 1;
+  for (const f of floats){
+    const a = Math.min(1, f.life * 2), sc = 1 + Math.max(0, f.life - .9) * 2;
+    cx.globalAlpha = a; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.font = `${Math.round(30 * sc)}px "Bowlby One", Impact, sans-serif`; cx.lineWidth = 5; cx.strokeStyle = '#0b1f45'; cx.strokeText(f.text, f.x, f.y); cx.fillStyle = f.color; cx.fillText(f.text, f.x, f.y);
+    cx.font = '800 12px Figtree, sans-serif'; cx.fillStyle = '#eef2fb'; cx.fillText(f.sub, f.x, f.y + 24);
+  }
+  cx.globalAlpha = 1; cx.textAlign = 'start';
+  drawAim();
+  if (final && (state === 'play' || state === 'buzzer')){
+    const pulse = BDB.reduced ? .5 : .5 + .5 * Math.sin(performance.now() / 160);
+    const vg = cx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
+    vg.addColorStop(0, 'rgba(255,60,40,0)'); vg.addColorStop(1, `rgba(255,60,40,${.12 + .14 * pulse})`); cx.fillStyle = vg; cx.fillRect(-20, -20, W + 40, H + 40);
+    cx.textAlign = 'center'; cx.font = `${Math.min(22, W * .05)}px "Bowlby One", Impact, sans-serif`; cx.fillStyle = `rgba(242,193,78,${.6 + .4 * pulse})`;
+    const [, ty] = P(0, BOARD_TOP + .25, BOARD_Z); cx.fillText('DOUBLE POINTS', W / 2, ty); cx.textAlign = 'start';
+  }
+  if (paused){
+    cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.fillStyle = 'rgba(3,8,20,.62)'; cx.fillRect(0, 0, W, H);
+    cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#f2c14e'; cx.font = `${Math.min(52, W * .11)}px "Bowlby One", Impact, sans-serif`; cx.fillText('PAUSED', W / 2, H * .42);
+    cx.font = '700 14px Figtree, sans-serif'; cx.fillStyle = '#8fa3cc'; cx.fillText('BDB is on break. Tap Resume or press P.', W / 2, H * .42 + 40); cx.textAlign = 'start';
+  }
+}
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (!paused) update(dt);
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+window.__game = {
+  get state(){ return state; }, get score(){ return score; }, get makes(){ return makes; }, get attempts(){ return attempts; },
+  get streak(){ return streak; }, get bestStreak(){ return bestStreak; }, get onFire(){ return onFire; }, get timeLeft(){ return timeLeft; },
+  get hoopX(){ return hx; }, get moving(){ return moving; }, get balls(){ return balls.length; }, get ready(){ return ready; }, get paused(){ return paused; },
+  shoot, sim, start, skip(sec){ elapsed += sec; }, screenRef
+};
+</script>
+</body>
+</html>

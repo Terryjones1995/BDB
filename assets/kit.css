@@ -19,7 +19,7 @@ body.k{background:var(--arena);color:var(--ink);font-family:var(--f-body);overfl
 button{font-family:inherit}
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
-.k-app{height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr);
+.k-app{height:100dvh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);
   padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
 
 /* top bar */
