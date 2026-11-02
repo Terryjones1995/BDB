@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lanyard Snake</title>
+<meta name="description" content="Classic snake on the break-room floor: BDB's head, an employee lanyard for a body, and every snack in the building in danger.">
+<meta property="og:image" content="../assets/face.jpg">
+<link rel="icon" href="../assets/face.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="../assets/kit.css">
+<style>
+.opts{display:grid;gap:10px;justify-items:center}
+.opts .grp{display:flex;flex-direction:column;align-items:center;gap:6px}
+.opts .k-seg button{min-height:44px;min-width:76px}
+#say.top{bottom:auto}
+.k-hud.side{display:flex;right:auto}
+.k-hud.side .cell{flex:1;min-width:0}
+.k-dock.side{transform:none;left:12px}
+.k-dock.col{flex-direction:column;transform:none}
+.dpad{position:absolute;z-index:4;display:grid;grid-template-columns:repeat(3,var(--b));grid-template-rows:repeat(3,var(--b));gap:4px;--b:56px}
+.dpad button{width:var(--b);height:var(--b);border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center;cursor:pointer;
+  box-shadow:0 8px 18px rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);touch-action:none;padding:0}
+.dpad button svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.dpad button.on{background:var(--orange);color:#1f1004;border-color:var(--orange)}
+.dpad .u{grid-area:1/2}.dpad .l{grid-area:2/1}.dpad .r{grid-area:2/3}.dpad .d{grid-area:3/2}
+.dpad .mid{grid-area:2/2;border-radius:50%;background:url(../assets/face.jpg) center 32%/cover;opacity:.55;box-shadow:0 0 0 2px var(--orange)}
+.info{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:8px}
+.info ul{list-style:none;margin:0;padding:0;display:grid;gap:7px;color:var(--muted);font-size:13px;line-height:1.3}
+.info li{display:flex;gap:9px;align-items:flex-start}
+.info b{color:var(--ink)}
+.info .ic{flex:none;width:10px;height:10px;border-radius:50%;margin-top:3px}
+@media (pointer:fine){ .touchonly{display:none!important} }
+</style>
+<script src="../assets/roasts.js"></script>
+<script src="../assets/kit.js"></script>
+</head>
+<body class="k">
+
+<section class="k-splash" id="splash">
+  <div class="k-splash-in">
+    <a class="k-home" href="../">← All games</a>
+    <div class="k-face" aria-hidden="true"></div>
+    <div class="k-eyebrow">BDB Entertainment presents</div>
+    <h2>Lanyard <span>Snake</span></h2>
+    <p>Fifteen minute break. One elite employee lanyard. Every snack in the break room is in danger.</p>
+    <ul class="k-how">
+      <li><b>Arrows</b> or <b>WASD</b> to steer. On phones, <b>swipe</b> or use the <b>D-pad</b>.</li>
+      <li>Every snack makes the lanyard longer. Eat fast to keep a <b>hot streak</b> going.</li>
+      <li>Grab the <b>golden ball</b> before it vanishes for bonus points and a speed boost.</li>
+      <li>Don't hit yourself. <b>Space</b> or <b>P</b> pauses.</li>
+    </ul>
+    <div class="opts">
+      <div class="grp"><span class="k-label">Speed</span>
+        <div class="k-seg" id="optSpeed"><button type="button" data-v="chill">Chill</button><button type="button" data-v="shift">Shift</button><button type="button" data-v="overtime">Overtime</button></div></div>
+      <div class="grp"><span class="k-label">Walls</span>
+        <div class="k-seg" id="optWalls"><button type="button" data-v="solid">Solid · 1.5x pts</button><button type="button" data-v="wrap">Wrap around</button></div></div>
+      <div class="grp touchonly"><span class="k-label">On-screen D-pad</span>
+        <div class="k-seg" id="optPad"><button type="button" data-v="on">On</button><button type="button" data-v="off">Swipe only</button></div></div>
+    </div>
+    <div class="k-row"><button type="button" class="k-btn primary big" id="play">Take break</button></div>
+  </div>
+</section>
+
+<div class="k-app">
+  <header class="k-top">
+    <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
+    <div class="k-brand">Lanyard <span>Snake</span></div>
+    <div class="k-spacer"></div>
+    <span class="k-pill">Best <span class="k-led" id="best">0</span></span>
+    <button type="button" class="k-pill" id="mute" aria-label="Sound">Sound on</button>
+  </header>
+  <main class="k-stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="k-float k-hud k-jumbo" id="hud">
+      <div class="cell"><small>Score</small><b id="hScore">0</b></div>
+      <div class="cell"><small>Length</small><b id="hLen">4</b></div>
+      <div class="cell"><small>Streak</small><b id="hStreak">x1</b></div>
+    </div>
+    <div class="k-float k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
+    <nav class="k-float k-dock" id="dock" aria-label="Game controls">
+      <button type="button" class="k-dk primary" id="restart"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Restart</button>
+      <button type="button" class="k-dk" id="pause"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>Pause</button>
+    </nav>
+    <div class="k-float info" id="info" hidden>
+      <div class="k-label" id="infoMode">Shift speed · Solid walls</div>
+      <ul>
+        <li><span class="ic" style="background:#ff6fae"></span><span>Snack <b>+10</b>, times your streak</span></li>
+        <li><span class="ic" style="background:var(--gold)"></span><span>Streak climbs to <b>x5</b> if you eat before the ring runs out</span></li>
+        <li><span class="ic" style="background:#f2c14e;box-shadow:0 0 8px #f2c14e"></span><span>Golden ball <b>+50 to 100</b> and 2x points while boosted</span></li>
+        <li><span class="ic" style="background:#3ad0e0"></span><span>Solid walls pay <b>1.5x</b></span></li>
+      </ul>
+    </div>
+    <div class="dpad" id="dpad" hidden aria-label="Direction pad">
+      <button type="button" class="u" data-d="up" aria-label="Up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button type="button" class="l" data-d="left" aria-label="Left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span class="mid" aria-hidden="true"></span>
+      <button type="button" class="r" data-d="right" aria-label="Right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button type="button" class="d" data-d="down" aria-label="Down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+    </div>
+  </main>
+</div>
+
+<div class="k-modal" id="end" hidden>
+  <div class="k-box">
+    <div class="bigav"></div>
+    <div class="k-eyebrow" id="endEyebrow">Final buzzer</div>
+    <h3 id="endTitle"></h3>
+    <p id="endLine"></p>
+    <div class="k-jumbo k-stats" id="endStats"></div>
+    <div id="endScoresWrap" style="width:100%"><div class="k-label" style="margin-bottom:8px" id="endBoard">Your top 5 on this device</div><ol class="k-scores" id="endScores"></ol></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="again">Run it back</button><button type="button" class="k-btn" id="menuBtn">Options</button></div>
+  </div>
+</div>
+
+<script>
+/* ===== Lanyard Snake ===== */
+const EXTRA = [
+  "BDB's lanyard has more length than his college career.",
+  "The break room vending machine knows BDB by name.",
+  "BDB calls the snack table his home court.",
+  "He can't find the open man, but he can find the last donut.",
+  "BDB's break is fifteen minutes. His snack plan is thirty.",
+  "Coaches said BDB lacked hunger. Coaches never saw him on break."
+];
+const L = {
+  start: [
+    "BDB's on break. Fifteen minutes. Every snack in the building is in danger.",
+    "Lanyard Snake. Finally a sport where BDB's reach is an advantage.",
+    "Break Room MVP is off the clock and on the hunt.",
+    "BDB just smelled pizza from three rooms away. Let's go.",
+    "Fifteen minute break. BDB treats it like game seven."
+  ],
+  eat: [
+    "BDB eats like the scouts are watching. They aren't.",
+    "That's a rebound. Technically.",
+    "Another snack. BDB's stat line is finally filling up.",
+    "Grab it, BDB. Nobody's guarding the snack table.",
+    "He'd never dive for a loose ball. A donut, though.",
+    "BDB moves faster for nachos than he ever did in transition.",
+    "Break room numbers: elite. Basketball numbers: ask someone else.",
+    "BDB's lanyard is longer than his highlight reel now."
+  ],
+  streak: [
+    "Hot streak. First one BDB's had since Florida.",
+    "Three in a row? BDB's never hit three of anything in a row.",
+    "He's heating up. Nobody tell him it's just snacks.",
+    "Streak alive. BDB wants it on the jumbotron.",
+    "BDB is in the zone. The zone is the break room."
+  ],
+  goldSeen: [
+    "Golden ball. Is that a scout? BDB, MOVE.",
+    "A golden basketball just appeared. BDB's knees are already nervous.",
+    "Scout alert. Grab it before it disappears like his scholarship."
+  ],
+  gold: [
+    "Got it! BDB is telling everyone the scout called.",
+    "Golden ball secured. BDB's first highlight in years.",
+    "Speed boost. BDB hasn't moved this fast since tryouts.",
+    "He caught it. The Florida story just got a sequel."
+  ],
+  goldMiss: [
+    "Too slow. The scout left. Classic.",
+    "Golden ball's gone. BDB's used to watching chances walk away.",
+    "Missed the scout again. BDB will say he was being humble."
+  ],
+  wall: [
+    "BDB ran into a wall. The wall didn't even box out.",
+    "Hit the wall. BDB says it was a charge.",
+    "Wall 1, BDB 0. Same as his college offers.",
+    "BDB found the edge of the break room the hard way."
+  ],
+  self: [
+    "Tangled in his own lanyard. Elite employee, elite knot.",
+    "BDB tripped over himself. Most consistent part of his game.",
+    "Caught in his own lanyard. That's a new one, even for BDB.",
+    "BDB fouled himself. The ref finally made a call."
+  ],
+  best: [
+    "New record. BDB wants it announced over the PA.",
+    "Longest lanyard in break room history.",
+    "Personal best. BDB will remember it as twice that."
+  ],
+  end: [
+    "Break's over. Back to the floor, BDB.",
+    "Fifteen minutes, one lanyard, zero regrets.",
+    "BDB says the snake was fouled.",
+    "Same guy. Different league. Still hungry."
+  ]
+};
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), cx = cv.getContext('2d');
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+/* ---- options ---- */
+const SPEEDS = {chill: {base: 150, min: 88, label: 'Chill'}, shift: {base: 112, min: 66, label: 'Shift'}, overtime: {base: 82, min: 50, label: 'Overtime'}};
+const coarse = matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window && !matchMedia('(pointer:fine)').matches);
+let opts = {speed: 'shift', walls: 'solid', pad: coarse ? 'on' : 'off'};
+try { Object.assign(opts, JSON.parse(BDB.store.get('bdb-snake-opts')) || {}); } catch(e){}
+if (!SPEEDS[opts.speed]) opts.speed = 'shift';
+function syncOpts(){
+  for (const [id, key] of [['optSpeed', 'speed'], ['optWalls', 'walls'], ['optPad', 'pad']])
+    for (const b of $(id).querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === opts[key]));
+  BDB.store.set('bdb-snake-opts', JSON.stringify(opts));
+  BDB.init({game: 'snake-' + opts.speed, extra: EXTRA});
+  $('infoMode').textContent = `${SPEEDS[opts.speed].label} speed · ${opts.walls === 'solid' ? 'Solid walls' : 'Wrap around'}`;
+  $('best').textContent = BDB.fmt((BDB.scores()[0] || {s: 0}).s);
+}
+for (const [id, key] of [['optSpeed', 'speed'], ['optWalls', 'walls'], ['optPad', 'pad']])
+  $(id).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; opts[key] = b.dataset.v; syncOpts(); layout(true); BDB.sfx.tick(); });
+syncOpts();
+const padOn = () => coarse && opts.pad === 'on';
+
+/* ---- layout: pick a grid that fills the stage with square cells ---- */
+let W = 0, H = 0, DPR = 1, cols = 20, rows = 15, cell = 30, bx = 0, by = 0, portrait = true;
+const hud = $('hud'), say = $('say'), dock = $('dock'), dpad = $('dpad'), info = $('info');
+function layout(regrid){
+  const r = $('stage').getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  portrait = H >= W * .9;
+  const pad = padOn(), small = W < 640 || H < 520;
+  const bsz = pad ? (H < 520 ? 48 : 56) : 0;
+  dpad.hidden = !pad; dpad.style.setProperty('--b', bsz + 'px');
+  let area;
+  // reset float positions
+  info.hidden = true; info.style.cssText = '';
+  for (const el of [hud, say, dock, dpad]) el.style.cssText = el === dpad ? `--b:${bsz}px` : '';
+  hud.classList.remove('side'); dock.classList.remove('side', 'col'); say.classList.remove('top');
+  if (portrait){
+    const hudH = small ? 62 : 72, bubH = small ? 94 : 100;
+    hud.style.top = '8px'; hud.style.right = '12px';
+    say.classList.add('top'); say.style.top = (hudH + 2) + 'px'; say.style.left = '12px'; say.style.maxWidth = Math.min(560, W - 24) + 'px';
+    let bottom;
+    if (pad){
+      bottom = bsz * 3 + 8 + 20;
+      dpad.style.bottom = '12px'; dpad.style.left = '50%'; dpad.style.transform = 'translateX(-50%)';
+      dock.classList.add('col'); dock.style.left = '12px'; dock.style.bottom = '12px';
+    } else { bottom = 84; }
+    area = {x: 8, y: hudH + bubH, w: W - 16, h: H - hudH - bubH - bottom};
+  } else {
+    const side = clamp(Math.round(W * .26), 200, 300);
+    hud.classList.add('side'); hud.style.left = '12px'; hud.style.top = '10px'; hud.style.width = (side - 24) + 'px';
+    say.classList.add('top'); say.style.left = '12px'; say.style.top = (small ? 76 : 92) + 'px'; say.style.maxWidth = (side - 24) + 'px';
+    dock.classList.add('side'); dock.style.bottom = '12px';
+    if (H >= 600){ info.hidden = false; info.style.left = '12px'; info.style.bottom = '92px'; info.style.width = (side - 24) + 'px'; }
+    let right = 12;
+    if (pad){ right = bsz * 3 + 8 + 24; dpad.style.right = '12px'; dpad.style.bottom = '12px'; }
+    area = {x: side, y: 10, w: W - side - right, h: H - 20};
+  }
+  area.w = Math.max(120, area.w); area.h = Math.max(120, area.h);
+  if (regrid || !(state === 'play' || state === 'dying')){
+    const target = small ? 26 : 34;
+    const short = Math.min(area.w, area.h);
+    const n = clamp(Math.round(short / target), 12, 22);
+    cell = Math.floor(short / n);
+    cols = clamp(Math.floor(area.w / cell), 10, 34); rows = clamp(Math.floor(area.h / cell), 10, 34);
+  }
+  cell = Math.floor(Math.min(area.w / cols, area.h / rows));
+  bx = Math.round(area.x + (area.w - cols * cell) / 2); by = Math.round(area.y + (area.h - rows * cell) / 2);
+  floorTile = null;
+}
+let state = 'menu';
+new ResizeObserver(() => layout(false)).observe($('stage'));
+
+/* ---- sound ---- */
+let actx = null;
+function tone(freq, dur = .08, type = 'square', vol = .05, slide = 0, delay = 0){
+  if (BDB.sfx.muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + delay;
+    o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur + .02);
+  } catch(e){}
+}
+const snd = {
+  eat(k){ const f = 520 * Math.pow(1.06, Math.min(k, 12)); tone(f, .06, 'square', .04); tone(f * 1.5, .08, 'triangle', .04, 0, .05); },
+  turn(){ tone(1400, .02, 'square', .012); },
+  gold(){ BDB.sfx.big(); tone(1046, .3, 'triangle', .04, 500, .3); },
+  goldSpawn(){ [880, 1175, 880, 1175].forEach((f, i) => tone(f, .07, 'triangle', .035, 0, i * .08)); },
+  goldGone(){ tone(600, .25, 'triangle', .04, -350); },
+  die(){ tone(260, .4, 'sawtooth', .06, -200); tone(90, .35, 'square', .04, -40, .1); }
+};
+
+/* ---- game state ---- */
+const DIRS = {up: {x: 0, y: -1}, down: {x: 0, y: 1}, left: {x: -1, y: 0}, right: {x: 1, y: 0}};
+let segs = [], dir = DIRS.right, queue = [], vacated = null, grew = false;
+let food = null, gold = null, score = 0, snacks = 0, streak = 1, bestStreak = 1, streakT = 0, streakMax = 1;
+let acc = 0, stepMs = 112, boostT = 0, waitT = 0, paused = false, deadT = 0, deathCause = '';
+let parts = [], shake = 0, headPop = 0, flash = 0, gameT = 0, lastTalk = -99, endAt = 0, nextLenRoast = 10;
+
+function talk(arr, force){ if (!force && gameT - lastTalk < 5) return false; lastTalk = gameT; BDB.line(arr); return true; }
+
+const SNACKS = ['donut', 'coffee', 'nachos', 'pizza'];
+const SNACK_COL = {donut: '#ff6fae', coffee: '#c58a4a', nachos: '#f2c14e', pizza: '#ff5a4a'};
+function freeCell(minDist){
+  const occ = new Set(segs.map(s => s.x + ',' + s.y));
+  if (food) occ.add(food.x + ',' + food.y); if (gold) occ.add(gold.x + ',' + gold.y);
+  const h = segs[0];
+  for (let tries = 0; tries < 400; tries++){
+    const x = Math.floor(Math.random() * cols), y = Math.floor(Math.random() * rows);
+    if (occ.has(x + ',' + y)) continue;
+    if (minDist && Math.abs(x - h.x) + Math.abs(y - h.y) < minDist && tries < 300) continue;
+    return {x, y};
+  }
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (!occ.has(x + ',' + y)) return {x, y};
+  return null;
+}
+function dist(a, b){
+  let dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+  if (opts.walls === 'wrap'){ dx = Math.min(dx, cols - dx); dy = Math.min(dy, rows - dy); }
+  return dx + dy;
+}
+function spawnFood(){
+  const c = freeCell(3); if (!c) return;
+  food = {x: c.x, y: c.y, type: SNACKS[Math.floor(Math.random() * SNACKS.length)], t: 0};
+  // streak window scales with how far the snack is, so every board size is fair
+  streakMax = dist(segs[0], food) * stepMs / 1000 + 2.2; streakT = streakMax;
+}
+function spawnGold(){
+  const c = freeCell(5); if (!c) return;
+  const life = dist(segs[0], c) * stepMs / 1000 * 1.25 + 3;
+  gold = {x: c.x, y: c.y, t: 0, life, max: life};
+  snd.goldSpawn(); talk(L.goldSeen, true);
+}
+
+function start(){
+  BDB.hideSplash(); BDB.hideEnd();
+  syncOpts(); layout(true);
+  const cy = Math.floor(rows / 2), cx0 = Math.floor(cols / 2) - 2;
+  segs = []; for (let i = 0; i < 4; i++) segs.push({x: cx0 - i, y: cy});
+  dir = DIRS.right; queue = []; vacated = {x: cx0 - 4, y: cy}; grew = false;
+  food = null; gold = null; score = 0; snacks = 0; streak = 1; bestStreak = 1; boostT = 0; parts = []; shake = 0; headPop = 0; flash = 0;
+  stepMs = SPEEDS[opts.speed].base; acc = 0; waitT = 1.1; paused = false; deadT = 0; gameT = 0; lastTalk = -99; nextLenRoast = 10;
+  $('pause').lastChild.textContent = 'Pause';
+  state = 'play';
+  spawnFood();
+  talk(L.start, true); BDB.shout('READY');
+  updHud(true);
+}
+function end(){
+  state = 'over'; endAt = performance.now();
+  const res = BDB.addScore(score);
+  $('best').textContent = BDB.fmt(res.list[0].s);
+  const best = res.isBest && score > 0;
+  if (best) BDB.sfx.big();
+  $('endBoard').textContent = `Your top 5 on ${SPEEDS[opts.speed].label} speed`;
+  BDB.showEnd({
+    eyebrow: deathCause === 'wall' ? 'Hit the wall' : 'Tangled up',
+    title: best ? 'New best break' : `${segs.length} links long`,
+    line: BDB.pick(best ? L.best : L.end),
+    stats: [['Score', BDB.fmt(score)], ['Length', segs.length], ['Snacks', snacks], ['Best streak', 'x' + bestStreak]],
+    scores: res
+  });
+}
+
+/* ---- input ---- */
+function turn(name){
+  if (state === 'menu' || state === 'over') return;
+  if (paused) return;
+  const d = DIRS[name], last = queue.length ? queue[queue.length - 1] : dir;
+  if (d === last || (d.x === -last.x && d.y === -last.y)) return;
+  if (queue.length < 3) queue.push(d);
+  if (waitT > 0){ waitT = 0; BDB.shout('GO'); }
+}
+const KEYMAP = {ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right'};
+addEventListener('keydown', e => {
+  const k = e.key;
+  if (state === 'over'){
+    if (k === 'Enter' && performance.now() - endAt > 400){ e.preventDefault(); start(); }
+    else if (k === ' ' && performance.now() - endAt < 900) e.preventDefault();
+    return;
+  }
+  if (state === 'menu'){ if (k === 'Enter'){ e.preventDefault(); start(); } return; }
+  if (KEYMAP[k]){ e.preventDefault(); turn(KEYMAP[k]); return; }
+  if (k === ' ' || k === 'p' || k === 'P' || k === 'Escape'){ e.preventDefault(); togglePause(); }
+  if (k === 'Enter' && paused){ e.preventDefault(); togglePause(); }
+});
+addEventListener('keyup', e => { if (state === 'over' && e.key === ' ' && performance.now() - endAt < 900) e.preventDefault(); });
+let sw = null;
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (state !== 'play') return;
+  if (paused){ togglePause(); return; }
+  sw = {id: e.pointerId, x: e.clientX, y: e.clientY};
+  try { cv.setPointerCapture(e.pointerId); } catch(_){}
+});
+cv.addEventListener('pointermove', e => {
+  if (!sw || e.pointerId !== sw.id) return;
+  const dx = e.clientX - sw.x, dy = e.clientY - sw.y, th = 22;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < th) return;
+  turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  sw.x = e.clientX; sw.y = e.clientY;      // keep reading the same swipe so a quick L-shape gives two turns
+});
+const endSwipe = e => { if (sw && e.pointerId === sw.id) sw = null; };
+cv.addEventListener('pointerup', endSwipe); cv.addEventListener('pointercancel', endSwipe);
+for (const b of dpad.querySelectorAll('button')){
+  b.addEventListener('pointerdown', e => { e.preventDefault(); turn(b.dataset.d); b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 120); });
+}
+function togglePause(){
+  if (state !== 'play') return;
+  paused = !paused; $('pause').lastChild.textContent = paused ? 'Resume' : 'Pause';
+}
+$('play').onclick = start; $('again').onclick = start;
+$('restart').onclick = () => { $('restart').blur(); start(); };
+$('pause').onclick = () => { $('pause').blur(); togglePause(); };
+$('menuBtn').onclick = () => { BDB.hideEnd(); state = 'menu'; BDB.showSplash(); };
+$('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; $('mute').blur(); };
+$('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play' && !paused) togglePause(); });
+
+/* ---- simulation ---- */
+function curStep(){ return stepMs * (boostT > 0 ? .7 : 1); }
+function step(){
+  if (queue.length){ const nd = queue.shift(); if (nd !== dir) snd.turn(); dir = nd; }
+  const h = segs[0];
+  let nx = h.x + dir.x, ny = h.y + dir.y;
+  if (opts.walls === 'wrap'){ nx = (nx + cols) % cols; ny = (ny + rows) % rows; }
+  else if (nx < 0 || ny < 0 || nx >= cols || ny >= rows){ die('wall'); return; }
+  const eat = food && food.x === nx && food.y === ny;
+  const eatGold = gold && gold.x === nx && gold.y === ny;
+  const growN = eat ? 1 : 0;
+  // the tail moves out of the way this tick unless we're growing
+  const body = growN ? segs : segs.slice(0, -1);
+  if (body.some(s => s.x === nx && s.y === ny)){ die('self'); return; }
+  segs.unshift({x: nx, y: ny});
+  if (growN){ vacated = null; grew = true; }
+  else { vacated = segs.pop(); grew = false; }
+  if (eat) eatFood();
+  if (eatGold) eatGold_();
+}
+function mult(){ return (opts.walls === 'solid' ? 1.5 : 1) * (boostT > 0 ? 2 : 1); }
+function eatFood(){
+  snacks++;
+  const quick = streakT > 0;
+  streak = quick ? Math.min(5, streak + 1) : 1; bestStreak = Math.max(bestStreak, streak);
+  const pts = Math.round(10 * streak * mult()); score += pts;
+  stepMs = Math.max(SPEEDS[opts.speed].min, stepMs - 1.6);
+  const p = cellCenter(food.x, food.y);
+  burst(p.x, p.y, 14, [SNACK_COL[food.type], '#fbf8f2', '#f2c14e'], cell * 5);
+  popText(p.x, p.y - cell * .4, '+' + pts, streak > 1 ? '#f2c14e' : '#ffb547');
+  snd.eat(streak * 2 + snacks % 3); headPop = 1;
+  if (streak >= 3 && quick) { if (streak === 3 || streak === 5) { talk(L.streak); BDB.shout('STREAK x' + streak); } }
+  else if (Math.random() < .3) talk(L.eat);
+  if (segs.length >= nextLenRoast){ nextLenRoast += 10; if (gameT - lastTalk > 3){ lastTalk = gameT; BDB.roast(); } }
+  food = null; spawnFood();
+  if (!gold && snacks >= 3 && Math.random() < .2) spawnGold();
+}
+function eatGold_(){
+  const frac = gold.life / gold.max, pts = Math.round((50 + 50 * frac) * (opts.walls === 'solid' ? 1.5 : 1));
+  score += pts; boostT = 4.5;
+  const p = cellCenter(gold.x, gold.y);
+  burst(p.x, p.y, 40, ['#f2c14e', '#ffe9a8', '#ff8a2b', '#ffffff'], cell * 9);
+  popText(p.x, p.y - cell * .5, '+' + pts, '#f2c14e');
+  snd.gold(); headPop = 1.4; addShake(5);
+  BDB.shout('SCOUT SPOTTED'); talk(L.gold, true);
+  gold = null;
+}
+function die(cause){
+  state = 'dying'; deadT = 0; deathCause = cause; flash = 1;
+  snd.die(); addShake(12);
+  const p = cellCenter(segs[0].x, segs[0].y);
+  burst(p.x, p.y, 30, ['#ff5a4a', '#ff8a2b', '#f2c14e', '#ffffff'], cell * 8);
+  BDB.shout(cause === 'wall' ? 'WALL' : 'TANGLED', true);
+  talk(cause === 'wall' ? L.wall : L.self, true);
+}
+function update(dt){
+  gameT += dt;
+  if (waitT > 0){ waitT -= dt; if (waitT <= 0) BDB.shout('GO'); return; }
+  if (boostT > 0) boostT -= dt;
+  if (streakT > 0){ streakT -= dt; if (streakT <= 0 && streak > 1){ streak = 1; } }
+  if (gold){ gold.life -= dt; gold.t += dt; if (gold.life <= 0){ const p = cellCenter(gold.x, gold.y); burst(p.x, p.y, 10, ['#8fa3cc', '#f2c14e'], cell * 3); gold = null; snd.goldGone(); talk(L.goldMiss); } }
+  if (food) food.t += dt;
+  acc += dt * 1000;
+  let guard = 0;
+  while (acc >= curStep() && state === 'play' && guard++ < 4){ acc -= curStep(); step(); }
+}
+
+/* ---- effects ---- */
+function cellCenter(x, y){ return {x: bx + (x + .5) * cell, y: by + (y + .5) * cell}; }
+function burst(x, y, n, cols_, pow){
+  if (BDB.reduced) n = Math.ceil(n / 3);
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * TAU, v = rnd(.3, 1) * pow;
+    parts.push({x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: rnd(1.5, 4) * cell / 30, life: rnd(.35, .8), max: .8, col: BDB.pick(cols_), sq: Math.random() < .5, rot: Math.random() * 6});
+  }
+}
+function popText(x, y, text, col){ parts.push({x, y, vx: 0, vy: -cell * 1.6, life: .9, max: .9, text, col}); }
+function addShake(a){ if (!BDB.reduced) shake = Math.max(shake, a); }
+
+/* ---- drawing ---- */
+function rr(x, y, w, h, r){ cx.beginPath(); cx.roundRect ? cx.roundRect(x, y, w, h, r) : cx.rect(x, y, w, h); }
+function face(x, y, r, ring){
+  cx.save(); cx.beginPath(); cx.arc(x, y, r, 0, TAU); cx.closePath();
+  cx.fillStyle = '#d9a37f'; cx.fill(); cx.clip();
+  const im = BDB.faceImg;
+  if (im.complete && im.naturalWidth){ const k = im.naturalWidth / 260; cx.drawImage(im, 30 * k, 30 * k, 192 * k, 196 * k, x - r * 1.04, y - r * 1.02, r * 2.08, r * 2.12); }
+  cx.restore();
+  if (ring){ cx.lineWidth = Math.max(2, r * .13); cx.strokeStyle = ring; cx.beginPath(); cx.arc(x, y, r, 0, TAU); cx.stroke(); }
+}
+function bball(x, y, r, rot, gold){
+  cx.save(); cx.translate(x, y); cx.rotate(rot || 0);
+  const g = cx.createRadialGradient(-r * .35, -r * .35, r * .1, 0, 0, r);
+  if (gold){ g.addColorStop(0, '#fff3c4'); g.addColorStop(.5, '#f2c14e'); g.addColorStop(1, '#a8740f'); }
+  else { g.addColorStop(0, '#ffb26b'); g.addColorStop(.55, '#ff7a1f'); g.addColorStop(1, '#a8420a'); }
+  cx.fillStyle = g; cx.beginPath(); cx.arc(0, 0, r, 0, TAU); cx.fill();
+  cx.strokeStyle = gold ? 'rgba(90,55,0,.8)' : 'rgba(40,14,0,.85)'; cx.lineWidth = Math.max(1, r * .1);
+  cx.beginPath(); cx.moveTo(-r, 0); cx.lineTo(r, 0); cx.moveTo(0, -r); cx.lineTo(0, r); cx.stroke();
+  cx.beginPath(); cx.arc(-r * 1.15, 0, r * .8, -1, 1); cx.stroke();
+  cx.beginPath(); cx.arc(r * 1.15, 0, r * .8, Math.PI - 1, Math.PI + 1); cx.stroke();
+  cx.restore();
+}
+let glowC = null;
+function glowSprite(){
+  if (glowC) return glowC;
+  glowC = document.createElement('canvas'); glowC.width = glowC.height = 64; const g = glowC.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(242,193,78,1)'); gr.addColorStop(.4, 'rgba(242,193,78,.35)'); gr.addColorStop(1, 'rgba(242,193,78,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return glowC;
+}
+
+// snacks, drawn at centre (x, y) with cell size c
+function drawSnack(type, x, y, c, t){
+  const k = c / 30;
+  cx.save(); cx.translate(x, y + Math.sin(t * 4) * c * .04); cx.scale(k, k);
+  cx.fillStyle = 'rgba(0,0,0,.3)'; cx.beginPath(); cx.ellipse(0, 11, 10, 3, 0, 0, TAU); cx.fill();
+  if (type === 'donut'){
+    cx.fillStyle = '#d99a5b'; cx.beginPath(); cx.arc(0, 0, 11.5, 0, TAU); cx.arc(0, 0, 3.6, 0, TAU, true); cx.fill('evenodd');
+    cx.fillStyle = '#ff6fae'; cx.beginPath();
+    for (let i = 0; i <= 24; i++){ const a = i / 24 * TAU, r = 9.6 + Math.sin(i * 2.7) * .9; i ? cx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : cx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+    cx.closePath(); cx.arc(0, 0, 4.4, 0, TAU, true); cx.fill('evenodd');
+    const sp = ['#ffffff', '#4ade80', '#f2c14e', '#3ad0e0'];
+    for (let i = 0; i < 9; i++){ const a = i * 2.1, r = 7; cx.save(); cx.translate(Math.cos(a) * r, Math.sin(a) * r); cx.rotate(a * 3); cx.fillStyle = sp[i % 4]; cx.fillRect(-1.6, -.5, 3.2, 1.1); cx.restore(); }
+  } else if (type === 'coffee'){
+    cx.fillStyle = '#fbf8f2'; cx.beginPath(); cx.moveTo(-8, -7); cx.lineTo(8, -7); cx.lineTo(6, 11); cx.lineTo(-6, 11); cx.closePath(); cx.fill();
+    cx.fillStyle = '#ff8a2b'; cx.beginPath(); cx.moveTo(-7.4, -1); cx.lineTo(7.4, -1); cx.lineTo(6.8, 6); cx.lineTo(-6.8, 6); cx.closePath(); cx.fill();
+    cx.fillStyle = '#3b2a20'; rr(-9.5, -11, 19, 5, 2); cx.fill();
+    cx.strokeStyle = 'rgba(255,255,255,.65)'; cx.lineWidth = 1.3; cx.beginPath();
+    for (let i = 0; i < 2; i++){ const sx = -3 + i * 6; cx.moveTo(sx, -13); cx.quadraticCurveTo(sx + 3 * Math.sin(t * 5 + i), -17, sx, -21); }
+    cx.stroke();
+  } else if (type === 'nachos'){
+    cx.fillStyle = '#16161c'; rr(-12, -2, 24, 11, 3); cx.fill();
+    cx.fillStyle = '#2b2b36'; cx.fillRect(-12, -2, 24, 2);
+    const chips = [[-7, -4, .3], [0, -7, -.2], [6, -4, .5], [-3, -1, 1], [4, 0, -.8]];
+    for (const [px, py, a] of chips){
+      cx.save(); cx.translate(px, py); cx.rotate(a);
+      cx.fillStyle = '#f2c14e'; cx.beginPath(); cx.moveTo(0, -6); cx.lineTo(6, 5); cx.lineTo(-6, 5); cx.closePath(); cx.fill();
+      cx.strokeStyle = '#c6921f'; cx.lineWidth = .8; cx.stroke(); cx.restore();
+    }
+    cx.fillStyle = '#ff9a1f'; cx.beginPath(); cx.ellipse(0, -3, 7, 3, 0, 0, TAU); cx.fill();
+    cx.beginPath(); cx.ellipse(-2, 1, 2, 3.4, 0, 0, TAU); cx.fill();
+    cx.fillStyle = '#4ade80'; cx.beginPath(); cx.arc(3, -4, 1.3, 0, TAU); cx.arc(-4, -5, 1.1, 0, TAU); cx.fill();
+  } else if (type === 'pizza'){
+    cx.rotate(.15);
+    cx.fillStyle = '#ffd36b'; cx.beginPath(); cx.moveTo(-11, -8); cx.quadraticCurveTo(0, -11, 11, -8); cx.lineTo(0, 12); cx.closePath(); cx.fill();
+    cx.fillStyle = '#b8651e'; cx.beginPath(); cx.moveTo(-12, -8); cx.quadraticCurveTo(0, -13, 12, -8); cx.lineTo(11, -5.5); cx.quadraticCurveTo(0, -9.5, -11, -5.5); cx.closePath(); cx.fill();
+    cx.fillStyle = '#d63a3a'; for (const [px, py] of [[-4, -2], [4, -1], [0, 5]]){ cx.beginPath(); cx.arc(px, py, 2.5, 0, TAU); cx.fill(); }
+    cx.fillStyle = 'rgba(255,255,255,.35)'; cx.beginPath(); cx.arc(-5, -3, .8, 0, TAU); cx.fill();
+  }
+  cx.restore();
+}
+
+let floorTile = null;
+function drawBoard(){
+  const w = cols * cell, h = rows * cell;
+  // frame
+  cx.save();
+  cx.fillStyle = 'rgba(0,0,0,.45)'; rr(bx - 8, by - 8, w + 16, h + 16, 14); cx.fill();
+  cx.fillStyle = '#0b1636'; rr(bx, by, w, h, 6); cx.fill();
+  cx.beginPath(); cx.rect(bx, by, w, h); cx.clip();
+  // break-room floor tiles
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++){
+    if ((x + y) % 2) continue;
+    cx.fillStyle = '#0f1d45'; cx.fillRect(bx + x * cell, by + y * cell, cell, cell);
+  }
+  cx.strokeStyle = 'rgba(255,255,255,.035)'; cx.lineWidth = 1; cx.beginPath();
+  for (let x = 1; x < cols; x++){ cx.moveTo(bx + x * cell + .5, by); cx.lineTo(bx + x * cell + .5, by + h); }
+  for (let y = 1; y < rows; y++){ cx.moveTo(bx, by + y * cell + .5); cx.lineTo(bx + w, by + y * cell + .5); }
+  cx.stroke();
+  // centre court circle, for flavour
+  cx.strokeStyle = 'rgba(255,138,43,.08)'; cx.lineWidth = Math.max(2, cell * .12);
+  cx.beginPath(); cx.arc(bx + w / 2, by + h / 2, Math.min(w, h) * .18, 0, TAU); cx.stroke();
+  cx.beginPath(); cx.moveTo(bx + w / 2, by); cx.lineTo(bx + w / 2, by + h); cx.stroke();
+  cx.restore();
+  // border: solid walls look solid, wrap looks open
+  cx.save();
+  cx.lineWidth = 3;
+  if (opts.walls === 'solid'){ cx.strokeStyle = flash > 0 && deathCause === 'wall' ? '#ff5a4a' : '#f2c14e'; cx.globalAlpha = .9; }
+  else { cx.strokeStyle = '#3ad0e0'; cx.setLineDash([cell * .4, cell * .3]); cx.globalAlpha = .7; }
+  rr(bx - 2, by - 2, w + 4, h + 4, 7); cx.stroke();
+  cx.restore();
+}
+
+function unwrapNear(p, ref){
+  let x = p.x, y = p.y;
+  if (opts.walls === 'wrap'){
+    while (x - ref.x > cols / 2) x -= cols; while (ref.x - x > cols / 2) x += cols;
+    while (y - ref.y > rows / 2) y -= rows; while (ref.y - y > rows / 2) y += rows;
+  }
+  return {x, y};
+}
+function snakePath(t){
+  // continuous path in grid coordinates (may spill past the edges in wrap mode)
+  const n = segs.length, pts = [];
+  const prevHead = n > 1 ? segs[1] : segs[0];
+  const h0 = unwrapNear(segs[0], prevHead);
+  pts.push({x: prevHead.x + (h0.x - prevHead.x) * t, y: prevHead.y + (h0.y - prevHead.y) * t});
+  let last = pts[0];
+  for (let i = 1; i < n; i++){ const q = unwrapNear(segs[i], last); pts.push(q); last = q; }
+  if (vacated && !grew){
+    const v = unwrapNear(vacated, last);
+    pts.push({x: v.x + (last.x - v.x) * t, y: v.y + (last.y - v.y) * t});   // tail end slides off the vacated cell
+  }
+  return pts;
+}
+function drawLanyard(pts, ox, oy){
+  const P = pts.map(p => [bx + (p.x + .5) * cell + ox, by + (p.y + .5) * cell + oy]);
+  const trace = () => { cx.beginPath(); cx.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) cx.lineTo(P[i][0], P[i][1]); };
+  cx.lineCap = 'round'; cx.lineJoin = 'round';
+  trace(); cx.strokeStyle = 'rgba(0,0,0,.35)'; cx.lineWidth = cell * .62; cx.save(); cx.translate(cell * .06, cell * .1); cx.stroke(); cx.restore();
+  trace(); cx.strokeStyle = '#a34c0c'; cx.lineWidth = cell * .56; cx.stroke();
+  trace(); cx.strokeStyle = boostT > 0 ? '#f2c14e' : '#ff8a2b'; cx.lineWidth = cell * .46; cx.stroke();
+  trace(); cx.strokeStyle = '#fbf8f2'; cx.lineWidth = cell * .3; cx.stroke();
+  trace(); cx.strokeStyle = '#0b1f45'; cx.lineWidth = cell * .22; cx.setLineDash([cell * .34, cell * .16]); cx.lineDashOffset = 0; cx.stroke(); cx.setLineDash([]);
+  // badge clip on the tail end
+  const a = P[P.length - 1], b = P[P.length - 2] || a;
+  const ang = Math.atan2(a[1] - b[1], a[0] - b[0]);
+  cx.save(); cx.translate(a[0], a[1]); cx.rotate(ang - Math.PI / 2);
+  cx.fillStyle = '#aab4c8'; rr(-cell * .12, -cell * .05, cell * .24, cell * .2, 2); cx.fill();
+  cx.translate(0, cell * .14);
+  cx.fillStyle = 'rgba(0,0,0,.3)'; rr(-cell * .3 + 2, 3, cell * .6, cell * .74, 4); cx.fill();
+  cx.fillStyle = '#fbf8f2'; rr(-cell * .3, 0, cell * .6, cell * .74, 4); cx.fill();
+  cx.fillStyle = '#2a5bd7'; rr(-cell * .3, 0, cell * .6, cell * .18, [4, 4, 0, 0]); cx.fill();
+  cx.save(); cx.translate(0, cell * .42); cx.rotate(-(ang - Math.PI / 2)); face(0, 0, cell * .16, null); cx.restore();
+  cx.fillStyle = '#ff8a2b'; cx.fillRect(-cell * .2, cell * .63, cell * .4, cell * .05);
+  cx.restore();
+}
+function drawSnake(t){
+  if (!segs.length) return;
+  const pts = snakePath(t);
+  const w = cols * cell, h = rows * cell;
+  let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (const p of pts){ minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+  // in wrap mode, draw extra copies shifted by a board width/height so whatever spills past one edge shows on the other
+  const xs = [0], ys = [0];
+  if (opts.walls === 'wrap'){
+    if (maxX > cols - 1.5) xs.push(-w); if (minX < .5) xs.push(w);
+    if (maxY > rows - 1.5) ys.push(-h); if (minY < .5) ys.push(h);
+  }
+  const offs = [];
+  for (const ox of xs) for (const oy of ys) offs.push([ox, oy]);
+  cx.save(); cx.beginPath(); cx.rect(bx, by, w, h); cx.clip();
+  for (const [ox, oy] of offs) drawLanyard(pts, ox, oy);
+  // head
+  const hp = pts[0], dead = state === 'dying' || state === 'over';
+  const pop = 1 + headPop * .25;
+  const r = cell * .66 * pop;
+  for (const [ox, oy] of offs){
+    let x = bx + (hp.x + .5) * cell + ox, y = by + (hp.y + .5) * cell + oy;
+    if (dead){ x += Math.sin(deadT * 50) * cell * .08 * Math.max(0, 1 - deadT * 2); }
+    if (boostT > 0){ cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = .6; cx.drawImage(glowSprite(), x - r * 2, y - r * 2, r * 4, r * 4); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; }
+    cx.save(); cx.translate(x, y); cx.rotate(dir.x * .12 + (dead ? deadT * 2 : 0));
+    cx.fillStyle = 'rgba(0,0,0,.35)'; cx.beginPath(); cx.arc(cell * .06, cell * .12, r, 0, TAU); cx.fill();
+    face(0, 0, r, dead ? '#ff5a4a' : boostT > 0 ? '#f2c14e' : '#ff8a2b');
+    cx.restore();
+  }
+  cx.restore();
+}
+
+function draw(t){
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cx.clearRect(0, 0, W, H);
+  const sx = shake ? rnd(-shake, shake) : 0, sy = shake ? rnd(-shake, shake) : 0;
+  cx.setTransform(DPR, 0, 0, DPR, DPR * sx, DPR * sy);
+  drawBoard();
+  const now = performance.now() / 1000;
+  if (state !== 'menu'){
+    if (food){
+      const p = cellCenter(food.x, food.y), sc = Math.min(1, food.t * 6);
+      // streak timer ring under the snack
+      if (streak > 1 || streakT > 0){
+        cx.strokeStyle = 'rgba(242,193,78,.55)'; cx.lineWidth = Math.max(2, cell * .07);
+        cx.beginPath(); cx.arc(p.x, p.y, cell * .52, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(streakT / streakMax, 0, 1)); cx.stroke();
+      }
+      drawSnack(food.type, p.x, p.y, cell * (.4 + .6 * sc) * 1.05, food.t);
+    }
+    if (gold){
+      const p = cellCenter(gold.x, gold.y), frac = clamp(gold.life / gold.max, 0, 1);
+      const blink = frac < .3 && Math.floor(now * 8) % 2 === 0;
+      cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = .55 + .25 * Math.sin(now * 8);
+      cx.drawImage(glowSprite(), p.x - cell * 1.3, p.y - cell * 1.3, cell * 2.6, cell * 2.6);
+      cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1;
+      if (!blink) bball(p.x, p.y, cell * .4 * Math.min(1, gold.t * 5), now * 2, true);
+      cx.strokeStyle = '#f2c14e'; cx.lineWidth = Math.max(2, cell * .08);
+      cx.beginPath(); cx.arc(p.x, p.y, cell * .58, -Math.PI / 2, -Math.PI / 2 + TAU * frac); cx.stroke();
+    }
+    drawSnake(state === 'play' ? clamp(acc / curStep(), 0, 1) : 1);
+  } else {
+    // attract mode: a little lanyard doing laps
+    drawSnake(clamp(acc / curStep(), 0, 1));
+  }
+  for (const p of parts){
+    const a = clamp(p.life / p.max, 0, 1); cx.globalAlpha = a; cx.fillStyle = p.col;
+    if (p.text){ cx.font = `600 ${Math.round(Math.max(18, cell * .8))}px Teko, sans-serif`; cx.textAlign = 'center'; cx.fillText(p.text, p.x, p.y); }
+    else if (p.sq){ cx.save(); cx.translate(p.x, p.y); cx.rotate(p.rot); cx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); cx.restore(); }
+    else { cx.beginPath(); cx.arc(p.x, p.y, p.r * a, 0, TAU); cx.fill(); }
+  }
+  cx.globalAlpha = 1;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // boost / streak chips on the board's top edge
+  if (state === 'play' || state === 'dying'){
+    let x = bx + 8;
+    if (boostT > 0) x += chip(x, by + 8, `BOOST x2  ${boostT.toFixed(1)}s`, '#f2c14e') + 6;
+    if (waitT > 0) chip(bx + cols * cell / 2 - 80, by + rows * cell / 2 + cell * 1.2, 'Steer to start', '#8fa3cc', 160);
+  }
+  if (flash > 0){ cx.fillStyle = `rgba(255,90,74,${flash * .25})`; cx.fillRect(bx, by, cols * cell, rows * cell); }
+  if (paused){
+    cx.fillStyle = 'rgba(3,8,20,.66)'; cx.fillRect(bx, by, cols * cell, rows * cell);
+    cx.fillStyle = '#f2c14e'; cx.textAlign = 'center'; cx.font = `400 ${Math.round(Math.min(52, cols * cell / 8))}px "Bowlby One", sans-serif`;
+    cx.fillText('ON BREAK', bx + cols * cell / 2, by + rows * cell / 2);
+    cx.fillStyle = '#8fa3cc'; cx.font = '700 14px Figtree, sans-serif';
+    cx.fillText('Tap or press P to resume', bx + cols * cell / 2, by + rows * cell / 2 + 30);
+  }
+}
+function chip(x, y, t, col, fixedW){
+  cx.font = '800 11px Figtree, sans-serif'; const w = fixedW || cx.measureText(t).width + 18;
+  cx.fillStyle = 'rgba(7,11,19,.82)'; rr(x, y, w, 24, 12); cx.fill();
+  cx.strokeStyle = col; cx.lineWidth = 1.5; cx.stroke();
+  cx.fillStyle = col; cx.textAlign = 'center'; cx.fillText(t, x + w / 2, y + 16);
+  return w;
+}
+
+/* ---- attract mode on the title screen: the lanyard wanders on its own ---- */
+function attract(dt){
+  acc += dt * 1000;
+  while (acc >= 130){
+    acc -= 130;
+    if (!segs.length){ const cy = Math.floor(rows / 2); segs = [0, 1, 2, 3, 4, 5].map(i => ({x: 6 - i, y: cy})); dir = DIRS.right; }
+    const h = segs[0];
+    const opts2 = Object.values(DIRS).filter(d => !(d.x === -dir.x && d.y === -dir.y));
+    let nd = dir;
+    const ok = d => { const nx = h.x + d.x, ny = h.y + d.y; return nx >= 0 && ny >= 0 && nx < cols && ny < rows && !segs.some(s => s.x === nx && s.y === ny); };
+    if (!ok(dir) || Math.random() < .12){ const c = opts2.filter(ok); nd = c.length ? BDB.pick(c) : dir; }
+    if (!ok(nd)){ segs = []; continue; }
+    dir = nd; segs.unshift({x: h.x + dir.x, y: h.y + dir.y}); vacated = segs.pop(); grew = false;
+  }
+}
+
+/* ---- HUD + loop ---- */
+let hudCache = {};
+function setHud(id, v){ if (hudCache[id] === v) return; hudCache[id] = v; const b = $(id); b.textContent = v; b.classList.remove('tick'); void b.offsetWidth; b.classList.add('tick'); }
+function updHud(force){ if (force) hudCache = {}; setHud('hScore', BDB.fmt(score)); setHud('hLen', String(segs.length)); setHud('hStreak', 'x' + streak); }
+
+let lastT = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
+  if (state === 'play' && !paused) update(dt);
+  else if (state === 'dying'){ deadT += dt; gameT += dt; if (deadT > .95) end(); }
+  else if (state === 'menu') attract(dt);
+  if (!paused){
+    for (const p of parts){ p.vx *= .96; p.vy = p.vy * .96 + (p.text ? 0 : 260 * dt); p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; if (p.rot !== undefined) p.rot += dt * 8; }
+    parts = parts.filter(p => p.life > 0);
+    shake = Math.max(0, shake - dt * 30); headPop = Math.max(0, headPop - dt * 4); flash = Math.max(0, flash - dt * 1.5);
+  }
+  if (state !== 'menu') updHud();
+  draw();
+  requestAnimationFrame(frame);
+}
+layout(true);
+requestAnimationFrame(frame);
+
+window.__game = {
+  get state(){ return state; }, get score(){ return score; }, get paused(){ return paused; },
+  get length(){ return segs.length; }, get snacks(){ return snacks; }, get grid(){ return {cols, rows, cell, bx, by}; },
+  get head(){ return segs[0] && {...segs[0]}; }, get dir(){ return Object.keys(DIRS).find(k => DIRS[k] === dir); },
+  get food(){ return food && {...food}; }, get gold(){ return gold && {...gold}; }, get opts(){ return {...opts}; },
+  get stepMs(){ return curStep(); }, get queue(){ return queue.length; }, get streak(){ return streak; },
+  get body(){ return segs.map(s => ({...s})); },
+  spawnGold(){ spawnGold(); }, setOpt(k, v){ opts[k] = v; syncOpts(); layout(true); }
+};
+</script>
+</body>
+</html>
