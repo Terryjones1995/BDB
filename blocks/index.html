@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Break Room Blocks</title>
+<meta name="description" content="Stack falling blocks, clear lines, and land a BDB BUCKET. BDB has opinions about all of it.">
+<meta property="og:title" content="Break Room Blocks">
+<meta property="og:image" content="../assets/face.jpg">
+<link rel="icon" href="../assets/face.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="../assets/kit.css">
+<style>
+/* Layout: canvas fills the stage and draws the field plus HOLD / NEXT boxes. The kit jumbotron (score, lines, level)
+   is placed by JS beside the field. Desktop: hold left, next right, bubble bottom-left clear of the field.
+   Phones: field left, a narrow column on the right (hold, next, HUD), BDB's bubble in a strip under the field, then the touch pad. */
+.k-app{grid-template-columns:minmax(0,1fr)}
+.k-top{min-width:0}
+#hud{flex-direction:column;right:auto}
+#hud .cell{min-width:0}
+#say{transition:opacity .4s,transform .4s}
+.k-top .k-pill svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;display:none}
+.pad{position:absolute;z-index:4;left:8px;right:8px;bottom:8px;margin:0 auto;max-width:560px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+.pad button{height:62px;border:0;border-radius:14px;background:linear-gradient(180deg,#1f4186,#132c63);color:var(--ink);box-shadow:0 4px 0 var(--btn-deep),0 8px 16px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:800 9.5px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;touch-action:none;cursor:pointer}
+.pad button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.pad button.on{transform:translateY(3px);box-shadow:0 1px 0 var(--btn-deep);filter:brightness(1.25)}
+.pad .drop{grid-column:span 2;background:linear-gradient(180deg,var(--orange),#e0701a);color:#1f1004;box-shadow:0 4px 0 var(--orange-deep),0 8px 16px rgba(0,0,0,.35)}
+.pad .drop.on{box-shadow:0 1px 0 var(--orange-deep)}
+.keys{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:center;font-size:12.5px;color:var(--muted)}
+kbd{font:700 11px var(--f-body);border:1px solid rgba(255,255,255,.25);border-radius:4px;padding:1px 5px;color:var(--ink)}
+@media (max-width:640px){
+  .k-top .k-pill{padding:7px 9px;letter-spacing:.08em}
+  #pause span{display:none}
+  #pause svg{display:block}
+  #hud{padding:4px;gap:4px}
+  #hud .cell{padding:4px 4px 2px}
+  #hud b{font-size:22px}
+  #hud small{font-size:8px;letter-spacing:.14em}
+  #say .bub{font-size:13px;padding:7px 10px}
+  #say .av{width:38px;height:38px}
+}
+</style>
+<script src="../assets/roasts.js"></script>
+<script src="../assets/kit.js"></script>
+<script src="engine.js"></script>
+</head>
+<body class="k">
+
+<section class="k-splash" id="splash">
+  <div class="k-splash-in">
+    <a class="k-home" href="../">← All games</a>
+    <div class="k-face" aria-hidden="true"></div>
+    <div class="k-eyebrow">BDB Entertainment presents</div>
+    <h2>Break Room <span>Blocks</span></h2>
+    <p>Stack the blocks, clear the lines, land a BDB BUCKET. It's the most organized BDB has been all shift.</p>
+    <ul class="k-how" id="how">
+      <li><b>← →</b> move, <b>↓</b> soft drop, <b>Space</b> hard drop.</li>
+      <li><b>↑</b> or <b>X</b> rotate right, <b>Z</b> rotate left, <b>C</b> or <b>Shift</b> hold.</li>
+      <li>On a phone: use the buttons, or <b>tap</b> the field to rotate, <b>drag</b> to move, <b>swipe down</b> to drop.</li>
+      <li>Clear 4 lines at once for a <b>BDB BUCKET</b>. Every 10 lines it speeds up. <b>P</b> pauses.</li>
+    </ul>
+    <div class="k-row"><button type="button" class="k-btn primary big" id="play">Clock in</button></div>
+  </div>
+</section>
+
+<div class="k-app">
+  <header class="k-top">
+    <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
+    <div class="k-brand">Break Room <span>Blocks</span></div>
+    <div class="k-spacer"></div>
+    <span class="k-pill">Best <span class="k-led" id="best">0</span></span>
+    <button type="button" class="k-pill" id="pause" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg><span>Pause</span></button>
+    <button type="button" class="k-pill" id="mute" aria-label="Sound">Sound on</button>
+  </header>
+  <main class="k-stage" id="stage">
+    <canvas id="cv" aria-label="Playing field"></canvas>
+    <div class="k-float k-hud k-jumbo" id="hud">
+      <div class="cell"><small>Score</small><b id="hScore">0</b></div>
+      <div class="cell"><small>Lines</small><b id="hLines">0</b></div>
+      <div class="cell"><small>Level</small><b id="hLevel">1</b></div>
+    </div>
+    <div class="k-float k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
+    <div class="pad" id="pad" hidden>
+      <button type="button" data-act="left" aria-label="Move left"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>Left</button>
+      <button type="button" data-act="right" aria-label="Move right"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>Right</button>
+      <button type="button" data-act="ccw" aria-label="Rotate left"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 3.5v5h5"/></svg>Rotate</button>
+      <button type="button" data-act="cw" aria-label="Rotate right"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.5"/><path d="M20 3.5v5h-5"/></svg>Rotate</button>
+      <button type="button" data-act="hold" aria-label="Hold"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 12h6"/></svg>Hold</button>
+      <button type="button" data-act="soft" aria-label="Soft drop"><svg viewBox="0 0 24 24"><path d="M12 4v14M6 12l6 6 6-6"/></svg>Down</button>
+      <button type="button" class="drop" data-act="hard" aria-label="Hard drop"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg>Drop</button>
+    </div>
+  </main>
+</div>
+
+<div class="k-modal" id="end" hidden>
+  <div class="k-box">
+    <div class="bigav"></div>
+    <div class="k-eyebrow" id="endEyebrow">Final buzzer</div>
+    <h3 id="endTitle"></h3>
+    <p id="endLine"></p>
+    <div class="k-jumbo k-stats" id="endStats"></div>
+    <div id="endScoresWrap" style="width:100%"><div class="k-label" style="margin-bottom:8px">Your top 5 on this device</div><ol class="k-scores" id="endScores"></ol></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="again">Run it back</button><a class="k-btn" href="../" style="text-decoration:none">All games</a></div>
+  </div>
+</div>
+
+<script>
+/* ===== Break Room Blocks ===== */
+const L = {
+  start:["Break Room Blocks. BDB's been stacking these since his first shift.","Clock's running. BDB's favourite thing to watch.",
+    "Stack 'em clean. BDB says he invented this on his lunch break. He didn't.","Shift starts now. BDB is already looking for the break room."],
+  single:["One line. That's BDB's whole highlight reel.","A single. BDB would celebrate that like a playoff win.","One row. Hey, BDB averaged 2.0, who's judging.","Single. BDB calls that a high-percentage look."],
+  double:["Two lines. That's a BDB career high.","Double! BDB just asked if that counts as a double double.","Two rows. BDB scored like that once. Allegedly."],
+  triple:["Three lines. BDB has never hit three of anything in a row.","Triple! BDB needs to sit down. He was already sitting.","Three rows. BDB is checking the tape for a foul."],
+  quad:["BDB BUCKET! Four lines, nothing but net.","Four at once. BDB says he did that in Florida. Nobody was there.","That's a bucket. BDB is jealous and hiding it badly.","Four rows! BDB wants that tape for his recruiting video."],
+  b2b:["Back to back buckets. BDB's only back to back was two naps.","Again?! BDB is filing a complaint with the break room.","Back to back. BDB has gone very quiet."],
+  combo:["Combo! Better ball movement than BDB's whole team.","Keep chaining it. BDB's only chain is his lanyard.","Combo's still going. BDB got winded just watching."],
+  danger:["Stack's getting high. Like BDB's opinion of his jump shot.","Danger zone. BDB's sweating through the track jacket.",
+    "You're near the top. BDB's never been near the top of anything.","That stack's taller than BDB's vertical. Low bar, still scary."],
+  saved:["You dug out. BDB never recovered from anything that fast.","Back from the dead. BDB's comeback story is still loading."],
+  level:["Level up. Faster blocks, same BDB.","Speeding up. BDB hasn't moved this fast since a shift ended.","New level. BDB is still on the bench.","Faster now. BDB calls this pace a fast break. It isn't."],
+  hold:["Holding that one. BDB's been holding his Florida story for years.","Saving it for later. BDB saves his effort the same way."],
+  slam:["Slammed it down. Only dunk BDB has ever seen up close.","Hard drop. BDB flinched behind the glasses."],
+  pause:["Paused. BDB loves a break. Rated 100.","Taking five? BDB took fifteen. Twice."],
+  over:["Topped out. BDB calls that a full shift.","Game over. BDB is clocking out too.","Blocks hit the ceiling. BDB's career hit the break room.","That's the buzzer. BDB is already at the vending machine."],
+  best:["New best. BDB wants you to sign his basketball.","New record. BDB says he had one of those once. In Florida."]
+};
+const EXTRA = ["BDB stacks blocks like he stacked stats: one at a time, with long breaks.","BDB rotated once in a game. Coach called it a miracle.",
+  "Break Room MVP, and the room is mostly blocks now.","BDB's favourite piece is the one he's holding. He's been holding it since 2017."];
+BDB.init({game: 'blocks', extra: EXTRA});
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('cv'), cx = cv.getContext('2d'), pad = $('pad'), hud = $('hud'), say = $('say');
+const COLORS = {I: '#5fb4ff', J: '#2f6fd6', L: '#ff8a2b', O: '#f2c14e', S: '#4ade80', T: '#ff5fa2', Z: '#ff5a4a', X: '#5d6f95'};
+const TYPES = Blocks.TYPES, VIS = 20, HID = Blocks.HIDDEN;
+let W = 0, H = 0, DPR = 1, cell = 30, F = {x: 0, y: 0, w: 300, h: 600}, holdBox = {}, nextBox = {}, mode = 'side', touch = false;
+
+/* ---------- speech: critical lines always, others spaced out ---------- */
+let lastTalk = -1e9;
+function talk(what, prio = 1, chance = 1){
+  if (Math.random() > chance) return false;
+  const now = performance.now(), gap = prio >= 2 ? 1200 : prio === 1 ? 3500 : 7000;
+  if (now - lastTalk < gap) return false;
+  lastTalk = now;
+  if (what === 'roast') BDB.roast(); else BDB.line(what);
+  return true;
+}
+
+/* ---------- glossy cell sprites ---------- */
+function shade(hex, a){
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = n >> 8 & 255, b = n & 255;
+  const t = a < 0 ? 0 : 255, p = Math.abs(a);
+  r = Math.round((t - r) * p + r); g = Math.round((t - g) * p + g); b = Math.round((t - b) * p + b);
+  return `rgb(${r},${g},${b})`;
+}
+function rr(c, x, y, w, h, r){ c.beginPath(); c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h); }
+const sprites = new Map();
+function sprite(col, s){
+  const k = col + '|' + s + '|' + DPR;
+  let sp = sprites.get(k); if (sp) return sp;
+  sp = document.createElement('canvas'); sp.width = sp.height = Math.max(1, Math.round(s * DPR));
+  const c = sp.getContext('2d'); c.scale(DPR, DPR);
+  const p = Math.max(.6, s * .045), r = s * .17;
+  let g = c.createLinearGradient(0, 0, 0, s); g.addColorStop(0, shade(col, .32)); g.addColorStop(.55, col); g.addColorStop(1, shade(col, -.38));
+  rr(c, p, p, s - 2 * p, s - 2 * p, r); c.fillStyle = g; c.fill();
+  c.lineWidth = Math.max(1, s * .05); c.strokeStyle = shade(col, -.55); c.stroke();
+  // inner rim light
+  rr(c, p + s * .08, p + s * .08, s - 2 * p - s * .16, s - 2 * p - s * .16, r * .7); c.lineWidth = Math.max(.6, s * .03); c.strokeStyle = 'rgba(255,255,255,.18)'; c.stroke();
+  // gloss band
+  g = c.createLinearGradient(0, p, 0, s * .5); g.addColorStop(0, 'rgba(255,255,255,.62)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  rr(c, p + s * .11, p + s * .07, s - 2 * p - s * .22, s * .38, r * .8); c.fillStyle = g; c.fill();
+  c.beginPath(); c.arc(s * .29, s * .26, s * .065, 0, Math.PI * 2); c.fillStyle = 'rgba(255,255,255,.8)'; c.fill();
+  sprites.set(k, sp); return sp;
+}
+function drawCell(x, y, s, col, alpha = 1){ const sp = sprite(col, s); cx.globalAlpha = alpha; cx.drawImage(sp, x, y, s, s); cx.globalAlpha = 1; }
+function drawFace(x, y, r, alpha = 1){
+  const im = BDB.faceImg; if (!im.complete || !im.naturalWidth) return;
+  const s = Math.min(im.naturalWidth, im.naturalHeight), sx = (im.naturalWidth - s) / 2, sy = (im.naturalHeight - s) * .32;
+  cx.save(); cx.globalAlpha = alpha; cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.clip(); cx.drawImage(im, sx, sy, s, s, x - r, y - r, r * 2, r * 2); cx.restore();
+}
+
+/* ---------- layout ---------- */
+function resize(){
+  const r = stage.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2); W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR); cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  sprites.clear();
+  touch = matchMedia('(pointer: coarse)').matches || W < 640;
+  pad.hidden = !touch;
+  const padH = touch ? pad.offsetHeight + 12 : 0, m = 10;
+  const cSide = Math.floor(Math.min((H - 2 * m - padH) / 20.5, (W - 2 * m - 28) / 19.4));
+  if (W >= 640 && cSide >= 14){
+    mode = 'side'; cell = Math.min(cSide, 46);
+    F.w = cell * 10; F.h = cell * VIS; F.x = Math.round((W - F.w) / 2); F.y = Math.round(Math.max(m + cell * .5, (H - padH - F.h) / 2 + cell * .25));
+    const pw = Math.round(cell * 4.4);
+    holdBox = {x: F.x - 14 - pw, y: F.y, w: pw, h: Math.round(pw * .74)};
+    nextBox = {x: F.x + F.w + 14, y: F.y, w: pw, h: Math.round(pw * .74 + pw * 1.08)};
+    Object.assign(hud.style, {left: holdBox.x + 'px', top: (holdBox.y + holdBox.h + 14) + 'px', width: pw + 'px', right: 'auto', bottom: 'auto'});
+    Object.assign(say.style, {left: '12px', right: 'auto', top: 'auto', bottom: (padH + 12) + 'px', maxWidth: Math.max(220, F.x - 30) + 'px'});
+    if (F.x - 30 < 220) Object.assign(say.style, {left: (F.x + F.w + 14) + 'px', maxWidth: (W - F.x - F.w - 26) + 'px'});
+  } else {
+    mode = 'col';
+    const bubH = 62;
+    cell = Math.floor(Math.min((W - 2 * 8 - 8) / 13.2, (H - 8 - padH - bubH - 8) / 20.6));
+    cell = Math.max(10, cell);
+    const colW = Math.round(Math.max(66, cell * 3.1));
+    F.w = cell * 10; F.h = cell * VIS;
+    F.x = Math.round((W - (F.w + 8 + colW)) / 2); F.y = Math.round(8 + cell * .6);
+    const cxl = F.x + F.w + 8;
+    holdBox = {x: cxl, y: F.y, w: colW, h: Math.round(colW * .78)};
+    nextBox = {x: cxl, y: holdBox.y + holdBox.h + 8, w: colW, h: Math.round(colW * .78 + colW * 1.15)};
+    Object.assign(hud.style, {left: cxl + 'px', top: (nextBox.y + nextBox.h + 8) + 'px', width: colW + 'px', right: 'auto', bottom: 'auto'});
+    Object.assign(say.style, {left: '8px', right: 'auto', bottom: 'auto', top: (F.y + F.h + 8) + 'px', maxWidth: (W - 16) + 'px'});
+  }
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+/* ---------- game state ---------- */
+let G = null, state = 'menu', paused = false, danger = false, best = (BDB.scores()[0] || {s: 0}).s;
+let parts = [], pops = [], streaks = [], stamp = null, shakeA = 0, flashT = 0, overT = 0, levelFlash = 0;
+$('best').textContent = BDB.fmt(best);
+
+function onEvent(e, d){
+  if (!G) return;
+  if (e === 'move') BDB.sfx.tick();
+  else if (e === 'rotate') BDB.sfx.tick();
+  else if (e === 'hard'){
+    BDB.sfx.pop(); kick(d.d > 10 ? 4 : 2);
+    if (!BDB.reduced){
+      const xs = d.cells.map(c => c[0]), ys = d.cells.map(c => c[1]);
+      const minX = Math.min(...xs), maxX = Math.max(...xs), maxY = Math.max(...ys);
+      streaks.push({x: F.x + minX * cell, w: (maxX - minX + 1) * cell, y0: F.y + (maxY - HID + 1 - d.d - 2) * cell, y1: F.y + (maxY - HID + 1) * cell, t: 0, col: COLORS[d.t]});
+      for (let i = 0; i < 10; i++) parts.push({x: F.x + (minX + Math.random() * (maxX - minX + 1)) * cell, y: F.y + (maxY - HID + 1) * cell, vx: (Math.random() - .5) * 160, vy: -Math.random() * 120, life: .45, max: .45, col: '#c9d6f5', s: 2 + Math.random() * 2});
+    }
+    if (d.d >= 16) talk(L.slam, 0, .25);
+  }
+  else if (e === 'lock'){ if (!BDB.reduced) flashT = .08; }
+  else if (e === 'hold'){ BDB.sfx.pop(); talk(L.hold, 0, .15); }
+  else if (e === 'clear'){
+    const n = d.n;
+    for (const y of d.rows){
+      const yy = F.y + (y - HID + .5) * cell;
+      if (!BDB.reduced) for (let i = 0; i < (n === 4 ? 22 : 12); i++){
+        const col = COLORS[TYPES[(G.board[y][Math.floor(Math.random() * 10)] || 1) - 1]] || '#fff';
+        parts.push({x: F.x + Math.random() * F.w, y: yy, vx: (Math.random() - .5) * 420, vy: -80 - Math.random() * 260, life: .9, max: .9, col, s: 3 + Math.random() * 4});
+      }
+    }
+    const names = ['', 'Single', 'Double', 'Triple', 'BDB Bucket'];
+    const label = (d.b2b ? 'B2B ' : '') + names[n];
+    pops.push({x: F.x + F.w / 2, y: F.y + (d.rows[0] - HID) * cell, text: label + '  +' + BDB.fmt(d.pts), t: 0, big: n === 4});
+    if (d.combo >= 2) pops.push({x: F.x + F.w / 2, y: F.y + (d.rows[0] - HID) * cell + cell * 1.1, text: 'Combo ' + d.combo, t: -.1, big: false});
+    if (n === 4){
+      BDB.sfx.big(); kick(10); stamp = {t: 0, b2b: d.b2b};
+      if (d.b2b) talk(L.b2b, 2); else if (G.quads % 3 === 0) talk('roast', 2); else talk(L.quad, 2);
+    } else {
+      BDB.sfx.good(); kick(n * 1.5);
+      if (d.combo >= 3) talk(L.combo, 1);
+      else if (n === 3) talk(L.triple, 1);
+      else if (n === 2) talk(L.double, 0, .6);
+      else talk(L.single, 0, .35);
+    }
+  }
+  else if (e === 'level'){
+    levelFlash = 1; BDB.shout('Level ' + d.level); BDB.sfx.big();
+    setTimeout(() => { if (state === 'play') (d.level % 2 === 0 ? talk('roast', 2) : talk(L.level, 2)); }, 700);
+  }
+  else if (e === 'over'){ state = 'dying'; overT = 0; BDB.sfx.bad(); kick(8); }
+}
+function kick(a){ if (!BDB.reduced) shakeA = Math.max(shakeA, a); }
+
+function start(){
+  BDB.hideSplash(); BDB.hideEnd();
+  G = Blocks.createGame({on: onEvent});
+  G.start();
+  state = 'play'; paused = false; danger = false; parts = []; pops = []; streaks = []; stamp = null; overT = 0; levelFlash = 0;
+  keys.l = keys.r = false; dir = 0; das = 0;
+  setPause(false);
+  lastTalk = -1e9; talk(L.start, 2); BDB.shout('Clock in');
+}
+function finish(){
+  state = 'over';
+  const score = G.score, res = BDB.addScore(score);
+  best = res.list[0].s; $('best').textContent = BDB.fmt(best);
+  if (res.isBest && score > 0){ BDB.sfx.big(); lastTalk = -1e9; talk(L.best, 2); } else { lastTalk = -1e9; talk(L.over, 2); }
+  BDB.showEnd({eyebrow: 'Topped out', title: res.isBest && score > 0 ? 'New best: ' + BDB.fmt(score) : BDB.fmt(score) + ' points',
+    line: BDB.pick(res.isBest && score > 0 ? L.best : L.over),
+    stats: [['Score', BDB.fmt(score)], ['Lines', BDB.fmt(G.lines)], ['Level', G.level], ['Buckets', G.quads]], scores: res});
+}
+function setPause(p){
+  paused = p;
+  $('pause').querySelector('span').textContent = p ? 'Resume' : 'Pause';
+  $('pause').setAttribute('aria-label', p ? 'Resume' : 'Pause');
+  if (p){ G && G.setSoft(false); talk(L.pause, 0, .5); }
+}
+function togglePause(){ if (state === 'play') setPause(!paused); }
+
+/* ---------- input: keyboard with DAS / ARR ---------- */
+const DAS = .167, ARR = .033;
+const keys = {l: false, r: false};
+let dir = 0, das = 0;
+const live = () => state === 'play' && !paused && G && !G.over;
+function pressDir(d){
+  if (d < 0) keys.l = true; else keys.r = true;
+  dir = d; das = 0;
+  if (live()) G.move(d);
+}
+function releaseDir(d){
+  if (d < 0) keys.l = false; else keys.r = false;
+  if (dir === d){ dir = keys.l ? -1 : keys.r ? 1 : 0; das = 0; }
+}
+function act(a){
+  if (!live()) return;
+  if (a === 'cw') G.rotate(1); else if (a === 'ccw') G.rotate(-1);
+  else if (a === 'hard') G.hardDrop(); else if (a === 'hold') G.hold();
+}
+addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (state === 'menu' || state === 'over'){ if (k === 'Enter' || (state === 'menu' && k === ' ')){ e.preventDefault(); start(); } return; }
+  if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', ' '].includes(k)) e.preventDefault();
+  if (k === 'p' || k === 'P' || k === 'Escape'){ if (!e.repeat) togglePause(); return; }
+  if (e.repeat) return;
+  if (k === 'ArrowLeft') pressDir(-1);
+  else if (k === 'ArrowRight') pressDir(1);
+  else if (k === 'ArrowDown'){ if (live()) G.setSoft(true); }
+  else if (k === 'ArrowUp' || k === 'x' || k === 'X') act('cw');
+  else if (k === 'z' || k === 'Z') act('ccw');
+  else if (k === ' ') act('hard');
+  else if (k === 'c' || k === 'C' || k === 'Shift') act('hold');
+});
+addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft') releaseDir(-1);
+  else if (e.key === 'ArrowRight') releaseDir(1);
+  else if (e.key === 'ArrowDown' && G) G.setSoft(false);
+});
+addEventListener('blur', () => { keys.l = keys.r = false; dir = 0; if (G) G.setSoft(false); });
+
+/* touch pad: hold-to-repeat for left/right/down */
+pad.querySelectorAll('button').forEach(b => {
+  const a = b.dataset.act;
+  const down = e => {
+    e.preventDefault(); b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch(_){}
+    if (a === 'left') pressDir(-1); else if (a === 'right') pressDir(1);
+    else if (a === 'soft'){ if (live()) G.setSoft(true); }
+    else act(a);
+  };
+  const up = () => {
+    if (!b.classList.contains('on')) return; b.classList.remove('on');
+    if (a === 'left') releaseDir(-1); else if (a === 'right') releaseDir(1); else if (a === 'soft' && G) G.setSoft(false);
+  };
+  b.addEventListener('pointerdown', down);
+  b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+});
+/* gestures on the field: tap rotate, drag to move, swipe down hard drop, swipe up hold */
+let sw = null;
+cv.addEventListener('pointerdown', e => {
+  if (!live()) return;
+  sw = {id: e.pointerId, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, t: performance.now(), moved: false};
+  try { cv.setPointerCapture(e.pointerId); } catch(_){}
+});
+cv.addEventListener('pointermove', e => {
+  if (!sw || e.pointerId !== sw.id || !live()) return;
+  const step = Math.max(14, cell * .9);
+  let dx = e.clientX - sw.lx;
+  while (Math.abs(dx) >= step){ const d = Math.sign(dx); G.move(d); sw.lx += d * step; dx -= d * step; sw.moved = true; }
+  const dy = e.clientY - sw.ly, el = performance.now() - sw.t, fast = (e.clientY - sw.y) / Math.max(1, el) > .6;
+  if (!fast && dy >= step * 1.2 && Math.abs(e.clientY - sw.y) > Math.abs(e.clientX - sw.x)){ G.stepDown(); sw.ly += step * 1.2; sw.moved = true; }
+});
+function endSwipe(e){
+  if (!sw || e.pointerId !== sw.id) return;
+  const s = sw; sw = null; if (!live()) return;
+  const dx = e.clientX - s.x, dy = e.clientY - s.y, dt = performance.now() - s.t;
+  if (!s.moved && Math.abs(dx) < 12 && Math.abs(dy) < 12 && dt < 350){ G.rotate(1); return; }
+  if (dy > 50 && dy > Math.abs(dx) * 1.6 && dy / dt > .5) G.hardDrop();
+  else if (dy < -50 && -dy > Math.abs(dx) * 1.6 && -dy / dt > .5) G.hold();
+}
+cv.addEventListener('pointerup', endSwipe);
+cv.addEventListener('pointercancel', () => { sw = null; });
+
+$('play').onclick = start; $('again').onclick = start;
+$('pause').onclick = () => { togglePause(); $('pause').blur(); };
+$('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; $('mute').blur(); };
+$('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play' && !paused) setPause(true); });
+
+/* ---------- drawing ---------- */
+function label(text, x, y, colr = '#f2c14e'){
+  cx.font = `800 ${Math.max(9, Math.round(cell * .3))}px Figtree, system-ui, sans-serif`; cx.fillStyle = colr; cx.textAlign = 'left'; cx.textBaseline = 'top';
+  if ('letterSpacing' in cx) cx.letterSpacing = '2px';
+  cx.fillText(text, x, y);
+  if ('letterSpacing' in cx) cx.letterSpacing = '0px';
+}
+function panel(b){
+  rr(cx, b.x, b.y, b.w, b.h, 12); cx.fillStyle = 'rgba(4,10,24,.78)'; cx.fill();
+  cx.lineWidth = 1; cx.strokeStyle = 'rgba(255,255,255,.09)'; cx.stroke();
+}
+function mini(t, cxp, cyp, s, alpha = 1){
+  const sh = Blocks.SHAPES[t][0], xs = sh.map(c => c[0]), ys = sh.map(c => c[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = (maxX - minX + 1) * s, h = (maxY - minY + 1) * s;
+  for (const [x, y] of sh) drawCell(cxp - w / 2 + (x - minX) * s, cyp - h / 2 + (y - minY) * s, s, COLORS[t], alpha);
+}
+function drawPanels(){
+  const pad8 = Math.round(cell * .3);
+  panel(holdBox); label('HOLD', holdBox.x + pad8, holdBox.y + pad8);
+  const ms = Math.max(8, Math.round(Math.min(cell * .72, holdBox.w / 5.2)));
+  if (G && G.held) mini(G.held, holdBox.x + holdBox.w / 2, holdBox.y + holdBox.h / 2 + pad8 * .7, ms, G.holdUsed ? .35 : 1);
+  panel(nextBox); label('NEXT', nextBox.x + pad8, nextBox.y + pad8);
+  if (G){
+    const q = G.queue.slice(0, 3), top = nextBox.y + pad8 * 2.4, first = holdBox.h - pad8 * 1.2;
+    mini(q[0], nextBox.x + nextBox.w / 2, top + first / 2, ms);
+    const rest = (nextBox.y + nextBox.h - (top + first) - pad8 * .4) / 2;
+    for (let i = 1; i < 3; i++) mini(q[i], nextBox.x + nextBox.w / 2, top + first + rest * (i - .5), Math.round(ms * .78), .9);
+  }
+}
+function drawField(now){
+  const {x, y, w, h} = F;
+  // frame + glow (red when the stack is high)
+  cx.save();
+  cx.shadowColor = danger ? 'rgba(255,90,74,.55)' : levelFlash > 0 ? `rgba(242,193,78,${.6 * levelFlash})` : 'rgba(90,150,255,.25)'; cx.shadowBlur = 26;
+  rr(cx, x - 6, y - 6, w + 12, h + 12, 14); cx.fillStyle = '#040a18'; cx.fill();
+  cx.restore();
+  rr(cx, x - 6, y - 6, w + 12, h + 12, 14); cx.lineWidth = 2;
+  cx.strokeStyle = danger ? `rgba(255,90,74,${.55 + .35 * Math.sin(now / 160)})` : levelFlash > 0 ? 'rgba(242,193,78,.9)' : 'rgba(242,193,78,.32)'; cx.stroke();
+  const bg = cx.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, '#0b1a3c'); bg.addColorStop(1, '#071230');
+  cx.fillStyle = bg; cx.fillRect(x, y, w, h);
+  // centre-court watermark with BDB's face
+  const ccx = x + w / 2, ccy = y + h * .55, R = w * .36;
+  drawFace(ccx, ccy, R * .55, .07);
+  cx.lineWidth = 2; cx.strokeStyle = 'rgba(255,255,255,.05)';
+  cx.beginPath(); cx.arc(ccx, ccy, R, 0, Math.PI * 2); cx.stroke();
+  cx.beginPath(); cx.arc(ccx, ccy, R * .55, 0, Math.PI * 2); cx.stroke();
+  cx.beginPath(); cx.moveTo(x, ccy); cx.lineTo(x + w, ccy); cx.stroke();
+  // grid
+  cx.strokeStyle = 'rgba(255,255,255,.04)'; cx.lineWidth = 1; cx.beginPath();
+  for (let i = 1; i < 10; i++){ cx.moveTo(x + i * cell + .5, y); cx.lineTo(x + i * cell + .5, y + h); }
+  for (let j = 1; j < VIS; j++){ cx.moveTo(x, y + j * cell + .5); cx.lineTo(x + w, y + j * cell + .5); }
+  cx.stroke();
+  if (danger){ const gr = cx.createLinearGradient(0, y, 0, y + cell * 5); gr.addColorStop(0, `rgba(255,70,50,${.22 + .1 * Math.sin(now / 160)})`); gr.addColorStop(1, 'rgba(255,70,50,0)'); cx.fillStyle = gr; cx.fillRect(x, y, w, cell * 5); }
+  if (!G) return;
+  if (paused){ drawPauseCard(); return; }
+  // locked cells
+  const grey = state === 'dying' || state === 'over' ? Math.min(VIS, Math.floor(overT * 34)) : 0;
+  for (let r = HID; r < Blocks.ROWS; r++){
+    const row = G.board[r], clearing = G.clearing && G.clearing.includes(r);
+    for (let c = 0; c < 10; c++) if (row[c]){
+      const greyed = grey && r >= Blocks.ROWS - grey;
+      drawCell(x + c * cell, y + (r - HID) * cell, cell, greyed ? COLORS.X : COLORS[TYPES[row[c] - 1]] || COLORS.X);
+    }
+    if (clearing){
+      const k = Math.max(0, G.clearT / .32);
+      cx.fillStyle = `rgba(255,255,255,${.25 + .6 * k * (Math.sin(now / 30) * .5 + .5)})`;
+      cx.fillRect(x, y + (r - HID) * cell, w, cell);
+    }
+  }
+  // ghost + current piece
+  const p = G.cur;
+  if (p && state === 'play'){
+    const gy = G.ghostY(), col = COLORS[p.t];
+    for (const [px, py] of G.cellsOf(p.t, p.r, p.x, gy)){
+      if (py < HID) continue;
+      rr(cx, x + px * cell + 2, y + (py - HID) * cell + 2, cell - 4, cell - 4, cell * .16);
+      cx.fillStyle = col; cx.globalAlpha = .14; cx.fill(); cx.globalAlpha = .55; cx.lineWidth = 2; cx.strokeStyle = col; cx.stroke(); cx.globalAlpha = 1;
+    }
+    const lockGlow = G.grounded() ? .75 + .25 * Math.cos(G.lockT / Blocks.LOCK_DELAY * Math.PI * 3) : 1;
+    for (const [px, py] of G.cellsOf(p.t, p.r, p.x, p.y)){
+      if (py < HID - 1) continue;
+      drawCell(x + px * cell, y + (py - HID) * cell, cell, col, py < HID ? .55 : lockGlow);
+    }
+  }
+  if (flashT > 0){ cx.fillStyle = `rgba(255,255,255,${flashT * 1.2})`; cx.fillRect(x, y, w, h); }
+}
+function drawPauseCard(){
+  const {x, y, w, h} = F;
+  cx.fillStyle = 'rgba(3,8,20,.86)'; cx.fillRect(x, y, w, h);
+  drawFace(x + w / 2, y + h * .38, Math.min(w * .22, 70), 1);
+  cx.lineWidth = 4; cx.strokeStyle = '#f2c14e'; cx.beginPath(); cx.arc(x + w / 2, y + h * .38, Math.min(w * .22, 70) + 2, 0, Math.PI * 2); cx.stroke();
+  cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#eef2fb';
+  cx.font = `400 ${Math.round(Math.min(w * .13, 40))}px "Bowlby One", Impact, sans-serif`; cx.fillText('ON BREAK', x + w / 2, y + h * .56);
+  cx.font = `700 ${Math.max(11, Math.round(cell * .42))}px Figtree, system-ui, sans-serif`; cx.fillStyle = '#8fa3cc';
+  cx.fillText(touch ? 'Tap Resume to clock back in' : 'Press P to clock back in', x + w / 2, y + h * .63);
+}
+function drawFx(dt){
+  for (const s of streaks){
+    s.t += dt; const a = Math.max(0, 1 - s.t / .22);
+    const g = cx.createLinearGradient(0, s.y0, 0, s.y1); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, s.col);
+    cx.globalAlpha = a * .45; cx.fillStyle = g; cx.fillRect(s.x, Math.max(F.y, s.y0), s.w, s.y1 - Math.max(F.y, s.y0)); cx.globalAlpha = 1;
+  }
+  streaks = streaks.filter(s => s.t < .22);
+  for (const q of parts){
+    q.life -= dt; q.vy += 700 * dt; q.x += q.vx * dt; q.y += q.vy * dt;
+    cx.globalAlpha = Math.max(0, q.life / q.max); cx.fillStyle = q.col; cx.fillRect(q.x - q.s / 2, q.y - q.s / 2, q.s, q.s);
+  }
+  cx.globalAlpha = 1; parts = parts.filter(q => q.life > 0);
+  for (const p of pops){
+    p.t += dt; if (p.t < 0) continue;
+    const a = p.t < .9 ? 1 : Math.max(0, 1 - (p.t - .9) / .4);
+    cx.globalAlpha = a; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    const fs = Math.round(Math.min(F.w * (p.big ? .1 : .085), p.big ? 34 : 26));
+    cx.font = `600 ${fs * 1.3}px Teko, "Arial Narrow", sans-serif`;
+    const tw = cx.measureText(p.text.toUpperCase()).width;
+    if (tw > F.w - 12) cx.font = `600 ${Math.floor(fs * 1.3 * (F.w - 12) / tw)}px Teko, "Arial Narrow", sans-serif`;
+    cx.lineWidth = 4; cx.strokeStyle = '#2a1600'; cx.strokeText(p.text.toUpperCase(), p.x, p.y - p.t * 40);
+    cx.fillStyle = p.big ? '#f2c14e' : '#ffb547'; cx.fillText(p.text.toUpperCase(), p.x, p.y - p.t * 40);
+  }
+  cx.globalAlpha = 1; pops = pops.filter(p => p.t < 1.3);
+}
+function drawStamp(dt){
+  if (!stamp) return;
+  stamp.t += dt; const t = stamp.t, D = 1.9;
+  if (t > D){ stamp = null; return; }
+  const a = t < D - .35 ? 1 : (D - t) / .35;
+  const sc = BDB.reduced ? 1 : t < .16 ? 2.3 - t / .16 * 1.4 : t < .26 ? .9 + (t - .16) / .1 * .1 : 1;
+  const ccx = F.x + F.w / 2, ccy = F.y + F.h * .42, R = Math.min(F.w * .26, 96);
+  cx.save(); cx.globalAlpha = a; cx.translate(ccx, ccy); cx.scale(sc, sc);
+  cx.fillStyle = 'rgba(3,8,20,.55)'; cx.beginPath(); cx.arc(0, 0, R * 1.9, 0, Math.PI * 2); cx.fill();
+  drawFace(0, -R * .35, R, 1);
+  cx.lineWidth = 5; cx.strokeStyle = '#f2c14e'; cx.beginPath(); cx.arc(0, -R * .35, R + 2.5, 0, Math.PI * 2); cx.stroke();
+  cx.lineWidth = 3; cx.strokeStyle = '#ff8a2b'; cx.beginPath(); cx.arc(0, -R * .35, R + 7, 0, Math.PI * 2); cx.stroke();
+  // rubber stamp
+  cx.rotate(-.21);
+  const sw = Math.min(F.w * .92, R * 3.4), sh = R * .78, sy = R * .78;
+  cx.lineWidth = 5; cx.strokeStyle = '#ff5a4a'; rr(cx, -sw / 2, sy - sh / 2, sw, sh, 8); cx.fillStyle = 'rgba(40,6,4,.6)'; cx.fill(); cx.stroke();
+  cx.lineWidth = 2; rr(cx, -sw / 2 + 7, sy - sh / 2 + 7, sw - 14, sh - 14, 5); cx.stroke();
+  cx.fillStyle = '#ff5a4a'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  let fs = sh * .5; cx.font = `400 ${fs}px "Bowlby One", Impact, sans-serif`;
+  const tw = cx.measureText('BDB BUCKET').width; if (tw > sw - 28){ fs *= (sw - 28) / tw; cx.font = `400 ${fs}px "Bowlby One", Impact, sans-serif`; }
+  cx.fillText('BDB BUCKET', 0, sy + fs * .04);
+  if (stamp.b2b){ cx.font = `800 ${Math.round(sh * .2)}px Figtree, system-ui, sans-serif`; cx.fillStyle = '#f2c14e'; cx.fillText('BACK TO BACK', 0, sy + sh / 2 + sh * .22); }
+  cx.restore();
+}
+
+/* ---------- loop ---------- */
+const shownHud = {};
+function setHud(id, v){ const el = $(id); if (shownHud[id] === v) return; el.textContent = v; if (shownHud[id] !== undefined && !BDB.reduced){ el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick'); } shownHud[id] = v; }
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (state === 'play' && !paused && G){
+    if (dir && !G.over){ das += dt; while (das >= DAS){ if (!G.move(dir)){ das = DAS; break; } das -= ARR; } }
+    G.update(dt);
+    const h = G.height();
+    if (!danger && h >= 15){ danger = true; talk(L.danger, 1); }
+    else if (danger && h <= 11){ danger = false; talk(L.saved, 0, .6); }
+  }
+  if (state === 'dying'){ overT += dt; if (overT > .9) finish(); }
+  if (flashT > 0) flashT -= dt;
+  if (levelFlash > 0) levelFlash -= dt * .8;
+  shakeA *= Math.pow(.0015, dt); if (shakeA < .2) shakeA = 0;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0); cx.clearRect(0, 0, W, H);
+  if (shakeA) cx.translate((Math.random() - .5) * shakeA, (Math.random() - .5) * shakeA);
+  drawPanels(); drawField(now);
+  if (!paused){ drawFx(dt); drawStamp(dt); }
+  if (G){ setHud('hScore', BDB.fmt(G.score)); setHud('hLines', String(G.lines)); setHud('hLevel', String(G.level)); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+window.__game = {
+  get state(){ return state; }, get score(){ return G ? G.score : 0; }, get lines(){ return G ? G.lines : 0; }, get level(){ return G ? G.level : 1; },
+  get paused(){ return paused; }, get eng(){ return G; }, get layout(){ return {mode, cell, field: Object.assign({}, F), hold: holdBox, next: nextBox, touch}; },
+  get lineCount(){ return Object.values(L).reduce((a, x) => a + x.length, 0); }, start, togglePause
+};
+</script>
+</body>
+</html>

@@ -135,4 +135,9 @@ button.k-pill:hover{border-color:rgba(242,193,78,.5)}
   .k-dk{min-width:52px;padding:7px 6px 6px;font-size:9px}
   .k-dk svg{width:20px;height:20px}
 }
+@media (max-width:420px){
+  .k-top{gap:6px}
+  .k-pill{padding:7px 8px;letter-spacing:.06em;gap:6px}
+  .k-brand{font-size:15px}
+}
 @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
