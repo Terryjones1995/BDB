@@ -25,6 +25,7 @@ export function initOnline(G){
   const $ = id => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   const local = params.get('net') === 'local';
+  const invPrefix = (G.lobbyRoom && G.lobbyRoom !== 'lobby' ? G.lobbyRoom + '-' : '') + 'inv-';
 
   let net = null, lobby = null, state = 'connecting';
   let myName = clean(G.store.get('cc-name'), 24) || `${pick(A)} ${pick(B)} ${10 + Math.floor(Math.random()*90)}`;
@@ -66,7 +67,7 @@ export function initOnline(G){
   async function connect(){
     try { net = await openTransport(local); }
     catch(e){ state = 'failed'; paint(); return; }
-    lobby = net.join('lobby');
+    lobby = net.join(G.lobbyRoom || 'lobby');   // each game has its own lobby so chess and Connect 4 players don't mix
     wire(lobby, 'lobby');
     state = 'ready';
     firstSeenTimer = setTimeout(paint, 9000);
@@ -233,7 +234,7 @@ export function initOnline(G){
     if (!net) return;
     if (invite && invite.host && !match){ paint(); return; }
     const code = rid(8);
-    invite = {code, room: net.join('inv-' + code), host:true, tc:prefs.tc, color:prefs.color};
+    invite = {code, room: net.join(invPrefix + code), host:true, tc:prefs.tc, color:prefs.color};
     wire(invite.room, 'invite');
     paint();
   }
@@ -242,7 +243,7 @@ export function initOnline(G){
     invite.room.leave(); invite = null; paint();
   }
   function joinInvite(code){
-    invite = {code, room: net.join('inv-' + code), host:false};
+    invite = {code, room: net.join(invPrefix + code), host:false};
     wire(invite.room, 'invite');
     invite.toast = toast({title:'Joining your friend’s game…', sub:'Hang tight. Connecting straight to them.'});
     invite.timer = setTimeout(giveUpInvite, 45000);
