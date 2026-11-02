@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Break Room Ping Pong</title>
+<meta name="description" content="Table tennis against BDB on the break room table. First to 11, win by 2, and he will not stop talking.">
+<meta property="og:image" content="../assets/face.jpg">
+<link rel="icon" href="../assets/face.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="../assets/kit.css">
+<style>
+.pp-hud{top:12px;left:50%;right:auto;transform:translateX(-50%)}
+.pp-hud .cell.srv small::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--orange);margin-left:5px;vertical-align:1px;box-shadow:0 0 6px var(--orange)}
+.pp-hud .cell.srv{box-shadow:inset 0 0 0 1px rgba(255,138,43,.55)}
+#say{top:12px;bottom:auto;max-width:min(440px,calc(50% - 150px))}
+#say .bub{border-radius:4px 16px 16px 16px}
+#say.quiet{transform:translateY(-6px)}
+.pp-dock{left:auto;right:12px;top:12px;bottom:auto;transform:none}
+.diffwrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+.k-seg button{min-height:40px}
+@media (max-width:640px){
+  .pp-hud{left:10px;top:10px;transform:none}
+  .pp-hud .cell{min-width:52px}
+  .pp-dock{right:10px;top:10px}
+  .pp-dock .k-dk{min-width:50px}
+  #say{top:76px;left:10px;max-width:calc(100% - 20px)}
+}
+</style>
+<script src="../assets/roasts.js"></script>
+<script src="../assets/kit.js"></script>
+</head>
+<body class="k">
+
+<section class="k-splash" id="splash">
+  <div class="k-splash-in">
+    <a class="k-home" href="../">← All games</a>
+    <div class="k-face" aria-hidden="true"></div>
+    <div class="k-eyebrow">BDB Entertainment presents</div>
+    <h2>Break Room <span>Ping Pong</span></h2>
+    <p>BDB is the self-declared Break Room MVP. Fifteen minute break, one table, first to 11. Shut him up.</p>
+    <ul class="k-how">
+      <li><b>Move</b> the mouse or your finger to move your paddle. It hits the ball when they meet.</li>
+      <li><b>Push up</b> into the ball to hit harder. Too hard goes long.</li>
+      <li><b>Slide sideways</b> through the hit for spin that curves the ball.</li>
+      <li><b>Tap</b> to toss and serve. Serve flips every 2 points. Win by 2.</li>
+      <li><b>Space</b> or <b>P</b> pauses.</li>
+    </ul>
+    <div class="diffwrap"><div class="k-label">Pick BDB's level</div>
+      <div class="k-seg" id="diffSeg"><button type="button" data-d="rec">Rec League</button><button type="button" data-d="varsity">Varsity</button><button type="button" data-d="d1">D1</button></div></div>
+    <div class="k-row"><button type="button" class="k-btn primary big" id="play">Play</button></div>
+  </div>
+</section>
+
+<div class="k-app">
+  <header class="k-top">
+    <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
+    <div class="k-brand">Break Room <span>Ping Pong</span></div>
+    <div class="k-spacer"></div>
+    <span class="k-pill">Best <span class="k-led" id="best">0</span></span>
+    <button type="button" class="k-pill" id="mute" aria-label="Sound">Sound on</button>
+  </header>
+  <main class="k-stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="k-float k-hud k-jumbo pp-hud">
+      <div class="cell" id="cYou"><small>You</small><b id="hYou">0</b></div>
+      <div class="cell" id="cBdb"><small>BDB</small><b id="hBdb">0</b></div>
+      <div class="cell"><small>Rally</small><b id="hRally">0</b></div>
+    </div>
+    <div class="k-float k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
+    <nav class="k-float k-dock pp-dock" aria-label="Game controls">
+      <button type="button" class="k-dk primary" id="restart"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Restart</button>
+      <button type="button" class="k-dk" id="pause"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>Pause</button>
+    </nav>
+  </main>
+</div>
+
+<div class="k-modal" id="end" hidden>
+  <div class="k-box">
+    <div class="bigav"></div>
+    <div class="k-eyebrow" id="endEyebrow">Final buzzer</div>
+    <h3 id="endTitle"></h3>
+    <p id="endLine"></p>
+    <div class="k-jumbo k-stats" id="endStats"></div>
+    <div id="endScoresWrap" style="width:100%"><div class="k-label" style="margin-bottom:8px">Top 5 by point differential</div><ol class="k-scores" id="endScores"></ol></div>
+    <div class="k-seg" id="diffSeg2"><button type="button" data-d="rec">Rec League</button><button type="button" data-d="varsity">Varsity</button><button type="button" data-d="d1">D1</button></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="again">Run it back</button><a class="k-btn" href="../" style="text-decoration:none">All games</a></div>
+  </div>
+</div>
+
+<script>
+/* ===== Break Room Ping Pong ===== */
+const PP_DECK = [
+  "BDB calls ping pong 'basketball for your wrists'. He's wrong about both.",
+  "BDB's ping pong résumé is longer than his basketball one. Both fit on a sticky note.",
+  "The break room table has seen more BDB highlights than any gym in Florida.",
+  "BDB practises his serve on lunch break. It shows. Barely.",
+  "BDB has a signature paddle. He signed it himself.",
+  "BDB's scouting report on you: 'has hands'. He wrote it on a napkin."
+];
+BDB.init({game:'pingpong', extra: PP_DECK});
+
+const L = {
+  start: ["Break's fifteen minutes. BDB plans to win in twelve.", "BDB just cracked his knuckles. One of them was his paddle hand.",
+    "Welcome to BDB's house. It's a break room, but still.", "BDB's warming up. He's stretching for a game played with a ball the size of a grape."],
+  youPoint: ["That one hit a crack in the table. BDB wants it reviewed.", "BDB says the fluorescent lights got in his eyes.",
+    "Lucky. BDB is writing a scouting report on you right now.", "BDB's glasses fogged up. Allegedly.", "He's calling that a warmup point. They're all warmup points.",
+    "BDB says he let you have that one. He did not.", "BDB is looking at his paddle like it lied to him."],
+  bdbPoint: ["BDB with the winner. Somebody call Florida.", "Break Room MVP, baby. Put that on the fridge.",
+    "That's more points than BDB scored in a whole season.", "BDB just pointed at the vending machine like it's a crowd.",
+    "Too easy. BDB didn't even take his lanyard off.", "BDB is doing a little shimmy. Nobody asked for the shimmy.", "Clinical. BDB wants that on the jumbotron."],
+  youAce: ["An ace? BDB was checking the clock.", "BDB didn't even see it. He was reading the shift schedule.", "Ace. BDB says that serve was illegal in Florida."],
+  bdbAce: ["Ace. BDB's serve has more range than his jump shot.", "Untouchable. Finally a five-star rating that sticks.", "BDB aced you and he's acting like he does that every day."],
+  youEdge: ["Off the edge? BDB wants that pinned to the break room bulletin board as evidence.", "Edge ball. BDB says that's a foul in basketball.", "Edges are luck. BDB knows. He's never had any."],
+  bdbEdge: ["Edge ball. BDB is calling it 'placement'.", "Off the edge and BDB is acting like he aimed it. He did not aim it."],
+  cord: ["Net cord dribbler. Nothing has ever bounced BDB's way like that.", "It rolled over the net. BDB is staring at the ceiling."],
+  bdbCord: ["Net cord and BDB says 'skill'. Sure, BDB."],
+  youNet: ["Into the net. BDB knows that move. He invented it.", "Net. BDB knows a brick when he sees one.", "That net's taller than BDB's draft stock."],
+  youOut: ["Long. That one's headed for the parking lot.", "Out. Even BDB's jump shots land closer than that.", "You hit the vending machine. BDB wants a snack now.", "Out by a mile. BDB would know, he's been out of the league for years."],
+  youFault: ["Fault. Serving is the easy part. BDB still can't believe it.", "Serve fault. BDB is nodding like a coach. He's not a coach."],
+  bdbOut: ["BDB went long. He says the table shrank.", "BDB hit the net and blamed the net.", "Out. BDB is asking if the break room has replay.", "BDB put that one in orbit. Like his free throws."],
+  bdbFault: ["BDB faulted his own serve. He wants a do-over. No do-overs, BDB."],
+  whiff: ["BDB swung like he was going for a dunk. Air ball.", "BDB whiffed. Classic 2.0 points per game energy.", "Total whiff. BDB was watching the clock again.",
+    "BDB closed his eyes on that one. You can't box out a ping pong ball.", "Whiff. BDB says the ball was 'too small to guard'."],
+  rally: ["This rally is longer than BDB's college career.", "Rally's still going. BDB is officially on overtime.", "BDB's break ended five minutes ago. He doesn't care.",
+    "Long rally. BDB is breathing like it's the fourth quarter.", "Somebody tell the shift lead BDB is busy."],
+  youComeback: ["You came back? BDB is suddenly very quiet.", "Comeback alert. BDB is checking if his break is over.", "BDB had a lead. Kind of like his old high school lead."],
+  bdbComeback: ["BDB's back in it. He's yelling 'clutch gene' at nobody.", "BDB came back. He's going to talk about this for eight years."],
+  youMatch: ["Match point. BDB is pretending his shift starts now.", "One more and BDB has to buy the coffee.", "Match point for you. BDB is sweating through his track jacket."],
+  bdbMatch: ["Match point BDB. He's already practising his speech.", "One point from glory. BDB's biggest stage since high school.", "BDB match point. He's asking someone to film this."],
+  deuce: ["Deuce. BDB lives for this. He's never been in a close game.", "Ten all. BDB says this is where legends are made. Or Tuesdays."],
+  win: ["BDB lost. He's demanding best of seven.", "BDB says the table was tilted. It was not.", "You beat the Break Room MVP. He's taking it off his LinkedIn."],
+  lose: ["BDB wins. He'll be telling this story for eight years.", "BDB beat you and he's calling his old coach. Voicemail again.", "BDB wins. He's already asking for a rematch so he can win again."]
+};
+
+const DIFFS = {
+  rec:    {name:'Rec League', ts:.56, react:.30, speed:2.3, aim:.075, spinRead:0,  vh:[4.4,5.8], spin:.6,  tx:.42, bias:.15, err:.15,  whiff:.07,  serveErr:.07, reach:.15},
+  varsity:{name:'Varsity',    ts:.62, react:.19, speed:3.3, aim:.045, spinRead:.5, vh:[5.2,7.2], spin:1.6, tx:.58, bias:.5,  err:.085, whiff:.035, serveErr:.04, reach:.16},
+  d1:     {name:'D1',         ts:.68, react:.11, speed:4.6, aim:.022, spinRead:.9, vh:[6.2,8.6], spin:2.6, tx:.66, bias:.8,  err:.045, whiff:.015, serveErr:.02, reach:.17}
+};
+let diffKey = BDB.store.get('bdb-pp-diff') || 'rec'; if (!DIFFS[diffKey]) diffKey = 'rec';
+let D = DIFFS[diffKey];
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), cx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, portrait = false;
+const V = {f:500, oy:0, camH:1, camZ:-1.9, zMin:-.9};
+function resize(){
+  const r = $('stage').getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  fitView();
+}
+function fitView(){
+  portrait = H > W * 1.15;
+  V.camH = portrait ? 1.55 : 1.0; V.camZ = portrait ? -1.75 : -1.9; V.zMin = portrait ? -.7 : -.9;
+  const pts = [[0, 1.08, 3.35], [0, .14, V.zMin], [.82, 0, 0], [-.82, 0, 0]];
+  let y0 = 1e9, y1 = -1e9, xw = 0;
+  for (const [x, y, z] of pts){ const d = z - V.camZ, sy = (V.camH - y) / d, sx = Math.abs(x / d); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy); xw = Math.max(xw, sx); }
+  const top = W <= 640 ? 150 : 82, bot = 6;
+  const f = Math.min((H - top - bot) / (y1 - y0), (W * .98) / (xw * 2));
+  V.f = f;
+  const used = (y1 - y0) * f, extra = Math.max(0, (H - top - bot) - used);
+  V.oy = top + extra * .45 - y0 * f;
+}
+new ResizeObserver(resize).observe($('stage'));
+
+function proj(x, y, z){
+  const d = Math.max(.15, z - V.camZ), s = V.f / d;
+  return {x: W / 2 + x * s, y: V.oy + (V.camH - y) * s, s};
+}
+
+/* ---------- physics ---------- */
+const T = {W2:.7625, L:2.74, NZ:1.37, NH:.1525, NW2:.915, R:.02, FLOOR:-.76};
+const G = 9.8, G2 = 10.5, E = .86, HIT_R = .17, HOME_Z = 3.0, STEP = 1 / 240;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const other = s => s === 'P' ? 'B' : 'P';
+
+function stepBall(b, dt, sim){
+  const ev = [];
+  const pz = b.z, py = b.y;
+  b.vx += b.ax * dt; b.vy -= b.g * dt;
+  b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+  if ((pz - T.NZ) * (b.z - T.NZ) < 0 && Math.abs(b.x) < T.NW2){
+    const y = py + (b.y - py) * ((T.NZ - pz) / (b.z - pz));
+    if (y < T.NH + T.R && y > 0){
+      const dir = Math.sign(b.vz);
+      if (y > T.NH - T.R * .6){
+        const over = sim ? true : Math.random() < .55;
+        if (over){ b.vz *= .4; b.vy = Math.abs(b.vy) * .25 + .55; b.vx *= .6; b.z = T.NZ + dir * .012; }
+        else { b.vz = -b.vz * .18; b.vy = .45; b.z = T.NZ - dir * .012; }
+        ev.push({t:'net', cord:true, over});
+      } else {
+        b.vz = -b.vz * .12; b.vx *= .3; b.vy *= .2; b.z = T.NZ - dir * .012;
+        ev.push({t:'net', cord:false, over:false});
+      }
+    }
+  }
+  if (b.y < T.R && py >= T.R - 1e-6 && Math.abs(b.x) <= T.W2 + T.R * .5 && b.z >= -T.R * .5 && b.z <= T.L + T.R * .5){
+    b.y = T.R + (T.R - b.y); b.vy = -b.vy * E;
+    b.vx = b.vx * .97 + b.spin * .15; b.vz *= (.96 + b.top * .06);
+    b.spin *= .55; b.ax = b.spin; b.g = G2;
+    const edge = (T.W2 - Math.abs(b.x) < .025) || b.z < .025 || b.z > T.L - .025;
+    ev.push({t:'bounce', side: b.z < T.NZ ? 'P' : 'B', edge, x:b.x, z:b.z});
+  }
+  if (b.y < T.FLOOR + T.R){
+    b.y = T.FLOOR + T.R; b.vy = Math.abs(b.vy) * .45; b.vx *= .7; b.vz *= .7; b.ax = 0; b.spin = 0;
+    if (!b.onFloor){ b.onFloor = true; ev.push({t:'floor'}); }
+  }
+  if (Math.abs(b.x) > 4 || b.z < -3.2 || b.z > 6.5){ if (!b.gone){ b.gone = true; ev.push({t:'floor'}); } }
+  return ev;
+}
+function newBall(){ return {x:0, y:.3, z:-.2, vx:0, vy:0, vz:0, ax:0, g:G, spin:0, top:0, onFloor:false, gone:false}; }
+
+// aim a shot from the ball's position to land at (tx, tz) with horizontal speed vh, lateral curve spin, net margin m
+function solveShot(b, tx, tz, vh, spin, m, top){
+  const dx = tx - b.x, dz = tz - b.z, dist = Math.hypot(dx, dz);
+  const Tf = Math.max(.14, dist / vh);
+  const vz = dz / Tf, vx = (dx - .5 * spin * Tf * Tf) / Tf;
+  let g = G;
+  const tn = (T.NZ - b.z) / vz;
+  if (tn > 0 && tn < Tf){
+    const k = tn / Tf, need = T.NH + T.R + m - b.y * (1 - k) - T.R * k;
+    const gReq = 2 * need / (tn * (Tf - tn));
+    g = m < 0 ? clamp(gReq, 1.5, 40) : clamp(Math.max(G, gReq), G, 40);
+  }
+  b.vx = vx; b.vz = vz; b.g = g; b.vy = (T.R - b.y + .5 * g * Tf * Tf) / Tf;
+  b.spin = spin; b.ax = spin; b.top = top || 0; b.onFloor = false; b.gone = false;
+}
+// a serve: must bounce on the server's side first, then the receiver's. Searched by simulation.
+function simServe(b0, vy, vx, vh, dir, spin){
+  const s = Object.assign({}, b0, {vx, vy, vz: dir * vh, g:G, spin, ax:spin, top:0, onFloor:false, gone:false});
+  const server = dir > 0 ? 'P' : 'B';
+  const out = {ok:false, b1:null, b2:null, net:false, t:0, x:0};
+  for (let i = 0; i < 700; i++){
+    const ev = stepBall(s, STEP, true); out.t += STEP;
+    for (const e of ev){
+      if (e.t === 'net') out.net = true;
+      if (e.t === 'bounce'){ if (!out.b1) out.b1 = e; else if (!out.b2){ out.b2 = e; } }
+      if (e.t === 'floor') return out;
+    }
+    if (out.b2){ out.ok = out.b1.side === server && out.b2.side !== server && !out.net; out.x = out.b2.x; return out; }
+  }
+  return out;
+}
+function solveServe(b, dir, tx, tz, vh, spin){
+  let best = null, bestS = 1e9;
+  for (let vy = -3.4; vy <= 1.2; vy += .06){
+    const r = simServe(b, vy, 0, vh, dir, spin);
+    const score = (r.b2 ? Math.abs(r.b2.z - tz) : 5) + (r.ok ? 0 : 3);
+    if (score < bestS){ bestS = score; best = {vy, r}; }
+  }
+  let vx = (tx - b.x) / Math.max(.3, best.r.t);
+  const r2 = simServe(b, best.vy, vx, vh, dir, spin);
+  if (r2.b2) vx -= (r2.x - tx) / Math.max(.3, r2.t);
+  Object.assign(b, {vx, vy: best.vy, vz: dir * vh, g:G, spin, ax:spin, top:0, onFloor:false, gone:false});
+}
+
+/* ---------- game state ---------- */
+let state = 'menu', paused = false;
+let phase = 'idle';          // serveWait, toss, rally, dead
+let ball = newBall();
+let sc = {P:0, B:0}, firstServer = 'P', server = 'P', tossBy = 'P';
+let lastHitter = 'P', serveStage = 0, validLanded = false, netTouched = false, cordOver = false, lastLandEdge = false, rallyHits = 0;
+let longest = 0, pointsPlayed = 0, deficit = {P:0, B:0}, saidDeuce = false, saidMatch = '';
+let waitT = 0, waitFn = null, cpuServeT = 0, hintT = 0, lastTalk = -1e9, clock = 0, shake = 0, flashT = 0;
+const pad = {x:0, y:.18, z:-.35, tx:0, tz:-.35, vx:0, vz:0, swing:0, glow:0};
+const cpu = {x:0, y:.2, z:HOME_Z, tx:0, tz:HOME_Z, planT:-1, err:0, whiff:false, whiffed:false, swing:0, spinSwing:0, lean:0, full:false};
+let parts = [], trail = [], bot = false, plog = [];
+
+$('best').textContent = fmtDiff((BDB.scores()[0] || {s:null}).s);
+function fmtDiff(d){ return d === null || d === undefined ? '0' : (d > 0 ? '+' : '') + d; }
+
+function talk(arr, prio){
+  if (!prio && clock - lastTalk < 3.4) return false;
+  BDB.line(arr); lastTalk = clock; return true;
+}
+function roast(){ BDB.roast(); lastTalk = clock; }
+function later(t, fn){ waitT = t; waitFn = fn; }
+
+function setDiff(k){
+  diffKey = k; D = DIFFS[k]; BDB.store.set('bdb-pp-diff', k);
+  document.querySelectorAll('#diffSeg button, #diffSeg2 button').forEach(b => b.setAttribute('aria-pressed', b.dataset.d === k ? 'true' : 'false'));
+}
+document.querySelectorAll('#diffSeg button, #diffSeg2 button').forEach(b => b.onclick = () => setDiff(b.dataset.d));
+setDiff(diffKey);
+
+function start(){
+  BDB.hideSplash(); BDB.hideEnd();
+  state = 'play'; paused = false; $('pause').lastChild.textContent = 'Pause';
+  sc = {P:0, B:0}; plog = []; longest = 0; pointsPlayed = 0; deficit = {P:0, B:0}; saidDeuce = false; saidMatch = '';
+  firstServer = Math.random() < .5 ? 'P' : 'B';
+  parts = []; trail = []; waitFn = null; hintT = 4.5;
+  cpu.x = 0; cpu.z = HOME_Z; cpu.tx = 0; cpu.tz = HOME_Z;
+  updHud();
+  lastTalk = -1e9;
+  if (Math.random() < .5) talk(L.start, true); else roast();
+  BDB.shout(firstServer === 'P' ? 'YOUR SERVE' : 'BDB SERVES');
+  setupServe();
+}
+function serverFor(n){ const k = n < 20 ? Math.floor(n / 2) : 10 + (n - 20); return k % 2 === 0 ? firstServer : other(firstServer); }
+function setupServe(){
+  server = serverFor(pointsPlayed);
+  phase = 'serveWait'; ball = newBall();
+  validLanded = false; serveStage = 0; netTouched = false; cordOver = false; lastLandEdge = false; rallyHits = 0;
+  cpu.whiff = false; cpu.whiffed = false; cpu.planT = -1; cpu.tx = 0; cpu.tz = HOME_Z;
+  if (server === 'B') cpuServeT = rand(.9, 1.5);
+  updHud();
+}
+function updHud(){
+  $('hYou').textContent = sc.P; $('hBdb').textContent = sc.B; $('hRally').textContent = rallyHits;
+  $('cYou').classList.toggle('srv', state === 'play' && server === 'P');
+  $('cBdb').classList.toggle('srv', state === 'play' && server === 'B');
+}
+function tick(id){ const e = $(id); e.classList.remove('tick'); void e.offsetWidth; e.classList.add('tick'); }
+
+function toss(by){
+  tossBy = by; phase = 'toss';
+  if (by === 'P'){ ball = Object.assign(newBall(), {x: pad.x, y: .2, z: Math.min(pad.z, -.12)}); }
+  else { ball = Object.assign(newBall(), {x: cpu.x, y: .2, z: Math.max(cpu.z, 2.88)}); }
+  ball.vy = 2.3; ball.g = G;
+  sound('toss');
+}
+function strikeServe(){
+  const by = tossBy;
+  if (by === 'P'){
+    const off = clamp((ball.x - pad.x) / HIT_R, -1, 1);
+    const p = clamp(.5 + pad.vz * .1, .25, 1.6);
+    const tz = 1.37 + .35 + p * .85 + rand(-.05, .05);
+    const tx = ball.x * .25 + off * .5 + clamp(pad.vx, -4, 4) * .08;
+    solveServe(ball, 1, tx, tz, 3.4 + p * 2.6, clamp(pad.vx * .8, -3, 3));
+    pad.swing = 1;
+  } else {
+    let tz = rand(.35, 1.0), tx = rand(-.55, .55);
+    if (Math.random() < D.serveErr){ if (Math.random() < .5) tz = -.3; else tx = Math.sign(tx || 1) * .95; }
+    solveServe(ball, -1, tx, tz, rand(D.vh[0] * .7, D.vh[1] * .7), rand(-D.spin, D.spin) * .8);
+    cpu.swing = 1;
+  }
+  lastHitter = by; serveStage = 1; validLanded = false; netTouched = false; cordOver = false; rallyHits = 1;
+  phase = 'rally'; sound('hit', .7); updHud();
+  if (by === 'P'){ cpu.planT = clock + D.react; cpu.whiff = Math.random() < D.whiff; cpu.err = gauss() * D.aim; cpu.full = false; }
+}
+
+function playerHit(){
+  const off = clamp((ball.x - pad.x) / HIT_R, -1, 1);
+  const p = clamp(.5 + pad.vz * .11, .25, 1.6);
+  let tz = 1.62 + p * .95 + rand(-.06, .06);
+  let tx = ball.x * .3 + off * .62 + clamp(pad.vx, -5, 5) * .09;
+  if (Math.abs(off) > .85) tx += rand(-.08, .08);
+  let m = .05 + Math.random() * .07 - Math.max(0, p - .95) * .35 - (ball.y < .04 ? .06 : 0) - (Math.abs(off) > .85 ? .03 : 0);
+  const vh = 3.4 + p * 4.8, spin = clamp(pad.vx * .8, -3.5, 3.5);
+  solveShot(ball, tx, tz, vh, spin, m, clamp(p - .5, 0, 1));
+  afterHit('P');
+  pad.swing = 1;
+  burst(ball.x, ball.y, ball.z, p > 1 ? '#f2c14e' : '#ffffff', p > 1 ? 14 : 7);
+  sound('hit', p);
+  if (p > 1.05 && !BDB.reduced) shake = Math.max(shake, 6);
+  cpu.planT = clock + D.react * (p > 1 ? .8 : 1);
+  cpu.whiff = Math.random() < D.whiff; cpu.err = gauss() * D.aim; cpu.full = false;
+}
+function cpuHit(){
+  const fast = Math.hypot(ball.vx, ball.vz) > 7.5;
+  let tz = rand(.28, 1.0), tx = rand(-D.tx, D.tx);
+  if (Math.random() < D.bias) tx = -Math.sign(pad.x || rand(-1, 1)) * rand(D.tx * .5, D.tx);
+  let m = rand(.04, .1);
+  if (Math.random() < D.err + (fast ? .08 : 0)){
+    const k = Math.random();
+    if (k < .4) m = -.07; else if (k < .75) tz = -.22; else tx = Math.sign(tx || 1) * rand(.85, 1);
+  }
+  const vh = rand(D.vh[0], D.vh[1]), spin = rand(-D.spin, D.spin);
+  solveShot(ball, tx, tz, vh, spin, m, vh > 6.5 ? .6 : .2);
+  afterHit('B');
+  cpu.swing = 1;
+  burst(ball.x, ball.y, ball.z, '#ff8a2b', 7);
+  sound('hit', vh / 8);
+}
+function afterHit(by){
+  lastHitter = by; validLanded = false; netTouched = false; cordOver = false; lastLandEdge = false; rallyHits++;
+  updHud(); tick('hRally');
+  if (rallyHits > longest) longest = rallyHits;
+  if (rallyHits === 9 || rallyHits === 15 || rallyHits === 22 || rallyHits === 30) talk(L.rally, rallyHits >= 15);
+  if (rallyHits === 15 || rallyHits === 30) BDB.shout(rallyHits + ' RALLY');
+}
+function canHit(X){ return phase === 'rally' && validLanded && serveStage === 0 && lastHitter !== X; }
+
+function onEvent(e){
+  if (e.t === 'bounce'){
+    sound('bounce'); dust(e.x, e.z);
+    if (phase !== 'rally') return;
+    if (serveStage === 1){
+      if (e.side === lastHitter) serveStage = 2; else return lose(lastHitter, 'fault');
+    } else if (serveStage === 2){
+      if (e.side !== lastHitter){
+        serveStage = 0;
+        if (netTouched) return letServe();
+        validLanded = true; lastLandEdge = e.edge; netTouched = false;
+        if (lastHitter === 'B'){ /* player's turn */ } else { cpu.full = true; cpu.planT = Math.max(cpu.planT, clock + D.react * .4); }
+      } else return lose(lastHitter, 'fault');
+    } else {
+      if (!validLanded){
+        if (e.side !== lastHitter){
+          validLanded = true; lastLandEdge = e.edge;
+          if (lastHitter === 'P'){ cpu.full = true; cpu.planT = clock + D.react * .5; }
+        } else return lose(lastHitter, netTouched ? 'net' : 'out');
+      } else return win(lastHitter, 'double');
+    }
+  } else if (e.t === 'net'){
+    sound('net');
+    if (phase !== 'rally') return;
+    netTouched = true; if (e.cord && e.over) cordOver = true;
+  } else if (e.t === 'floor'){
+    if (phase === 'dead') sound('floor');
+    if (phase !== 'rally') return;
+    if (validLanded) win(lastHitter, 'double');
+    else lose(lastHitter, (serveStage > 0) ? 'fault' : (netTouched && (ball.z < T.NZ) === (lastHitter === 'P') ? 'net' : 'out'));
+  }
+}
+function letServe(){
+  phase = 'dead'; BDB.shout('LET'); talk(["Let. Replay the serve. BDB says it still counts. It doesn't."], false);
+  later(1.1, setupServe);
+}
+function win(hitter, why){
+  let reason = 'winner';
+  if (rallyHits === 1 && hitter === server) reason = 'ace';
+  else if (hitter === 'P' && cpu.whiffed) reason = 'whiff';
+  else if (lastLandEdge) reason = 'edge';
+  else if (cordOver) reason = 'cord';
+  award(hitter, reason);
+}
+function lose(hitter, why){ award(other(hitter), why, hitter); }
+
+function award(w, reason, loser){
+  phase = 'dead'; pointsPlayed++;
+  sc[w]++; plog.push(w + ':' + reason);
+  updHud(); tick(w === 'P' ? 'hYou' : 'hBdb');
+  const l = other(w);
+  deficit[l] = Math.max(deficit[l], sc[w] - sc[l]);
+  const over = (sc.P >= 11 || sc.B >= 11) && Math.abs(sc.P - sc.B) >= 2;
+  const shoutMap = {ace:'ACE', whiff:'WHIFF', edge:'EDGE', cord:'NET CORD', net:'NET', out:'OUT', fault:'FAULT', winner:w === 'P' ? 'POINT' : 'BDB POINT', double: w === 'P' ? 'POINT' : 'BDB POINT'};
+  BDB.shout(shoutMap[reason] || 'POINT', w === 'B');
+  if (w === 'P'){ BDB.sfx.good(); confetti(); } else BDB.sfx.bad();
+  if (!BDB.reduced) shake = Math.max(shake, w === 'P' ? 4 : 7);
+  flashT = .25;
+  if (over){ later(1.4, endMatch); return; }
+
+  // what BDB says (one line per point, spaced)
+  const mpFor = (sc.P >= 10 && sc.P > sc.B) ? 'P' : (sc.B >= 10 && sc.B > sc.P) ? 'B' : '';
+  if (mpFor && saidMatch !== mpFor + sc.P + sc.B){ saidMatch = mpFor + sc.P + sc.B; talk(mpFor === 'P' ? L.youMatch : L.bdbMatch, true); BDB.shout('MATCH POINT'); }
+  else if (sc.P === 10 && sc.B === 10 && !saidDeuce){ saidDeuce = true; talk(L.deuce, true); }
+  else if (sc.P === sc.B && deficit.P >= 4 && w === 'P'){ deficit.P = 0; talk(L.youComeback, true); }
+  else if (sc.P === sc.B && deficit.B >= 4 && w === 'B'){ deficit.B = 0; talk(L.bdbComeback, true); }
+  else if (pointsPlayed === 6 || pointsPlayed === 14) roast();
+  else {
+    let arr;
+    if (w === 'P') arr = {ace:L.youAce, whiff:L.whiff, edge:L.youEdge, cord:L.cord, net:L.bdbOut, out:L.bdbOut, fault:L.bdbFault}[reason] || L.youPoint;
+    else arr = {ace:L.bdbAce, edge:L.bdbEdge, cord:L.bdbCord, net:L.youNet, out:L.youOut, fault:L.youFault}[reason] || L.bdbPoint;
+    const big = reason === 'ace' || reason === 'whiff' || reason === 'edge';
+    talk(arr, big && clock - lastTalk > 1.8);
+  }
+  later(1.5, setupServe);
+}
+
+function getRecord(){ try { return JSON.parse(BDB.store.get('bdb-pp-record')) || {}; } catch(e){ return {}; } }
+function endMatch(){
+  state = 'over'; phase = 'idle';
+  const won = sc.P > sc.B, diff = sc.P - sc.B;
+  const rec = getRecord(); rec[diffKey] = rec[diffKey] || [0, 0]; rec[diffKey][won ? 0 : 1]++;
+  BDB.store.set('bdb-pp-record', JSON.stringify(rec));
+  const res = BDB.addScore(diff);
+  $('best').textContent = fmtDiff(res.list[0].s);
+  if (won) BDB.sfx.big(); else BDB.sfx.bad();
+  talk(won ? L.win : L.lose, true);
+  setTimeout(() => { if (state === 'over') BDB.roast(); }, 3200);
+  const recStr = k => { const r = rec[k] || [0, 0]; return r[0] + '-' + r[1]; };
+  BDB.showEnd({
+    eyebrow: won ? 'Break over. You win.' : 'Break over. BDB wins.',
+    title: won ? (res.isBest ? 'New best. BDB in shambles.' : 'You beat the MVP') : 'BDB takes it',
+    line: BDB.pick(won ? L.win : L.lose) + ' (' + D.name + ')',
+    stats: [['Final', sc.P + '-' + sc.B], ['Longest rally', longest], ['Points won', sc.P + ' of ' + (sc.P + sc.B)],
+      ['Rec League', recStr('rec')], ['Varsity', recStr('varsity')], ['D1', recStr('d1')]],
+    scores: res, format: fmtDiff
+  });
+  updHud();
+}
+
+/* ---------- CPU brain ---------- */
+function predict(side, homeZ, spinRead){
+  const s = Object.assign({}, ball);
+  if (spinRead < 1){ s.spin *= spinRead; s.ax = s.spin; }
+  let landed = validLanded && serveStage === 0;
+  let stage = serveStage;
+  const dir = side === 'B' ? 1 : -1;
+  for (let i = 0; i < 720; i++){
+    const ev = stepBall(s, STEP, true);
+    for (const e of ev){
+      if (e.t === 'bounce'){
+        if (stage === 1){ stage = 2; continue; }
+        if (stage === 2){ stage = 0; if (e.side === side) landed = true; else return null; continue; }
+        if (e.side === side){ if (landed) return {x:s.x, y:s.y, z:s.z}; landed = true; } else return null;
+      }
+      if (e.t === 'floor') return landed ? {x:s.x, y:s.y, z:s.z} : null;
+    }
+    if (landed && stage === 0){
+      if ((s.z - homeZ) * dir >= 0) return {x:s.x, y:s.y, z:homeZ};
+      if (s.vy < 0 && s.y < .09) return {x:s.x, y:s.y, z:s.z};
+    }
+  }
+  return null;
+}
+function updCPU(dt){
+  if (phase === 'rally' && lastHitter === 'P' && cpu.planT >= 0 && clock >= cpu.planT){
+    cpu.planT = -1;
+    const p = predict('B', HOME_Z, cpu.full ? 1 : D.spinRead);
+    if (p){ cpu.tx = p.x + cpu.err; cpu.tz = clamp(p.z, 2.35, 3.25); }
+    else { cpu.tx = clamp(ball.x * .5, -.5, .5); cpu.tz = HOME_Z; }
+  }
+  if (phase === 'rally' && lastHitter === 'B'){ cpu.tx = clamp(ball.x * .3, -.3, .3); cpu.tz = HOME_Z; }
+  if (phase === 'serveWait' && server === 'B'){ cpu.tx = Math.sin(clock * 1.3) * .25; cpu.tz = 2.95; }
+  const dx = cpu.tx - cpu.x, dz = cpu.tz - cpu.z, dd = Math.hypot(dx, dz), mv = D.speed * dt;
+  if (dd > 1e-4){ const k = Math.min(1, mv / dd); cpu.x += dx * k; cpu.z += dz * k; }
+  cpu.lean += ((dx > .02 ? 1 : dx < -.02 ? -1 : 0) - cpu.lean) * Math.min(1, dt * 8);
+  const near = phase === 'rally' && lastHitter === 'P' && ball.z > 1.8;
+  const ty = near ? clamp(ball.y, .02, .7) : .22;
+  cpu.y += (ty - cpu.y) * Math.min(1, dt * 14);
+}
+
+/* ---------- input ---------- */
+let pointerSeen = false;
+function pointerToWorld(e){
+  const r = cv.getBoundingClientRect();
+  let sx = e.clientX - r.left, sy = e.clientY - r.top;
+  if (e.pointerType === 'touch') sy -= Math.min(70, H * .07);
+  const yPlane = .2;
+  const dy = Math.max(4, sy - V.oy);
+  const d = V.f * (V.camH - yPlane) / dy;
+  let z = V.camZ + d, x = (sx - W / 2) * d / V.f;
+  pad.tz = clamp(z, V.zMin, .55); pad.tx = clamp(x, -1.15, 1.15);
+  pointerSeen = true;
+}
+cv.addEventListener('pointermove', e => { if (!bot) pointerToWorld(e); });
+cv.addEventListener('pointerdown', e => {
+  if (!bot) pointerToWorld(e);
+  if (state !== 'play' || paused) return;
+  if (phase === 'serveWait' && server === 'P') toss('P');
+});
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+function updPaddle(dt){
+  if (bot) botAim();
+  const k = 1 - Math.exp(-dt * 22);
+  const ox = pad.x, oz = pad.z;
+  pad.x += (pad.tx - pad.x) * k; pad.z += (pad.tz - pad.z) * k;
+  const ivx = (pad.x - ox) / Math.max(dt, 1e-3), ivz = (pad.z - oz) / Math.max(dt, 1e-3);
+  const k2 = 1 - Math.exp(-dt * 16);
+  pad.vx += (ivx - pad.vx) * k2; pad.vz += (ivz - pad.vz) * k2;
+  const tracking = phase === 'rally' && lastHitter === 'B' && ball.z < 1.2;
+  let ty = .18;
+  if (tracking) ty = clamp(ball.y, .0, .8);
+  if (phase === 'serveWait' && server === 'P') ty = .16;
+  pad.y += (ty - pad.y) * Math.min(1, dt * 16);
+  pad.glow += ((canHit('P') ? 1 : 0) - pad.glow) * Math.min(1, dt * 10);
+  pad.swing = Math.max(0, pad.swing - dt * 4); cpu.swing = Math.max(0, cpu.swing - dt * 3.5);
+  cpu.spinSwing = Math.max(0, cpu.spinSwing - dt * 1.6);
+}
+// test helper: an automatic player that chases the ball
+function botAim(){
+  if (phase === 'serveWait' && server === 'P'){ pad.tx = 0; pad.tz = -.4; if (Math.random() < .03) toss('P'); return; }
+  if (phase === 'rally' && lastHitter === 'B'){
+    const p = predict('P', -.3, 1);
+    if (p){ pad.tx = p.x + .02; pad.tz = clamp(p.z + .12 - (bot.push || 0), V.zMin, .5); if (Math.abs(ball.z - pad.z) < .5) pad.tz = clamp(pad.tz + .5, V.zMin, .55); }
+  } else { pad.tz = -.45; }
+}
+
+/* ---------- effects + sound ---------- */
+let actx = null;
+function sound(kind, p = .6){
+  if (BDB.sfx.muted) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime;
+    const o = actx.createOscillator(), g = actx.createGain();
+    const spec = {hit:[700 + p * 300, .07, .22], bounce:[1500, .035, .12], net:[160, .12, .18], toss:[900, .03, .04], floor:[1100, .03, .06]}[kind];
+    if (!spec) return;
+    o.type = kind === 'net' ? 'triangle' : 'sine'; o.frequency.setValueAtTime(spec[0], t); o.frequency.exponentialRampToValueAtTime(spec[0] * .55, t + spec[1]);
+    g.gain.setValueAtTime(spec[2], t); g.gain.exponentialRampToValueAtTime(.0001, t + spec[1]);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t + spec[1] + .02);
+    if (kind === 'hit'){
+      const n = actx.createBufferSource(), buf = actx.createBuffer(1, 800, actx.sampleRate), ch = buf.getChannelData(0);
+      for (let i = 0; i < 800; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / 800, 3);
+      const ng = actx.createGain(); ng.gain.value = .12 + p * .08; n.buffer = buf; n.connect(ng).connect(actx.destination); n.start(t);
+    }
+  } catch(e){}
+}
+function burst(x, y, z, col, n){ for (let i = 0; i < n; i++) parts.push({x, y, z, vx:rand(-1, 1), vy:rand(0, 1.5), vz:rand(-1, 1), life:rand(.25, .5), col, w:true}); }
+function dust(x, z){ for (let i = 0; i < 4; i++) parts.push({x, y:.01, z, vx:rand(-.4, .4), vy:rand(.2, .6), vz:rand(-.4, .4), life:.3, col:'rgba(255,255,255,.7)', w:true}); }
+function confetti(){
+  if (BDB.reduced) return;
+  const cols = ['#ff8a2b', '#f2c14e', '#4ade80', '#eef2fb'];
+  for (let i = 0; i < 26; i++) parts.push({x:rand(-.7, .7), y:rand(.6, 1.1), z:rand(1.6, 3), vx:rand(-.5, .5), vy:rand(.5, 2), vz:rand(-.5, .5), life:rand(.7, 1.2), col:BDB.pick(cols), w:false});
+}
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (state === 'play' && !paused) update(dt);
+  else if (state !== 'play'){ clock += dt; idleCPU(dt); }
+  draw();
+  requestAnimationFrame(frame);
+}
+function idleCPU(dt){ cpu.tx = Math.sin(clock * .9) * .35; cpu.tz = HOME_Z; const k = Math.min(1, dt * 3); cpu.x += (cpu.tx - cpu.x) * k; cpu.y += (.22 - cpu.y) * k; }
+let acc = 0;
+function update(dt){
+  clock += dt;
+  updPaddle(dt);
+  if (waitFn){ waitT -= dt; if (waitT <= 0){ const f = waitFn; waitFn = null; f(); } }
+  if (phase === 'serveWait' && server === 'B'){ cpuServeT -= dt; if (cpuServeT <= 0) toss('B'); }
+  if (phase === 'serveWait' && server === 'P'){ ball.x = pad.x + .06; ball.y = pad.y + .14 + Math.sin(clock * 5) * .01; ball.z = pad.z + .02; }
+  if (phase === 'serveWait' && server === 'B'){ ball.x = cpu.x - .08; ball.y = cpu.y + .1; ball.z = cpu.z - .02; }
+  hintT -= dt;
+  const sdt = dt * D.ts * (bot && bot.fast ? 1 : 1);
+  acc += sdt;
+  let n = 0;
+  while (acc >= STEP && n < 40){ acc -= STEP; n++; simStep(STEP); updCPU(STEP); }
+  for (const p of parts){ p.vy -= 4 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt; }
+  parts = parts.filter(p => p.life > 0);
+  if (phase === 'rally' || phase === 'dead' || phase === 'toss'){ trail.push({x:ball.x, y:ball.y, z:ball.z}); if (trail.length > 9) trail.shift(); } else trail = [];
+  shake = Math.max(0, shake - dt * 30); flashT = Math.max(0, flashT - dt);
+}
+function simStep(dt){
+  if (phase === 'toss'){
+    ball.vy -= G * dt; ball.y += ball.vy * dt;
+    if (ball.vy < 0 && ball.y < .27) strikeServe();
+    return;
+  }
+  if (phase !== 'rally' && phase !== 'dead') return;
+  const prP = ball.z - pad.z, prB = ball.z - cpu.z;
+  const ev = stepBall(ball, dt, false);
+  for (const e of ev){ onEvent(e); if (phase !== 'rally' && phase !== 'dead') break; }
+  if (phase !== 'rally') return;
+  if (canHit('P')){
+    const rel = ball.z - pad.z;
+    if (((prP > 0) !== (rel > 0) || Math.abs(rel) < .035) && Math.abs(ball.x - pad.x) < HIT_R && ball.y > -.15 && ball.y < .95) playerHit();
+  }
+  if (canHit('B') && !cpu.whiffed){
+    const rel = ball.z - cpu.z;
+    if (((prB < 0) !== (rel < 0) || Math.abs(rel) < .03) && Math.abs(ball.x - cpu.x) < D.reach && ball.y > -.2 && ball.y < 1.0){
+      if (cpu.whiff){ cpu.whiffed = true; cpu.spinSwing = 1; cpu.swing = 1; sound('toss'); }
+      else cpuHit();
+    }
+  }
+}
+
+/* ---------- drawing ---------- */
+const P = (x, y, z) => proj(x, y, z);
+function poly(pts, fill, stroke, lw){
+  cx.beginPath(); pts.forEach((p, i) => i ? cx.lineTo(p.x, p.y) : cx.moveTo(p.x, p.y)); cx.closePath();
+  if (fill){ cx.fillStyle = fill; cx.fill(); }
+  if (stroke){ cx.strokeStyle = stroke; cx.lineWidth = lw || 1; cx.stroke(); }
+}
+function quad(x0, y0, z0, x1, y1, z1, fill, stroke, lw){ // vertical or horizontal rectangle between two corners
+  let pts;
+  if (y0 === y1) pts = [P(x0, y0, z0), P(x1, y0, z0), P(x1, y0, z1), P(x0, y0, z1)];
+  else pts = [P(x0, y0, z0), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z0)];
+  poly(pts, fill, stroke, lw);
+}
+function drawRoom(){
+  const WZ = 6.2;
+  // back wall
+  const wl = P(-9, 2.6, WZ), wr = P(9, T.FLOOR, WZ);
+  const wg = cx.createLinearGradient(0, wl.y, 0, wr.y);
+  wg.addColorStop(0, '#0b1a3a'); wg.addColorStop(.7, '#10264f'); wg.addColorStop(1, '#0c1d3e');
+  cx.fillStyle = wg; cx.fillRect(0, 0, W, wr.y + 1);
+  // ceiling light glow
+  const lg = cx.createRadialGradient(W / 2, wl.y, 10, W / 2, wl.y, W * .6);
+  lg.addColorStop(0, 'rgba(180,215,255,.22)'); lg.addColorStop(1, 'rgba(180,215,255,0)');
+  cx.fillStyle = lg; cx.fillRect(0, 0, W, wr.y);
+  // fluorescent tubes
+  for (const lx of [-1.6, 1.6]){ const a = P(lx - .7, 2.35, WZ - .5), b = P(lx + .7, 2.35, WZ - .5); cx.fillStyle = 'rgba(220,235,255,.85)'; cx.fillRect(a.x, a.y - 2, b.x - a.x, Math.max(2, a.s * .05)); }
+  // wainscot stripe
+  const s1 = P(-9, .1, WZ), s2 = P(9, -.05, WZ);
+  cx.fillStyle = 'rgba(255,138,43,.18)'; cx.fillRect(0, s1.y, W, s2.y - s1.y);
+  // sign
+  const sg = P(portrait ? 1.45 : 2.0, .78, WZ), ss = sg.s;
+  const sw = 2.0 * ss, sh = .32 * ss;
+  cx.fillStyle = '#070b13'; roundRect(sg.x - sw / 2, sg.y - sh / 2, sw, sh, 6 * ss / 100); cx.fill();
+  cx.strokeStyle = '#1e2738'; cx.lineWidth = 2; cx.stroke();
+  cx.fillStyle = '#ffb547'; cx.shadowColor = 'rgba(255,181,71,.7)'; cx.shadowBlur = 10;
+  cx.font = `600 ${Math.round(sh * .82)}px Teko, "Arial Narrow", sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  const tw = cx.measureText('BREAK ROOM • HOME OF THE MVP').width;
+  if (tw > sw * .9) cx.font = `600 ${Math.round(sh * .82 * sw * .9 / tw)}px Teko, "Arial Narrow", sans-serif`;
+  cx.fillText('BREAK ROOM • HOME OF THE MVP', sg.x, sg.y + sh * .06); cx.shadowBlur = 0;
+  // clock (BDB's favourite object)
+  const cp = P(-1.5, 1.05, WZ), cr = .28 * cp.s;
+  cx.fillStyle = '#eef2fb'; cx.beginPath(); cx.arc(cp.x, cp.y, cr, 0, 7); cx.fill();
+  cx.strokeStyle = '#ff8a2b'; cx.lineWidth = Math.max(2, cr * .12); cx.stroke();
+  const d = new Date(), hA = ((d.getHours() % 12) + d.getMinutes() / 60) / 12 * Math.PI * 2, mA = (d.getMinutes() + d.getSeconds() / 60) / 60 * Math.PI * 2, sA = (d.getSeconds() + d.getMilliseconds() / 1000) / 60 * Math.PI * 2;
+  cx.strokeStyle = '#151a26'; cx.lineCap = 'round';
+  cx.lineWidth = Math.max(1.5, cr * .1); cx.beginPath(); cx.moveTo(cp.x, cp.y); cx.lineTo(cp.x + Math.sin(hA) * cr * .5, cp.y - Math.cos(hA) * cr * .5); cx.stroke();
+  cx.lineWidth = Math.max(1, cr * .07); cx.beginPath(); cx.moveTo(cp.x, cp.y); cx.lineTo(cp.x + Math.sin(mA) * cr * .78, cp.y - Math.cos(mA) * cr * .78); cx.stroke();
+  cx.strokeStyle = '#ff5a4a'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(cp.x, cp.y); cx.lineTo(cp.x + Math.sin(sA) * cr * .85, cp.y - Math.cos(sA) * cr * .85); cx.stroke();
+  // vending machine
+  const vz = WZ - .4, vx = -3.5;
+  quad(vx, T.FLOOR, vz, vx + .9, 1.25, vz, '#1f4186');
+  quad(vx + .1, .15, vz - .01, vx + .65, 1.1, vz - .01, 'rgba(160,200,255,.18)');
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++){
+    const q = P(vx + .18 + c * .17, 1.0 - r * .22, vz - .02);
+    cx.fillStyle = ['#ff8a2b', '#f2c14e', '#4ade80', '#ff5a4a'][(r + c) % 4]; cx.fillRect(q.x, q.y, .1 * q.s, .12 * q.s);
+  }
+  // punch clock
+  quad(3.4, .4, WZ - .02, 3.9, 1.0, WZ - .02, '#26324d');
+  const pc = P(3.65, .83, WZ - .03); cx.fillStyle = '#ffb547'; cx.font = `600 ${Math.max(8, .14 * pc.s)}px Teko, sans-serif`; cx.fillText('IN', pc.x, pc.y);
+  // floor
+  const fl = P(0, T.FLOOR, WZ);
+  const fg = cx.createLinearGradient(0, fl.y, 0, H);
+  fg.addColorStop(0, '#0d1424'); fg.addColorStop(1, '#1b2338');
+  cx.fillStyle = fg; cx.fillRect(0, fl.y, W, H - fl.y);
+  cx.strokeStyle = 'rgba(255,255,255,.05)'; cx.lineWidth = 1;
+  for (let z = -1.2; z <= WZ; z += .6){ const a = P(-9, T.FLOOR, z), b = P(9, T.FLOOR, z); if (a.y < H + 2){ cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke(); } }
+  for (let x = -9; x <= 9; x += .6){ const a = P(x, T.FLOOR, -1.2), b = P(x, T.FLOOR, WZ); cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke(); }
+}
+function roundRect(x, y, w, h, r){ r = Math.min(r, w / 2, h / 2); cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+
+function faceDisc(c, r, ring, ringCol){
+  cx.save(); cx.beginPath(); cx.arc(c.x, c.y, r, 0, 7); cx.clip();
+  if (BDB.faceImg.complete && BDB.faceImg.naturalWidth) cx.drawImage(BDB.faceImg, c.x - r * 1.05, c.y - r * 1.12, r * 2.1, r * 2.1);
+  else { cx.fillStyle = '#c9926b'; cx.fill(); }
+  cx.restore();
+  if (ring){ cx.lineWidth = ring; cx.strokeStyle = ringCol || '#ff8a2b'; cx.beginPath(); cx.arc(c.x, c.y, r, 0, 7); cx.stroke(); }
+}
+function drawBDB(){
+  const bz = 3.45, bx = cpu.x * .75 - .12 + cpu.lean * .04;
+  const lean = cpu.lean * .06 + (cpu.spinSwing ? Math.sin(cpu.spinSwing * 9) * .12 : 0);
+  // torso (blue track jacket)
+  const sh = P(bx + lean, .62, bz), hp = P(bx, -.45, bz), s = sh.s;
+  cx.fillStyle = '#1f4ea8';
+  cx.beginPath(); cx.moveTo(sh.x - .3 * s, sh.y); cx.lineTo(sh.x + .3 * s, sh.y); cx.lineTo(hp.x + .25 * s, hp.y); cx.lineTo(hp.x - .25 * s, hp.y); cx.closePath(); cx.fill();
+  cx.strokeStyle = '#eef2fb'; cx.lineWidth = Math.max(1, .035 * s);
+  cx.beginPath(); cx.moveTo(sh.x - .26 * s, sh.y + .02 * s); cx.lineTo(hp.x - .21 * s, hp.y); cx.moveTo(sh.x + .26 * s, sh.y + .02 * s); cx.lineTo(hp.x + .21 * s, hp.y); cx.stroke();
+  cx.strokeStyle = 'rgba(255,255,255,.5)'; cx.lineWidth = Math.max(1, .012 * s); cx.beginPath(); cx.moveTo(sh.x, sh.y + .06 * s); cx.lineTo(hp.x, hp.y); cx.stroke();
+  // lanyard
+  cx.strokeStyle = '#ff8a2b'; cx.lineWidth = Math.max(1, .018 * s); cx.beginPath(); cx.moveTo(sh.x - .08 * s, sh.y); cx.lineTo(sh.x, sh.y + .26 * s); cx.lineTo(sh.x + .08 * s, sh.y); cx.stroke();
+  cx.fillStyle = '#eef2fb'; cx.fillRect(sh.x - .04 * s, sh.y + .26 * s, .08 * s, .1 * s);
+  // arms: one to the paddle
+  const pp = P(cpu.x, cpu.y, cpu.z);
+  cx.strokeStyle = '#1f4ea8'; cx.lineCap = 'round'; cx.lineWidth = Math.max(3, .1 * s);
+  const rsh = {x: sh.x + .28 * s, y: sh.y + .05 * s};
+  cx.beginPath(); cx.moveTo(rsh.x, rsh.y); cx.quadraticCurveTo((rsh.x + pp.x) / 2 + .15 * s, (rsh.y + pp.y) / 2 + .1 * s, pp.x, pp.y + .05 * pp.s); cx.stroke();
+  cx.beginPath(); cx.moveTo(sh.x - .28 * s, sh.y + .05 * s); cx.lineTo(sh.x - .42 * s, sh.y + .38 * s); cx.stroke();
+  // head (bobblehead)
+  const hc = P(bx + lean * 1.6, .88 + Math.sin(clock * 2.2) * .01, bz), hr = .25 * hc.s;
+  faceDisc(hc, hr, Math.max(2, hr * .09), '#f2c14e');
+  // paddle with his face on it
+  drawCpuPaddle(pp);
+}
+function drawCpuPaddle(pp){
+  const r = .13 * pp.s;
+  const ang = (cpu.spinSwing ? cpu.spinSwing * 12 : 0) + Math.sin(cpu.swing * Math.PI) * .9 - .3;
+  cx.save(); cx.translate(pp.x, pp.y); cx.rotate(ang);
+  cx.fillStyle = '#7a4a22'; cx.fillRect(-r * .16, r * .8, r * .32, r * .9);
+  cx.restore();
+  faceDisc(pp, r, Math.max(2, r * .16), '#d8322a');
+}
+function drawTable(){
+  // legs
+  cx.fillStyle = '#05080f';
+  for (const [x, z] of [[-.6, .25], [.6, .25], [-.6, 2.49], [.6, 2.49]]){
+    const a = P(x - .03, 0, z), b = P(x + .03, T.FLOOR, z);
+    cx.fillRect(a.x, a.y, Math.max(2, b.x - a.x), b.y - a.y);
+  }
+  // shadow on floor
+  poly([P(-.85, T.FLOOR, -.05), P(.85, T.FLOOR, -.05), P(.85, T.FLOOR, 2.8), P(-.85, T.FLOOR, 2.8)], 'rgba(0,0,0,.35)');
+  // apron (front face)
+  quad(-T.W2, 0, 0, T.W2, -.04, 0, '#061736');
+  // surface
+  const a = P(-T.W2, 0, 0), b = P(T.W2, 0, 0), c = P(T.W2, 0, T.L), d = P(-T.W2, 0, T.L);
+  const g = cx.createLinearGradient(0, d.y, 0, a.y);
+  g.addColorStop(0, '#0b2a62'); g.addColorStop(1, '#154a9e');
+  poly([a, b, c, d], g);
+  // sheen
+  const sheen = cx.createRadialGradient(W / 2, (a.y + d.y) / 2, 10, W / 2, (a.y + d.y) / 2, (b.x - a.x) * .7);
+  sheen.addColorStop(0, 'rgba(255,255,255,.08)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  poly([a, b, c, d], sheen);
+  // lines
+  cx.strokeStyle = 'rgba(255,255,255,.92)'; cx.lineJoin = 'round';
+  const lw = s => Math.max(1, .02 * s);
+  cx.lineWidth = lw(a.s); poly([a, b, c, d], null, 'rgba(255,255,255,.92)', Math.max(1.2, .02 * (a.s + d.s) / 2));
+  const m0 = P(0, 0, 0), m1 = P(0, 0, T.L);
+  cx.lineWidth = Math.max(1, .006 * (m0.s + m1.s) / 2); cx.beginPath(); cx.moveTo(m0.x, m0.y); cx.lineTo(m1.x, m1.y); cx.stroke();
+}
+function drawNet(){
+  const l0 = P(-T.NW2, 0, T.NZ), r0 = P(T.NW2, 0, T.NZ), l1 = P(-T.NW2, T.NH, T.NZ), r1 = P(T.NW2, T.NH, T.NZ);
+  poly([l0, r0, r1, l1], 'rgba(8,14,28,.42)');
+  cx.strokeStyle = 'rgba(255,255,255,.12)'; cx.lineWidth = 1; cx.beginPath();
+  const n = 34;
+  for (let i = 0; i <= n; i++){ const x = l0.x + (r0.x - l0.x) * i / n; cx.moveTo(x, l0.y); cx.lineTo(x, l1.y); }
+  for (let j = 1; j < 5; j++){ const y = l0.y + (l1.y - l0.y) * j / 5; cx.moveTo(l0.x, y); cx.lineTo(r0.x, y); }
+  cx.stroke();
+  cx.strokeStyle = '#eef2fb'; cx.lineWidth = Math.max(2, .016 * l1.s); cx.beginPath(); cx.moveTo(l1.x, l1.y); cx.lineTo(r1.x, r1.y); cx.stroke();
+  cx.fillStyle = '#1e2738'; for (const p of [[l0, l1], [r0, r1]]) cx.fillRect(p[0].x - 2, p[1].y - 1, 4, p[0].y - p[1].y + 2);
+}
+function drawShadow(){
+  if (phase === 'idle' || phase === 'serveWait') return;
+  const over = Math.abs(ball.x) <= T.W2 && ball.z >= 0 && ball.z <= T.L && ball.y >= 0;
+  const sy = over ? 0 : T.FLOOR;
+  const h = ball.y - sy, p = P(ball.x, sy, ball.z);
+  const r = Math.max(2, .022 * p.s) * (1 + h * .6);
+  cx.fillStyle = `rgba(0,0,0,${clamp(.5 - h * .5, .12, .5)})`;
+  cx.beginPath(); cx.ellipse(p.x, p.y, r, r * .42, 0, 0, 7); cx.fill();
+}
+function drawBall(){
+  if (phase === 'idle') return;
+  for (let i = 0; i < trail.length - 1; i++){
+    const t = trail[i], p = P(t.x, t.y, t.z);
+    cx.fillStyle = `rgba(255,214,150,${(i / trail.length) * .28})`;
+    cx.beginPath(); cx.arc(p.x, p.y, Math.max(1.5, .02 * p.s) * (i / trail.length), 0, 7); cx.fill();
+  }
+  const p = P(ball.x, ball.y, ball.z), r = Math.max(2.6, .025 * p.s);
+  const g = cx.createRadialGradient(p.x - r * .35, p.y - r * .35, r * .1, p.x, p.y, r);
+  g.addColorStop(0, '#fff'); g.addColorStop(.6, '#ffe2c2'); g.addColorStop(1, '#ff9d47');
+  cx.fillStyle = g; cx.beginPath(); cx.arc(p.x, p.y, r, 0, 7); cx.fill();
+}
+function drawPaddle(){
+  const p = P(pad.x, pad.y, pad.z), r = .085 * p.s;
+  const tilt = clamp(-pad.vx * .08, -.6, .6) + (pad.swing ? -Math.sin(pad.swing * Math.PI) * .5 : 0);
+  // shadow
+  const over = Math.abs(pad.x) <= T.W2 && pad.z >= 0;
+  const sp = P(pad.x, over ? 0 : T.FLOOR, pad.z);
+  cx.fillStyle = 'rgba(0,0,0,.25)'; cx.beginPath(); cx.ellipse(sp.x, sp.y, r * .9, r * .3, 0, 0, 7); cx.fill();
+  cx.save(); cx.translate(p.x, p.y); cx.rotate(tilt);
+  cx.globalAlpha = .9;
+  cx.fillStyle = '#8a5a2b'; roundRect(-r * .17, r * .72, r * .34, r * 1.05, r * .1); cx.fill();
+  if (pad.glow > .05){ cx.shadowColor = 'rgba(242,193,78,.9)'; cx.shadowBlur = 18 * pad.glow; }
+  cx.fillStyle = '#c8302a'; cx.beginPath(); cx.ellipse(0, 0, r, r * .95, 0, 0, 7); cx.fill();
+  cx.shadowBlur = 0;
+  cx.strokeStyle = '#111'; cx.lineWidth = Math.max(1.5, r * .08); cx.stroke();
+  cx.fillStyle = 'rgba(255,255,255,.12)'; cx.beginPath(); cx.ellipse(-r * .25, -r * .3, r * .45, r * .3, -.5, 0, 7); cx.fill();
+  cx.globalAlpha = 1; cx.restore();
+}
+function drawParts(){
+  for (const q of parts){ const p = P(q.x, q.y, q.z); cx.globalAlpha = clamp(q.life * 3, 0, 1); cx.fillStyle = q.col; const r = Math.max(1.2, (q.w ? .006 : .012) * p.s); cx.fillRect(p.x - r, p.y - r, r * 2, r * 2); }
+  cx.globalAlpha = 1;
+}
+function drawPrompt(){
+  let txt = '';
+  if (state === 'play' && phase === 'serveWait' && server === 'P') txt = pointerSeen ? 'Tap to serve' : 'Move to aim, tap to serve';
+  else if (state === 'play' && phase === 'serveWait' && server === 'B') txt = 'BDB serving';
+  if (!txt) return;
+  const p = P(0, 0, -.05);
+  cx.font = `800 ${W < 640 ? 13 : 15}px Figtree, system-ui, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  const w = cx.measureText(txt).width + 26, y = Math.min(H - 22, p.y + (H - p.y) * .55);
+  cx.fillStyle = 'rgba(6,13,30,.82)'; roundRect(W / 2 - w / 2, y - 15, w, 30, 15); cx.fill();
+  cx.strokeStyle = server === 'P' ? 'rgba(255,138,43,.7)' : 'rgba(255,255,255,.15)'; cx.lineWidth = 1.5; cx.stroke();
+  cx.fillStyle = server === 'P' ? '#ffb547' : '#8fa3cc'; cx.fillText(txt.toUpperCase(), W / 2, y + 1);
+  if (server === 'P' && hintT > 0 && pointsPlayed < 2){
+    cx.font = `600 12px Figtree, system-ui, sans-serif`; cx.fillStyle = 'rgba(238,242,251,.7)';
+    cx.fillText('Push up into the ball to hit harder. Slide sideways for spin.', W / 2, y - 28);
+  }
+}
+function draw(){
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cx.clearRect(0, 0, W, H);
+  cx.save();
+  if (shake > 0){ cx.translate(rand(-shake, shake) * .5, rand(-shake, shake) * .5); }
+  drawRoom();
+  const ballFar = ball.z > T.L;
+  if (ballFar && !(phase === 'serveWait' && server === 'P')){ drawShadow(); }
+  drawBDB();
+  if (ballFar) drawBall();
+  drawTable();
+  if (!ballFar) drawShadow();
+  if (!ballFar && ball.z > T.NZ) drawBall();
+  drawNet();
+  if (!ballFar && ball.z <= T.NZ) drawBall();
+  drawParts();
+  drawPaddle();
+  cx.restore();
+  if (flashT > 0){ cx.fillStyle = `rgba(255,255,255,${flashT * .25})`; cx.fillRect(0, 0, W, H); }
+  drawPrompt();
+  if (paused){
+    cx.fillStyle = 'rgba(3,8,20,.62)'; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = '#f2c14e'; cx.font = `400 ${W < 640 ? 34 : 48}px "Bowlby One", Impact, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText('TIMEOUT', W / 2, H / 2 - 10);
+    cx.fillStyle = '#8fa3cc'; cx.font = '700 14px Figtree, system-ui, sans-serif'; cx.fillText('BDB is checking the clock. Press P or tap Resume.', W / 2, H / 2 + 28);
+  }
+}
+
+/* ---------- wiring ---------- */
+function togglePause(){ if (state !== 'play') return; paused = !paused; $('pause').lastChild.textContent = paused ? 'Resume' : 'Pause'; }
+$('play').onclick = start; $('again').onclick = start; $('restart').onclick = start; $('pause').onclick = togglePause;
+$('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; };
+$('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
+addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key.toLowerCase() === 'p'){ e.preventDefault(); if (state === 'menu') start(); else togglePause(); }
+  if (e.key === 'Enter' && state !== 'play'){ e.preventDefault(); start(); }
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play' && !paused) togglePause(); });
+resize();
+requestAnimationFrame(frame);
+
+window.__game = {
+  get state(){ return state; }, get score(){ return sc.P - sc.B; }, get sc(){ return Object.assign({}, sc); },
+  get phase(){ return phase; }, get server(){ return server; }, get rally(){ return rallyHits; }, get longest(){ return longest; },
+  get ball(){ return Object.assign({}, ball); }, get pad(){ return Object.assign({}, pad); }, get cpu(){ return Object.assign({}, cpu); },
+  get diff(){ return diffKey; }, get log(){ return plog.slice(); }, get paused(){ return paused; },
+  setBot(on, opts){ bot = on ? Object.assign({push:0}, opts || {}) : false; },
+  setScore(p, b){ sc.P = p; sc.B = b; pointsPlayed = p + b; updHud(); },
+  proj, start, predict: (side, z) => predict(side, z, 1), setDiff
+};
+</script>
+</body>
+</html>

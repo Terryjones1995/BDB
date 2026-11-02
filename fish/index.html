@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Big Fish BDB</title>
+<meta name="description" content="BDB starts as a tiny fish. Eat smaller fish, dodge bigger ones, grow into the big fish he always said he was.">
+<meta property="og:image" content="../assets/face.jpg">
+<link rel="icon" href="../assets/face.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="../assets/kit.css">
+<style>
+.fx-dock{left:auto;right:12px;transform:none}
+#say{max-width:min(440px,calc(100% - 200px))}
+.k-stage{background:#04223f}
+@media (max-width:640px){
+  .fx-hud{top:8px;right:8px}
+  .fx-hud .cell{min-width:46px;padding:4px 7px 2px}
+  .fx-hud b{font-size:22px}
+  .fx-dock{right:8px;bottom:8px}
+  .fx-dock .k-dk{min-width:48px}
+  #say{left:8px;bottom:8px;max-width:calc(100% - 140px)}
+  #say .bub{font-size:13px}
+}
+</style>
+<script src="../assets/roasts.js"></script>
+<script src="../assets/kit.js"></script>
+</head>
+<body class="k">
+
+<section class="k-splash" id="splash">
+  <div class="k-splash-in">
+    <a class="k-home" href="../">← All games</a>
+    <div class="k-face" aria-hidden="true"></div>
+    <div class="k-eyebrow">BDB Entertainment presents</div>
+    <h2>Big Fish <span>BDB</span></h2>
+    <p>BDB always said he was a big fish. He's starting as bait. Eat your way up and prove him right for once.</p>
+    <ul class="k-how">
+      <li><b>Steer</b> with the mouse or your finger. Arrow keys and WASD work too.</li>
+      <li><b>Eat</b> fish smaller than you. Touch a bigger one and you're lunch.</li>
+      <li><b>Fill</b> the growth bar to get bigger. Fill it all to clear the level.</li>
+      <li><b>Chain</b> bites fast for a frenzy multiplier. Grab the golden ball and the pearl.</li>
+      <li><b>Space</b> or <b>P</b> pauses.</li>
+    </ul>
+    <div class="k-row"><button type="button" class="k-btn primary big" id="play">Play</button></div>
+  </div>
+</section>
+
+<div class="k-app">
+  <header class="k-top">
+    <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
+    <div class="k-brand">Big Fish <span>BDB</span></div>
+    <div class="k-spacer"></div>
+    <span class="k-pill">Best <span class="k-led" id="best">0</span></span>
+    <button type="button" class="k-pill" id="mute" aria-label="Sound">Sound on</button>
+  </header>
+  <main class="k-stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="k-float k-hud k-jumbo fx-hud" id="hud">
+      <div class="cell"><small>Score</small><b id="hScore">0</b></div>
+      <div class="cell"><small>Lives</small><b id="hLives">3</b></div>
+      <div class="cell"><small>Level</small><b id="hLevel">1</b></div>
+    </div>
+    <div class="k-float k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
+    <nav class="k-float k-dock fx-dock" aria-label="Game controls">
+      <button type="button" class="k-dk primary" id="restart"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Restart</button>
+      <button type="button" class="k-dk" id="pause"><svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg>Pause</button>
+    </nav>
+  </main>
+</div>
+
+<div class="k-modal" id="end" hidden>
+  <div class="k-box">
+    <div class="bigav"></div>
+    <div class="k-eyebrow" id="endEyebrow">Final buzzer</div>
+    <h3 id="endTitle"></h3>
+    <p id="endLine"></p>
+    <div class="k-jumbo k-stats" id="endStats"></div>
+    <div id="endScoresWrap" style="width:100%"><div class="k-label" style="margin-bottom:8px">Your top 5 on this device</div><ol class="k-scores" id="endScores"></ol></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="again">Run it back</button><a class="k-btn" href="../" style="text-decoration:none">All games</a></div>
+  </div>
+</div>
+
+<script>
+/* ===== Big Fish BDB ===== */
+const FISH_DECK = [
+  "BDB told everyone he was a big fish in a small pond. The pond has a lifeguard and it's him.",
+  "BDB swims like he played defence: mostly away from contact.",
+  "BDB says fish don't need scholarships. He's coping.",
+  "BDB's fish form has better footwork than his human form.",
+  "Scouts watch the ocean too. Still nobody's called BDB.",
+  "BDB in the water: same guy, different league, fewer fouls."
+];
+BDB.init({game:'fish', extra: FISH_DECK});
+
+const L = {
+  start: ["BDB's in the water. Started small. Very on brand.", "Tiny fish, big dreams. That's BDB's whole story.", "BDB says he's a big fish. Let's go prove it for once.", "Day one in the ocean. BDB already thinks he's the shark."],
+  grow: ["BDB grew! First growth spurt since grade nine.", "Bigger fish, same 2.0 points per game.", "BDB's moving up a weight class. Of fish.", "Look at BDB, finally making the jump to the next level.", "BDB got bigger. Scouts still aren't calling.", "Growth spurt. BDB is calling it a breakout season."],
+  near: ["That was close. BDB felt that one in his lanyard.", "BDB almost got eaten. He's calling that defence.", "Dodged it like a charge call. Classic BDB flop.", "Close one. BDB swam off like he's late for shift.", "BDB slipped by. Best footwork of his career.", "Too close. BDB's glasses almost fell off."],
+  eaten: ["Eaten. Like BDB's scholarship.", "Swallowed whole. BDB's been benched again.", "Eaten. Same thing happened to his highlight reel.", "BDB got eaten. He's blaming the ref.", "Gone. Faster than BDB's D1 offer.", "Eaten. BDB says that fish was offside."],
+  frenzy: ["Feeding frenzy! BDB hasn't eaten like this since break room pizza day.", "BDB is on a heater. First one ever.", "Frenzy! BDB's scoring more than his whole senior year.", "BDB's eating like his fifteen minute break is almost over."],
+  double: ["Double frenzy! Somebody tell Florida.", "Double frenzy. BDB just passed his career points total."],
+  level: ["Level cleared. BDB calls this his comeback season.", "Next level. BDB's never made it this far in anything.", "Level up. BDB is asking if this counts as getting drafted.", "Cleared it. BDB wants a banner in the break room."],
+  bigBite: ["BDB ate a big one. Bigger than his stat line.", "Big bite. BDB's going to tell this story at work for weeks.", "Swallowed an angelfish. BDB's never been called angelic."],
+  scout: ["A scout bonus! Somebody finally scouted BDB.", "Golden ball. BDB's holding it for the photo again.", "Scout bonus. Turns out the scout was a fish."],
+  pearl: ["A pearl. Extra life. BDB's career could never.", "Extra life! BDB's been asking for one of those since Florida."],
+  over: ["Game over. BDB's on the bench. Again.", "BDB's done. Back to clocking in.", "That's the final buzzer. BDB is already asking for a rematch."],
+  respawn: ["BDB's back. Nobody asked, but he's back.", "Second chance. BDB knows all about those. Mostly the not getting them part."]
+};
+const NEWS = {2:["LEVEL 2: EELS", "Eels now. BDB says they're just long defenders."], 3:["LEVEL 3: BARRACUDA", "Barracuda in the water. Faster than BDB on a fast break. Not hard."],
+  4:["LEVEL 4: SHARK", "A shark that dashes. BDB never had a first step like that."], 5:["LEVEL 5: EVERYTHING", "Level 5. BDB's officially past his peak. Which was level 1."]};
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), cx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, S = 1, topY = 70;
+let bgC = null;
+function resize(){
+  const r = $('stage').getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = r.width; H = r.height;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  S = Math.max(1.05, Math.min(1.5, Math.sqrt(W * H) / 600));
+  topY = ($('hud').getBoundingClientRect().bottom - r.top) + 6;
+  makeScenery();
+}
+new ResizeObserver(resize).observe($('stage'));
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const TAU = Math.PI * 2;
+
+/* ---------- species ---------- */
+const SP = {
+  minnow:   {tier:0, r:10,  spd:[70, 110],  pts:10, grow:1, body:'#a9c9e4', belly:'#e8f2fb', fin:'#7fa3c4', h:.42},
+  tetra:    {tier:0, r:9,   spd:[85, 125],  pts:10, grow:1, body:'#2fd0ff', belly:'#c8f4ff', fin:'#ff4d6a', h:.45},
+  clown:    {tier:1, r:20, spd:[60, 95],   pts:30, grow:2, body:'#ff7a1f', belly:'#ffb062', fin:'#ff8f3f', h:.6},
+  tang:     {tier:1, r:21, spd:[70, 105],  pts:30, grow:2, body:'#2d6cf0', belly:'#5f93ff', fin:'#ffd43b', h:.66},
+  angel:    {tier:2, r:32, spd:[45, 75],   pts:60, grow:3, body:'#ffd54a', belly:'#fff1a8', fin:'#ffbf1f', h:.95},
+  puffer:   {tier:2, r:31, spd:[35, 60],   pts:60, grow:3, body:'#e8c25a', belly:'#fff4c4', fin:'#c99a2e', h:.85},
+  grouper:  {tier:3, r:54, spd:[35, 55],   pts:0, body:'#6f6a3e', belly:'#a59a62', fin:'#55502c', h:.62, chase:.9, chaseR:210},
+  eel:      {tier:3, r:52, spd:[55, 75],   pts:0, body:'#3d8c4a', belly:'#9fd27a', fin:'#2c6a36', h:.2},
+  barracuda:{tier:3, r:50, spd:[125, 165], pts:0, body:'#b8c6d4', belly:'#eef3f8', fin:'#7d8ea0', h:.24, chase:.35, chaseR:260},
+  shark:    {tier:3, r:70, spd:[60, 80],   pts:0, body:'#6d7f95', belly:'#e3e9ef', fin:'#56677c', h:.4}
+};
+const STAGE_R = [15, 26, 40], STAGE_CM = [8, 19, 34], STAGE_NAME = ['Bait', 'Snack', 'Big Fish'];
+function weights(level){
+  const w = {minnow:30, tetra:16, clown:18, tang:11, angel:10, puffer:6, grouper:5};
+  if (level >= 2) w.eel = 6;
+  if (level >= 3) w.barracuda = 5;
+  if (level >= 4) w.shark = 4;
+  if (level >= 5){ w.grouper += 2; w.eel += 2; w.barracuda += 2; w.shark += 1; }
+  return w;
+}
+
+/* ---------- state ---------- */
+let state = 'menu', paused = false;
+let score = 0, lives = 3, level = 1, stage = 0, growth = 0, eatenCount = 0, bigStage = 0, bestCm = 8;
+let fish = [], parts = [], pops = [], bubbles = [], pickups = [];
+let spawnT = 0, schoolT = 0, ballT = 0, clamT = 0, clock = 0, shake = 0;
+let chain = 0, chainT = 0, mult = 1, lastTalk = -1e9, clearT = 0, levelBanner = 0, bannerText = '';
+let deadT = 0, invT = 0;
+const pl = {x:0, y:0, vx:0, vy:0, a:0, r:12, scale:1, growT:0, chompT:0, alive:true, tail:0};
+const input = {tx:0, ty:0, active:false, keys:new Set(), pointerDown:false};
+$('best').textContent = BDB.fmt((BDB.scores()[0] || {s:0}).s);
+
+function need(){ return 10 + (level - 1) * 2; }
+function talk(arr, prio){ if (!prio && clock - lastTalk < 4) return; BDB.line(arr); lastTalk = clock; }
+function roast(){ BDB.roast(); lastTalk = clock; }
+
+function start(){
+  BDB.hideSplash(); BDB.hideEnd();
+  state = 'play'; paused = false; $('pause').lastChild.textContent = 'Pause';
+  score = 0; lives = 3; level = 1; stage = 0; growth = 0; eatenCount = 0; bigStage = 0; bestCm = 8;
+  fish = []; parts = []; pops = []; pickups = [];
+  spawnT = .2; schoolT = 4; ballT = rand(18, 26); clamT = rand(30, 40); chain = 0; mult = 1; clearT = 0;
+  respawn(true);
+  for (let i = 0; i < 6; i++) spawnFish(null, {inside:true});
+  lastTalk = -1e9;
+  if (Math.random() < .6) talk(L.start, true); else roast();
+  banner('LEVEL 1');
+  updHud();
+}
+function respawn(first){
+  pl.x = W / 2; pl.y = Math.max(topY + 60, H * .35); pl.vx = 0; pl.vy = 0; pl.a = 0; pl.alive = true;
+  input.tx = pl.x; input.ty = pl.y; input.active = false;
+  invT = first ? 1.2 : 2.6;
+  pl.r = STAGE_R[stage]; pl.scale = 1;
+}
+function banner(t){ bannerText = t; levelBanner = 2.4; BDB.shout(t); }
+function updHud(){
+  $('hScore').textContent = BDB.fmt(score); $('hLives').textContent = lives; $('hLevel').textContent = level;
+}
+function tickEl(id){ const e = $(id); e.classList.remove('tick'); void e.offsetWidth; e.classList.add('tick'); }
+
+/* ---------- spawning ---------- */
+function speedK(){ return Math.min(1.85, 1 + (level - 1) * .11); }
+function predCount(){ return fish.filter(f => SP[f.sp].tier === 3 && !f.dead).length; }
+function areaK(){ return clamp(W * H / 700000, .5, 1); }
+function spawnFish(sp, o = {}){
+  if (!sp){
+    const w = weights(level);
+    const edibleOnScreen = fish.filter(f => SP[f.sp].tier <= stage && !f.dead).length;
+    const maxPred = Math.round((1 + Math.floor(level / 2)) * (areaK() < .7 ? .7 : 1)) + (level >= 5 ? 1 : 0);
+    if (edibleOnScreen < 4) for (const k in w) if (SP[k].tier > stage) w[k] *= .25;
+    if (predCount() >= Math.max(1, maxPred)) for (const k in w) if (SP[k].tier === 3) w[k] = 0;
+    let tot = 0; for (const k in w) tot += w[k];
+    let r = Math.random() * tot; sp = 'minnow';
+    for (const k in w){ r -= w[k]; if (r <= 0){ sp = k; break; } }
+  }
+  const d = SP[sp], rr = d.r * S;
+  const dir = o.dir || (Math.random() < .5 ? 1 : -1);
+  const minY = topY + rr, maxY = H - 40 * S - rr;
+  const f = {
+    sp, r:rr, x: o.inside ? rand(W * .1, W * .9) : (dir > 0 ? -rr * 2.5 : W + rr * 2.5), y: o.y !== undefined ? o.y : rand(minY, Math.max(minY + 1, maxY)),
+    a: dir > 0 ? 0 : Math.PI, base: dir > 0 ? 0 : Math.PI, spd: rand(d.spd[0], d.spd[1]) * S * speedK() * (o.spdK || 1),
+    t: Math.random() * 10, life: 0, wob: rand(1.2, 2.4), flee:0, dead:false, eatT:0, chomp:0, near:false,
+    mode:'cruise', modeT: rand(2, 4), dashA:0, wary: Math.random() < .55
+  };
+  if (o.inside && Math.abs(f.x - pl.x) < 160 * S && Math.abs(f.y - pl.y) < 160 * S) f.y = (f.y + H / 2) % (H - 60) + 30;
+  if (o.inside && d.tier > stage) return;
+  fish.push(f);
+  return f;
+}
+function spawnSchool(){
+  const sp = level >= 2 && Math.random() < .35 ? pick(['clown', 'tang']) : pick(['minnow', 'tetra']);
+  const n = Math.round(rand(5, 9) * (areaK() < .7 ? .7 : 1));
+  const dir = Math.random() < .5 ? 1 : -1;
+  const cy = rand(topY + 60, H - 100 * S);
+  const k = 1.25 + level * .08;
+  for (let i = 0; i < n; i++){
+    const f = spawnFish(sp, {dir, y: clamp(cy + rand(-45, 45) * S, topY + 10, H - 50 * S), spdK: k});
+    if (f){ f.x -= dir * (i * 22 * S + rand(0, 20)); f.spd = SP[sp].spd[1] * S * speedK() * k; f.wob = 1.8; f.t = 0; f.wary = false; }
+  }
+}
+
+/* ---------- input ---------- */
+function setTarget(e){
+  const r = cv.getBoundingClientRect();
+  input.tx = e.clientX - r.left; input.ty = e.clientY - r.top; input.active = true;
+}
+cv.addEventListener('pointermove', e => { if (e.pointerType !== 'touch' || input.pointerDown) setTarget(e); });
+cv.addEventListener('pointerdown', e => { input.pointerDown = true; setTarget(e); try { cv.setPointerCapture(e.pointerId); } catch(_){} });
+cv.addEventListener('pointerup', () => { input.pointerDown = false; });
+cv.addEventListener('pointercancel', () => { input.pointerDown = false; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+const KEYMAP = {arrowleft:'l', a:'l', arrowright:'r', d:'r', arrowup:'u', w:'u', arrowdown:'dn', s:'dn'};
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (KEYMAP[k]){ input.keys.add(KEYMAP[k]); input.active = false; e.preventDefault(); return; }
+  if (e.key === ' ' || k === 'p'){ e.preventDefault(); if (state === 'menu') start(); else togglePause(); }
+  if (e.key === 'Enter' && state !== 'play'){ e.preventDefault(); start(); }
+});
+addEventListener('keyup', e => { const k = KEYMAP[e.key.toLowerCase()]; if (k) input.keys.delete(k); });
+
+/* ---------- sound ---------- */
+let actx = null;
+function ac(){ if (BDB.sfx.muted) return null; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); return actx; } catch(e){ return null; } }
+function crunch(big){
+  const a = ac(); if (!a) return;
+  const t = a.currentTime, len = Math.floor(a.sampleRate * (big ? .16 : .09));
+  const buf = a.createBuffer(1, len, a.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < len; i++){ const env = Math.pow(1 - i / len, 2); ch[i] = (Math.random() * 2 - 1) * env * (i % 300 < 150 ? 1 : .4); }
+  const n = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  f.type = 'bandpass'; f.frequency.value = big ? 900 : 1600; f.Q.value = .9; g.gain.value = big ? .35 : .25;
+  n.buffer = buf; n.connect(f).connect(g).connect(a.destination); n.start(t);
+  const o = a.createOscillator(), og = a.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(big ? 220 : 380, t); o.frequency.exponentialRampToValueAtTime(90, t + .1);
+  og.gain.setValueAtTime(.12, t); og.gain.exponentialRampToValueAtTime(.0001, t + .12);
+  o.connect(og).connect(a.destination); o.start(t); o.stop(t + .14);
+}
+function gulp(){
+  const a = ac(); if (!a) return;
+  const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(60, t + .35);
+  g.gain.setValueAtTime(.3, t); g.gain.exponentialRampToValueAtTime(.0001, t + .4);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + .42);
+}
+
+/* ---------- game logic ---------- */
+function hitCircles(f){
+  const d = SP[f.sp], ca = Math.cos(f.a), sa = Math.sin(f.a);
+  if (f.sp === 'eel'){
+    const out = [];
+    for (let i = 0; i < 6; i++){ const u = 1 - i * .38, off = Math.sin(f.t * 5 - i * .9) * f.r * .18; out.push({x: f.x + ca * u * f.r - sa * off, y: f.y + sa * u * f.r + ca * off, r: f.r * .17}); }
+    return out;
+  }
+  if (f.sp === 'barracuda') return [-.6, 0, .6].map(u => ({x: f.x + ca * u * f.r, y: f.y + sa * u * f.r, r: f.r * .25}));
+  if (f.sp === 'shark') return [-.55, 0, .55].map(u => ({x: f.x + ca * u * f.r, y: f.y + sa * u * f.r, r: f.r * .36}));
+  return [{x: f.x, y: f.y, r: f.r * (.55 + d.h * .3)}];
+}
+function edible(f){ return SP[f.sp].tier <= stage; }
+
+function update(dt){
+  clock += dt;
+  if (levelBanner > 0) levelBanner -= dt;
+  // player steering
+  const maxV = (230 + stage * 25) * S;
+  if (pl.alive){
+    let dx = 0, dy = 0;
+    if (input.keys.size){
+      if (input.keys.has('l')) dx -= 1; if (input.keys.has('r')) dx += 1; if (input.keys.has('u')) dy -= 1; if (input.keys.has('dn')) dy += 1;
+      const m = Math.hypot(dx, dy) || 1; dx = dx / m * maxV; dy = dy / m * maxV;
+    } else if (input.active){
+      const ex = input.tx - pl.x, ey = input.ty - pl.y, d = Math.hypot(ex, ey);
+      const k = Math.min(1, d / (70 * S)) * maxV;
+      if (d > 2){ dx = ex / d * k; dy = ey / d * k; }
+    }
+    const st = 1 - Math.exp(-dt * 5);
+    pl.vx += (dx - pl.vx) * st; pl.vy += (dy - pl.vy) * st;
+    pl.x += pl.vx * dt; pl.y += pl.vy * dt;
+    const rr = pl.r * S * pl.scale;
+    pl.x = clamp(pl.x, rr, W - rr); pl.y = clamp(pl.y, Math.max(rr + 4, topY * .6), H - rr - 6);
+    const sp = Math.hypot(pl.vx, pl.vy);
+    if (sp > 20 * S){ const ta = Math.atan2(pl.vy, pl.vx); let da = ((ta - pl.a + Math.PI * 3) % TAU) - Math.PI; pl.a += da * Math.min(1, dt * 9); }
+    pl.tail += dt * (5 + sp / (20 * S));
+    if (sp > 150 * S && Math.random() < dt * 8) bubble(pl.x - Math.cos(pl.a) * rr, pl.y - Math.sin(pl.a) * rr, 2 + Math.random() * 2, true);
+  } else {
+    deadT -= dt;
+    if (deadT <= 0){
+      if (lives <= 0) return gameOver();
+      respawn(false); talk(L.respawn, false);
+    }
+  }
+  if (invT > 0) invT -= dt;
+  pl.r += (STAGE_R[stage] - pl.r) * Math.min(1, dt * 6);
+  if (pl.growT > 0){ pl.growT -= dt; pl.scale = 1 + Math.sin((1 - pl.growT / .6) * Math.PI * 3) * .12 * (pl.growT / .6); } else pl.scale = 1;
+  if (pl.chompT > 0) pl.chompT -= dt;
+  if (chainT > 0){ chainT -= dt; if (chainT <= 0){ chain = 0; mult = 1; } }
+
+  // level clear sequence
+  if (clearT > 0){
+    clearT -= dt;
+    if (clearT <= 0) nextLevel();
+  } else {
+    spawnT -= dt; schoolT -= dt; ballT -= dt; clamT -= dt;
+    const maxFish = Math.round((16 + level * 2) * areaK());
+    if (spawnT <= 0){ spawnT = rand(.45, .85) / Math.min(1.5, speedK()); if (fish.length < maxFish) spawnFish(); }
+    if (schoolT <= 0){ schoolT = rand(7, 11) - Math.min(4, level * .5); spawnSchool(); }
+    if (ballT <= 0){ ballT = rand(22, 32); pickups.push({k:'ball', x: rand(W * .15, W * .85), y: topY - 20, vy: 38 * S, t:0}); }
+    if (clamT <= 0){ clamT = rand(32, 44); if (lives < 5) pickups.push({k:'clam', x: rand(W * .15, W * .85), y: H - 26 * S, t:0, open:0}); }
+  }
+
+  // fish
+  for (const f of fish){
+    const d = SP[f.sp];
+    f.t += dt; f.life += dt;
+    if (f.dead){ f.eatT -= dt; f.x += (pl.x - f.x) * Math.min(1, dt * 18); f.y += (pl.y - f.y) * Math.min(1, dt * 18); continue; }
+    if (f.chomp > 0) f.chomp -= dt;
+    const px = pl.x - f.x, py = pl.y - f.y, pd = Math.hypot(px, py);
+    let ta = f.base + Math.sin(f.t * f.wob) * (f.sp === 'eel' ? .3 : .12), spd = f.spd, turn = 2.2;
+    const canHunt = pl.alive && invT <= 0 && clearT <= 0;
+    if (clearT > 0){ ta = f.x < W / 2 ? Math.PI : 0; spd *= 3; turn = 4; }
+    else if (f.wary && d.tier <= stage && pl.alive && pd < 90 * S){
+      ta = Math.atan2(-py, -px); spd *= 1.25; turn = 3;           // flee from BDB
+    } else if (f.sp === 'shark'){
+      f.modeT -= dt;
+      if (f.mode === 'cruise' && canHunt && pd < 330 * S && f.life > 1.5 && f.modeT <= 0){ f.mode = 'tell'; f.modeT = .6; f.dashA = Math.atan2(py, px); }
+      else if (f.mode === 'tell'){ spd *= .15; ta = f.dashA; turn = 6; if (f.modeT <= 0){ f.mode = 'dash'; f.modeT = .75; f.dashA = Math.atan2(py, px); } }
+      else if (f.mode === 'dash'){ spd *= 4.4; ta = f.dashA; turn = 1.2; if (f.modeT <= 0){ f.mode = 'cruise'; f.modeT = 2.6; f.base = Math.cos(f.a) > 0 ? 0 : Math.PI; } }
+    } else if (d.chase && canHunt && pd < d.chaseR * S && f.life < 14){
+      ta = Math.atan2(py, px); turn = d.chase * 2; spd *= 1.15;
+    }
+    if (f.life > 16 && clearT <= 0){ ta = f.base; }
+    let da = ((ta - f.a + Math.PI * 3) % TAU) - Math.PI;
+    f.a += clamp(da, -turn * dt, turn * dt);
+    f.x += Math.cos(f.a) * spd * dt; f.y += Math.sin(f.a) * spd * dt;
+    const minY = topY * .6 + f.r * .5, maxY = H - 30 * S - f.r * .5;
+    if (f.y < minY){ f.y = minY; f.a = -f.a * .5; } if (f.y > maxY){ f.y = maxY; f.a = -f.a * .5; }
+  }
+  fish = fish.filter(f => !(f.dead && f.eatT <= 0) && f.x > -260 * S && f.x < W + 260 * S && !(f.life > 4 && (f.x < -f.r * 3 || f.x > W + f.r * 3)));
+
+  // collisions
+  if (pl.alive && clearT <= 0){
+    const pr = pl.r * S * pl.scale * .95, prD = pl.r * S * pl.scale * .72;
+    for (const f of fish){
+      if (f.dead) continue;
+      const circ = hitCircles(f);
+      let hit = false, close = false;
+      const ed = edible(f);
+      for (const c of circ){ const dd = Math.hypot(c.x - pl.x, c.y - pl.y); if (dd < (ed ? pr : prD) + c.r * .9) hit = true; else if (dd < pr + c.r + 26 * S) close = true; }
+      if (hit && edible(f)) eat(f);
+      else if (hit && invT <= 0){ die(f); break; }
+      else if (close && !edible(f) && !f.near && invT <= 0){ f.near = true; f.nearT = .5; }
+      else if (!close && f.near && f.nearT !== undefined){ f.nearT = undefined; if (Math.random() < .55) talk(L.near, false); score += 5 * level; }
+    }
+  }
+
+  // pickups
+  for (const p of pickups){
+    p.t += dt;
+    if (p.k === 'ball'){ p.y += p.vy * dt; p.x += Math.sin(p.t * 1.6) * 20 * S * dt; }
+    if (p.k === 'clam'){ p.open = p.t > 1 && p.t < 6.5 ? Math.min(1, (p.t - 1) * 3) : p.t >= 6.5 ? Math.max(0, 1 - (p.t - 6.5) * 3) : 0; }
+    const rr = (p.k === 'ball' ? 14 : 18) * S;
+    if (pl.alive && !p.got && Math.hypot(p.x - pl.x, p.y - (p.k === 'clam' ? p.y : 0) - pl.y + (p.k === 'clam' ? p.y - 8 * S : 0)) < rr + pl.r * S){
+      if (p.k === 'ball'){ p.got = true; const b = 250 * level; score += b; growth += 3; popup(p.x, p.y, '+' + b + ' SCOUT BONUS', '#f2c14e'); BDB.sfx.big(); talk(L.scout, true); sparkle(p.x, p.y, '#f2c14e'); checkGrowth(); }
+      else if (p.open > .6){ p.got = true; lives = Math.min(5, lives + 1); score += 100; popup(p.x, p.y - 20, '+1 LIFE', '#4ade80'); BDB.sfx.good(); talk(L.pearl, true); sparkle(p.x, p.y - 8, '#ffffff'); tickEl('hLives'); }
+    }
+  }
+  pickups = pickups.filter(p => !p.got && (p.k === 'ball' ? p.y < H + 30 : p.t < 7.5));
+
+  // particles
+  for (const q of parts){ q.x += q.vx * dt; q.y += q.vy * dt; q.vy += (q.g || 0) * dt; q.life -= dt; }
+  parts = parts.filter(q => q.life > 0);
+  for (const q of pops){ q.y -= 34 * dt; q.life -= dt; }
+  pops = pops.filter(q => q.life > 0);
+  shake = Math.max(0, shake - dt * 25);
+  updHud();
+}
+function eat(f){
+  const d = SP[f.sp];
+  f.dead = true; f.eatT = .12;
+  eatenCount++;
+  chain++; chainT = 1.6;
+  const prevMult = mult;
+  mult = chain >= 8 ? 3 : chain >= 4 ? 2 : 1;
+  const pts = d.pts * mult * (1 + (level - 1) * .25);
+  score += Math.round(pts);
+  growth += d.grow;
+  pl.chompT = .22;
+  crunch(d.tier >= 2);
+  popup(f.x, f.y - f.r, '+' + Math.round(pts), mult > 1 ? '#f2c14e' : '#eef2fb');
+  for (let i = 0; i < 6 + d.tier * 3; i++) parts.push({x:f.x, y:f.y, vx:rand(-60, 60) * S, vy:rand(-60, 30) * S, life:rand(.25, .5), col:d.body, sz:rand(1.5, 3) * S, g:60 * S});
+  if (mult > prevMult){
+    if (mult === 2){ BDB.shout('FRENZY x2'); talk(L.frenzy, true); BDB.sfx.good(); }
+    if (mult === 3){ BDB.shout('DOUBLE FRENZY x3'); talk(L.double, true); BDB.sfx.big(); }
+  } else if (d.tier === 2 && Math.random() < .5) talk(L.bigBite, false);
+  if (eatenCount % 50 === 0) roast();
+  tickEl('hScore');
+  checkGrowth();
+}
+function checkGrowth(){
+  const n = need();
+  while (stage < 2 && growth >= n * (stage + 1)){
+    stage++; pl.growT = .6; bigStage = Math.max(bigStage, stage);
+    bestCm = Math.max(bestCm, Math.round(STAGE_CM[stage] * (1 + (level - 1) * .1)));
+    BDB.shout(stage === 2 ? 'BIG FISH' : 'GROWTH SPURT'); BDB.sfx.big(); talk(L.grow, true);
+    sparkle(pl.x, pl.y, '#ff8a2b');
+  }
+  if (growth >= n * 3 && clearT <= 0){ growth = n * 3; levelClear(); }
+}
+function levelClear(){
+  clearT = 3.2;
+  const b = 500 * level; score += b;
+  BDB.shout('LEVEL COMPLETE'); BDB.sfx.big();
+  popup(pl.x, pl.y - 40 * S, '+' + b + ' LEVEL BONUS', '#f2c14e');
+  if (Math.random() < .5) talk(L.level, true); else roast();
+  pickups = [];
+  for (let i = 0; i < 40; i++) parts.push({x:pl.x, y:pl.y, vx:rand(-200, 200) * S, vy:rand(-200, 120) * S, life:rand(.6, 1.2), col:pick(['#ff8a2b', '#f2c14e', '#4ade80', '#eef2fb']), sz:rand(2, 4) * S, g:120 * S});
+}
+function nextLevel(){
+  level++; stage = 0; growth = 0; chain = 0; mult = 1;
+  fish = fish.filter(f => f.x > -60 && f.x < W + 60 && SP[f.sp].tier === 0);
+  pl.growT = .6; invT = 1.5;
+  const n = NEWS[Math.min(level, 5)];
+  if (n && level <= 5){ banner(n[0]); setTimeout(() => { if (state === 'play') { BDB.say(n[1]); lastTalk = clock; } }, 1500); }
+  else banner('LEVEL ' + level);
+  for (let i = 0; i < 4; i++) spawnFish(pick(['minnow', 'tetra']), {inside:true});
+  spawnT = 1; schoolT = 3;
+  tickEl('hLevel');
+}
+function die(f){
+  pl.alive = false; lives--; deadT = 1.5; chain = 0; mult = 1;
+  f.chomp = .5;
+  gulp(); BDB.sfx.bad();
+  BDB.shout(lives > 0 ? 'EATEN' : 'GAME OVER', true);
+  if (!BDB.reduced) shake = 10;
+  for (let i = 0; i < 18; i++) bubble(pl.x + rand(-10, 10), pl.y + rand(-10, 10), rand(2, 6) * S, true);
+  for (let i = 0; i < 12; i++) parts.push({x:pl.x, y:pl.y, vx:rand(-120, 120) * S, vy:rand(-120, 60) * S, life:rand(.4, .8), col:'#ff8a2b', sz:rand(2, 4) * S, g:40 * S});
+  talk(L.eaten, true);
+  tickEl('hLives');
+}
+function gameOver(){
+  state = 'over';
+  const res = BDB.addScore(score);
+  $('best').textContent = BDB.fmt(res.list[0].s);
+  if (res.isBest) BDB.sfx.big(); else BDB.sfx.bad();
+  talk(L.over, true);
+  setTimeout(() => { if (state === 'over') BDB.roast(); }, 3500);
+  BDB.showEnd({
+    eyebrow: 'Eaten for good', title: res.isBest ? 'New best. Big fish energy.' : BDB.fmt(score) + ' points',
+    line: BDB.pick(["BDB made it to level " + level + ". Further than Florida.", "BDB's done. The ocean has scouted him and passed.", "He swam, he ate, he got eaten. Pretty much his career arc."]),
+    stats: [['Score', BDB.fmt(score)], ['Fish eaten', eatenCount], ['Biggest', bestCm + ' cm'], ['Level', level]], scores: res
+  });
+}
+
+/* ---------- effects ---------- */
+function popup(x, y, t, col){ pops.push({x, y, t, col, life:1}); }
+function sparkle(x, y, col){ for (let i = 0; i < 16; i++){ const a = Math.random() * TAU, s = rand(40, 140) * S; parts.push({x, y, vx:Math.cos(a) * s, vy:Math.sin(a) * s, life:rand(.4, .8), col, sz:rand(1.5, 3) * S, g:0, star:true}); } }
+function bubble(x, y, r, fast){ bubbles.push({x, y, r, vy: -(fast ? rand(50, 90) : rand(18, 40)) * S, life: fast ? rand(.8, 1.4) : 99, wob:Math.random() * 6, fg:fast}); }
+
+/* ---------- scenery ---------- */
+let rocksFar = [], rocksMid = [], weeds = [], rays = [], ghosts = [];
+function makeScenery(){
+  if (!W) return;
+  bgC = document.createElement('canvas'); bgC.width = Math.round(W * DPR); bgC.height = Math.round(H * DPR);
+  const b = bgC.getContext('2d'); b.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const g = b.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#1d78b8'); g.addColorStop(.35, '#0d4f8a'); g.addColorStop(.75, '#06284f'); g.addColorStop(1, '#03152d');
+  b.fillStyle = g; b.fillRect(0, 0, W, H);
+  const sun = b.createRadialGradient(W * .5, -H * .1, 10, W * .5, -H * .1, H * .9);
+  sun.addColorStop(0, 'rgba(160,230,255,.35)'); sun.addColorStop(1, 'rgba(160,230,255,0)');
+  b.fillStyle = sun; b.fillRect(0, 0, W, H);
+  const mk = (n, h0, h1, y) => { const a = []; let x = -W * .3; while (x < W * 1.3){ const w = rand(60, 160) * S; a.push({x, w, h: rand(h0, h1) * S, y}); x += w * rand(.5, .9); } return a; };
+  rocksFar = mk(0, 60, 150, H); rocksMid = mk(0, 30, 80, H);
+  weeds = []; for (let x = -40; x < W + 60; x += rand(26, 70) * S) weeds.push({x, h: rand(40, 110) * S, ph: Math.random() * 6, col: pick(['#1f7a4a', '#2a8f55', '#17633d', '#3a9a5c'])});
+  rays = []; for (let i = 0; i < 6; i++) rays.push({x: rand(0, W), w: rand(40, 120) * S, ph: Math.random() * 6, sp: rand(.15, .35)});
+  ghosts = []; for (let i = 0; i < 9; i++) ghosts.push({x: rand(0, W), y: rand(H * .2, H * .7), s: rand(.5, 1), sp: rand(8, 18)});
+  bubbles = bubbles.filter(q => q.fg);
+  for (let i = 0; i < Math.round(26 * areaK() + 6); i++) bubble(rand(0, W), rand(0, H), rand(1, 3.5) * S, false);
+}
+function drawScenery(){
+  if (bgC) cx.drawImage(bgC, 0, 0, W, H);
+  const par = (pl.x - W / 2) / Math.max(W, 1);
+  // light rays
+  cx.save(); cx.globalCompositeOperation = 'lighter';
+  for (const r of rays){
+    const sx = r.x + Math.sin(clock * r.sp + r.ph) * 40 * S - par * 20;
+    const g = cx.createLinearGradient(0, 0, 0, H * .85);
+    g.addColorStop(0, 'rgba(170,230,255,.13)'); g.addColorStop(1, 'rgba(170,230,255,0)');
+    cx.fillStyle = g; cx.beginPath(); cx.moveTo(sx, 0); cx.lineTo(sx + r.w, 0); cx.lineTo(sx + r.w * .4 + H * .25, H * .85); cx.lineTo(sx - r.w * .3 + H * .25, H * .85); cx.closePath(); cx.fill();
+  }
+  cx.restore();
+  // distant fish silhouettes
+  cx.fillStyle = 'rgba(4,30,60,.35)';
+  for (const q of ghosts){
+    q.x += q.sp * S * (1 / 60); if (q.x > W + 40) q.x = -40;
+    const x = q.x - par * 15, s = q.s * 10 * S;
+    cx.beginPath(); cx.ellipse(x, q.y, s, s * .4, 0, 0, TAU); cx.moveTo(x - s * .8, q.y); cx.lineTo(x - s * 1.5, q.y - s * .4); cx.lineTo(x - s * 1.5, q.y + s * .4); cx.fill();
+  }
+  // far rocks
+  const rocks = (arr, col, off) => {
+    cx.fillStyle = col; cx.beginPath(); cx.moveTo(-50, H);
+    for (const r of arr){ const x = r.x - par * off; cx.lineTo(x, H - r.h * .4); cx.quadraticCurveTo(x + r.w * .5, H - r.h * 1.2, x + r.w, H - r.h * .5); }
+    cx.lineTo(W + 50, H); cx.closePath(); cx.fill();
+  };
+  rocks(rocksFar, '#062a4c', 30);
+  rocks(rocksMid, '#041d38', 60);
+  // sand
+  const sg = cx.createLinearGradient(0, H - 26 * S, 0, H);
+  sg.addColorStop(0, '#2b3a4a'); sg.addColorStop(1, '#1a2533');
+  cx.fillStyle = sg; cx.beginPath(); cx.moveTo(0, H - 18 * S);
+  for (let x = 0; x <= W + 20; x += 40) cx.lineTo(x, H - 18 * S - Math.sin(x * .02 + 1) * 5 * S);
+  cx.lineTo(W, H); cx.lineTo(0, H); cx.closePath(); cx.fill();
+  // background bubbles
+  for (const q of bubbles){ if (q.fg) continue; drawBubble(q); }
+}
+function drawWeeds(){
+  const par = (pl.x - W / 2) / Math.max(W, 1);
+  cx.lineCap = 'round';
+  for (const w of weeds){
+    const x0 = w.x - par * 90, sway = Math.sin(clock * 1.3 + w.ph) * 12 * S;
+    cx.strokeStyle = w.col; cx.lineWidth = 6 * S;
+    cx.beginPath(); cx.moveTo(x0, H + 4);
+    cx.bezierCurveTo(x0 + sway * .3, H - w.h * .35, x0 - sway * .5, H - w.h * .7, x0 + sway, H - w.h); cx.stroke();
+  }
+}
+function drawBubble(q){
+  cx.strokeStyle = 'rgba(200,240,255,.45)'; cx.lineWidth = 1;
+  cx.beginPath(); cx.arc(q.x, q.y, q.r, 0, TAU); cx.stroke();
+  cx.fillStyle = 'rgba(255,255,255,.35)'; cx.beginPath(); cx.arc(q.x - q.r * .35, q.y - q.r * .35, q.r * .3, 0, TAU); cx.fill();
+}
+function updBubbles(dt){
+  for (const q of bubbles){ q.y += q.vy * dt; q.x += Math.sin(clock * 2 + q.wob) * 8 * S * dt; q.life -= dt; if (!q.fg && q.y < -10){ q.y = H + 10; q.x = rand(0, W); } }
+  bubbles = bubbles.filter(q => q.life > 0 && q.y > -20);
+}
+
+/* ---------- fish drawing ---------- */
+function orient(x, y, a){
+  cx.translate(x, y);
+  if (Math.cos(a) < 0){ cx.scale(-1, 1); cx.rotate(Math.PI - a); } else cx.rotate(a);
+}
+function tailPath(r, h, wig, fork){
+  cx.save(); cx.translate(-r * .85, 0); cx.rotate(wig);
+  cx.beginPath(); cx.moveTo(r * .1, 0); cx.lineTo(-r * .55, -h * .9);
+  if (fork) cx.quadraticCurveTo(-r * .3, 0, -r * .55, h * .9); else cx.lineTo(-r * .45, 0), cx.lineTo(-r * .55, h * .9);
+  cx.closePath(); cx.fill(); cx.restore();
+}
+function eye(x, y, r, angry){
+  cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(x, y, r, 0, TAU); cx.fill();
+  cx.fillStyle = '#0a0f1a'; cx.beginPath(); cx.arc(x + r * .25, y, r * .55, 0, TAU); cx.fill();
+  if (angry){ cx.strokeStyle = '#0a0f1a'; cx.lineWidth = Math.max(1, r * .35); cx.beginPath(); cx.moveTo(x - r * 1.1, y - r * 1.3); cx.lineTo(x + r * 1.1, y - r * .6); cx.stroke(); }
+}
+function drawFish(f){
+  const d = SP[f.sp];
+  let r = f.r;
+  if (f.dead) r *= Math.max(.1, f.eatT / .12);
+  cx.save(); orient(f.x, f.y, f.a);
+  if (f.mode === 'tell') cx.translate(Math.sin(clock * 60) * 2 * S, 0);
+  const wig = Math.sin(f.t * (f.mode === 'dash' ? 26 : 9)) * .3;
+  const h = r * d.h;
+  const danger = d.tier > stage;
+  if (f.sp === 'eel') drawEel(f, r);
+  else if (f.sp === 'shark') drawShark(f, r, wig);
+  else if (f.sp === 'barracuda') drawBarracuda(f, r, wig);
+  else {
+    // fins
+    cx.fillStyle = d.fin;
+    tailPath(r, h, wig, f.sp === 'minnow' || f.sp === 'tetra' || f.sp === 'tang');
+    if (f.sp === 'angel'){
+      cx.beginPath(); cx.moveTo(-r * .1, -h * .7); cx.quadraticCurveTo(-r * .3, -h * 1.9, -r * .85, -h * 1.6); cx.lineTo(-r * .5, -h * .4); cx.fill();
+      cx.beginPath(); cx.moveTo(-r * .1, h * .7); cx.quadraticCurveTo(-r * .3, h * 1.9, -r * .85, h * 1.6); cx.lineTo(-r * .5, h * .4); cx.fill();
+    } else {
+      cx.beginPath(); cx.moveTo(r * .2, -h * .85); cx.quadraticCurveTo(-r * .1, -h * 1.45, -r * .45, -h * .8); cx.fill();
+    }
+    // body
+    const g = cx.createLinearGradient(0, -h, 0, h);
+    g.addColorStop(0, d.body); g.addColorStop(.65, d.body); g.addColorStop(1, d.belly);
+    cx.fillStyle = g;
+    cx.beginPath();
+    if (f.sp === 'angel'){ cx.moveTo(r, 0); cx.quadraticCurveTo(r * .2, -h * 1.05, -r * .7, -h * .15); cx.lineTo(-r * .7, h * .15); cx.quadraticCurveTo(r * .2, h * 1.05, r, 0); }
+    else if (f.sp === 'puffer'){ cx.ellipse(0, 0, r * .9, h, 0, 0, TAU); }
+    else if (f.sp === 'grouper'){ cx.moveTo(r, h * .05); cx.quadraticCurveTo(r * .9, -h, 0, -h); cx.quadraticCurveTo(-r * .8, -h * .9, -r * .9, 0); cx.quadraticCurveTo(-r * .8, h * .9, 0, h); cx.quadraticCurveTo(r * .9, h, r, h * .05); }
+    else cx.ellipse(0, 0, r, h, 0, 0, TAU);
+    cx.fill();
+    cx.save(); cx.clip();
+    if (f.sp === 'clown'){ cx.fillStyle = '#fff'; for (const u of [.45, -.05, -.55]){ cx.fillRect(u * r - r * .09, -h, r * .18, h * 2); } cx.strokeStyle = '#111'; cx.lineWidth = 1; for (const u of [.45, -.05, -.55]){ cx.strokeRect(u * r - r * .09, -h, r * .18, h * 2); } }
+    if (f.sp === 'tang'){ cx.fillStyle = '#0d1b3d'; cx.beginPath(); cx.ellipse(-r * .1, -h * .25, r * .55, h * .3, -.2, 0, TAU); cx.fill(); }
+    if (f.sp === 'angel'){ cx.fillStyle = 'rgba(20,20,30,.75)'; for (const u of [.35, -.15]) cx.fillRect(u * r - r * .07, -h * 1.2, r * .14, h * 2.4); }
+    if (f.sp === 'tetra'){ cx.fillStyle = '#1fe0ff'; cx.fillRect(-r, -h * .25, r * 1.7, h * .35); cx.fillStyle = '#ff3b5c'; cx.fillRect(-r, h * .1, r * 1.1, h * .5); }
+    if (f.sp === 'minnow'){ cx.fillStyle = 'rgba(255,255,255,.4)'; cx.fillRect(-r, -h * .1, r * 1.8, h * .18); }
+    if (f.sp === 'puffer' || f.sp === 'grouper'){ cx.fillStyle = 'rgba(0,0,0,.22)'; for (let i = 0; i < 9; i++){ cx.beginPath(); cx.arc(((i * 37) % 13 / 13 - .5) * r * 1.4, ((i * 53) % 11 / 11 - .5) * h * 1.3, r * .07, 0, TAU); cx.fill(); } }
+    cx.restore();
+    if (f.sp === 'puffer'){ cx.strokeStyle = d.fin; cx.lineWidth = 1.2; for (let i = 0; i < 12; i++){ const a = i / 12 * TAU; cx.beginPath(); cx.moveTo(Math.cos(a) * r * .88, Math.sin(a) * h * .97); cx.lineTo(Math.cos(a) * r * 1.05, Math.sin(a) * h * 1.15); cx.stroke(); } }
+    // pectoral fin
+    cx.fillStyle = d.fin; cx.save(); cx.translate(r * .15, h * .3); cx.rotate(.5 + Math.sin(f.t * 7) * .3); cx.beginPath(); cx.ellipse(-r * .15, 0, r * .22, h * .14, 0, 0, TAU); cx.fill(); cx.restore();
+    // mouth for grouper chomp
+    if (f.sp === 'grouper'){ cx.fillStyle = '#2a1a10'; const o = f.chomp > 0 ? .35 : .08; cx.beginPath(); cx.moveTo(r * 1.0, 0); cx.lineTo(r * .7, -h * o); cx.lineTo(r * .7, h * o); cx.fill(); }
+    eye(r * .55, -h * .22, Math.max(1.5, r * (d.tier === 3 ? .1 : .13)), danger && d.tier === 3);
+  }
+  cx.restore();
+  // danger cue: a faint red rim on fish you can't eat (subtle, only when close)
+}
+function drawEel(f, r){
+  const d = SP.eel, n = 14, len = r * 2.2;
+  const pts = [];
+  for (let i = 0; i <= n; i++){ const u = i / n; pts.push({x: r * .9 - u * len, y: Math.sin(f.t * 5 - u * 5) * r * .2 * u + Math.sin(f.t * 5) * r * .03}); }
+  cx.lineCap = 'round'; cx.lineJoin = 'round';
+  cx.strokeStyle = d.fin; cx.lineWidth = r * .42; cx.beginPath(); pts.forEach((p, i) => i ? cx.lineTo(p.x, p.y) : cx.moveTo(p.x, p.y)); cx.stroke();
+  cx.strokeStyle = d.body; cx.lineWidth = r * .32; cx.stroke();
+  cx.strokeStyle = 'rgba(255,255,120,.35)'; cx.lineWidth = r * .06; cx.beginPath(); pts.forEach((p, i) => i ? cx.lineTo(p.x, p.y + r * .08) : cx.moveTo(p.x, p.y + r * .08)); cx.stroke();
+  const o = f.chomp > 0 ? .7 : .25;
+  cx.fillStyle = d.body; cx.beginPath(); cx.ellipse(r * .95, 0, r * .28, r * .19, 0, 0, TAU); cx.fill();
+  cx.fillStyle = '#122'; cx.beginPath(); cx.moveTo(r * 1.23, 0); cx.lineTo(r * 1.0, -r * .07 * o * 2); cx.lineTo(r * 1.0, r * .07 * o * 2); cx.fill();
+  eye(r * 1.02, -r * .07, Math.max(1.5, r * .06), true);
+}
+function drawShark(f, r, wig){
+  const d = SP.shark, h = r * d.h;
+  cx.fillStyle = d.fin;
+  tailPath(r * 1.05, h * 1.1, wig * .7, true);
+  cx.beginPath(); cx.moveTo(r * .05, -h * .8); cx.lineTo(-r * .25, -h * 1.75); cx.lineTo(-r * .4, -h * .7); cx.fill();
+  const g = cx.createLinearGradient(0, -h, 0, h);
+  g.addColorStop(0, d.body); g.addColorStop(.55, d.body); g.addColorStop(.6, d.belly); g.addColorStop(1, d.belly);
+  cx.fillStyle = g; cx.beginPath(); cx.moveTo(r * 1.08, h * .05); cx.quadraticCurveTo(r * .7, -h * 1.05, -r * .2, -h * .9); cx.quadraticCurveTo(-r * .8, -h * .6, -r * .95, 0);
+  cx.quadraticCurveTo(-r * .8, h * .55, -r * .2, h * .8); cx.quadraticCurveTo(r * .7, h * .95, r * 1.08, h * .05); cx.fill();
+  cx.fillStyle = d.fin; cx.beginPath(); cx.moveTo(r * .2, h * .5); cx.lineTo(-r * .15, h * 1.35); cx.lineTo(-r * .1, h * .55); cx.fill();
+  cx.strokeStyle = 'rgba(0,0,0,.3)'; cx.lineWidth = 1.2; for (let i = 0; i < 3; i++){ cx.beginPath(); cx.moveTo(r * (.42 - i * .07), -h * .3); cx.lineTo(r * (.38 - i * .07), h * .2); cx.stroke(); }
+  const open = f.mode === 'dash' || f.mode === 'tell' || f.chomp > 0;
+  cx.fillStyle = '#2a0f14'; cx.beginPath(); cx.moveTo(r * .98, h * .3); cx.quadraticCurveTo(r * .75, h * (open ? .75 : .42), r * .55, h * .38); cx.quadraticCurveTo(r * .8, h * .25, r * .98, h * .3); cx.fill();
+  if (open){ cx.fillStyle = '#fff'; for (let i = 0; i < 4; i++){ const x = r * (.6 + i * .09); cx.beginPath(); cx.moveTo(x, h * .38); cx.lineTo(x + r * .04, h * .5); cx.lineTo(x + r * .08, h * .38); cx.fill(); } }
+  eye(r * .72, -h * .2, Math.max(1.5, r * .055), true);
+  if (f.mode === 'tell'){ cx.save(); cx.rotate(0); cx.fillStyle = '#ff5a4a'; cx.font = `400 ${Math.round(r * .6)}px "Bowlby One", Impact, sans-serif`; cx.textAlign = 'center'; cx.fillText('!', 0, -h * 1.9); cx.restore(); }
+}
+function drawBarracuda(f, r, wig){
+  const d = SP.barracuda, h = r * d.h;
+  cx.fillStyle = d.fin; tailPath(r * 1.05, h * 1.6, wig * .6, true);
+  cx.beginPath(); cx.moveTo(-r * .2, -h * .8); cx.lineTo(-r * .4, -h * 2); cx.lineTo(-r * .55, -h * .7); cx.fill();
+  const g = cx.createLinearGradient(0, -h, 0, h);
+  g.addColorStop(0, '#8496aa'); g.addColorStop(.5, d.body); g.addColorStop(1, d.belly);
+  cx.fillStyle = g; cx.beginPath(); cx.moveTo(r * 1.15, h * .1); cx.quadraticCurveTo(r * .6, -h * 1.1, -r * .3, -h); cx.quadraticCurveTo(-r * .9, -h * .7, -r * .95, 0);
+  cx.quadraticCurveTo(-r * .9, h * .7, -r * .3, h); cx.quadraticCurveTo(r * .6, h * 1.1, r * 1.15, h * .1); cx.fill();
+  cx.fillStyle = 'rgba(30,40,55,.35)'; for (let i = 0; i < 6; i++) cx.fillRect(r * (.4 - i * .22), -h * .9, r * .07, h * .9);
+  cx.fillStyle = '#fff'; for (let i = 0; i < 4; i++){ const x = r * (.75 + i * .09); cx.beginPath(); cx.moveTo(x, h * .12); cx.lineTo(x + r * .03, h * .4); cx.lineTo(x + r * .06, h * .12); cx.fill(); }
+  eye(r * .72, -h * .25, Math.max(1.5, r * .06), true);
+}
+function drawPlayer(){
+  if (!pl.alive) return;
+  if (invT > 0 && Math.floor(clock * 12) % 2 === 0) cx.globalAlpha = .45;
+  const r = pl.r * S * pl.scale * (pl.chompT > 0 ? 1 + Math.sin((pl.chompT / .22) * Math.PI) * .12 : 1);
+  const a = pl.a, faceLeft = Math.cos(a) < 0;
+  const wig = Math.sin(pl.tail) * .35;
+  const vis = Math.cos(a) >= 0 ? clamp(Math.atan2(Math.sin(a), Math.cos(a)), -.75, .75) : Math.PI - clamp(Math.atan2(Math.sin(a), -Math.cos(a)), -.75, .75);
+  cx.save(); orient(pl.x, pl.y, vis);
+  const h = r * .78;
+  // tail + fins
+  cx.fillStyle = '#d96a12';
+  cx.save(); cx.translate(-r * 1.05, 0); cx.rotate(wig); cx.beginPath(); cx.moveTo(r * .2, 0); cx.quadraticCurveTo(-r * .4, -h * 1.2, -r * .85, -h * 1.05); cx.quadraticCurveTo(-r * .5, 0, -r * .85, h * 1.05); cx.quadraticCurveTo(-r * .4, h * 1.2, r * .2, 0); cx.fill(); cx.restore();
+  cx.beginPath(); cx.moveTo(-r * .1, -h * .8); cx.quadraticCurveTo(-r * .5, -h * 1.6, -r * .95, -h * .55); cx.fill();
+  // body
+  const g = cx.createLinearGradient(0, -h, 0, h);
+  g.addColorStop(0, '#ff9a3c'); g.addColorStop(.6, '#ff8a2b'); g.addColorStop(1, '#ffd08a');
+  cx.fillStyle = g; cx.beginPath(); cx.ellipse(-r * .2, 0, r * 1.05, h, 0, 0, TAU); cx.fill();
+  cx.strokeStyle = 'rgba(163,76,12,.7)'; cx.lineWidth = Math.max(1, r * .05);
+  for (let i = 0; i < 3; i++){ cx.beginPath(); cx.arc(-r * (.35 + i * .28), 0, h * .6, -.9, .9); cx.stroke(); }
+  // jersey number on the flank
+  cx.fillStyle = 'rgba(255,255,255,.85)'; cx.font = `600 ${Math.round(h * .55)}px Teko, "Arial Narrow", sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.save(); if (faceLeft) cx.scale(-1, 1); cx.fillText('2.0', faceLeft ? r * .78 : -r * .78, h * .05); cx.restore();
+  // pectoral fin
+  cx.fillStyle = '#e8741a'; cx.save(); cx.translate(-r * .05, h * .45); cx.rotate(.6 + Math.sin(pl.tail * 1.3) * .35); cx.beginPath(); cx.ellipse(-r * .2, 0, r * .3, h * .16, 0, 0, TAU); cx.fill(); cx.restore();
+  // face head (not mirrored, so his glasses read right)
+  const fr = r * .92, fx = r * .5;
+  cx.save(); cx.translate(fx, 0);
+  if (faceLeft) cx.scale(-1, 1);
+  cx.beginPath(); cx.arc(0, 0, fr, 0, TAU); cx.save(); cx.clip();
+  if (BDB.faceImg.complete && BDB.faceImg.naturalWidth) cx.drawImage(BDB.faceImg, -fr * 1.08, -fr * 1.15, fr * 2.16, fr * 2.16);
+  else { cx.fillStyle = '#c9926b'; cx.fill(); }
+  cx.restore();
+  cx.lineWidth = Math.max(2, fr * .12); cx.strokeStyle = pl.chompT > 0 ? '#f2c14e' : '#ff8a2b'; cx.stroke();
+  cx.restore();
+  // chomp jaw flash
+  if (pl.chompT > 0){
+    const o = Math.sin((pl.chompT / .22) * Math.PI);
+    cx.fillStyle = '#fff';
+    for (let i = -2; i <= 2; i++){ cx.beginPath(); cx.moveTo(fx + fr * .95, i * fr * .22 - fr * .08); cx.lineTo(fx + fr * (1.15 + o * .2), i * fr * .22); cx.lineTo(fx + fr * .95, i * fr * .22 + fr * .08); cx.fill(); }
+  }
+  cx.restore();
+  cx.globalAlpha = 1;
+}
+function drawPickups(){
+  for (const p of pickups){
+    if (p.k === 'ball'){
+      const r = 13 * S, glow = .5 + Math.sin(p.t * 6) * .25;
+      cx.save(); cx.shadowColor = `rgba(242,193,78,${glow})`; cx.shadowBlur = 20;
+      const g = cx.createRadialGradient(p.x - r * .3, p.y - r * .3, 1, p.x, p.y, r);
+      g.addColorStop(0, '#fff3c2'); g.addColorStop(.4, '#f2c14e'); g.addColorStop(1, '#b8811a');
+      cx.fillStyle = g; cx.beginPath(); cx.arc(p.x, p.y, r, 0, TAU); cx.fill(); cx.restore();
+      cx.strokeStyle = '#6b3d00'; cx.lineWidth = 1.3;
+      cx.beginPath(); cx.arc(p.x, p.y, r, 0, TAU); cx.moveTo(p.x - r, p.y); cx.lineTo(p.x + r, p.y); cx.moveTo(p.x, p.y - r); cx.lineTo(p.x, p.y + r); cx.stroke();
+      cx.beginPath(); cx.arc(p.x - r * 1.35, p.y, r * 1.05, -.75, .75); cx.stroke(); cx.beginPath(); cx.arc(p.x + r * 1.35, p.y, r * 1.05, Math.PI - .75, Math.PI + .75); cx.stroke();
+      cx.fillStyle = '#f2c14e'; cx.font = `800 ${Math.round(9 * S + 3)}px Figtree, sans-serif`; cx.textAlign = 'center'; cx.fillText('SCOUT', p.x, p.y - r - 6);
+    } else {
+      const r = 20 * S, o = p.open;
+      cx.save(); cx.translate(p.x, p.y);
+      cx.fillStyle = '#8a6ea8'; cx.beginPath(); cx.ellipse(0, 0, r, r * .45, 0, 0, Math.PI); cx.fill();
+      if (o > .1){ cx.fillStyle = '#f5f0ff'; cx.shadowColor = 'rgba(255,255,255,.8)'; cx.shadowBlur = 14 * o; cx.beginPath(); cx.arc(0, -r * .15, r * .32, 0, TAU); cx.fill(); cx.shadowBlur = 0; }
+      cx.save(); cx.translate(-r, 0); cx.rotate(-o * .9); cx.fillStyle = '#a68cc4'; cx.beginPath(); cx.ellipse(r, 0, r, r * .45, 0, Math.PI, TAU); cx.fill();
+      cx.strokeStyle = 'rgba(60,30,90,.5)'; cx.lineWidth = 1; for (let i = -2; i <= 2; i++){ cx.beginPath(); cx.moveTo(r, 0); cx.lineTo(r + i * r * .35, -r * .4); cx.stroke(); } cx.restore();
+      cx.restore();
+    }
+  }
+}
+function drawGrowthBar(){
+  if (state === 'menu') return;
+  const hud = $('hud').getBoundingClientRect(), st = $('stage').getBoundingClientRect();
+  const x = 12, y = 12, w = clamp(hud.left - st.left - 30, 110, 320), h = 14;
+  cx.fillStyle = 'rgba(6,13,30,.82)'; rr(x - 6, y - 6, w + 12, h + 40, 12); cx.fill();
+  cx.strokeStyle = 'rgba(255,255,255,.09)'; cx.lineWidth = 1; cx.stroke();
+  cx.fillStyle = '#0d1320'; rr(x, y, w, h, 7); cx.fill();
+  const n = need(), frac = clamp(growth / (n * 3), 0, 1);
+  if (frac > 0){ const g = cx.createLinearGradient(x, 0, x + w, 0); g.addColorStop(0, '#ff8a2b'); g.addColorStop(1, '#f2c14e'); cx.fillStyle = g; rr(x, y, Math.max(h, w * frac), h, 7); cx.fill(); }
+  cx.strokeStyle = 'rgba(255,255,255,.5)'; cx.lineWidth = 2;
+  for (const t of [1 / 3, 2 / 3]){ cx.beginPath(); cx.moveTo(x + w * t, y - 2); cx.lineTo(x + w * t, y + h + 2); cx.stroke(); }
+  // what you can eat, per stage
+  const icons = [['minnow', 'tetra'], ['clown', 'tang'], ['puffer', 'angel']];
+  for (let i = 0; i < 3; i++){
+    const ix = x + w * (i / 3) + 14, iy = y + h + 13;
+    cx.globalAlpha = i <= stage ? 1 : .3;
+    miniFish(icons[i][0], ix, iy, i === 0 ? 7 : 8);
+    cx.globalAlpha = 1;
+  }
+  cx.font = '800 9px Figtree, system-ui, sans-serif'; cx.textAlign = 'right'; cx.textBaseline = 'middle';
+  cx.fillStyle = mult > 1 ? '#f2c14e' : '#8fa3cc';
+  cx.fillText(mult > 1 ? 'FRENZY x' + mult : STAGE_NAME[stage].toUpperCase(), x + w, y + h + 13);
+}
+function miniFish(sp, x, y, r){
+  const f = {sp, r, x, y, a:0, t:clock, mode:'', chomp:0, dead:false};
+  drawFish(f);
+}
+function rr(x, y, w, h, r){ r = Math.min(r, w / 2, h / 2); cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
+
+/* ---------- loop ---------- */
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (state === 'play' && !paused) update(dt);
+  else if (state !== 'play'){ clock += dt; idle(dt); }
+  if (!paused) updBubbles(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+function idle(dt){
+  // gentle aquarium behind the title screen
+  if (fish.length < 8 && Math.random() < dt * 2) spawnFish(pick(['minnow', 'tetra', 'clown', 'tang', 'angel']));
+  for (const f of fish){ f.t += dt; f.life += dt; f.x += Math.cos(f.a) * f.spd * .6 * dt; f.y += Math.sin(f.a) * f.spd * .6 * dt; }
+  fish = fish.filter(f => f.x > -200 && f.x < W + 200);
+  for (const q of parts){ q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; } parts = parts.filter(q => q.life > 0);
+  for (const q of pops){ q.y -= 34 * dt; q.life -= dt; } pops = pops.filter(q => q.life > 0);
+}
+function draw(){
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cx.save();
+  if (shake > 0) cx.translate(rand(-shake, shake) * .5, rand(-shake, shake) * .5);
+  drawScenery();
+  drawPickups();
+  const sorted = fish.slice().sort((a, b) => a.r - b.r);
+  for (const f of sorted) drawFish(f);
+  drawPlayer();
+  for (const q of bubbles) if (q.fg) drawBubble(q);
+  for (const q of parts){
+    cx.globalAlpha = clamp(q.life * 2.5, 0, 1); cx.fillStyle = q.col;
+    if (q.star){ cx.beginPath(); cx.arc(q.x, q.y, q.sz, 0, TAU); cx.fill(); } else cx.fillRect(q.x - q.sz, q.y - q.sz, q.sz * 2, q.sz * 2);
+  }
+  cx.globalAlpha = 1;
+  drawWeeds();
+  cx.restore();
+  for (const q of pops){
+    cx.globalAlpha = clamp(q.life * 2, 0, 1);
+    cx.font = `400 ${Math.round(15 * S + 4)}px "Bowlby One", Impact, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.lineWidth = 3; cx.strokeStyle = 'rgba(3,8,20,.8)'; cx.strokeText(q.t, q.x, q.y); cx.fillStyle = q.col; cx.fillText(q.t, q.x, q.y);
+  }
+  cx.globalAlpha = 1;
+  drawGrowthBar();
+  if (state === 'play' && !input.active && !input.keys.size && clock < 5 && pl.alive){
+    cx.font = '800 13px Figtree, system-ui, sans-serif'; cx.textAlign = 'center'; cx.fillStyle = 'rgba(238,242,251,.85)';
+    cx.fillText(matchMedia('(pointer: coarse)').matches ? 'Drag to swim' : 'Move the mouse to swim', pl.x, pl.y + pl.r * S + 26);
+  }
+  if (paused){
+    cx.fillStyle = 'rgba(3,8,20,.6)'; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = '#f2c14e'; cx.font = `400 ${W < 640 ? 34 : 48}px "Bowlby One", Impact, sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText('PAUSED', W / 2, H / 2 - 10);
+    cx.fillStyle = '#8fa3cc'; cx.font = '700 14px Figtree, system-ui, sans-serif'; cx.fillText('BDB is floating. Press P or tap Resume.', W / 2, H / 2 + 28);
+  }
+}
+
+/* ---------- wiring ---------- */
+function togglePause(){ if (state !== 'play') return; paused = !paused; $('pause').lastChild.textContent = paused ? 'Resume' : 'Pause'; }
+$('play').onclick = start; $('again').onclick = start; $('restart').onclick = start; $('pause').onclick = togglePause;
+$('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; };
+$('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play' && !paused) togglePause(); });
+resize();
+requestAnimationFrame(frame);
+
+window.__game = {
+  get state(){ return state; }, get score(){ return score; }, get lives(){ return lives; }, get level(){ return level; }, get stage(){ return stage; },
+  get growth(){ return growth; }, get eaten(){ return eatenCount; }, get mult(){ return mult; }, get paused(){ return paused; },
+  get player(){ return {x:pl.x, y:pl.y, r:pl.r * S, alive:pl.alive, inv:invT}; },
+  get fish(){ return fish.filter(f => !f.dead).map(f => ({sp:f.sp, x:f.x, y:f.y, r:f.r, tier:SP[f.sp].tier, edible:edible(f), mode:f.mode})); },
+  addGrowth(n){ growth += n; checkGrowth(); }, setLives(n){ lives = n; updHud(); }, spawn(sp, x, y){ const f = spawnFish(sp, {}); if (f){ f.x = x; f.y = y; } return !!f; },
+  start
+};
+</script>
+</body>
+</html>
