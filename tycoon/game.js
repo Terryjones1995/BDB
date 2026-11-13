@@ -1,7 +1,8 @@
 import { initNet, clean, rid, okCode } from './table.js';
 
 /* =========================================================
-   BDB Tycoon: board, panels, animations, BDB on the mic, bots, save/resume and online tables.
+   BDB Tycoon: panels, the animation queue, BDB on the mic, bots, save/resume and online tables.
+   The board is the 3D table in board3d.js (WebGL, loaded on demand); the flat DOM board in here is the fallback.
    Rules live in engine.js (pure), bot brains in bots.js. This file never changes game state directly:
    everything goes through E.step on this device (local / host) or is sent to the host (guest).
    ========================================================= */
@@ -59,6 +60,47 @@ const botMem = [];
 const clock = {acc:0, since:null};
 let overShown = false;
 let lastTradeSeen = 0;
+
+/* ---------- which board: the 3D table (WebGL) or the flat one ---------- */
+const FORCE_FLAT = params.get('board') === 'flat';
+let boardPref = BDB.store.get('ty-board') === 'flat' ? 'flat' : '3d';
+let B3mod = null, B3 = null, b3Bad = false, b3Wait = null;
+const glOK = (() => { try { const c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch(e){ return false; } })();
+const can3D = () => glOK && !b3Bad && !FORCE_FLAT;
+const want3D = () => can3D() && boardPref === '3d';
+function loadB3(){
+  if (B3mod || !want3D()) return Promise.resolve(B3mod);
+  return b3Wait || (b3Wait = import('./board3d.js?v=1113').then(m => { B3mod = m; return m; }).catch(e => { console.warn('3D board unavailable, using the flat one', e); b3Bad = true; return null; }));
+}
+
+/* extra sounds for the table (the kit has beeps; these are the wooden ones). Follows the kit's mute. */
+const snd = (() => {
+  let ac = null, nz = null;
+  const ctx = () => { if (BDB.sfx.muted) return null; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); return ac; } catch(e){ return null; } };
+  function tone(f, dur, type, vol, slide = 0, at = 0){
+    const c = ctx(); if (!c) return;
+    try { const o = c.createOscillator(), g = c.createGain(), t = c.currentTime + at;
+      o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur); o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + .02); } catch(e){}
+  }
+  function noise(dur, vol, freq, q = 1.2, sweep = 0){
+    const c = ctx(); if (!c) return;
+    try {
+      if (!nz){ nz = c.createBuffer(1, c.sampleRate * .5, c.sampleRate); const d = nz.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+      const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime;
+      src.buffer = nz; f.type = 'bandpass'; f.frequency.setValueAtTime(freq, t); f.Q.value = q; if (sweep) f.frequency.exponentialRampToValueAtTime(Math.max(60, freq + sweep), t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur); src.connect(f).connect(g).connect(c.destination); src.start(t); src.stop(t + dur + .02);
+    } catch(e){}
+  }
+  return {
+    tap(){ tone(210, .07, 'triangle', .1, -110); noise(.03, .06, 2200); },
+    dice(){ noise(.04, .14, 3000, .8); tone(760 + Math.random() * 300, .03, 'square', .025); },
+    coin(){ tone(1568, .08, 'triangle', .05); tone(2093, .16, 'triangle', .05, 0, .06); },
+    thud(){ tone(120, .18, 'sine', .16, -70); noise(.08, .08, 400); },
+    whoosh(){ noise(.42, .08, 500, .9, 1800); },
+    card(){ noise(.12, .07, 1800, .7, 2400); }
+  };
+})();
 
 /* ---------- setup screen ---------- */
 const SEAT_TYPES = [['you','You'], ['human','Local player'], ['bot1','Bot: Rec League'], ['bot2','Bot: Varsity'], ['bot3','Bot: Pro Scout'], ['open','Open (online)'], ['off','Empty']];
@@ -190,6 +232,7 @@ function layout(){
   const r = $('stage').getBoundingClientRect(), W = r.width, H = r.height;
   const side = W >= 760 && W >= H * 1.05;
   wrap.classList.toggle('stack', !side);
+  if (wrap.classList.contains('v3d')){ layout3D(W, H, side); return; }
   let size;
   if (side){
     const pw = Math.round(Math.max(290, Math.min(390, W * .3)));
@@ -210,6 +253,65 @@ function layout(){
 const fxc = $('fx').getContext('2d');
 new ResizeObserver(layout).observe($('stage'));
 
+/* 3D layout: the table takes the stage, the panel sits beside it (wide) or under it (phones).
+   The speech bubble floats over the table; the log lives in the panel when there is room, behind the Log button when there is not. */
+function layout3D(W, H, side){
+  const v = $('view3d'), n = state ? state.players.length : 4, log = $('log');
+  if (side){
+    const pw = Math.round(Math.max(300, Math.min(400, W * .3)));
+    v.style.width = Math.floor(W - pw - 34) + 'px'; v.style.height = Math.floor(H - 20) + 'px';
+    panel.style.width = pw + 'px'; panel.style.height = Math.floor(H - 20) + 'px';
+  } else {
+    const need = 58 + 112 + Math.ceil(n / 2) * 58 + 26;                     // turn bar, two rows of buttons, the player cards
+    const vh = Math.round(Math.max(Math.min(W, 250), Math.min(W * 1.12, H - need)));
+    v.style.width = Math.floor(W) + 'px'; v.style.height = vh + 'px';
+    panel.style.width = Math.min(W - 12, 640) + 'px'; panel.style.height = Math.max(150, H - vh - 16) + 'px';
+  }
+  $('players').classList.remove('one');
+  const home = side ? $('logHome') : $('v3logbox');
+  if (log.parentNode !== home){ home.appendChild(log); log.scrollTop = log.scrollHeight; }
+  if (side) setLogOpen(false);
+  if (B3) B3.resize();
+}
+function setLogOpen(on){
+  const box = $('v3logbox'); box.hidden = !on; $('v3log').setAttribute('aria-expanded', on ? 'true' : 'false');
+  if (on){ const log = $('log'); log.scrollTop = log.scrollHeight; }
+}
+$('v3log').onclick = () => setLogOpen($('v3logbox').hidden);
+$('v3reset').onclick = () => { if (B3) B3.resetView(); };
+// put the bubble and the log where the current board wants them
+function mountHud(v3){
+  const say = $('say'), log = $('log'), centre = $('center');
+  if (v3){ if (say.parentNode !== $('view3d')) $('view3d').appendChild(say); return; }
+  if (say.parentNode !== centre) centre.insertBefore(say, centre.querySelector('.cmid'));
+  if (log.parentNode !== centre){ centre.appendChild(log); log.scrollTop = log.scrollHeight; }
+  setLogOpen(false);
+}
+// build, rebuild or drop the 3D table so it matches the setting, then redraw whichever board is showing
+function applyBoard(){
+  const on = want3D() && !!B3mod && mode !== 'menu' && !!shown;
+  if (!on && B3){ B3.dispose(); B3 = null; }
+  wrap.classList.toggle('v3d', on);
+  mountHud(on);
+  layout();
+  if (on && !B3){
+    try {
+      B3 = B3mod.createBoard3D({host:$('v3gl'), floatLayer:$('v3fl'), cardEl:$('v3card'), data:D, engine:E, icons:ICON, face:BDB.faceImg, reduced:BDB.reduced, sfx:snd,
+        onSpace:i => openSheet('deed', i), onToken:pid => openSheet('player', pid),
+        onLost:() => { b3Bad = true; applyBoard(); toast('The 3D table stopped working on this device, so the board switched to flat.', true); }});
+    } catch(e){
+      console.warn('3D board failed, using the flat one', e); b3Bad = true; B3 = null;
+      wrap.classList.remove('v3d'); mountHud(false); layout();
+    }
+  }
+  if (B3) B3.reset(shown, vpos, vjail);
+  if (shown) render();
+}
+function setBoardPref(v){
+  boardPref = v === 'flat' ? 'flat' : '3d'; BDB.store.set('ty-board', boardPref);
+  if (want3D() && !B3mod) loadB3().then(() => { applyBoard(); if (sheet && sheet.kind === 'menu') drawSheet(true); }); else applyBoard();
+}
+
 function cellRect(i){
   const [r, c] = cellOf(i);
   const at = k => k === 1 ? 0 : k === 11 ? C + 9 * U : C + (k - 2) * U;
@@ -229,6 +331,7 @@ function buildTokens(s){
 }
 function placeTokens(){
   const s = shown || state; if (!s) return;
+  if (B3){ B3.place(vpos, vjail, true); return; }
   const groups = new Map();
   s.players.forEach((p, i) => {
     if (!tokEls[i]) return;
@@ -268,6 +371,7 @@ function render(){
   } catch(e){ console.warn('render', e); }
 }
 function renderBoard(s){
+  if (B3){ B3.sync(s, Q.length < 2 && !document.hidden); return; }
   const hl = s.phase === 'buy' ? s.buy : s.phase === 'auction' && s.auction ? s.auction.sp : -1;
   for (let i = 0; i < 40; i++){
     const e = spEls[i];
@@ -411,6 +515,13 @@ function renderTurn(s){
   }
 }
 function renderCentre(s){
+  if (B3){
+    B3.setDice(s.dice);
+    const info = $('v3info'); info.textContent = '';
+    info.append(document.createTextNode('Bank '), mk('b', null, String(s.bank.h)), document.createTextNode(' houses · '), mk('b', null, String(s.bank.H)), document.createTextNode(' hotels'));
+    syncLog(s);
+    return;
+  }
   setDice(s.dice);
   renderCard(s);
   const info = $('cinfo'); info.innerHTML = '';
@@ -503,11 +614,14 @@ function shake(){ if (BDB.reduced) return; board.classList.remove('shake'); void
 
 /* ---------- animation queue ---------- */
 function enqueue(s, ev){ Q.push({s, ev}); if (!busy) pump(); }
+let playGen = 0;                // bumped when a game starts or stops, so animation left over from the last one cannot touch the new one
 async function pump(){
+  const gen = playGen;
   busy = true; renderTurnSafe();
   while (Q.length){
     const {s, ev} = Q.shift();
     try { await playEvents(s, ev); } catch(e){ console.warn('anim', e); }
+    if (gen !== playGen) return;
     shown = s;
     s.players.forEach((p, i) => { vpos[i] = p.pos; vjail[i] = !!p.jail; });
     render();
@@ -516,10 +630,72 @@ async function pump(){
   busy = false;
   render();
   checkPrompts();
-  if (shown && shown.phase === 'over') setTimeout(showOver, 900);
+  if (B3) B3.relax();
+  if (shown && shown.phase === 'over') setTimeout(showOver, B3 && !BDB.reduced && SPEEDS[speed].anim > .3 ? 2600 : 900);
 }
 function renderTurnSafe(){ try { if (shown) renderTurn(shown); } catch(e){} }
+/* The same events on the 3D table. Every await in here is a tween (time-based, finished by a watchdog if frames stop)
+   or a plain timer, so the game can never hang on an animation. m = 0 means "just show the end state". */
+const RED = '#ff7a6b', GREEN = '#4ade80', BANK_AT = {x:0, y:.3, z:1.9};
+async function playEvents3D(V, s, ev){
+  const m = (Q.length > 2 || document.hidden) ? 0 : SPEEDS[speed].anim;
+  const P = s.players, done = new Set();
+  let viaCard = false;
+  if (!m){                        // fast-forward: skip the confetti of floaters and bursts, keep the end state
+    V = Object.assign(Object.create(V), {floatTok(){}, floatSp(){}, burstSpace(){}, shake(){}, passGo(){}, coins:() => Promise.resolve()});
+  }
+  const gen = playGen;
+  for (let k = 0; k < ev.length; k++){
+    const e = ev[k], nx = ev[k + 1];
+    if (V.dead || gen !== playGen) return;
+    switch (e.t){
+      case 'roll': await V.roll(e.d, m); if (m) await wait(150 * m); break;
+      case 'move': {
+        const go = nx && nx.t === 'go' && nx.pid === e.pid ? nx : null;
+        if (go) done.add(go);
+        vjail[e.pid] = false; vpos[e.pid] = e.to;
+        await V.move(e.pid, e.from, e.n, e.to, {m, quick:viaCard, onGo: go ? () => V.passGo(e.pid, go.amt) : null});
+        if (m) await wait(90 * m);
+        break;
+      }
+      case 'jail': vpos[e.pid] = 10; vjail[e.pid] = true; BDB.sfx.bad(); await V.toJail(e.pid, m); if (m) await wait(220 * m); break;
+      case 'unjail':
+        vjail[e.pid] = false;
+        if (e.how === 'paid' || e.how === 'forced') V.floatTok(e.pid, '-' + money(E.JAIL_FEE), RED);
+        if (!ev.slice(k + 1).some(x => x.t === 'move' && x.pid === e.pid)) await V.leaveJail(e.pid, m);   // otherwise the move itself hops out over the bars
+        break;
+      case 'card': {
+        const c = D.cards[e.deck][e.id]; viaCard = true;
+        BDB.sfx.pop();
+        await V.card(e.deck, D.deckName[e.deck], c.x, m);
+        if (c.k === 'money'){ V.floatTok(e.pid, (c.amt > 0 ? '+' : '-') + money(Math.abs(c.amt)), c.amt > 0 ? GREEN : RED); if (c.amt > 0) V.coins(BANK_AT, V.tokPos(e.pid), 5, m); else V.coins(V.tokPos(e.pid), s.opts.jackpot ? V.spPos(20, .2) : BANK_AT, 4, m); }
+        break;
+      }
+      case 'turn': viaCard = false; V.hideCard(); break;
+      case 'go': if (!done.has(e)) V.passGo(e.pid, e.amt); break;
+      case 'buy': case 'won': V.burstSpace(e.sp, P[e.pid].color); V.floatTok(e.pid, '-' + money(e.amt), RED); BDB.sfx.good(); break;
+      case 'rent':
+        V.floatTok(e.pid, '-' + money(e.amt), RED);
+        if (e.to >= 0){ V.coins(V.tokPos(e.pid), V.tokPos(e.to), 3 + e.amt / 70, m).then(() => { if (!V.dead) V.floatTok(e.to, '+' + money(e.amt), GREEN); }); }
+        if (e.amt >= 400) V.shake(.18, .4);
+        BDB.sfx.bad(); if (m) await wait(480 * m);
+        break;
+      case 'tax': V.floatTok(e.pid, '-' + money(e.amt), RED); V.coins(V.tokPos(e.pid), s.opts.jackpot ? V.spPos(20, .2) : BANK_AT, 5, m); if (m) await wait(260 * m); break;
+      case 'jackpot': V.coins(V.spPos(20, .2), V.tokPos(e.pid), 12, m); V.floatTok(e.pid, '+' + money(e.amt), GREEN); V.burstSpace(20, '#f2c14e', 40); BDB.sfx.big(); break;
+      case 'build': V.burstSpace(e.sp, e.n === 5 ? '#ff5a4a' : '#2fbf5b', 12); BDB.sfx.pop(); break;
+      case 'sell': V.floatSp(e.sp, '+' + money(e.amt), GREEN); BDB.sfx.pop(); break;
+      case 'mortgage': V.floatSp(e.sp, '+' + money(e.amt), GREEN); snd.tap(); break;
+      case 'unmortgage': V.floatSp(e.sp, '-' + money(e.amt), RED); snd.tap(); break;
+      case 'paid': V.floatTok(e.pid, '-' + money(e.amt), RED); break;
+      case 'set': BDB.sfx.big(); V.glowGroup(e.g, m); if (m) await wait(340 * m); break;
+      case 'bankrupt': BDB.sfx.bad(); await V.bankrupt(e.pid, m); break;
+      case 'trade': BDB.sfx.good(); V.coins(V.tokPos(e.pid), V.tokPos(e.to), 4, m); V.coins(V.tokPos(e.to), V.tokPos(e.pid), 4, m); break;
+      case 'over': V.celebrate(e.pid); break;
+    }
+  }
+}
 async function playEvents(s, ev){
+  if (B3) return playEvents3D(B3, s, ev);
   const m = (Q.length > 2 || document.hidden) ? 0 : SPEEDS[speed].anim;
   const step = SPEEDS[speed].step;
   for (const e of ev){
@@ -865,6 +1041,15 @@ function sheetMenu(box){
   const sp = mk('div', 'k-seg');
   SPEEDS.forEach((x, i) => { const b = mk('button', null, x.n); b.type = 'button'; b.setAttribute('aria-pressed', i === speed); b.onclick = () => { setSpeed(i); drawSheet(true); }; sp.appendChild(b); });
   const l1 = mk('div', 'k-label', 'Bot and animation speed'); body.append(l1, sp);
+  const bd = mk('div', 'k-seg');
+  for (const [v, label] of [['3d', '3D table'], ['flat', 'Flat board']]){
+    const b = mk('button', null, label); b.type = 'button'; b.setAttribute('aria-pressed', (v === '3d') === want3D());
+    if (v === '3d' && !can3D()) b.disabled = true;
+    b.onclick = () => { setBoardPref(v); drawSheet(true); };
+    bd.appendChild(b);
+  }
+  body.append(mk('div', 'k-label', 'Board'), bd, mk('p', 'note', FORCE_FLAT ? 'This link forces the flat board.' : !can3D() ? "The 3D table needs WebGL, which this browser isn't offering. You get the flat board." :
+    'Drag the table to turn it, pinch or scroll to zoom. Flat is easier on older phones. Remembered on this device.'));
   const rules = mk('ul', 'k-how');
   const o = state ? state.opts : optsFromSetup();
   for (const t of [`Start with ${money(o.cash)}. Pass Clock In for $200.`, `Auctions ${o.auctions ? 'on' : 'off'}. Break Room jackpot ${o.jackpot ? 'on' : 'off'}.`,
@@ -1015,7 +1200,7 @@ function togglePause(){
   paused = !paused;
   auc.key = '';
   let tag = document.querySelector('.paused-tag');
-  if (paused && !tag){ tag = mk('div', 'paused-tag', 'Bots paused · P to resume'); $('stage').appendChild(tag); }
+  if (paused && !tag){ tag = mk('div', 'paused-tag', 'Bots paused · P to resume'); (B3 ? $('view3d') : $('stage')).appendChild(tag); }
   if (!paused && tag) tag.remove();
   render();
 }
@@ -1047,7 +1232,7 @@ function resumeGame(){
 /* ---------- start / end ---------- */
 function newSeed(){ return crypto.getRandomValues(new Uint32Array(1))[0] || 1; }
 function beginPlay(resumed){
-  mode = 'play'; overShown = false; paused = false; Q.length = 0; busy = false;
+  mode = 'play'; overShown = false; paused = false; Q.length = 0; busy = false; playGen++;
   document.querySelector('.paused-tag')?.remove();
   BDB.hideSplash(); BDB.hideEnd(); closeSheet();
   shown = state; vpos = state.players.map(p => p.pos); vjail = state.players.map(p => !!p.jail);
@@ -1057,8 +1242,10 @@ function beginPlay(resumed){
   nextBotAt = performance.now() + 900;
   spEls.forEach(e => e.key = '');
   $('cardslot').dataset.key = '';
-  buildTokens(state); layout(); render();
+  buildTokens(state);
   $('chatForm').hidden = role === 'local';
+  applyBoard();
+  if (want3D() && !B3mod) loadB3().then(() => { if (mode !== 'menu' && !B3) applyBoard(); });
   say('start', {});
   BDB.sfx.big();
   checkPrompts();
@@ -1074,7 +1261,8 @@ function startFromSetup(){
 function backToSetup(){
   if (role === 'host' || role === 'guest') leaveTable(true);
   saveGame();
-  mode = 'menu'; role = 'local'; state = null; shown = null; Q.length = 0;
+  mode = 'menu'; role = 'local'; state = null; shown = null; Q.length = 0; busy = false; playGen++;
+  applyBoard();                 // drops the 3D table and its GPU memory; the flat board sits behind the setup screen
   closeSheet(); $('aucWrap').hidden = true; BDB.hideEnd();
   document.querySelector('.paused-tag')?.remove();
   renderSetup(); renderTables(); BDB.showSplash();
@@ -1101,7 +1289,7 @@ function showOver(){
   BDB.store.set('ty-save', '');
 }
 $('again').onclick = () => { BDB.hideEnd(); if (role === 'local' && state){ startFromSetup(); } else backToSetup(); };
-$('endBoard').onclick = () => BDB.hideEnd();
+$('endBoard').onclick = () => { BDB.hideEnd(); if (B3) B3.orbit(12000); };
 $('play').onclick = startFromSetup;
 $('resume').onclick = resumeGame;
 $('menuBtn').onclick = () => { if (mode === 'menu') return; openSheet('menu'); };
@@ -1316,7 +1504,7 @@ async function joinTable(code, hostId){
   if (role !== 'local' || mode === 'play') return;
   role = 'guest'; tableCode = code; hostPeer = null; expectHost = typeof hostId === 'string' && hostId.length < 64 ? hostId : null; mySeat = -1; started = false; guestSeats = [];
   room = NET.room(code);
-  const hello = id => { if (!hostPeer && (!expectHost || id === expectHost)) room.send('join', {name:myName, tokens:myTokens(code)}, id); };
+  const hello = id => { if (room && !hostPeer && (!expectHost || id === expectHost)) room.send('join', {name:myName, tokens:myTokens(code)}, id); };
   room.onJoin(hello);
   room.onLeave(id => { if (id === hostPeer) hostGone(); });
   room.onMessage((t, d, from) => { try { guestMsg(t, d && typeof d === 'object' ? d : {}, from); } catch(e){ console.warn('guest msg', e); } });
@@ -1420,6 +1608,7 @@ $('chatForm').addEventListener('submit', e => {
 
 /* ---------- boot ---------- */
 renderSetup(); renderTables(); layout();
+if (want3D()) loadB3();          // fetch three.js while the setup screen is up
 if (params.get('t') && okCode(params.get('t'))) joinTable(params.get('t'), params.get('h'));
 
 window.__game = {
@@ -1430,6 +1619,8 @@ window.__game = {
   get role(){ return role; }, get mySeat(){ return mySeat; }, get code(){ return tableCode; },
   get seats(){ return seats.map(x => ({kind:x.kind, name:x.name, away:!!x.away, level:x.level || 0})); },
   get paused(){ return paused; },
+  get board(){ return B3 ? '3d' : 'flat'; }, get view(){ return B3; }, get can3D(){ return can3D(); }, setBoard: setBoardPref,
+  get vpos(){ return vpos.slice(); },
   act(a, pid){ act(pid != null ? pid : actorPid(), a); },
   setSpeed, togglePause,
   force(d){ if (state && role !== 'guest') state.force = d.slice(); },

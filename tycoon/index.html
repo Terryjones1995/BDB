@@ -135,6 +135,45 @@
 .tok.hop{animation:hop .16s ease}
 @keyframes hop{50%{margin-top:calc(var(--ts)*-.35)}}
 
+/* ---------- 3D table (board3d.js draws into .v3-gl; these are the overlays around it) ---------- */
+.view3d{position:relative;flex:none;display:none;border-radius:18px;overflow:hidden;background:radial-gradient(ellipse 75% 65% at 50% 42%,#14326e 0,#0a1d45 50%,#040b1c 100%);box-shadow:inset 0 0 0 1px var(--line),0 24px 60px rgba(0,0,0,.45)}
+.wrap.v3d .view3d{display:block}
+.wrap.v3d .board{display:none}
+.wrap.v3d.stack{padding:0 0 8px}
+.wrap.v3d.stack .view3d{border-radius:0;box-shadow:none}
+.v3-gl{position:absolute;inset:0}
+.v3-gl canvas{display:block;width:100%;height:100%;outline:none;touch-action:none}
+.v3-fl{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.fl3{position:absolute;white-space:nowrap;transform:translate(-50%,-50%);font:600 30px/1 var(--f-led);text-shadow:0 2px 0 rgba(5,12,28,.95),0 0 10px rgba(5,12,28,.9),0 0 3px #000;animation:fl3 1.45s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes fl3{0%{opacity:0;transform:translate(-50%,-20%) scale(.5)}14%{opacity:1;transform:translate(-50%,-70%) scale(1.2)}26%{transform:translate(-50%,-85%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-260%) scale(1)}}
+.view3d .k-say{left:10px;top:10px;bottom:auto;max-width:min(440px,calc(100% - 74px));align-items:flex-start;z-index:3}
+.view3d .k-say.quiet{transform:translateY(-6px)}
+.v3-tools{position:absolute;right:10px;top:10px;z-index:4;display:flex;flex-direction:column;gap:6px}
+.v3-tools button{width:44px;height:44px;display:grid;place-items:center;padding:0;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.v3-tools button:hover{border-color:rgba(242,193,78,.5)}
+.v3-tools button[aria-expanded="true"]{background:var(--orange);color:#1f1004;border-color:transparent}
+.v3-tools svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#v3log{display:none}
+.wrap.stack #v3log{display:grid}
+.v3-info{position:absolute;left:12px;bottom:9px;z-index:2;pointer-events:none;font:800 10px/1.3 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-shadow:0 1px 3px #000,0 0 8px #000}
+.v3-info b{color:var(--led)}
+.v3-card{position:absolute;left:50%;top:50%;z-index:4;box-sizing:border-box;transform:translate(-50%,-50%) scale(.95);opacity:0;pointer-events:none;background:var(--card);color:var(--card-ink);border-radius:.7em;padding:1.3em 1.1em 1em;
+  box-shadow:0 18px 44px rgba(0,0,0,.55);display:flex;flex-direction:column;justify-content:center;transition:opacity .16s,transform .16s;overflow:hidden}
+.v3-card.on{opacity:1;transform:translate(-50%,-50%)}
+.v3-card::before{content:"";position:absolute;left:0;right:0;top:0;height:.55em;background:var(--orange)}
+.v3-card.fridge::before{background:#4fb3ff}
+.v3-card small{display:block;font:800 .62em/1 var(--f-body);letter-spacing:.18em;text-transform:uppercase;color:var(--orange-deep);margin-bottom:.7em}
+.v3-card.fridge small{color:#14508a}
+.v3-card p{margin:0;font:700 1em/1.3 var(--f-body)}
+.v3-logbox{position:absolute;left:8px;right:8px;bottom:8px;height:min(62%,260px);z-index:5;display:flex;border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.6)}
+.loghome{display:none;flex:1 1 90px;min-height:84px}
+.wrap.v3d:not(.stack) .loghome{display:flex}
+.panel .log,.v3-logbox .log{flex:1;padding:7px 10px;font:600 12.5px/1.36 var(--f-body);border-radius:12px;background:rgba(3,8,20,.86)}
+.v3-logbox .log{background:#071022;border-color:rgba(242,193,78,.4);padding:9px 12px}
+.view3d .paused-tag{top:auto;bottom:32px;white-space:nowrap}
+.wrap.v3d:not(.stack) .players{flex:0 1 auto;max-height:66%}
+.k-seg button:disabled{opacity:.4;cursor:default}
+
 /* ---------- panel ---------- */
 .panel{flex:none;display:flex;flex-direction:column;gap:9px;min-height:0;min-width:0}
 .turnbar{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:9px 11px;min-height:52px}
@@ -292,9 +331,10 @@
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
-<script src="data.js"></script>
-<script src="engine.js"></script>
-<script src="bots.js"></script>
+<script src="data.js?v=1113"></script>
+<script src="engine.js?v=1113"></script>
+<script src="bots.js?v=1113"></script>
+<script type="importmap">{"imports":{"three":"../chess/vendor/three.module.min.js"}}</script>
 </head>
 <body class="k">
 
@@ -309,6 +349,7 @@
       <li><b>Roll</b>, move, and <b>buy</b> what you land on. Pass on it and everybody bids in an <b>auction</b>.</li>
       <li>Own a <b>full colour set</b> to double rent and build houses, then hotels. Build evenly.</li>
       <li><b>Trade</b> streets and cash, <b>mortgage</b> when you're broke. Last one solvent wins.</li>
+      <li><b>Drag</b> the table to turn it, pinch or scroll to zoom. <b>Tap</b> any space or token to see its card.</li>
       <li>Keys: <b>Enter</b> rolls or ends your turn, <b>B</b> buys, <b>A</b> auctions, <b>T</b> trades, <b>P</b> pauses bots.</li>
     </ul>
     <div class="setup" id="setup">
@@ -352,6 +393,17 @@
   </header>
   <main class="k-stage" id="stage">
     <div class="wrap" id="wrap">
+      <div class="view3d" id="view3d">
+        <div class="v3-gl" id="v3gl"></div>
+        <div class="v3-fl" id="v3fl" aria-hidden="true"></div>
+        <div class="v3-card" id="v3card" hidden></div>
+        <div class="v3-tools">
+          <button type="button" id="v3reset" aria-label="Reset view" title="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 3.5v5h5"/></svg></button>
+          <button type="button" id="v3log" aria-label="Game log" aria-expanded="false">Log</button>
+        </div>
+        <div class="v3-info" id="v3info"></div>
+        <div class="v3-logbox" id="v3logbox" hidden></div>
+      </div>
       <div class="board" id="board">
         <div class="center" id="center">
           <div class="cwm" aria-hidden="true"></div>
@@ -366,6 +418,7 @@
         <div class="turnbar" id="turnbar"></div>
         <div class="actions" id="actions"></div>
         <div class="players" id="players"></div>
+        <div class="loghome" id="logHome"></div>
         <form class="chatform" id="chatForm" hidden><input id="chatIn" maxlength="140" placeholder="Say something to the table" autocomplete="off"><button type="submit">Send</button></form>
       </aside>
     </div>
@@ -389,6 +442,6 @@
 </div>
 <div class="toasts" id="toasts"></div>
 
-<script type="module" src="game.js"></script>
+<script type="module" src="game.js?v=1113"></script>
 </body>
 </html>
