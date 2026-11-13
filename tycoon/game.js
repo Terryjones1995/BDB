@@ -196,19 +196,58 @@ function layout(){
     size = Math.floor(Math.min(H - 20, W - pw - 38));
     panel.style.width = pw + 'px'; panel.style.height = size + 'px';
   } else {
-    size = Math.floor(Math.max(Math.min(W - 12, 300), Math.min(W - 12, H - 236)));
-    panel.style.width = Math.min(W - 12, 640) + 'px'; panel.style.height = Math.max(150, H - size - 22) + 'px';
+    size = Math.floor(Math.max(Math.min(W - 12, 300), Math.min(W - 12, (H - 236) / (T3 ? .8 : 1))));
   }
+  // a tilted 3D board is shorter than it is wide, so on phones give the spare height to the panel
+  const bh = T3 && !side ? Math.round(size * .8) : size;
+  board.style.height = bh !== size ? bh + 'px' : '';
+  if (!side){ panel.style.width = Math.min(W - 12, 640) + 'px'; panel.style.height = Math.max(150, H - bh - 22) + 'px'; }
   const n = state ? state.players.length : 4;
-  $('players').classList.toggle('one', !side && (H - size - 22) - 150 >= n * 58);
+  $('players').classList.toggle('one', !side && (H - bh - 22) - 150 >= n * 58);
   U = size / 12.2; C = U * 1.6; TS = Math.max(15, Math.min(34, U * .62));
   board.style.setProperty('--u', U + 'px'); board.style.setProperty('--c', C + 'px'); board.style.setProperty('--ts', TS + 'px');
   const fx = $('fx'), dpr = Math.min(devicePixelRatio || 1, 2);
   fx.width = Math.round(W * dpr); fx.height = Math.round(H * dpr); fxc.setTransform(dpr, 0, 0, dpr, 0, 0);
+  placeCentre3D();
   placeTokens();
 }
 const fxc = $('fx').getContext('2d');
 new ResizeObserver(layout).observe($('stage'));
+
+/* ---------- 3D board (three.js) ---------- */
+// The flat board stays in the page as the fallback; the 3D one draws over it when WebGL works.
+let T3 = null, t3Loading = false;
+let want3D = BDB.store.get('ty-3d') !== '0';
+function paint3DPill(){ const b = $('view3d'); if (b){ b.textContent = T3 ? '3D on' : '3D off'; b.setAttribute('aria-pressed', String(!!T3)); } }
+async function start3D(){
+  if (T3 || t3Loading) return;
+  t3Loading = true; board.classList.add('b3wait');
+  try {
+    const {createBoard3D} = await import('./board3d.js');
+    if (!want3D) return;
+    T3 = await createBoard3D({host:board, S, GR, ICON, spIcon, isOwnable:E.isOwnable, reduced:BDB.reduced, onPick:i => openSheet('deed', i)});
+    board.classList.add('b3');
+    const s = shown || state;
+    if (s){ T3.buildTokens(s.players).then(() => placeTokens()); T3.update(s); T3.setDice(s.dice); }
+  } catch(e){ console.warn('3D board unavailable, using the flat one', e); T3 = null; want3D = false; }
+  finally { t3Loading = false; board.classList.remove('b3wait'); paint3DPill(); layout(); }
+}
+function stop3D(){
+  if (T3){ T3.dispose(); T3 = null; }
+  board.classList.remove('b3'); $('center').style.cssText = '';
+  paint3DPill(); layout(); if (shown) render();
+}
+function toggle3D(){
+  want3D = !want3D; BDB.store.set('ty-3d', want3D ? '1' : '0');
+  if (want3D) start3D(); else stop3D();
+}
+// keep the centre panel (BDB's mic, cards, log) floating over the court in 3D
+function placeCentre3D(){
+  if (!T3) return;
+  T3.resize();
+  const r = T3.innerRect(), c = $('center');
+  c.style.left = r.l + 'px'; c.style.top = r.t + 'px'; c.style.width = Math.max(0, r.r - r.l) + 'px'; c.style.height = Math.max(0, r.b - r.t) + 'px';
+}
 
 function cellRect(i){
   const [r, c] = cellOf(i);
@@ -216,7 +255,7 @@ function cellRect(i){
   const sz = k => k === 1 || k === 11 ? C : U;
   return {x:at(c), y:at(r), w:sz(c), h:sz(r)};
 }
-function spaceCentre(i){ const b = cellRect(i); return {x:b.x + b.w / 2, y:b.y + b.h / 2}; }
+function spaceCentre(i){ if (T3) return T3.project(i); const b = cellRect(i); return {x:b.x + b.w / 2, y:b.y + b.h / 2}; }
 
 /* ---------- tokens ---------- */
 const tokEls = [];
@@ -226,8 +265,9 @@ function buildTokens(s){
     const t = mk('div', 'tok'); t.style.setProperty('--pc', p.color); t.innerHTML = tokIcon(p.token);
     $('tokens').appendChild(t); tokEls[i] = t;
   });
+  if (T3) T3.buildTokens(s.players).then(() => placeTokens());
 }
-function placeTokens(){
+function placeTokens(hop){
   const s = shown || state; if (!s) return;
   const groups = new Map();
   s.players.forEach((p, i) => {
@@ -251,8 +291,10 @@ function placeTokens(){
       const col = k % cols, row = Math.floor(k / cols);
       const x = cx + (col - (cols - 1) / 2) * g, y = cy + (row - (rows - 1) / 2) * g;
       tokEls[pid].style.transform = `translate(${(x - TS / 2).toFixed(1)}px,${(y - TS / 2).toFixed(1)}px)`;
+      if (T3) T3.setToken(pid, x / U, y / U, {on:s.phase !== 'over' && pid === s.cur, hop});
     });
   }
+  if (T3) s.players.forEach((p, i) => { if (p.out) T3.setToken(i, 0, 0, {hidden:true}); });
   tokEls.forEach((t, i) => t && t.classList.toggle('on', s.phase !== 'over' && i === s.cur));
 }
 
@@ -285,6 +327,7 @@ function renderBoard(s){
   }
   const fr = spEls[20];
   if (fr.pr) fr.pr.textContent = s.opts.jackpot ? `Jackpot ${money(s.jackpot)}` : 'Rest stop';
+  if (T3) T3.update(s);
 }
 const plEls = [];
 const prevCash = [];
@@ -459,9 +502,14 @@ function syncLog(s){
 const PIPS = {1:[4], 2:[0, 8], 3:[0, 4, 8], 4:[0, 2, 6, 8], 5:[0, 2, 4, 6, 8], 6:[0, 2, 3, 5, 6, 8]};
 for (const d of [$('d0'), $('d1')]) for (let k = 0; k < 9; k++) d.appendChild(mk('i'));
 function face(el, n){ [...el.children].forEach((p, k) => p.classList.toggle('on', !!n && PIPS[n].includes(k))); }
-function setDice(d){ face($('d0'), d[0]); face($('d1'), d[1]); }
+function setDice(d){ face($('d0'), d[0]); face($('d1'), d[1]); if (T3) T3.setDice(d); }
 async function rollDice(d, m){
   if (!m){ setDice(d); return; }
+  if (T3){
+    let done = false; const p = T3.roll(d, m).then(() => { done = true; });
+    for (let k = 0; !done && k < 40; k++){ if (k % 2 === 0) BDB.sfx.tick(); await wait(70); }
+    await p; face($('d0'), d[0]); face($('d1'), d[1]); return;
+  }
   const a = $('d0'), b = $('d1');
   a.classList.remove('roll'); b.classList.remove('roll'); void a.offsetWidth; a.classList.add('roll'); b.classList.add('roll');
   const end = performance.now() + 480 * m;
@@ -531,7 +579,7 @@ async function playEvents(s, ev){
         if (!m || n === 0){ vpos[e.pid] = e.to; placeTokens(); break; }
         for (let k = 1; k <= n; k++){
           vpos[e.pid] = ((e.from + dir * k) % 40 + 40) % 40;
-          placeTokens();
+          placeTokens(step * .95);
           const t = tokEls[e.pid]; if (t){ t.classList.remove('hop'); void t.offsetWidth; t.classList.add('hop'); }
           if (k % 2) BDB.sfx.tick();
           await wait(step);
@@ -539,7 +587,7 @@ async function playEvents(s, ev){
         await wait(90 * m);
         break;
       }
-      case 'jail': vpos[e.pid] = 10; vjail[e.pid] = true; placeTokens(); BDB.sfx.bad(); if (m) await wait(420 * m); break;
+      case 'jail': vpos[e.pid] = 10; vjail[e.pid] = true; placeTokens(Math.max(260, 600 * m)); BDB.sfx.bad(); if (m) await wait(420 * m); break;
       case 'unjail': vjail[e.pid] = false; placeTokens(); break;
       case 'card': slot = {k:'card', deck:e.deck, id:e.id, n:Math.random()}; renderCard(s); BDB.sfx.pop(); if (m) await wait(1500 * m); break;
       case 'turn': slot = null; break;
@@ -1420,6 +1468,9 @@ $('chatForm').addEventListener('submit', e => {
 
 /* ---------- boot ---------- */
 renderSetup(); renderTables(); layout();
+$('view3d').onclick = () => { toggle3D(); $('view3d').blur(); };
+paint3DPill();
+if (want3D) start3D();
 if (params.get('t') && okCode(params.get('t'))) joinTable(params.get('t'), params.get('h'));
 
 window.__game = {

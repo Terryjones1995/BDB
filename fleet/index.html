@@ -12,6 +12,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
 <link rel="stylesheet" href="../assets/kit.css">
 <style>
+/* ---------- 3D view: three.js draws underneath, the flat canvas stays on top (invisible) for taps ---------- */
+.f3cv{position:absolute;left:0;top:0;width:100%!important;height:100%!important;z-index:0;pointer-events:none}
+.k-stage.f3 #cv{position:relative;z-index:1;opacity:0}
+#view3d[aria-pressed="true"]{border-color:rgba(242,193,78,.55);color:var(--gold)}
+@media (max-width:560px){ #bestPill{display:none} #view3d .lbl{display:none} }
+
 /* ---------- title screen ---------- */
 .modes{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
 .pickrow{display:flex;flex-direction:column;align-items:center;gap:8px}
@@ -192,6 +198,7 @@
   .k-btn.big{font-size:16px;padding:14px 28px 12px}
 }
 </style>
+<script type="importmap">{"imports":{"three":"../chess/vendor/three.module.min.js"}}</script>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
 </head>
@@ -239,6 +246,7 @@
     <div class="k-spacer"></div>
     <span class="k-pill" id="bestPill"><small style="font:inherit">Best</small> <span class="k-led" id="best">0</span></span>
     <button type="button" class="k-pill" id="onlinePill" aria-label="Play online"><span class="dot"></span><span class="gl">Online</span> <span class="k-led" id="onCount">0</span></button>
+    <button type="button" class="k-pill" id="view3d" aria-label="Switch between the 3D and flat view"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg><span class="lbl">3D on</span></button>
     <button type="button" class="k-pill" id="mute" aria-label="Sound"><svg class="ico" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4z"/><path id="muteWave" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg><span class="lbl">Sound on</span></button>
   </header>
   <main class="k-stage" id="stage">

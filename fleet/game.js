@@ -207,6 +207,7 @@ let marks = [];                   // salvo targets picked so far
 let st = freshStats();
 let winner = null, paused = false, lastScore = 0, swapView = false, kb = {r:4, c:4, on:false}, hover = -1;
 let pvp = null;
+let T3 = null, FLAT = false, visVer = 0;      // 3D renderer (fleet3d.js) when it's on
 const vis = {me:new Uint8Array(CELLS), foe:new Uint8Array(CELLS), sunk:{me:new Map(), foe:new Map()}};
 
 function blankSetup(){ return SHIPS.map(d => ({id:d.id, len:d.len, r:0, c:0, v:false, placed:false})); }
@@ -255,7 +256,7 @@ const chatSideMQ = matchMedia('(min-width:1100px)');
 const LY = {phone:false, grids:{me:null, foe:null}, tray:null, slots:[], inset:false};
 function resize(){
   const r = stage.getBoundingClientRect();
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = Math.min(window.devicePixelRatio || 1, T3 ? 1.5 : 2);
   W = r.width; H = r.height;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   layout();
@@ -267,6 +268,7 @@ function layout(){
   const phone = W < 700;
   LY.phone = phone;
   const chatW = mode === 'pvp' && chatSideMQ.matches && (state === 'play' || state === 'setup' || state === 'over') ? 336 : 0;
+  LY.chatW = chatW;
   const top = phone ? 62 : 78, bottom = phone ? 146 : 100;
   const left = 12, availW = W - 24 - chatW, availH = Math.max(160, H - top - bottom);
   LY.grids.me = LY.grids.foe = null; LY.tray = null; LY.slots = []; LY.inset = false;
@@ -467,6 +469,7 @@ const fx = [], shells = [];
 let aim = null, lastAim = -1, shake = 0;
 function spawn(p){ if (fx.length < 600) fx.push(p); }
 function splashFx(key, x, y){
+  if (T3) T3.fx('splash', key, x, y);
   spawn({key, kind:'ring', x, y, t:0, life:.9, s:.15, grow:.9, c:'200,230,255'});
   spawn({key, kind:'ring', x, y, t:-.12, life:.9, s:.1, grow:.6, c:'200,230,255'});
   if (REDUCED) return;
@@ -476,6 +479,7 @@ function splashFx(key, x, y){
   }
 }
 function explodeFx(key, x, y, big){
+  if (T3) T3.fx('boom', key, x, y, big);
   spawn({key, kind:'flash', x, y, t:0, life:.35, s:big ? 1.3 : .9});
   spawn({key, kind:'ring', x, y, t:0, life:.6, s:.2, grow:1.1, c:'255,190,110'});
   if (REDUCED) return;
@@ -491,6 +495,7 @@ function explodeFx(key, x, y, big){
   for (let k = 0; k < 4; k++) spawn({key, kind:'smoke', x:x + (Math.random() - .5) * .3, y, vx:(Math.random() - .5) * .2, vy:-.35 - Math.random() * .3, t:0, life:1.4 + Math.random(), s:.22 + Math.random() * .15, dark:.55});
 }
 function sinkFx(key, sh){
+  if (T3) T3.fx('sink', key, sh);
   const cells = cellsOf(sh.r, sh.c, sh.v, sh.len);
   cells.forEach((i, k) => after(k * 110, () => { explodeFx(key, i % 10 + .5, ((i / 10) | 0) + .5, true); if (!REDUCED) shake = Math.max(shake, 6); }));
   const mx = sh.c + (sh.v ? .5 : sh.len / 2), my = sh.r + (sh.v ? sh.len / 2 : .5);
@@ -530,7 +535,7 @@ function volley(key, res, cb, aimFirst){
   } else go();
 }
 function land(key, a){
-  vis[key][a.i] = a.r === 'miss' ? 1 : 2;
+  vis[key][a.i] = a.r === 'miss' ? 1 : 2; visVer++;
   const x = a.i % 10 + .5, y = ((a.i / 10) | 0) + .5;
   if (a.r === 'miss'){ splashFx(key, x, y); snd.splash(); return; }
   explodeFx(key, x, y, a.r === 'sunk'); snd.boom(a.r === 'sunk');
@@ -546,6 +551,7 @@ function land(key, a){
 /* ---------- drawing ---------- */
 function drawWater(g, now){
   const c = g.cell, S = c * 10;
+  if (!FLAT){
   cx.save();
   cx.beginPath(); cx.roundRect(g.x - 3, g.y - 3, S + 6, S + 6, Math.max(4, c * .18));
   const gr = cx.createLinearGradient(g.x, g.y, g.x + S, g.y + S);
@@ -567,7 +573,8 @@ function drawWater(g, now){
     }
   }
   cx.restore();
-  cx.strokeStyle = 'rgba(160,200,255,.13)'; cx.lineWidth = 1;
+  }
+  cx.strokeStyle = FLAT ? 'rgba(170,210,255,.2)' : 'rgba(160,200,255,.13)'; cx.lineWidth = 1;
   cx.beginPath();
   for (let k = 1; k < 10; k++){ cx.moveTo(g.x + k * c + .5, g.y); cx.lineTo(g.x + k * c + .5, g.y + S); cx.moveTo(g.x, g.y + k * c + .5); cx.lineTo(g.x + S, g.y + k * c + .5); }
   cx.stroke();
@@ -619,6 +626,7 @@ function drawPegs(g, key, now){
   for (let i = 0; i < CELLS; i++){
     const v = arr[i]; if (!v) continue;
     const x = g.x + (i % 10 + .5) * c, y = g.y + (((i / 10) | 0) + .5) * c;
+    if (FLAT && v === 1) continue;
     if (v === 1){
       cx.fillStyle = 'rgba(220,235,255,.18)'; cx.beginPath(); cx.arc(x, y, c * .26, 0, Math.PI * 2); cx.fill();
       cx.fillStyle = '#e6eefc'; cx.beginPath(); cx.arc(x, y, c * .11, 0, Math.PI * 2); cx.fill();
@@ -628,6 +636,7 @@ function drawPegs(g, key, now){
       cx.beginPath(); cx.moveTo(x - d, y - d); cx.lineTo(x + d, y + d); cx.moveTo(x + d, y - d); cx.lineTo(x - d, y + d); cx.stroke();
     } else {
       cx.fillStyle = 'rgba(255,90,60,.16)'; cx.fillRect(g.x + (i % 10) * c + 1, g.y + ((i / 10) | 0) * c + 1, c - 2, c - 2);
+      if (FLAT) continue;
       cx.save(); cx.shadowColor = 'rgba(255,80,40,.9)'; cx.shadowBlur = c * .4;
       cx.fillStyle = '#ff4b33'; cx.beginPath(); cx.arc(x, y + c * .08, c * .13, 0, Math.PI * 2); cx.fill(); cx.restore();
       drawFire(x, y + c * .05, c, now / 1000 + i * 1.7);
@@ -643,7 +652,7 @@ function drawGridFull(g, key, now){
   drawLabels(g, g.big ? title : (isFoe ? 'Target' : 'Your fleet'), active, isFoe);
   const c = g.cell;
   // ships
-  if (key === 'me'){
+  if (FLAT){} else if (key === 'me'){
     const ships = state === 'setup' || state === 'menu' ? setupShips.filter(s => s.placed && !(drag && drag.ship === s)) : (my ? my.ships : []);
     for (const s of ships){
       const sk = vis.sunk.me.get(s.id);
@@ -687,7 +696,7 @@ function drawGridFull(g, key, now){
     reticleAt(g, g.x + ax * c, g.y + ay * c, c, '#ff5a4a', now);
   }
   // shells
-  for (const s of shells){
+  if (!FLAT) for (const s of shells){
     if (s.key !== key || s.done) continue;
     const k = clamp((gt - s.t0) / s.dur, 0, 1);
     const x = g.x + (s.i % 10 + .5) * c, y = g.y + (((s.i / 10) | 0) + .5) * c;
@@ -701,7 +710,7 @@ function drawGridFull(g, key, now){
     cx.fillStyle = 'rgba(255,255,255,.6)'; cx.beginPath(); cx.arc(sx - c * .03, sy - c * .03, c * .03, 0, Math.PI * 2); cx.fill();
   }
   // particles
-  for (const p of fx){
+  if (!FLAT) for (const p of fx){
     if (p.key !== key || p.t < 0) continue;
     const a = clamp(1 - p.t / p.life, 0, 1), x = g.x + p.x * c, y = g.y + p.y * c;
     if (p.kind === 'ring'){ cx.strokeStyle = `rgba(${p.c},${a * .7})`; cx.lineWidth = Math.max(1, c * .05); cx.beginPath(); cx.arc(x, y, (p.s + p.grow * p.t) * c, 0, Math.PI * 2); cx.stroke(); }
@@ -790,7 +799,7 @@ function drawTray(now){
     const box = {x:sl.x, y:sl.y, w:d.len * sl.tc, h:sl.tc};
     cx.strokeStyle = active ? 'rgba(242,193,78,.6)' : 'rgba(255,255,255,.1)'; cx.setLineDash([4, 4]); cx.lineWidth = 1;
     cx.beginPath(); cx.roundRect(box.x - 2, box.y - 2, box.w + 4, box.h + 4, 6); cx.stroke(); cx.setLineDash([]);
-    if (!s.placed && !(drag && drag.ship === s)){
+    if (!FLAT && !s.placed && !(drag && drag.ship === s)){
       drawShip({x:sl.x, y:sl.y}, {id:s.id, len:s.len, r:0, c:0, v:false}, sl.tc, 'mine', {lift:active});
     }
   }
@@ -815,6 +824,7 @@ function drawDrag(now){
       cx.fillRect(g.x + (i % 10) * g.cell + 1, g.y + ((i / 10) | 0) * g.cell + 1, g.cell - 2, g.cell - 2);
     }
     const inb = drag.cand.inb;
+    if (FLAT) return;
     if (inb) drawShip(g, {id:s.id, len:s.len, r:drag.cand.r, c:drag.cand.c, v:s.v}, g.cell, 'mine', {alpha:.92, invalid:!ok, lift:true});
   }
   if (!drag.cand || !drag.cand.inb){
@@ -822,10 +832,26 @@ function drawDrag(now){
     drawShip({x:gx, y:gy}, {id:s.id, len:s.len, r:0, c:0, v:s.v}, c, 'mine', {alpha:.9, lift:true});
   }
 }
+/* 3D: redraw the flat layer only when something on it changed, then let three.js draw the scene */
+let flatSig = '', fontsV = 0;
+function flatSignature(now){
+  if (aim || (pvp && pvp.pending) || (drag && drag.moved) || paused) return 'a' + now;
+  return [W, H, DPR, state, mode, rules, turn, hover, kb.on ? kb.r * 10 + kb.c : -1, marks.join('.'), visVer, sel, swapView, LY.inset, idle() ? 1 : 0,
+    setupShips.map(q => q.placed ? `${q.r},${q.c},${q.v ? 1 : 0}` : 'x').join(';'), drag ? 1 : 0, foeReveal ? 1 : 0, pvp ? pvp.oppName : '', fontsV].join('|');
+}
 function draw(now){
+  if (T3){
+    const sig = flatSignature(now), changed = sig !== flatSig;
+    if (changed){ flatSig = sig; FLAT = true; draw2D(now); }
+    T3.render(now, changed);
+    return;
+  }
+  FLAT = false; draw2D(now);
+}
+function draw2D(now){
   cx.setTransform(DPR, 0, 0, DPR, 0, 0);
   cx.clearRect(0, 0, W, H);
-  if (shake > .3 && !REDUCED) cx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+  if (!FLAT && shake > .3 && !REDUCED) cx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
   for (const key of ['me', 'foe']){ const g = grid(key); if (g){ drawGridFull(g, key, now); if (state !== 'setup' && state !== 'menu') drawRoster(g, key); } }
   if (state === 'setup'){ drawTray(now); drawDrag(now); }
   if (paused){
@@ -950,6 +976,7 @@ function resetMatchState(){
   my = null; foe = null; view = new Int8Array(CELLS); foeSunk = []; foeReveal = null; shooter = null;
   turnNo = 0; marks = []; st = freshStats(); paused = false; winner = null; endInfo = null; lastAim = -1; swapView = false; drag = null; hover = -1;
   vis.me.fill(0); vis.foe.fill(0); vis.sunk.me.clear(); vis.sunk.foe.clear();
+  visVer++; if (T3) T3.clear();
 }
 function loadLayout(){
   try {
@@ -1614,7 +1641,7 @@ function paintMute(){ const m = BDB.sfx.muted; $('mute').querySelector('.lbl').t
 paintMute();
 
 document.addEventListener('pointerup', e => { const b = e.target.closest && e.target.closest('.k-dk, .k-pill'); if (b) setTimeout(() => b.blur(), 0); });
-function local(e){ const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function local(e){ if (T3) return T3.toLayout(e.clientX, e.clientY); const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
 let downAt = null;
 cv.addEventListener('pointerdown', e => {
   const [x, y] = local(e);
@@ -1747,10 +1774,34 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 resize();
+
+/* ---------- 3D view ---------- */
+let want3D = store.get('fleet-3d') !== '0';
+const API = {
+  get LY(){ return LY; }, get state(){ return state; }, get setupShips(){ return setupShips; }, get sel(){ return sel; }, get drag(){ return drag; },
+  get my(){ return my; }, get vis(){ return vis; }, get foeReveal(){ return foeReveal; }, get shells(){ return shells; }, get gt(){ return gt; },
+  get shake(){ return shake; }, get paused(){ return paused; }, get turn(){ return turn; }, get chatW(){ return LY.chatW || 0; }
+};
+function paint3D(){ const b = $('view3d'); b.querySelector('.lbl').textContent = T3 ? '3D on' : '3D off'; b.setAttribute('aria-pressed', String(!!T3)); }
+async function start3D(){
+  try {
+    const {createFleet3D} = await import('./fleet3d.js');
+    if (!want3D || T3) return;
+    T3 = await createFleet3D({host:stage, flat:cv, api:API, cellsOf, SINK_MS, reduced:REDUCED, faceImg:BDB.faceImg});
+    stage.classList.add('f3'); flatSig = ''; resize();
+  } catch(e){ console.warn('3D view unavailable, using the flat one', e); T3 = null; FLAT = false; want3D = false; stage.classList.remove('f3'); }
+  paint3D();
+}
+function stop3D(){ if (T3){ T3.dispose(); T3 = null; } FLAT = false; stage.classList.remove('f3'); resize(); paint3D(); }
+$('view3d').onclick = () => { want3D = !want3D; store.set('fleet-3d', want3D ? '1' : '0'); if (want3D) start3D(); else stop3D(); };
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fontsV++; });
+paint3D();
+if (want3D) start3D();
 requestAnimationFrame(frame);
 chatSideMQ.addEventListener('change', layout);
 
 /* ---------- test hook ---------- */
+function pagePt(x, y){ if (T3){ const [px, py] = T3.toClient(x, y); return {x:px, y:py}; } const r = cv.getBoundingClientRect(); return {x:r.left + x, y:r.top + y}; }
 window.__game = {
   get state(){ return state; }, get score(){ return lastScore; }, get mode(){ return mode; }, get turn(){ return turn; }, get turnNo(){ return turnNo; },
   get rules(){ return rules; }, get level(){ return level.key; }, get idle(){ return idle(); }, get stats(){ return {...st}; }, get paused(){ return paused; },
@@ -1760,8 +1811,9 @@ window.__game = {
   view(){ return Array.from(view); }, myShots(){ return my ? Array.from(my.shot) : []; },
   foeCells(){ return foe ? foe.ships.flatMap(s => cellsOf(s.r, s.c, s.v, s.len)) : []; },      // vs BDB only, for tests
   myCells(){ return my ? my.ships.flatMap(s => cellsOf(s.r, s.c, s.v, s.len)) : []; },
-  cellXY(key, i){ const g = grid(key); if (!g) return null; const r = cv.getBoundingClientRect(); return {x:r.left + g.x + (i % 10 + .5) * g.cell, y:r.top + g.y + (((i / 10) | 0) + .5) * g.cell}; },
-  slotXY(id){ const sl = LY.slots.find(s => s.id === id); const r = cv.getBoundingClientRect(); return sl && {x:r.left + sl.x + sl.tc * .5, y:r.top + sl.y + sl.tc * .5}; },
+  cellXY(key, i){ const g = grid(key); if (!g) return null; return pagePt(g.x + (i % 10 + .5) * g.cell, g.y + (((i / 10) | 0) + .5) * g.cell); },
+  slotXY(id){ const sl = LY.slots.find(s => s.id === id); return sl && pagePt(sl.x + sl.tc * .5, sl.y + sl.tc * .5); },
+  get view3d(){ return !!T3; },
   fire: i => aimAt(i), fireMarks, randomize, ready, startBdb,
   setLevel(k){ const l = LEVELS.find(x => x.key === k); if (l){ level = l; store.set('fleet-level', k); paintSplash(); } },
   setRules(r){ rules = r; store.set('fleet-rules', r); paintSplash(); },
