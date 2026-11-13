@@ -29,6 +29,7 @@ Each lives in its own folder and saves a top 5 on the device.
 - `blackjack/` BDB Blackjack: BDB deals, fake chips only
 - `connect4/` Charleston Four: four in a row vs BDB, pass-and-play, or online
 - `blocks/` Break Room Blocks: falling-blocks puzzle
+- `tycoon/` BDB Tycoon: property-trading board game for 2–6 (bots, pass-and-play, online tables; host-authoritative, bots cover dropped seats)
 - `fleet/` Sink BDB: hide your fleet and hunt his, vs BDB at 3 levels or online 1v1 with a fair-play check
 
 New games start from `assets/TEMPLATE.html`, which uses the shared `assets/kit.css` and `assets/kit.js`.
