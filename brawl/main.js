@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115g';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115g';
-import { createAI } from './ai.js?v=1115g';
-import { Accounts, fresh, sanitize } from './store.js?v=1115g';
-import { Cloud, cloudWhy } from './cloud.js?v=1115g';
-import { sayFor, sayWhen } from './talk.js?v=1115g';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115h';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115h';
+import { createAI } from './ai.js?v=1115h';
+import { Accounts, fresh, sanitize } from './store.js?v=1115h';
+import { Cloud, cloudWhy } from './cloud.js?v=1115h';
+import { sayFor, sayWhen } from './talk.js?v=1115h';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -64,9 +64,9 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115g'), import('./models.js?v=1115g')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115h'), import('./models.js?v=1115h')]);
     await md.preload(); MD = md;
-    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
+    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
     V.loadProps('field');
   } catch(e){ console.warn('3D view unavailable', e); V = null; }
@@ -369,8 +369,16 @@ function profile(){
     row.querySelector('button').onclick = () => { if (P.tokens < cost || P.perks[k] >= K.max) return; P.tokens -= cost; P.perks[k]++; save(); BDB.sfx.big(); hub(); };
     pk.appendChild(row);
   }
-  $('codeOut').value = Accounts.code(P);
+  $('codeOut').value = Accounts.code(P); gfxUI();
 }
+/* graphics quality: Auto finds the level this device can hold; the player can pin one */
+function gfxUI(){
+  const g = V && V.gfx, seg = $('gfxSeg'); if (!seg) return;
+  for (const b of seg.children) b.setAttribute('aria-pressed', !!g && String(g.mode) === b.dataset.g);
+  $('gfxNote').textContent = !g ? '3D is still loading.' : (g.soft ? 'This browser is drawing without a graphics card, which is slow at any setting. Turn on "graphics acceleration" in the browser\'s settings and restart it. ' : '')
+    + (g.mode === 'auto' ? `Auto steps the detail down when matches run slowly. Right now: ${g.name}.` : `Fixed at ${g.name}.`) + (g.card ? ` Graphics: ${g.card.replace(/^ANGLE \((.*)\)$/, '$1').slice(0, 90)}.` : '');
+}
+$('gfxSeg').onclick = e => { const b = e.target.closest('button'); if (!b || !V) return; V.setGfx(b.dataset.g === 'auto' ? 'auto' : +b.dataset.g); BDB.sfx.tick(); gfxUI(); };
 
 /* codes typed into the Profile tab. What each one does is here; the codes themselves are not, only their fingerprints. */
 const fprint = s => { let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
@@ -649,6 +657,7 @@ async function begin(o){
   if (MD && V && o.units) try { await Promise.all([MD.needModels(o.units, Q.get('fast') ? 60000 : 25000), V.needFloor(o.map)]); } catch(e){}
   if (B !== me) return;                                   // they backed out while it loaded
   if (V) V.reset(B.team, o.map);
+  if (V && o.units){ try { await Promise.race([V.warm(o.units), sleep(9000)]); } catch(e){} if (B !== me) return; }      // build every shader and send every model to the graphics card now, not mid-match
   if (o.coop && o.mode === 'host'){                       // 2v2: you and a friend against two BDBs
     const [a, b] = o.cpus, dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
     B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, dk(a), dk(b)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, a.ai.el * .85, b.ai.el * .85], towerLvl:[myTower(), a.tower || a.lvl]});

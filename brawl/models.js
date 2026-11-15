@@ -2,8 +2,8 @@
    makeModel(key, team, opts) -> {g, h, fly, turret, anim(t, s)}.  Models face +z.
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
-import { AFF, UNITS } from './cards.js?v=1115g';
-import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1115g';
+import { AFF, UNITS } from './cards.js?v=1115h';
+import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1115h';
 
 const PI = Math.PI;
 export const TEAM = [0x3d8bff, 0xff4b47];
@@ -340,5 +340,5 @@ export function outline(g, k = 1.085){
   if (g.userData.inked) return;                 // rigged characters bring their own
   const ms = [];
   g.traverse(o => { if (o.isMesh && !o.isSkinnedMesh && !Array.isArray(o.material) && !o.material.transparent && o.material.side !== THREE.DoubleSide && o.geometry.type !== 'PlaneGeometry' && o.geometry.type !== 'ShapeGeometry' && o.geometry.type !== 'TorusGeometry') ms.push(o); });
-  for (const o of ms){ const h = new THREE.Mesh(o.geometry, INK); h.scale.setScalar(k); o.add(h); }
+  for (const o of ms){ const h = new THREE.Mesh(o.geometry, INK); h.scale.setScalar(k); h.layers.set(1); o.add(h); }
 }

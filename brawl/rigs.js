@@ -154,7 +154,7 @@ export function makeRig(key, o, grad, extras){
   if (o && o.ink){
     const INK = inkFor(clamp(.021 / sc, .004, .2)), list = [];
     root.traverse(n => { if (!n.isMesh || !n.visible || Array.isArray(n.material)) return; for (let q = n; q && q !== root; q = q.parent) if (q.userData.noInk) return; list.push(n); });
-    for (const n of list){ let h; if (n.isSkinnedMesh){ h = new THREE.SkinnedMesh(n.geometry, INK); h.bind(n.skeleton, n.bindMatrix); } else h = new THREE.Mesh(n.geometry, INK); h.frustumCulled = false; n.add(h); }
+    for (const n of list){ let h; if (n.isSkinnedMesh){ h = new THREE.SkinnedMesh(n.geometry, INK); h.bind(n.skeleton, n.bindMatrix); } else h = new THREE.Mesh(n.geometry, INK); h.frustumCulled = false; h.layers.set(1); n.add(h); }      // layer 1: the view can stop drawing every outline at once
   }
   g.userData.inked = true;
   const fly = o && o.fly ? def.fly ?? 1.5 : 0, H = def.h * 1.02;

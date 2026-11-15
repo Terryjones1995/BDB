@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115g';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115g';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115g';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115h';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115h';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115h';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -95,25 +95,38 @@ function groundTex(id){
 export function createView(el, opt = {}){
   const low = !!opt.low;
   const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true, powerPreference:'high-performance'});
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, low ? 1.5 : 2));
+  /* How much the graphics card is asked to do. 0: sharp pixels, bloom, soft shadows, ink outlines. 1: no bloom, a smaller shadow map. 2: one pixel per pixel, no shadows.
+     3: fewer pixels than the screen has, no outlines. On 'auto' it starts one step above where it ended last time, and steps down by itself when frames come slowly. */
+  const GFX = [{dpr:2, fx:1, sh:2048, ink:1, name:'High'}, {dpr:1.25, fx:0, sh:1024, ink:1, name:'Medium'}, {dpr:1, fx:0, sh:0, ink:1, name:'Low'}, {dpr:.7, fx:0, sh:0, ink:0, name:'Lowest'}];
+  let card = ''; try { const g = renderer.getContext(), x = g.getExtension('WEBGL_debug_renderer_info'); card = String(x ? g.getParameter(x.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER) || ''); } catch(e){}
+  const soft = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(card);       // no graphics card at all: the processor is drawing every pixel
+  let gMode = 'auto', gfx = low ? 1 : 0;
+  try { const v = JSON.parse(localStorage.getItem('brawl-gfx')); if (v && (v.mode === 'auto' || GFX[v.mode])){ gMode = v.mode; gfx = gMode === 'auto' ? clamp((v.tier | 0) - 1, low ? 1 : 0, 3) : +gMode; } } catch(e){}
+  if (opt.gfx != null && GFX[opt.gfx]){ gMode = +opt.gfx; gfx = +opt.gfx; } else if (soft && gMode === 'auto' && !opt.keepGfx) gfx = 3;
+  const dprNow = () => { const q = GFX[gfx]; return q.dpr < 1 ? q.dpr : Math.min(devicePixelRatio || 1, q.dpr, low ? 1.5 : 9); };
+  renderer.setPixelRatio(dprNow());
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .86;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   el.appendChild(renderer.domElement);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(38, 1, .5, 220);
+  if (GFX[gfx].ink) camera.layers.enable(1);                // ink outlines live on layer 1, so they can all be switched off at once
   { const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose(); }
   scene.environmentIntensity = .55;
   const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x3a2c22, .6), sun = new THREE.DirectionalLight(0xfff0dc, 1.7);
-  sun.position.set(7, 20, 8); sun.castShadow = true; sun.shadow.mapSize.set(low ? 1024 : 2048, low ? 1024 : 2048);
+  sun.position.set(7, 20, 8); sun.castShadow = GFX[gfx].sh > 0; sun.shadow.mapSize.set(Math.min(GFX[gfx].sh || 1024, low ? 1024 : 2048), Math.min(GFX[gfx].sh || 1024, low ? 1024 : 2048));
   Object.assign(sun.shadow.camera, {left:-17, right:17, top:L + 5, bottom:-(L + 5), near:1, far:76}); sun.shadow.bias = -.0006; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
   scene.add(hemi, sun);
   /* bloom on anything brighter than white (spells, fire, lamps, the Legendary beam). Desktop only; phones draw straight to the screen. */
   let composer = null;
-  if (!low && !opt.noFx && renderer.capabilities.isWebGL2){
+  const mkComposer = () => {
+    if (composer || low || opt.noFx || !renderer.capabilities.isWebGL2) return;
     try {
       composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, {type:THREE.HalfFloatType, samples:4}));
       composer.addPass(new RenderPass(scene, camera)); composer.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), .5, .55, 1.0)); composer.addPass(new OutputPass());
     } catch(e){ composer = null; }
-  }
+  };
+  if (GFX[gfx].fx) mkComposer();
+  const fxOn = () => !!composer && !!GFX[gfx].fx, hdrMats = [];
   const root = new THREE.Group(), stage = new THREE.Group(), fxW = new THREE.Group(), bars = new THREE.Group();
   scene.add(stage, root, fxW, bars);
   let me = 0, mapId = 'court', time = 0, shakeAmt = 0, lostGL = false;
@@ -148,8 +161,51 @@ export function createView(el, opt = {}){
   function resize(){
     const w = el.clientWidth || 2, h = el.clientHeight || 2;
     renderer.setSize(w, h, false); renderer.domElement.style.width = '100%'; renderer.domElement.style.height = '100%';
+    renderer.setPixelRatio(dprNow()); renderer.setSize(w, h, false);
     if (composer){ composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
     camera.aspect = w / h; camera.updateProjectionMatrix(); fit();
+  }
+
+  /* ---------- keeping the frame rate ---------- */
+  function applyGfx(){
+    const q = GFX[gfx];
+    if (q.fx) mkComposer(); else if (composer){ try { composer.dispose(); } catch(e){} composer = null; }
+    HDR = fxOn() ? 2.2 : 1; for (const m of hdrMats) m.color.setScalar(HDR);
+    const sh = Math.min(q.sh || 1024, low ? 1024 : 2048);
+    if (sun.castShadow !== (q.sh > 0) || (q.sh && sun.shadow.mapSize.x !== sh)){ sun.castShadow = q.sh > 0; sun.shadow.mapSize.set(sh, sh); if (sun.shadow.map){ sun.shadow.map.dispose(); sun.shadow.map = null; } }
+    if (q.ink) camera.layers.enable(1); else camera.layers.disable(1);
+    resize();
+    try { localStorage.setItem('brawl-gfx', JSON.stringify({mode:gMode, tier:gfx})); } catch(e){}
+    if (opt.onGfx) opt.onGfx(gfx);
+  }
+  function setGfx(mode){ gMode = mode === 'auto' ? 'auto' : clamp(+mode | 0, 0, 3); gfx = gMode === 'auto' ? (soft ? 3 : low ? 1 : 0) : gMode; pT = pN = pSlow = 0; pHold = 1500; applyGfx(); }
+  /* frames are timed as they are drawn. A second and a bit of slow ones (under about 34 a second) and the level drops one step. */
+  let pT = 0, pN = 0, pSlow = 0, pHold = 3000, pLast = 0;
+  function pace(){
+    const now = performance.now(), d = now - pLast; pLast = now;
+    if (gMode !== 'auto' || d > 400 || d <= 0 || gfx >= 3) return;      // a tab that was away, a level picked by hand, or nothing left to give up
+    if (pHold > 0){ pHold -= d; return; }                                // just started or just changed level: let it settle first
+    pT += d; pN++; if (d > 30) pSlow++;
+    if (pT < 1200) return;
+    const slow = pSlow / pN, avg = pT / pN; pT = pN = pSlow = 0;
+    if (avg > 29 || slow > .6){ gfx++; pHold = 2500; applyGfx(); }
+  }
+  /* Before the countdown, everything the match will show is drawn once out of sight, a few characters at a time: shaders get built, textures and meshes
+     go to the graphics card. Left to happen on the frame a troop first walks on, every one of those is a hitch in the middle of the game. */
+  let warmRT = null;
+  async function warm(keys){
+    const list = [...new Set(keys)].filter(k => UNITS[k]);
+    for (let i = 0; i < list.length; i += 5){
+      const tmp = new THREE.Group(); root.add(tmp);
+      list.slice(i, i + 5).forEach((k, j) => { try { const m = makeModel(k, j % 2, {ink:!low}); if (!low) outline(m.g); m.g.position.set((j - 2) * 2.2, 0, 4); tmp.add(m.g); } catch(e){} });
+      try {
+        camera.position.set(0, 30, 30); camera.lookAt(0, 0, 4); camera.updateMatrixWorld();
+        if (fxOn()){ warmRT = warmRT || new THREE.WebGLRenderTarget(32, 32, {type:THREE.HalfFloatType}); renderer.setRenderTarget(warmRT); renderer.render(scene, camera); renderer.setRenderTarget(null); }
+        else { renderer.setScissorTest(true); renderer.setScissor(0, 0, 2, 2); renderer.render(scene, camera); renderer.setScissorTest(false); }
+      } catch(e){}
+      root.remove(tmp);
+      await new Promise(r => requestAnimationFrame(r));
+    }
   }
 
   /* ---------- particles: two pools (glow and smoke) ---------- */
@@ -158,7 +214,7 @@ export function createView(el, opt = {}){
     const pos = new Float32Array(n * 3).fill(999), col = new Float32Array(n * 4), g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 4));
     const pts = new THREE.Points(g, new THREE.PointsMaterial({size, map:dot, vertexColors:true, transparent:true, depthWrite:false, blending:add ? THREE.AdditiveBlending : THREE.NormalBlending, sizeAttenuation:true}));
-    if (add && composer) pts.material.color.setScalar(2.2);
+    if (add){ hdrMats.push(pts.material); if (fxOn()) pts.material.color.setScalar(2.2); }
     pts.frustumCulled = false; root.add(pts);
     const P = Array.from({length:n}, () => ({l:0})); let head = 0, live = 0;
     return {
@@ -175,7 +231,7 @@ export function createView(el, opt = {}){
       clear(){ for (let i = 0; i < n; i++){ P[i].l = 0; pos[i * 3 + 1] = 999; col[i * 4 + 3] = 0; } live = 0; g.attributes.position.needsUpdate = true; g.attributes.color.needsUpdate = true; }
     };
   }
-  const HDR = composer ? 2.2 : 1;      // with bloom on, glowing things are drawn brighter than white so they bleed light
+  let HDR = fxOn() ? 2.2 : 1;      // with bloom on, glowing things are drawn brighter than white so they bleed light
   const glow = pool(low ? 320 : 640, .34, true), smoke = pool(low ? 140 : 260, .9, false), tc = new THREE.Color();
   function burst(x, y, z, n, color, o = {}){
     const sys = o.smoke ? smoke : glow, sp = o.spd ?? 3, up = o.up ?? 2.5; tc.set(color);
@@ -428,7 +484,7 @@ export function createView(el, opt = {}){
     sun: () => dtex('sun', 64, 128, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,244,214,1)'); g.addColorStop(1, 'rgba(255,244,214,0)'); x.fillStyle = g; x.fillRect(6, 0, w - 12, h); x.clearRect(w / 2 - 2, 0, 4, h); })
   };
   /* a picture on a wall or a lit sign: faces along +z until turned */
-  function sign(par, tex, w, h, x, y, z, ry = 0, glow = 1){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({map:tex})); if (glow > 1 && composer) m.material.color.setScalar(glow); m.position.set(x, y, z); m.rotation.y = ry; par.add(m); return m; }
+  function sign(par, tex, w, h, x, y, z, ry = 0, glow = 1){ const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({map:tex})); if (glow > 1 && fxOn()) m.material.color.setScalar(glow); m.position.set(x, y, z); m.rotation.y = ry; par.add(m); return m; }
   const FANS = [[0x2f7df0, 0x1b4fb5, 0x6fb1ff, 0xffffff, 0xffd23f], [0xe2453c, 0xa8241c, 0xff8a7a, 0xffffff, 0xffd23f]], SKIN = [0xf2c9a0, 0xd9a273, 0xb07a4f, 0x8a5a3a, 0xf6dcc0], SEATC = [0x2a63d6, 0xc9382f];
   const bodyG = new THREE.CapsuleGeometry(.2, .32, 3, 8), headG = new THREE.SphereGeometry(.17, 8, 6), seatG = new THREE.BoxGeometry(.52, .5, .64), ccol = new THREE.Color();
   const fanMat = new THREE.MeshToonMaterial({color:0xffffff}), seatMat = new THREE.MeshToonMaterial({color:0xffffff});
@@ -974,7 +1030,8 @@ export function createView(el, opt = {}){
     if (punch.t > 0){ punch.t -= dt; camera.position.lerp(tv.set(punch.x, 0, punch.z).addScaledVector(camDir, 15), Math.sin(Math.min(1, punch.t) * PI) * .22); }
     if (shakeAmt > .002){ camera.position.x += (Math.random() - .5) * shakeAmt; camera.position.y += (Math.random() - .5) * shakeAmt; shakeAmt *= Math.exp(-dt * 7); }
     camera.lookAt(look);
-    if (!lostGL){ if (composer) composer.render(dt); else renderer.render(scene, camera); }
+    if (!lostGL){ if (fxOn()) composer.render(dt); else renderer.render(scene, camera); }
+    pace();
   }
   function reset(team, map){
     me = team; root.rotation.y = team === 0 ? 0 : PI;
@@ -986,7 +1043,7 @@ export function createView(el, opt = {}){
     for (const z of zaps){ root.remove(z.m); z.m.material.dispose(); } zaps.length = 0; pools.length = 0;
     for (const d of dying) root.remove(d.g); dying.length = 0; intro = opt.reduced ? 9 : 0; punch.t = 0;
     for (const [id, r] of [...trapRecs]) dropTrap(id, r); for (const p of pops) root.remove(p.g); pops.length = 0;
-    resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false);
+    resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false); pT = pN = pSlow = 0; pHold = 3500;
     resize(); setMap(map);
   }
 
@@ -998,7 +1055,7 @@ export function createView(el, opt = {}){
       const sc = new THREE.Scene(), pm = new THREE.PMREMGenerator(r); sc.environment = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose();
       sc.add(new THREE.HemisphereLight(0xffffff, 0x51443a, 1.05)); const d = new THREE.DirectionalLight(0xfff1dd, 2); d.position.set(3, 6, 5); sc.add(d);
       const back = new THREE.DirectionalLight(0x9fd0ff, 1.5); back.position.set(-4, 3, -5); sc.add(back);            // a cool light from behind, so the outline of the figure catches
-      TR = {r, sc, cam:new THREE.PerspectiveCamera(22, 1, .1, 120)};
+      TR = {r, sc, cam:new THREE.PerspectiveCamera(22, 1, .1, 120)}; TR.cam.layers.enable(1);
     }
     const m = makeModel(key, 0, {face:true, aff, ink:true}); outline(m.g, 1.07); m.g.scale.setScalar(m.s || 1); m.anim(.4, {mv:false, ph:.9, atk:99, sum:99, aim:.5, active:true, chg:false}); TR.sc.add(m.g);
     // fill the picture: the figure runs top to bottom, and a wide one (wings, a bench) runs side to side instead
@@ -1010,5 +1067,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, needFloor, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get gl(){ return renderer; } };
+  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get gl(){ return renderer; } };
 }
