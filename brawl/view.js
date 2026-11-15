@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114p';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1114p';
-import { W, L, RIVER, TRIG } from './sim.js?v=1114p';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115a';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115a';
+import { W, L, RIVER, TRIG } from './sim.js?v=1115a';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -87,7 +87,7 @@ export function createView(el, opt = {}){
   scene.environmentIntensity = .55;
   const hemi = new THREE.HemisphereLight(0xdfe9ff, 0x3a2c22, .6), sun = new THREE.DirectionalLight(0xfff0dc, 1.7);
   sun.position.set(7, 20, 8); sun.castShadow = true; sun.shadow.mapSize.set(low ? 1024 : 2048, low ? 1024 : 2048);
-  Object.assign(sun.shadow.camera, {left:-17, right:17, top:23, bottom:-23, near:1, far:70}); sun.shadow.bias = -.0006; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
+  Object.assign(sun.shadow.camera, {left:-17, right:17, top:L + 5, bottom:-(L + 5), near:1, far:76}); sun.shadow.bias = -.0006; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
   scene.add(hemi, sun);
   /* bloom on anything brighter than white (spells, fire, lamps, the Legendary beam). Desktop only; phones draw straight to the screen. */
   let composer = null;
@@ -477,6 +477,7 @@ export function createView(el, opt = {}){
   const ringMat = [0, 1].map(i => new THREE.MeshBasicMaterial({color:TEAM[i], transparent:true, opacity:.9, depthWrite:false}));
   const rageMat = new THREE.MeshBasicMaterial({color:0xff4fd8, transparent:true, opacity:.9, depthWrite:false});
   const iceMat = new THREE.MeshStandardMaterial({color:0xbfe9ff, transparent:true, opacity:.5, roughness:.05, metalness:.1, flatShading:true, depthWrite:false});
+  const shMat = new THREE.MeshBasicMaterial({color:0x6fc4ff, transparent:true, opacity:.26, depthWrite:false, blending:THREE.AdditiveBlending}), shG = new THREE.SphereGeometry(1, 18, 12), hidMat = new THREE.MeshBasicMaterial({color:0x9a6bff, transparent:true, opacity:.9, depthWrite:false});
   const baseRing = new THREE.RingGeometry(.86, 1.08, 30);
   const badges = {};
   function badgeMat(rel, lvl){
@@ -528,12 +529,12 @@ export function createView(el, opt = {}){
       const rub = new THREE.Group(); rub.position.set(r.x, 0, r.z); rub.userData.rubble = true; root.add(rub);
       for (let i = 0; i < 9; i++){ const k = new THREE.Mesh(new THREE.DodecahedronGeometry(.3 + (i * 7 % 5) * .1, 0), M(i % 3 ? 0x8b93a6 : 0x636b7e, {flat:true, r:.95})); const a = i / 9 * PI * 2; k.position.set(Math.cos(a) * (.4 + (i % 3) * .4), .2 + (i % 2) * .15, Math.sin(a) * (.4 + (i % 3) * .4)); k.rotation.set(i, i * 2, i * 3); rub.add(k); }
     } else {
-      const col = r.e.key.startsWith('slime') ? 0x3fd0b8 : r.e.key === 'skel' ? 0xf3f0e6 : r.e.key === 'ghost' ? 0xbfd4ff : U.bld ? 0xffb547 : r.rel ? 0xff8a7a : 0x8fc4ff;
+      const col = r.e.key.startsWith('slime') ? 0x3fd0b8 : r.e.key === 'skel' ? 0xf3f0e6 : U.bld ? 0xffb547 : r.rel ? 0xff8a7a : 0x8fc4ff;
       burst(r.x, h, r.z, 8 + Math.round(U.r * 12), col, {spd:2.2 + U.r * 2, up:2.5, life:.5});
       burst(r.x, .3, r.z, 3 + Math.round(U.r * 4), 0xd9dde8, {smoke:true, spd:1, up:1, life:.7, grav:-.6});
     }
     if (U.twr) drop(r);
-    else { bars.remove(r.bar); if (r.badge) bars.remove(r.badge); recs.delete(r.e.id); if (r.ring) r.ring.visible = false; if (r.ice) r.g.remove(r.ice); dying.push({g:r.g, t:0, spin:(Math.random() - .5) * 16, rig:r.m.die && r.m.die() ? r.m : null}); flat(r.x, r.z, {r0:.2, r1:U.r * 2.2, dur:.3, color:0xffffff, add:true, a:.6}); }   // knocked into the air, spinning, then gone
+    else { bars.remove(r.bar); if (r.badge) bars.remove(r.badge); recs.delete(r.e.id); if (r.ring) r.ring.visible = false; if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); if (r.gone || r.quiet){ root.remove(r.g); return; } dying.push({g:r.g, t:0, spin:(Math.random() - .5) * 16, rig:r.m.die && r.m.die() ? r.m : null}); flat(r.x, r.z, {r0:.2, r1:U.r * 2.2, dur:.3, color:0xffffff, add:true, a:.6}); }   // knocked into the air, spinning, then gone
   }
   const dying = [], DEAD = {mv:false, atk:99, ph:0}, FLASH = new THREE.MeshBasicMaterial({color:0xffffff});
   function setFlash(r, on){
@@ -549,6 +550,8 @@ export function createView(el, opt = {}){
       r.e = e; seen.add(e.id);
       const dx = e.x - r.x, dz = e.z - r.z;
       r.x += dx * kp; r.z += dz * kp; r.age += dt; r.atk += dt; r.sum += dt;
+      const gone = !!(e.hid && r.rel);                        // a cloaked enemy is simply not there until it strikes
+      if (gone !== !!r.gone){ r.gone = gone; r.g.visible = !gone; if (!gone) burst(r.x, m.h * .5, r.z, 16, 0x9a6bff, {smoke:true, spd:1.6, up:1.4, life:.6, grav:-.4}); }
       const t = e.tgt ? recs.get(e.tgt) : null;
       let yaw = r.yaw;
       if (e.mv && dx * dx + dz * dz > 1e-6) yaw = Math.atan2(dx, dz); else if (t) yaw = Math.atan2(t.x - r.x, t.z - r.z);
@@ -563,6 +566,7 @@ export function createView(el, opt = {}){
         if (k >= 1){ r.landed = true; r.pop = .22; burst(r.x, .15, r.z, 4 + Math.round(U.r * 5), 0xe9e4d6, {smoke:true, spd:1.6, up:.6, life:.5, grav:-.4, spread:U.r}); }
         else y = (1 - k) * (1 - k) * 6;
       }
+      if (r.leap > 0){ r.leap -= dt; y += Math.sin(clamp(1 - r.leap / r.leapD, 0, 1) * PI) * (1.2 + U.r); if (r.leap <= 0){ r.pop = .22; burst(r.x, .15, r.z, 10, 0xe9e4d6, {smoke:true, spd:2.4, up:.8, life:.5, grav:-.3, spread:U.r}); } }
       r.g.position.set(r.x, y, r.z);
       if (r.lunge > 0) r.lunge -= dt; if (r.hit > 0) r.hit -= dt; if (r.white > 0 && (r.white -= dt) <= 0) setFlash(r, false);
       const hop = e.mv && !m.fly && !U.bld && !frozen && !m.rig ? Math.abs(Math.sin(r.ph)) * (U.spd >= 1.9 ? .32 : U.r > .8 ? .05 : .12) : 0;
@@ -571,19 +575,26 @@ export function createView(el, opt = {}){
       if (e.mv && !m.fly && !low && !frozen && (r.step = (r.step || 0) + dt) > .26){ r.step = 0; burst(r.x, .1, r.z, 1, 0xe6dcc4, {smoke:true, spd:.35, up:.45, life:.45, grav:-.3}); }
       if (r.pop > 0) r.pop -= dt;
       const sq = r.pop > 0 ? Math.sin(r.pop / .22 * PI) * .16 : 0;
-      const ms = m.s || 1; m.g.scale.set(ms * (1 + sq), ms * (1 - sq), ms * (1 + sq));
-      if (e.slow && Math.random() < dt * 5) burst(r.x, m.h * .5 + (m.fly || 0), r.z, 1, 0x9fdcff, {spd:.5, up:.8, life:.5, grav:-.5});
+      const ms = (m.s || 1) * (1 + Math.min(8, e.gs || 0) * .035); m.g.scale.set(ms * (1 + sq), ms * (1 - sq), ms * (1 + sq));
+      const mid = m.h * .5 + (m.fly || 0);
+      if (e.slow && Math.random() < dt * 5) burst(r.x, mid, r.z, 1, 0x9fdcff, {spd:.5, up:.8, life:.5, grav:-.5});
+      if (e.bt && Math.random() < dt * 9) burst(r.x, mid, r.z, 1, Math.random() < .5 ? 0xff8a2b : 0xffd23f, {spd:.6, up:1.6, life:.45, grav:-1.5, spread:U.r});
+      if (e.pt && Math.random() < dt * 6) burst(r.x, mid, r.z, 1, 0x7dff5a, {spd:.4, up:.9, life:.6, grav:-.6, spread:U.r});
+      if (e.mk && Math.random() < dt * 5) burst(r.x, m.h + (m.fly || 0), r.z, 1, 0xc77dff, {spd:.3, up:.5, life:.5, grav:-.3});
+      if (e.sh > 0 && !r.shield){ r.shield = new THREE.Mesh(shG, shMat); r.shield.scale.set(U.r * 1.5 + .25, m.h * .62, U.r * 1.5 + .25); r.shield.position.y = mid; r.g.add(r.shield); }
+      else if (!(e.sh > 0) && r.shield){ r.g.remove(r.shield); r.shield = null; }
+      if (r.shield) r.shield.rotation.y = time * 1.5;
       if (e.hp < r.hp - .5 && r.landed){ dmgNum(r, r.hp - e.hp); if (e.hp < r.hp - 12 || Math.random() < .3) burst(r.x, m.h * .55 + (m.fly || 0), r.z, U.twr ? 5 : 3, 0xffe3a0, {spd:2, up:1.6, life:.3}); if (r.pop <= 0) r.pop = .1; r.hit = .18; if (!U.twr && r.hp - e.hp >= 20){ r.white = .07; setFlash(r, true); } }
       else if (e.hp > r.hp + 5) burst(r.x, m.h * .6 + (m.fly || 0), r.z, 4, 0x6dff9a, {spd:.8, up:2.2, life:.6, grav:-1});
       r.hp = e.hp;
       if (!frozen) m.anim(time, {mv:e.mv, ph:r.ph, atk:r.atk, chg:e.chg, aim, sum:r.sum, active:e.active, spd:U.spd * (e.rage ? 1.35 : 1) * (e.slow ? .62 : 1)});
       if (frozen && !r.ice){ r.ice = new THREE.Mesh(iceG, iceMat); r.ice.scale.set(U.r * 1.25, m.h * .58, U.r * 1.25); r.ice.position.y = m.h * .5 + (m.fly || 0); r.g.add(r.ice); }
       else if (!frozen && r.ice){ r.g.remove(r.ice); r.ice = null; burst(r.x, m.h * .5, r.z, 8, 0xbfe9ff, {spd:2.5, up:2, life:.4}); }
-      if (r.ring){ r.ring.material = e.rage ? rageMat : ringMat[r.rel]; r.ring.scale.setScalar(U.r * (e.rage ? 1.3 + Math.sin(time * 12) * .1 : e.dep ? .7 + (time * 2 % 1) * .5 : 1.12)); }
-      const show = r.landed && !e.dep && (U.twr || e.hp < e.max - .5);
+      if (r.ring){ r.ring.material = e.hid ? hidMat : e.rage ? rageMat : ringMat[r.rel]; r.ring.scale.setScalar(U.r * (e.rage ? 1.3 + Math.sin(time * 12) * .1 : e.dep ? .7 + (time * 2 % 1) * .5 : 1.12)); }
+      const show = r.landed && !e.dep && !gone && (U.twr || e.hp < e.max - .5);
       r.bar.visible = show;
       tv.set(r.x, m.h + (m.fly || 0) + (U.twr ? .5 : .34), r.z); root.localToWorld(tv);
-      if (r.badge){ r.badge.visible = r.landed && !e.dep; r.badge.position.copy(tv); if (show) r.badge.position.x -= 0; }
+      if (r.badge){ r.badge.visible = r.landed && !e.dep && !gone; r.badge.position.copy(tv); }
       if (show){
         r.bar.position.copy(tv); if (r.badge) r.bar.position.y += .36; r.bar.quaternion.copy(camera.quaternion);
         const f = clamp(e.hp / e.max, 0, 1); r.fill.scale.x = Math.max(.001, r.bw * f); r.fill.position.x = -r.bw * (1 - f) / 2;
@@ -603,11 +614,38 @@ export function createView(el, opt = {}){
     fire: () => new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 8), M(0xffb347, {e:0xff6a00, ei:3})),
     magic: () => new THREE.Mesh(new THREE.SphereGeometry(.13, 10, 8), M(0x6dff9a, {e:0x2fff7a, ei:3})),
     beam: () => new THREE.Mesh(new THREE.SphereGeometry(.34, 12, 10), M(0xdff2ff, {e:0x8fc8ff, ei:4})),
-    cup: () => makeModel('coffee').g
+    arrow: () => { const g = new THREE.Group(), a = new THREE.Mesh(new THREE.CylinderGeometry(.025, .025, .7, 5), M(0xb9814a)); a.rotation.x = PI / 2; g.add(a); const t = new THREE.Mesh(new THREE.ConeGeometry(.06, .16, 5), M(0xcfd5e2, {m:.8, r:.3})); t.rotation.x = PI / 2; t.position.z = .42; g.add(t); return g; },
+    bolt: () => { const a = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .5, 5), M(0x4a5266, {m:.5})); a.rotation.x = PI / 2; const g = new THREE.Group(); g.add(a); return g; },
+    laser: () => { const a = new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .8, 6), M(0xff5a8a, {e:0xff2a6a, ei:4})); a.rotation.x = PI / 2; const g = new THREE.Group(); g.add(a); return g; },
+    bullet: () => new THREE.Mesh(new THREE.SphereGeometry(.07, 6, 5), M(0xffe9a8, {e:0xffc23f, ei:4})),
+    spit: () => new THREE.Mesh(new THREE.SphereGeometry(.11, 8, 6), M(0xd9f2c4, {r:.1})),
+    rock: () => new THREE.Mesh(new THREE.DodecahedronGeometry(.17, 0), M(0x8a7a66, {r:.95})),
+    potion: () => new THREE.Mesh(new THREE.SphereGeometry(.13, 8, 6), M(0xff7ad0, {e:0xff3aa8, ei:1.5})),
+    leaf: () => new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), M(0x7ccf4a, {e:0x45c82a, ei:1.5})),
+    sting: () => { const a = new THREE.Mesh(new THREE.ConeGeometry(.05, .3, 5), M(0xffd23f, {e:0xffb300, ei:2})); a.rotation.x = PI / 2; const g = new THREE.Group(); g.add(a); return g; },
+    ink: () => new THREE.Mesh(new THREE.SphereGeometry(.16, 8, 6), M(0x3a2a5a, {r:.2})),
+    candy: () => new THREE.Mesh(new THREE.BoxGeometry(.08, .08, .34), M(0xff4a5a)),
+    bomb: () => new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), M(0x22252e, {r:.4})),
+    zap: () => new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), M(0xfff27a, {e:0xffd23f, ei:4})),
+    fball: () => { const g = makeModel('fireball').g; g.scale.setScalar(.75); return g; },
+    met: () => { const g = makeModel('meteor').g; g.scale.setScalar(1.3); return g; }
   };
-  const TRAIL = {fire:0xff8a2b, magic:0x6dff9a, beam:0xaad8ff, ball:0xffc27a, coffee:0xb07a4a, flag:0xffe27a, water:0x9fe0ff}, HITC = {ball:0xffb070, coffee:0x8a5a34, flag:0xffe27a, water:0x8fd8ff, fire:0xff8a2b, magic:0x6dff9a, beam:0xdff2ff, cup:0x8a5a34};
+  const LOB = 'ball rock potion bomb candy spit leaf';
+  /* a bolt of light from one point to another: lightning, a laser, a beam that is already there the moment it fires */
+  const zaps = [], zapG = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).rotateX(PI / 2);
+  function zapLine(a, b, color, w = .07, life = .16){
+    const d = a.distanceTo(b); if (d < .05) return;
+    const m = new THREE.Mesh(zapG, new THREE.MeshBasicMaterial({color, transparent:true, opacity:.95, depthWrite:false, blending:THREE.AdditiveBlending})); m.material.color.multiplyScalar(HDR);
+    m.position.copy(a).lerp(b, .5); m.lookAt(b); m.scale.set(w, w, d); root.add(m); zaps.push({m, t:0, life, w});
+    burst(b.x, b.y, b.z, 6, color, {spd:2.4, up:1.4, life:.3});
+  }
+  function stepZaps(dt){ for (let i = zaps.length - 1; i >= 0; i--){ const z = zaps[i]; z.t += dt; const k = z.t / z.life; if (k >= 1){ root.remove(z.m); z.m.material.dispose(); zaps.splice(i, 1); continue; } z.m.material.opacity = .95 * (1 - k); const w = z.w * (1 + Math.sin(time * 90) * .35); z.m.scale.x = z.m.scale.y = w; } }
+  /* lightning out of the sky onto one spot */
+  function strike(x, z, y = 0){ va.set(x + (Math.random() - .5) * 3, 16, z + (Math.random() - .5) * 3); vb.set(x, y + .2, z); const mid = va.clone().lerp(vb, .5); mid.x += (Math.random() - .5) * 1.6; mid.z += (Math.random() - .5) * 1.6; zapLine(va, mid, 0xfff7b0, .16, .3); zapLine(mid, vb, 0xfff7b0, .16, .3); flat(x, z, {r0:.3, r1:2, dur:.35, color:0xfff27a, add:true}); burst(x, .4, z, 22, 0xfff27a, {spd:6, up:4, life:.5}); shake(.4); }
+  const TRAIL = {fire:0xff8a2b, magic:0x6dff9a, beam:0xaad8ff, ball:0xffc27a, coffee:0xb07a4a, flag:0xffe27a, water:0x9fe0ff, laser:0xff5a8a, potion:0xff7ad0, leaf:0x7ccf4a, ink:0x5a3a8a, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f, bomb:0x8a8f9c},
+    HITC = {ball:0xffb070, coffee:0x8a5a34, flag:0xffe27a, water:0x8fd8ff, fire:0xff8a2b, magic:0x6dff9a, beam:0xdff2ff, arrow:0xe9d8b4, bolt:0xcfd5e2, laser:0xff5a8a, bullet:0xffe9a8, spit:0xd9f2c4, rock:0xa89a86, potion:0xff7ad0, leaf:0x7ccf4a, sting:0xffd23f, ink:0x5a3a8a, candy:0xff8a9a, bomb:0xff8a2b, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f};
   function shoot(kind, from, to, dur, o = {}){
-    const m = shotMesh[kind](); m.position.copy(from); root.add(m);
+    const m = (shotMesh[kind] || shotMesh.ball)(); m.position.copy(from); m.lookAt(to); root.add(m);
     shots.push({m, kind, from:from.clone(), to:to.clone(), tid:o.tid || 0, th:o.th || 0, t:-(o.delay || 0), d:dur, arc:o.arc ?? 0, splash:o.splash || 0, quiet:o.quiet});
     if (o.delay) m.visible = false;
   }
@@ -620,7 +658,7 @@ export function createView(el, opt = {}){
       if (tr) s.to.set(tr.x, s.th, tr.z);
       const k = Math.min(1, s.t / s.d);
       s.m.position.lerpVectors(s.from, s.to, k); s.m.position.y += Math.sin(k * PI) * s.arc;
-      if (s.kind === 'ball' || s.kind === 'flag' || s.kind === 'cup') s.m.rotation.x += dt * 9;
+      if (s.kind === 'ball' || s.kind === 'flag' || s.kind === 'rock' || s.kind === 'bomb' || s.kind === 'candy' || s.kind === 'met') s.m.rotation.x += dt * 9; else if (!s.arc) s.m.lookAt(s.to);
       if (TRAIL[s.kind] && Math.random() < .8) burst(s.m.position.x, s.m.position.y, s.m.position.z, 1, TRAIL[s.kind], {spd:.4, up:.3, life:.3, grav:0});
       if (k >= 1){
         if (!s.quiet) burst(s.to.x, s.to.y, s.to.z, s.kind === 'beam' ? 26 : 5, HITC[s.kind], {spd:s.kind === 'beam' ? 5 : 2, up:2, life:.4});
@@ -642,32 +680,50 @@ export function createView(el, opt = {}){
   }
   function stepBeams(dt){ for (let i = beams.length - 1; i >= 0; i--){ const b = beams[i]; b.t += dt; const k = b.t / 1.5; if (k >= 1){ root.remove(b.m); b.m.material.dispose(); beams.splice(i, 1); continue; } b.m.material.opacity = .5 * (1 - k) * (.7 + Math.sin(time * 30) * .3); b.m.scale.set(1 - k * .7, 1, 1 - k * .7); b.m.rotation.y += dt * 2; } }
   function shake(a){ if (!opt.reduced) shakeAmt = Math.max(shakeAmt, a); }
+  /* a mark on the ground that stays for a while: a burning pool, a poison cloud, a twister */
+  const pools = [];
+  function linger(x, z, r, t, color, kind, delay = 0){ flat(x, z, {r0:r, dur:t, delay, color, fill:true, a:.26, hold:true, pulse:true, add:true}); flat(x, z, {r0:r, dur:t, delay, color, a:.7, hold:true}); pools.push({x, z, r, t:-delay, d:t, color, kind}); }
+  function stepPools(dt){ for (let i = pools.length - 1; i >= 0; i--){ const p = pools[i]; p.t += dt; if (p.t < 0) continue; if (p.t >= p.d){ pools.splice(i, 1); continue; }
+    if (p.kind === 'twist'){ for (let k = 0; k < (low ? 1 : 3); k++){ const a = time * 7 + k * 2.1 + Math.random(), q = p.r * (.15 + Math.random() * .85); tc.set(k % 2 ? 0xcfe0ee : 0x8fa6b9); smoke.emit(p.x + Math.cos(a) * q, .2 + Math.random() * 2.6, p.z + Math.sin(a) * q, -Math.sin(a) * 5, .6, Math.cos(a) * 5, .5, tc, 0); } }
+    else if (Math.random() < dt * (low ? 8 : 18)){ const a = Math.random() * PI * 2, q = Math.sqrt(Math.random()) * p.r; burst(p.x + Math.cos(a) * q, .15, p.z + Math.sin(a) * q, 1, p.color, {smoke:p.kind === 'cloud', spd:.3, up:p.kind === 'cloud' ? .8 : 2.2, life:p.kind === 'cloud' ? 1.2 : .6, grav:p.kind === 'cloud' ? -.3 : -1}); } } }
 
   /* ---------- events from the sim ---------- */
   const va = new THREE.Vector3(), vb = new THREE.Vector3();
   function events(list){
     for (const ev of list){
       if (ev.e === 'drop'){ if (ev.rar === 'l') legend(ev.x, ev.z); }
+      else if (ev.e === 'chain'){ for (let i = 1; i < ev.pts.length; i++){ const a = ev.pts[i - 1], b = ev.pts[i]; va.set(a[0], a[2] ? 2.2 : .9, a[1]); vb.set(b[0], b[2] ? 2.2 : .9, b[1]); zapLine(va.clone(), vb.clone(), 0xbfe8ff, .06, .2); } }
+      else if (ev.e === 'bolt'){ for (const p of ev.pts) strike(p[0], p[1]); }
       else if (ev.e === 'atk'){
         const r = recs.get(ev.id); if (!r) continue; r.atk = 0;
         const U = r.e.U, t = recs.get(ev.t);
         if (U.rng <= 1.5 && !U.bld){ r.lunge = .22; if (t && !low) burst((r.x + t.x) / 2, r.m.h * .5, (r.z + t.z) / 2, 4, 0xffffff, {spd:2.2, up:1.2, life:.22, grav:0}); }
+        if (ev.big && t){ burst(t.x, t.m.h * .6 + (t.m.fly || 0), t.z, 18, 0xffe27a, {spd:5, up:3, life:.4}); flat(t.x, t.z, {r0:.2, r1:1.6, dur:.3, color:0xffe27a, add:true}); shake(.22); }
         if (U.splash && U.rng <= 1.5 && t){ flat(t.x, t.z, {r0:.3, r1:U.splash, dur:.35, color:0xffd28a, add:true, a:.7}); burst(t.x, .2, t.z, 12, 0xffd28a, {spd:4, up:2, life:.4}); shake(.25); }
       } else if (ev.e === 'shot'){
         const r = recs.get(ev.id), t = recs.get(ev.t); if (!r || !t) continue;
         const U = r.e.U, th = t.m.h * .5 + (t.m.fly || 0);
         va.set(r.x, U.twr ? (r.e.key === 'king' ? 3.6 : 2.6) : r.m.h * .7 + (r.m.fly || 0), r.z); vb.set(t.x, th, t.z);
         burst(va.x, va.y, va.z, 4, 0xfff1c4, {spd:1.6, up:.6, life:.2, grav:0});
-        shoot(ev.k, va, vb, ev.d, {tid:ev.t, th, arc:'ball coffee flag water'.includes(ev.k) ? va.distanceTo(vb) * .16 : 0, splash:U.splash || 0});
+        if (ev.k === 'zap' || ev.k === 'beam'){ zapLine(va.clone(), vb.clone(), ev.k === 'zap' ? 0xbfe8ff : 0xff8a2b, ev.k === 'zap' ? .07 : .05 + Math.min(.12, (r.rampN = (r.rampT === ev.t ? (r.rampN || 0) + 1 : 0)) * .012), ev.k === 'zap' ? .18 : .42); r.rampT = ev.t; }
+        else shoot(ev.k, va, vb, ev.d, {tid:ev.t, th, arc:LOB.includes(ev.k) ? va.distanceTo(vb) * .16 : 0, splash:U.splash || 0});
       } else if (ev.e === 'spell'){
         const rel = ev.team === me ? 0 : 1, col = TEAM[rel];
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .15, color:col, a:.9, hold:true});
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .15, color:col, fill:true, a:.16, hold:true});
         if (ev.k === 'rain'){
-          for (let i = 0; i < (low ? 10 : 18); i++){ const a = Math.random() * PI * 2, q = Math.sqrt(Math.random()) * ev.r; vb.set(ev.x + Math.cos(a) * q, .15, ev.z + Math.sin(a) * q); va.set(vb.x + (ev.team === 0 ? 3 : -3), 15, vb.z + (ev.team === 0 ? 9 : -9)); shoot('ball', va, vb, .55, {delay:Math.max(0, ev.d - .5 + Math.random() * .5), quiet:i % 2}); }
+          for (let i = 0; i < (low ? 10 : 18); i++){ const a = Math.random() * PI * 2, q = Math.sqrt(Math.random()) * ev.r; vb.set(ev.x + Math.cos(a) * q, .15, ev.z + Math.sin(a) * q); va.set(vb.x + (ev.team === 0 ? 3 : -3), 15, vb.z + (ev.team === 0 ? 9 : -9)); shoot('arrow', va, vb, .55, {delay:Math.max(0, ev.d - .5 + Math.random() * .5), quiet:i % 2}); }
         } else if (ev.k === 'bomb'){
-          va.set(0, 3, ev.team === 0 ? L - 3 : 3 - L); vb.set(ev.x, .3, ev.z); shoot('cup', va, vb, ev.d, {arc:6, quiet:true});
-        } else if (ev.k === 'rage'){
+          va.set(0, 3, ev.team === 0 ? L - 3 : 3 - L); vb.set(ev.x, .3, ev.z); shoot('fball', va, vb, ev.d, {arc:6, quiet:true});
+        } else if (ev.k === 'meteor'){
+          va.set(ev.x + (ev.team === 0 ? 5 : -5), 26, ev.z + (ev.team === 0 ? 12 : -12)); vb.set(ev.x, .3, ev.z); shoot('met', va, vb, ev.d, {quiet:true});
+          flat(ev.x, ev.z, {r0:ev.r, r1:.3, dur:ev.d, color:0xff5a1f, a:.9, hold:true});
+        } else if (ev.k === 'poison'){ linger(ev.x, ev.z, ev.r, ev.t, 0x7dff5a, 'cloud', ev.d); }
+        else if (ev.k === 'heal'){ linger(ev.x, ev.z, ev.r, ev.t, 0x6dff9a, 'rise', ev.d); }
+        else if (ev.k === 'tornado'){ linger(ev.x, ev.z, ev.r, ev.t, 0xcfe0ee, 'twist', ev.d); }
+        else if (ev.k === 'grave'){ linger(ev.x, ev.z, ev.r, ev.t, 0x8d6bd1, 'cloud', ev.d); }
+        else if (ev.k === 'ward'){ flat(ev.x, ev.z, {geo:domeG, r0:ev.r * .4, r1:ev.r, dur:.9, delay:ev.d, color:0x6fc4ff, add:true, a:.4}); }
+        else if (ev.k === 'rage'){
           flat(ev.x, ev.z, {r0:ev.r, dur:ev.t, delay:ev.d, color:0xff4fd8, fill:true, a:.2, hold:true, pulse:true, add:true});
           flat(ev.x, ev.z, {r0:ev.r, dur:ev.t, delay:ev.d, color:0xff8ae6, a:.8, hold:true, pulse:true});
         } else if (ev.k === 'freeze'){
@@ -680,11 +736,34 @@ export function createView(el, opt = {}){
         else if (ev.k === 'freeze'){ burst(ev.x, .6, ev.z, 40, 0xdff5ff, {spd:5, up:3, life:.8, spread:1, grav:2}); flat(ev.x, ev.z, {r0:.5, r1:ev.r, dur:.5, color:0xbfe9ff, add:true}); }
         else if (ev.k === 'rage'){ burst(ev.x, .4, ev.z, 26, 0xff6fe0, {spd:4, up:4, life:.7, grav:1}); }
         else if (ev.k === 'tox'){ burst(ev.x, .4, ev.z, 36, 0x7dff5a, {spd:5, up:4, life:.9, spread:ev.r * .5, grav:2}); flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.6, color:0x58d848, add:true}); }
+        else if (ev.k === 'zap'){ strike(ev.x, ev.z); flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.4, color:0xfff27a, add:true}); }
+        else if (ev.k === 'bolt'){ flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.5, color:0xfff27a, add:true}); }
+        else if (ev.k === 'quake'){ burst(ev.x, .2, ev.z, 50, 0xa89a86, {smoke:true, spd:3.5, up:2.2, life:1.1, grav:-.3, spread:ev.r * 1.4}); burst(ev.x, .3, ev.z, 30, 0x8a7a66, {spd:5, up:5, life:.7, spread:ev.r}); flat(ev.x, ev.z, {r0:.5, r1:ev.r, dur:.7, color:0xc9a066}); shake(.7); }
+        else if (ev.k === 'meteor'){ burst(ev.x, .6, ev.z, 90, 0xff7a1f, {spd:10, up:10, life:1, spread:1.2}); burst(ev.x, .6, ev.z, 30, 0x3a3f4d, {smoke:true, spd:3.4, up:5, life:1.8, grav:-1, spread:2}); flat(ev.x, ev.z, {r0:.5, r1:ev.r * 1.2, dur:.7, color:0xffb547, add:true}); flat(ev.x, ev.z, {r0:.5, r1:ev.r * 1.8, dur:1, delay:.1, color:0xff5a1f, add:true, a:.5}); shake(1); }
+        else if (ev.k === 'poison' || ev.k === 'grave'){ burst(ev.x, .4, ev.z, 26, ev.k === 'grave' ? 0xa678ff : 0x7dff5a, {smoke:true, spd:2.4, up:1.6, life:1, grav:-.4, spread:ev.r}); }
+        else if (ev.k === 'heal'){ burst(ev.x, .4, ev.z, 26, 0x6dff9a, {spd:2, up:5, life:.9, grav:-1, spread:ev.r}); }
+        else if (ev.k === 'ward'){ burst(ev.x, 1, ev.z, 30, 0x8fd0ff, {spd:4, up:3, life:.7, grav:1, spread:ev.r * .6}); flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.5, color:0x6fc4ff, add:true}); }
+        else if (ev.k === 'tornado' || ev.k === 'fire'){ }
         else { burst(ev.x, .6, ev.z, 54, 0xff8a2b, {spd:7, up:7, life:.8, spread:.8}); burst(ev.x, .6, ev.z, 14, 0x3a3f4d, {smoke:true, spd:2, up:3, life:1.2, grav:-1}); flat(ev.x, ev.z, {r0:.5, r1:ev.r, dur:.5, color:0xffb547, add:true}); shake(.45); }
       } else if (ev.e === 'fuse'){
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .05, color:0xff3a2a, a:.9, hold:true, pulse:true}); flat(ev.x, ev.z, {r0:.2, r1:ev.r, dur:ev.d + .05, color:0xff3a2a, fill:true, a:.3, hold:true});
-      } else if (ev.e === 'heal'){ const r = recs.get(ev.id); if (r) flat(r.x, r.z, {r0:.4, r1:ev.r, dur:.6, color:0x6dff9a, a:.6, add:true}); }
-      else if (ev.e === 'summon'){ const r = recs.get(ev.id); if (r){ r.sum = 0; r.atk = 0; burst(r.x, .4, r.z + (r.e.team === 0 ? -1 : 1), 12, r.e.key === 'witch' ? 0xb18cff : 0xf2c14e, {spd:2, up:2.4, life:.5}); } }
+      } else if (ev.e === 'heal'){ const r = ev.id ? recs.get(ev.id) : null; if (r) flat(r.x, r.z, {r0:.4, r1:ev.r, dur:.6, color:0x6dff9a, a:.6, add:true}); else if (ev.x != null) flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.7, color:0x6dff9a, a:.5, add:true}); }
+      else if (ev.e === 'summon'){ const r = recs.get(ev.id); if (r){ r.sum = 0; r.atk = 0; burst(r.x, .4, r.z + (r.e.team === 0 ? -1 : 1), 12, r.e.U.type === 'dark' ? 0xb18cff : 0xf2c14e, {spd:2, up:2.4, life:.5}); } }
+      else if (ev.e === 'pool'){ linger(ev.x, ev.z, ev.r, ev.t, 0xff6a1f, 'fire'); }
+      else if (ev.e === 'land'){
+        const c = {stun:0xffe27a, fire:0xff7a1f, frost:0x9fdcff, shield:0x6fc4ff, summon:0xa678ff, slam:0xe9d8b4}[ev.k] || 0xffffff;
+        flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.5, color:c, add:true, a:.95}); flat(ev.x, ev.z, {r0:ev.r, dur:.5, color:c, fill:true, a:.28, hold:true, add:true});
+        burst(ev.x, .3, ev.z, 40, c, {spd:6, up:ev.k === 'fire' ? 6 : 3.5, life:.7, spread:ev.r * .5}); if (ev.k !== 'shield' && ev.k !== 'summon'){ burst(ev.x, .2, ev.z, 14, 0xe9e4d6, {smoke:true, spd:2.6, up:1.4, life:.9, grav:-.4, spread:ev.r}); shake(.55); }
+      }
+      else if (ev.e === 'leap'){ const r = recs.get(ev.id); if (r){ r.leap = r.leapD = Math.max(.2, ev.t); burst(r.x, .2, r.z, 8, 0xe9e4d6, {smoke:true, spd:1.6, up:.8, life:.4, grav:-.3}); } }
+      else if (ev.e === 'reveal' || ev.e === 'cloak'){ const r = recs.get(ev.id); if (r) burst(r.x, r.m.h * .5, r.z, 18, 0x9a6bff, {smoke:true, spd:1.8, up:1.6, life:.7, grav:-.5}); }
+      else if (ev.e === 'revive'){ const r = recs.get(ev.id); if (r){ r.pop = .22; r.hp = r.e.hp; burst(r.x, .3, r.z, 30, 0x7dffb0, {spd:2.4, up:7, life:.9, grav:1}); flat(r.x, r.z, {r0:.3, r1:2, dur:.6, color:0x7dffb0, add:true}); } }
+      else if (ev.e === 'morph'){ const r = recs.get(ev.id); if (r){ r.quiet = true; burst(r.x, r.m.h * .5, r.z, 40, 0xc98a4b, {smoke:true, spd:3, up:3, life:.9, grav:-.6}); burst(r.x, r.m.h * .5, r.z, 20, 0xffe27a, {spd:4, up:4, life:.5}); shake(.3); } }
+      else if (ev.e === 'raise'){ burst(ev.x, .2, ev.z, 14, 0xa678ff, {spd:1.6, up:4.5, life:.7, grav:1}); flat(ev.x, ev.z, {r0:.2, r1:.9, dur:.4, color:0xa678ff, add:true}); }
+      else if (ev.e === 'grow'){ const r = recs.get(ev.id); if (r){ r.pop = .22; burst(r.x, r.m.h + (r.m.fly || 0), r.z, 14, 0xff5a4a, {spd:2.4, up:3, life:.6}); } }
+      else if (ev.e === 'dodge'){ const r = recs.get(ev.id); if (r){ burst(r.x, r.m.h * .6 + (r.m.fly || 0), r.z, 5, 0xffffff, {spd:3, up:.6, life:.25, grav:0}); tag(r, 'Miss', '#fff'); } }
+      else if (ev.e === 'mana'){ const r = recs.get(ev.id); if (r){ burst(r.x, r.m.h * .7 + (r.m.fly || 0), r.z, 12, 0x4fd8ff, {spd:1.4, up:4.5, life:.9, grav:1}); if (ev.pid === opt.pid?.()) tag(r, '+' + ev.amt + ' Mana', '#7fe3ff'); } }
+      else if (ev.e === 'shbreak'){ const r = recs.get(ev.id); if (r) burst(r.x, r.m.h * .5 + (r.m.fly || 0), r.z, 18, 0x8fd0ff, {spd:4.5, up:2.5, life:.5}); }
       else if (ev.e === 'charge'){ const r = recs.get(ev.id); if (r) burst(r.x, .5, r.z, 10, 0xffe27a, {spd:2.5, up:1, life:.4}); }
       else if (ev.e === 'over'){ for (const r of recs.values()) if (r.e.team === ev.w && r.m.cheer) r.m.cheer(); }
       else if (ev.e === 'tower'){
@@ -803,6 +882,10 @@ export function createView(el, opt = {}){
     for (const r of recs.values()){ const p = screenOf(r.x, r.m.h * .5 + (r.m.fly || 0), r.z), q = screenOf(r.x + Math.max(.7, r.e.U.r * 1.3), r.m.h * .5 + (r.m.fly || 0), r.z), lim = Math.max(26, Math.abs(q.x - p.x)), d = Math.hypot(p.x - cx, p.y - cy); if (d < lim && d < bd){ bd = d; best = r.e; } }
     return best;
   }
+  /* a word that floats up off a character: Miss, +1 Mana */
+  function tag(r, text, color){ if (!opt.numbers || dmgEls.length > 22) return; const p = screenOf(r.x, r.m.h + (r.m.fly || 0) + .2, r.z), d = document.createElement('div'); d.className = 'dmg word'; d.textContent = text; d.style.color = color; const b = el.getBoundingClientRect(); d.style.left = (p.x - b.left) + 'px'; d.style.top = (p.y - b.top) + 'px'; el.appendChild(d); dmgEls.push(d); setTimeout(() => { d.remove(); dmgEls.splice(dmgEls.indexOf(d), 1); }, 900); }
+  /* where a character's head is on the screen (for speech bubbles), or null if it is not being drawn */
+  function headOf(id){ const r = recs.get(id); if (!r || r.gone) return null; const p = screenOf(r.x, r.m.h + (r.m.fly || 0) + .3, r.z), b = el.getBoundingClientRect(); return {x:p.x - b.left, y:p.y - b.top, w:b.width, h:b.height}; }
   const dmgEls = [];
   function dmgNum(r, amt){
     if (!opt.numbers || amt < 18 || dmgEls.length > 16) return;
@@ -817,7 +900,7 @@ export function createView(el, opt = {}){
     time += dt;
     if (ents) sync(ents, dt);
     if (ghost.visible){ const p = 1 + Math.sin(time * 7) * .06; gRing.scale.setScalar(gRing.scale.x / (gRing.userData.p || 1) * p); gRing.userData.p = p; if (gM && gM.g.visible){ gM.g.position.y = (gM.fly || 0) + .5 + Math.sin(time * 5) * .14; gM.anim(time, {mv:false, ph:0, atk:99, sum:99, aim:0, active:true, chg:false}); } }
-    stepShots(dt); stepFlats(dt); stepBeams(dt); stepTraps(dt); glow.step(dt); smoke.step(dt);
+    stepShots(dt); stepFlats(dt); stepBeams(dt); stepZaps(dt); stepPools(dt); stepTraps(dt); glow.step(dt); smoke.step(dt);
     if (waterTex) waterTex.offset.x = time * .035;
     for (let i = 0; i < crowd.length; i++) crowd[i].position.y = Math.abs(Math.sin(time * 3 + i * 1.3)) * .1;
     if (mapId === 'court' && Math.random() < dt * 5){ tc.set(0xffffff); glow.emit(-15.6 - Math.random() * 5, 1.4 + Math.random() * 2.6, (Math.random() * 2 - 1) * 20, 0, 0, 0, .13, tc, 0); }      // somebody in the stands has a camera out
@@ -845,6 +928,7 @@ export function createView(el, opt = {}){
     for (const s of shots) root.remove(s.m); shots.length = 0;
     for (const f of flats){ root.remove(f.m); f.m.material.dispose(); } flats.length = 0;
     for (const b of beams){ root.remove(b.m); b.m.material.dispose(); } beams.length = 0;
+    for (const z of zaps){ root.remove(z.m); z.m.material.dispose(); } zaps.length = 0; pools.length = 0;
     for (const d of dying) root.remove(d.g); dying.length = 0; intro = opt.reduced ? 9 : 0; punch.t = 0;
     for (const [id, r] of [...trapRecs]) dropTrap(id, r); for (const p of pops) root.remove(p.g); pops.length = 0;
     resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false);
@@ -870,5 +954,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; } };
+  return { loadProps, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; } };
 }

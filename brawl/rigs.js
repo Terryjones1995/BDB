@@ -1,90 +1,133 @@
-/* Break Room Brawl: character models loaded from files.
-   KayKit Adventurers and KayKit Skeletons by Kay Lousberg (CC0), trimmed to the clips the game uses, plus characters made for the game.
-   A model with a skeleton plays its clips. A model without one (a statue) is moved by code: it waddles, leans into a hit and breathes.
-   If a file fails to load, makeModel falls back to the built-from-shapes version, so the game still runs. */
+/* Break Room Brawl: character models loaded from files, only when a match needs them.
+   KayKit Adventurers, Skeletons and Mystery Monthly characters by Kay Lousberg (CC0): mesh and skeleton per file, sharing one clip library (am.glb / al.glb) and one weapon rack (wp.glb).
+   Ultimate Monsters by Quaternius (CC0): each file carries its own clips. Bellkeeper, Jadefang, Glacius, Gorak, Vesper, Magmaw, Zephyr, Mortis, Gorehorn, Elderbark, Brassbolt, the Night Janitor, Infernus and Gronk were made for this game.
+   If a file fails to load, makeModel falls back to a stand-in built from shapes, so the game still runs. */
 import * as THREE from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from './vendor/libs/meshopt_decoder.module.js';
 import { clone as cloneRig } from './vendor/utils/SkeletonUtils.js';
 let rimFn = null; export const useRim = f => { rimFn = f; };
 
-const NATIVE = 2.2;                       // how tall the pack's characters stand, in their own units
-const FILES = ['Knight', 'Mage', 'Rogue', 'Rogue_Hooded', 'Barbarian', 'Skeleton_Minion', 'Skeleton_Mage', 'Skeleton_Warrior', 'Skeleton_Rogue', 'Bellkeeper'];
-/* f: file. h: height on the field. show: which props stay on (all: every part). walk / atk / idle / death / cheer: clip names. tint: recolour. at: seconds one attack swing takes.
+const NATIVE = {m:2.2, l:4.0};            // how tall the two KayKit rigs stand, in their own units
+/* f: file. h: height on the field. fam: 'm' or 'l' = a KayKit rig that takes its clips from the shared library; none = the file has its own.
+   walk / atk / idle / death / cheer: clip names. at: seconds one attack swing takes. rh / lh: what is in each hand. tint: recolour. fly: how high it hovers.
    lift: how much of its own painted colour a dark model gives off, so it does not go to black in the shade. */
+const K = (f, h, atk, o = {}) => ({f, h, fam:'m', walk:'Walk', atk, ...o}), KL = (f, h, atk, o = {}) => ({f, h, fam:'l', walk:'Walk', atk, at:.85, ...o});
+const Q = (f, h, o = {}) => ({f, h, walk:'Walk', atk:'Punch', ...o}), R = (f, h, o = {}) => ({f, h, walk:'Walk', atk:'Attack', death:'Death', at:.7, ...o});
 export const RIGS = {
-  skel:     {f:'Skeleton_Minion',  h:1.0,  walk:'Running_A', atk:'Unarmed_Melee_Attack_Punch_A', at:.45},
-  gob:      {f:'Skeleton_Rogue',   h:1.0,  walk:'Running_A', atk:'Unarmed_Melee_Attack_Punch_A', at:.45, show:['Skeleton_Rogue_Hood'], tint:0x58c23a, k:.55},
-  bench:    {f:'Knight',           h:1.5,  walk:'Walking_A', atk:'1H_Melee_Attack_Chop', show:['1H_Sword', 'Round_Shield', 'Knight_Helmet']},
-  fast:     {f:'Knight',           h:1.6,  walk:'Running_A', atk:'2H_Melee_Attack_Chop', show:['2H_Sword', 'Knight_Cape'], tint:0xffc93a, k:.3},
-  shooter:  {f:'Rogue_Hooded',     h:1.3,  walk:'Walking_A', atk:'2H_Ranged_Shoot', show:['2H_Crossbow']},
-  ref:      {f:'Rogue',            h:1.45, walk:'Walking_A', atk:'1H_Ranged_Shoot', show:['1H_Crossbow', 'Rogue_Cape'], tint:0x2a2f3a, k:.4},
-  barista:  {f:'Mage',             h:1.5,  walk:'Walking_A', atk:'Spellcast_Shoot', show:['Mage_Hat', '2H_Staff', 'Mage_Cape']},
-  trainer:  {f:'Mage',             h:1.4,  walk:'Walking_A', atk:'Throw', show:['Spellbook_open'], tint:0x6dff9a, k:.4},
-  witch:    {f:'Skeleton_Mage',    h:1.5,  walk:'Walking_A', atk:'Spellcast_Shoot', show:['Skeleton_Mage_Hat'], tint:0x8a4fd8, k:.4},
-  mascot:   {f:'Barbarian',        h:2.3,  walk:'Walking_A', atk:'2H_Melee_Attack_Chop', show:['2H_Axe', 'Barbarian_Hat'], at:.7},
-  buzzer:   {f:'Skeleton_Warrior', h:2.4,  walk:'Walking_A', atk:'Unarmed_Melee_Attack_Kick', show:['Skeleton_Warrior_Helmet'], at:.6},
-  fivestar: {f:'Barbarian',        h:2.7,  walk:'Walking_A', atk:'2H_Melee_Attack_Spin', show:['2H_Axe', 'Barbarian_Cape'], tint:0x2a5bd7, k:.35, at:.75, bighead:true},
-  bell:     {f:'Bellkeeper',       h:1.8,  all:true, lift:.5, walk:'Walk', atk:'Attack', death:'Death', at:.7}
+  ironclad:K('Knight', 1.5, 'Chop1', {rh:'sword', lh:'shield'}), longshots:K('Ranger', 1.35, 'Bow', {lh:'bow', at:.6}), dawnhammer:K('Paladin', 1.75, 'Chop1', {rh:'palHammer', lh:'palShield', at:.65}),
+  oathkeeper:K('Paladin_with_Helmet', 1.7, 'Slice1', {rh:'palHammer', lh:'palShield'}), bell:R('Bellkeeper', 1.8, {lift:.5}), 
+  cutpurse:K('Rogue', 1.35, 'Stab1', {walk:'Run', rh:'dagger'}), nightbolt:K('Rogue_Hooded', 1.35, 'Shoot2', {rh:'xbow2'}), vesper:R('Assassin', 1.45, {lift:.6, at:.5, ws:1.9}), kage:K('Ninja', 1.4, 'Slice1', {walk:'Run', rh:'katana'}),
+  shinobi:Q('Big_Ninja', 1.5, {atk:'Weapon'}), 
+  skel:K('Skeleton_Minion', 1.0, 'Stab1', {walk:'Run', rh:'sDagger', at:.45}), boneknight:K('Skeleton_Warrior', 1.5, 'Chop1', {rh:'sBlade', lh:'sShield'}), bonearchers:K('Skeleton_Rogue', 1.3, 'Shoot2', {rh:'sXbow'}),
+  gravewitch:K('Skeleton_Mage', 1.5, 'Cast', {rh:'sStaff'}), mort:K('Necromancer', 1.55, 'Cast2', {rh:'sScythe'}), colossus:KL('Skeleton_Golem', 2.6, 'Chop2', {rh:'sGolemAxe'}), sanguine:K('Vampire', 1.55, 'Slice1', {rh:'vSword'}),
+  lostsoul:Q('Flying_Ghost', 1.1), wraith:Q('Flying_Ghost_Skull', 1.25), gbat:Q('Flying_Glub', .6), terror:Q('Flying_Glub_Evolved', 1.2), nightfall:KL('BlackKnight', 2.5, 'Chop1', {rh:'bkSword', lh:'bkShield'}), lich:R('Lich', 2.0, {lift:.4}),
+  hellion:Q('Big_Demon', 1.7, {atk:'Weapon'}), imps:Q('Flying_Demon', .75), cinder:K('Tiefling', 1.45, 'Slice1', {walk:'Run', rh:'tSword'}), magmaw:R('Golem', 2.7, {lift:.5, at:.9}),
+  glacius:R('Troll', 2.1, {lift:.35}), permafrost:KL('FrostGolem', 2.7, 'Punch'), yeti:Q('Big_Yeti', 1.6), frostbeak:Q('Big_Birb', 1.35, {walk:'Run'}), tundra:Q('Big_BlueDemon', 1.9, {atk:'Weapon'}),
+  zephyr:R('Wizard', 1.7, {lift:.4}), hexa:K('Mage', 1.5, 'Cast', {rh:'staff'}), tonic:K('Witch', 1.45, 'Throw', {lh:'broom', at:.6}), wizlings:Q('Blob_Wizard', .7), stalker:Q('Big_Alien', 1.6), 
+  hexsprite:Q('Flying_Hywirl', .9), mindsquid:Q('Flying_Squidle', 1.15), sentinel:Q('Flying_Alpaking', .95), archon:Q('Flying_Alpaking_Evolved', 1.35),
+  lycan:K('Werewolf_Wolf', 1.7, 'Dual', {walk:'Run', at:.5}), woodsman:K('Werewolf_Man', 1.55, 'Chop2', {rh:'woodAxe'}), 
+  thumper:Q('Big_Bunny', 1.5, {walk:'Run', atk:'Weapon'}), monkroose:Q('Big_Monkroose', 1.5), landshark:Q('Big_Fish', 1.55),
+  piranhas:Q('Blob_Fish', .6), 
+  thornweaver:K('Druid', 1.55, 'Cast', {rh:'dstaff'}), mushking:Q('Big_MushroomKing', 2.0, {atk:'Weapon'}), mushnub:Q('Blob_Mushnub', .6), sporecap:Q('Blob_Mushnub_Evolved', 1.1), cactoro:Q('Big_Cactoro', 1.6), prickles:Q('Blob_Cactoro', .68),
+  dartfrog:Q('Big_Frog', 1.25, {walk:'Run'}), slime:Q('Blob_GreenBlob', 1.0), slimelet:Q('Blob_GreenBlob', .6), spikeslime:Q('Blob_GreenSpikyBlob', 1.25), bee:Q('Flying_Armabee', .55),
+  queen:Q('Flying_Armabee_Evolved', 1.2), cluckers:Q('Blob_Chicken', .58), pigeons:Q('Flying_Pigeon', .55),
+  gorak:R('Orc', 1.9, {lift:.3}), gronk:R('Ogre', 2.3, {lift:.3, at:.8}), gorehorn:R('Minotaur', 2.0, {lift:.3}), elderbark:R('Treant', 2.4, {lift:.35, at:.8}), brassbolt:R('Clockwork', 1.9, {lift:.4}), janitor:R('Janitor', 1.6, {lift:.3}), infernus:R('RedDragon', 2.3, {lift:.3, at:.6}), raider:K('OrcRaider', 1.5, 'Chop1', {rh:'orcAxe'}), skullcrusher:Q('Big_Orc_Skull', 1.65, {atk:'Weapon'}), mauler:Q('Big_Orc', 1.65, {atk:'Weapon'}), orclings:Q('Blob_Orc', .62),
+  witchdoc:Q('Big_Tribal', 1.6), skytotem:Q('Flying_Tribal', 1.3), gremlins:Q('Flying_Goleling', .6), gremking:Q('Flying_Goleling_Evolved', 1.0), bloodaxe:K('Barbarian', 1.6, 'Chop2', {walk:'Run', rh:'axe2'}),
+  goliath:KL('Barbarian_Large', 2.8, 'Chop2', {rh:'axe2L'}), ugg:K('Caveman', 1.35, 'Punch'),
+  tinker:K('Engineer', 1.45, 'Chop1', {rh:'wrench'}), scrapbot:K('Robot_One', 1.45, 'Shoot1'), shockbot:K('Robot_Two', 1.6, 'Punch'), titan:K('CombatMech', 1.9, 'Shoot2', {rh:'minigun', at:.3}), clanker:KL('Clanker', 2.7, 'Punch'),
+  starranger:K('SpaceRanger', 1.4, 'Shoot2', {rh:'srRifle'}), jetace:K('SpaceRanger_FlightMode', 1.3, 'Shoot2', {rh:'srRifle', walk:'Idle'}), sarge:K('ActionFigure', 1.4, 'Shoot1', {rh:'gun', at:.3}),
+  prepper:K('Survivalist', 1.45, 'Shoot2', {rh:'shotgun', lh:'riot'}), funbear:K('Animatronic_Normal', 1.55, 'Chop2', {rh:'guitar'}), afterhours:K('Animatronic_Creepy', 1.6, 'Dual', {walk:'Run'}),
+  courier:K('Driver', 1.35, 'Punch', {walk:'Run'}), trailboss:K('Hiker', 1.6, 'Punch'), internA:K('Protagonist_A', 1.3, 'Punch', {walk:'Run'}), internB:K('Protagonist_B', 1.3, 'Kick', {walk:'Run'}),
+  captain:K('Superhero', 1.55, 'Punch', {walk:'Idle'}), helpers:K('Helper_A', 1.15, 'Throw', {rh:'candy', at:.6}), giggles:K('Clown', 1.5, 'Throw', {rh:'clownBomb', at:.6}), mascot:K('MonsterCostume', 2.3, 'Punch', {at:.7}),
+  bdb:K('Barbarian', 2.7, 'Spin2', {rh:'axe2', tint:0x2a5bd7, k:.35, at:.75, bighead:true}), 
+  jade:R('Dragon', 1.7, {lift:.25, at:.6}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
 };
-const lib = {}, mats = new Map();
-/* ink outline: the same mesh drawn inside out, pushed out along its normals, so it follows the skeleton */
-const INK = new THREE.MeshBasicMaterial({color:0x160d07, side:THREE.BackSide});
-INK.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\ttransformed += normalize( normal ) * 0.032;'); };
+const lib = {}, clips = {}, pending = {}, mats = new Map(), inks = new Map();
+let rack = null;                          // wp.glb: one named node per weapon
+const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 const qa = new THREE.Quaternion(), va = new THREE.Vector3();
 /* how tall a model stands as loaded. A skinned mesh is measured through its skeleton: its raw vertices can be in other units entirely. */
 const tb = new THREE.Box3(), tb2 = new THREE.Box3();
 function tallOf(scene){
   scene.updateMatrixWorld(true); tb.makeEmpty();
   scene.traverse(o => { if (o.isSkinnedMesh){ o.computeBoundingBox(); tb.union(tb2.copy(o.boundingBox).applyMatrix4(o.matrixWorld)); } else if (o.isMesh) tb.expandByObject(o); });
-  return tb.isEmpty() ? NATIVE : tb.getSize(va).y || NATIVE;
+  return tb.isEmpty() ? 2 : tb.getSize(va).y || 2;
 }
-export function loadRigs(){
-  const L = new GLTFLoader();
-  return Promise.all(FILES.map(f => new Promise(res => L.load(`models/${f}.glb`, g => { g.tall = tallOf(g.scene); lib[f] = g; res(); }, undefined, () => res()))));
+const fetchOne = f => pending[f] || (pending[f] = new Promise(res => loader.load(`models/${f}.glb`, g => { res(g); }, undefined, () => res(null))));
+/* load whatever these units need: their own files, plus the clip library and weapon rack if any of them uses one. Resolves when everything has either arrived or failed. */
+export function needRigs(keys){
+  const jobs = [];
+  for (const k of new Set(keys)){
+    const d = RIGS[k]; if (!d) continue;
+    if (!lib[d.f]) jobs.push(fetchOne(d.f).then(g => { if (g && !lib[d.f]){ g.tall = tallOf(g.scene); lib[d.f] = g; } }));
+    if (d.fam && !clips[d.fam]) jobs.push(fetchOne('a' + d.fam).then(g => { if (g) clips[d.fam] = g.animations; }));
+    if ((d.rh || d.lh) && !rack) jobs.push(fetchOne('wp').then(g => { if (g) rack = g.scene; }));
+  }
+  return Promise.all(jobs);
 }
-export const hasRig = k => !!(RIGS[k] && lib[RIGS[k].f]);
+export const hasRig = k => { const d = RIGS[k]; return !!(d && lib[d.f] && (!d.fam || clips[d.fam])); };
+export const rigFile = k => RIGS[k] ? RIGS[k].f : null;
 
 const c1 = new THREE.Color(), c2 = new THREE.Color();
 function matFor(src, def, tint, grad){
-  const key = src.uuid + '|' + (def.tint ?? '') + '|' + (tint ?? '');
+  const key = src.uuid + '|' + (def.tint ?? '') + '|' + (tint ?? '') + '|' + (def.lift ?? '');
   let m = mats.get(key);
   if (m) return m;
   if (/glow/i.test(src.name)) m = new THREE.MeshBasicMaterial({color:tint ?? def.tint ?? 0x7dffb0});          // the skeletons' eyes
   else {
     // a recolour is part multiply, part glow: multiplying alone turns a red hood under a green tint into mud
-    c1.copy(src.map ? c2.set(0xffffff) : src.color); if (def.tint != null) c1.lerp(c2.set(def.tint), (def.k ?? .4) * .6); if (tint != null) c1.lerp(c2.set(tint), .3);
+    c1.copy(src.map ? c2.set(0xffffff) : src.color); if (def.tint != null) c1.lerp(c2.set(def.tint), (def.k ?? .4) * .6); if (tint != null) c1.lerp(c2.set(tint), src.map ? .3 : .45);
     const em = tint ?? def.tint;
-    m = new THREE.MeshToonMaterial({map:src.map || null, normalMap:src.normalMap || null, color:c1.getHex(), gradientMap:grad, emissive:em ?? 0, emissiveIntensity:em != null ? (tint != null ? .3 : (def.k ?? .4) * .55) : 0});
+    m = new THREE.MeshToonMaterial({map:src.map || null, normalMap:src.normalMap || null, color:c1.getHex(), gradientMap:grad, emissive:em ?? 0, emissiveIntensity:em != null ? (tint != null ? .3 : (def.k ?? .4) * .55) : 0, side:src.side});
     if (src.normalMap && src.normalScale) m.normalScale.copy(src.normalScale);
     if (def.lift && src.map && em == null){ m.emissive.set(0xffffff); m.emissiveMap = src.map; m.emissiveIntensity = def.lift; }
     if (rimFn) rimFn(m);
   }
   mats.set(key, m); return m;
 }
+/* ink outline: the same mesh drawn inside out, pushed out along its normals, so it follows the skeleton. One thickness on the field whatever units the model was made in. */
+function inkFor(t){
+  const k = t.toFixed(3); let m = inks.get(k); if (m) return m;
+  m = new THREE.MeshBasicMaterial({color:0x160d07, side:THREE.BackSide});
+  m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n\ttransformed += normalize( normal ) * ${k};`); };
+  m.customProgramCacheKey = () => 'ink' + k;
+  inks.set(k, m); return m;
+}
 
 export function makeRig(key, o, grad, extras){
-  const def = RIGS[key], gl = lib[def.f], root = cloneRig(gl.scene), g = new THREE.Group(), sc = def.h / (def.all ? gl.tall : NATIVE);
+  const def = RIGS[key], gl = lib[def.f], root = cloneRig(gl.scene), g = new THREE.Group(), sc = def.h / (def.fam ? NATIVE[def.fam] : gl.tall), anims = def.fam ? clips[def.fam] : gl.animations;
   root.scale.setScalar(sc); g.add(root);
-  let head = null;
+  let head = null, hr = null, hl = null, skin = null;
   root.traverse(n => {
-    if (n.isBone && n.name === 'head') head = n;
+    if (n.isBone){ if (n.name === 'head') head = n; else if (/^handslot\.?r$/.test(n.name)) hr = n; else if (/^handslot\.?l$/.test(n.name)) hl = n; }
     if (!n.isMesh) return;
     n.castShadow = true; n.frustumCulled = false;
-    if (!n.isSkinnedMesh && !def.all) n.visible = !!(def.show && def.show.includes(n.name));
+    if (!skin && n.isSkinnedMesh) skin = n.material;
     n.material = matFor(n.material, def, o && o.tint, grad);
   });
+  // what it carries: a weapon is painted from the same sheet as whoever holds it
+  for (const [slot, name] of [[hr, def.rh], [hl, def.lh]]){
+    const src = slot && name && rack && skin && rack.getObjectByName(name); if (!src) continue;
+    const w = src.clone(true); w.position.set(0, 0, 0); w.rotation.set(0, 0, 0); w.scale.setScalar(1);
+    w.traverse(n => { if (n.isMesh){ n.castShadow = true; n.frustumCulled = false; n.material = matFor(skin, def, o && o.tint, grad); } });
+    slot.add(w);
+  }
   if (def.bighead && head && extras && extras.bighead){             // stand the cutout upright and facing forward whatever way the head bone's own axes point
     const b = extras.bighead(); root.updateMatrixWorld(true);
-    b.quaternion.copy(head.getWorldQuaternion(qa).invert()); b.position.copy(head.worldToLocal(head.getWorldPosition(va).add(new THREE.Vector3(0, .62 * sc, 0)))); b.scale.setScalar(1.1); head.add(b);
+    b.quaternion.copy(head.getWorldQuaternion(qa).invert()); b.position.copy(head.worldToLocal(head.getWorldPosition(va).add(new THREE.Vector3(0, .62 * sc, 0)))); b.scale.setScalar(1.1); b.userData.noInk = true; head.add(b);
   }
   if (o && o.ink){
-    const list = []; root.traverse(n => { if (n.isMesh && n.visible && n.material !== INK) list.push(n); });
+    const INK = inkFor(clamp(.021 / sc, .004, .2)), list = [];
+    root.traverse(n => { if (!n.isMesh || !n.visible || Array.isArray(n.material)) return; for (let q = n; q && q !== root; q = q.parent) if (q.userData.noInk) return; list.push(n); });
     for (const n of list){ let h; if (n.isSkinnedMesh){ h = new THREE.SkinnedMesh(n.geometry, INK); h.bind(n.skeleton, n.bindMatrix); } else h = new THREE.Mesh(n.geometry, INK); h.frustumCulled = false; n.add(h); }
   }
   g.userData.inked = true;
-  if (!gl.animations.length){                                    // no skeleton: a statue that code brings to life
+  const fly = o && o.fly ? def.fly ?? 1.5 : 0, H = def.h * 1.02;
+  const clip = n => n && anims ? THREE.AnimationClip.findByName(anims, n) : null, wc = clip(def.walk), ac = clip(def.atk), ic = clip(def.idle || 'Idle');
+  if (!ic || !wc || !ac){                                        // nothing to play: a statue that code brings to life
     const seed = Math.random() * 6;
-    return {g, h:def.h * 1.02, rig:true, die(){ return false; }, cheer(){}, anim(t, s){
+    return {g, h:H, fly, rig:true, die(){ return false; }, cheer(){}, anim(t, s){
       const a = s.atk < .32 ? Math.sin(s.atk / .32 * Math.PI) : 0, w = s.mv ? Math.sin(s.ph) : 0;
       root.rotation.z = w * .1; root.rotation.y = w * .12;                                   // a waddle: rocks side to side and twists with each step
       root.rotation.x = a * .42 + (s.mv ? .07 : 0);                                         // leans into the hit
@@ -92,21 +135,23 @@ export function makeRig(key, o, grad, extras){
       root.scale.set(sc * (1 + a * .06), sc * (1 - a * .08 + (s.mv ? 0 : Math.sin(t * 2.4 + seed) * .014)), sc * (1 + a * .06));   // breathes at rest, squashes on the swing
     }};
   }
-  const mixer = new THREE.AnimationMixer(root), clip = n => THREE.AnimationClip.findByName(gl.animations, n);
-  const idle = mixer.clipAction(clip(def.idle || 'Idle')), walk = mixer.clipAction(clip(def.walk)), ac = clip(def.atk), atk = mixer.clipAction(ac), at = def.at || .55;
-  const dc = clip(def.death || 'Death_A'), death = dc && mixer.clipAction(dc), cc = clip(def.cheer || 'Cheer'), cheer = cc && mixer.clipAction(cc); let state = '';
-  if (death){ death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; death.timeScale = 1.5; }
+  const mixer = new THREE.AnimationMixer(root);
+  const idle = mixer.clipAction(ic), walk = mixer.clipAction(wc), atk = mixer.clipAction(ac), at = def.at || .55;
+  const dc = clip(def.death || 'Death'), death = dc && mixer.clipAction(dc), cc = clip(def.cheer || 'Cheer'), cheer = cc && mixer.clipAction(cc); let state = '';
+  if (death){ death.setLoop(THREE.LoopOnce, 1); death.clampWhenFinished = true; death.timeScale = Math.max(1.5, dc.duration / .7); }
   atk.setLoop(THREE.LoopOnce, 1); atk.clampWhenFinished = true; atk.timeScale = ac.duration / at;
+  const ws = def.ws || (def.walk === 'Run' ? 1.9 : 1.05);        // the ground speed the walk clip was made for
   let cur = null, last = 0, lastAtk = 99;
   const go = (a, fade) => { if (cur === a) return; if (cur) cur.fadeOut(fade); a.reset().setEffectiveWeight(1).fadeIn(fade).play(); cur = a; };
-  idle.time = Math.random() * 2; go(idle, 0);
-  return {g, h:def.h * 1.02, rig:true, die(){ if (death){ state = 'dead'; go(death, .08); } return !!death; }, cheer(){ if (cheer && state !== 'dead'){ state = 'cheer'; go(cheer, .15); } }, anim(t, s){
+  idle.time = Math.random() * ic.duration; go(idle, 0);
+  return {g, h:H, fly, rig:true, die(){ if (death){ state = 'dead'; go(death, .08); } return !!death; }, cheer(){ if (cheer && state !== 'dead'){ state = 'cheer'; go(cheer, .15); } }, anim(t, s){
     const dt = Math.min(.1, Math.max(0, t - last)); last = t;
     if (state){ mixer.update(dt); return; }
     if (s.atk < lastAtk){ if (cur === atk) atk.reset().play(); else go(atk, .06); }
     lastAtk = s.atk;
-    if (s.atk >= at) go(s.mv ? walk : idle, .14);
-    if (cur === walk) walk.timeScale = Math.max(.7, Math.min(2.4, (s.spd || 1.3) / (def.walk === 'Running_A' ? 1.9 : 1.05))) * (s.chg ? 1.6 : 1);     // feet keep pace with the ground speed
+    if (s.atk >= at) go(s.mv && walk !== idle ? walk : idle, .14);
+    if (cur === walk) walk.timeScale = Math.max(.7, Math.min(2.4, (s.spd || 1.3) / ws)) * (s.chg ? 1.6 : 1);     // feet keep pace with the ground speed
     mixer.update(dt);
   }};
 }
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;

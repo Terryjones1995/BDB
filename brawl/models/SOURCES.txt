@@ -1,0 +1,14 @@
+Where the models in this folder come from.
+
+KayKit character packs by Kay Lousberg (kaylousberg.com), CC0 1.0 Universal:
+  Adventurers, Skeletons, the Mystery Monthly characters and the Character Animations rigs.
+  The characters share two clip libraries (am.glb, al.glb) and one weapon rack (wp.glb).
+  Licence text: KayKit-Adventurers-LICENSE.txt, KayKit-Skeletons-LICENSE.txt.
+
+Ultimate Monsters by Quaternius (quaternius.com), CC0 1.0 Universal:
+  the Big_*, Blob_* and Flying_* files. Licence text: Quaternius-LICENSE.txt.
+
+Made for this game with Hyper3D Rodin (generated, rigged and animated):
+  Bellkeeper, Dragon, RedDragon, Troll, Orc, Ogre, Assassin, Golem, Wizard, Lich, Minotaur, Treant, Clockwork, Janitor.
+
+Every file was cut down for the web: fewer triangles, small WebP textures, thinned keyframes, meshopt compression.
