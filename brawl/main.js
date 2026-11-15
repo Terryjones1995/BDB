@@ -1,9 +1,9 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
-import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js?v=1114o';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT, TRIG } from './sim.js?v=1114o';
-import { createAI } from './ai.js?v=1114o';
-import { Accounts, fresh, sanitize } from './store.js?v=1114o';
-import { Cloud } from './cloud.js?v=1114o';
+import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js?v=1114p';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT, TRIG } from './sim.js?v=1114p';
+import { createAI } from './ai.js?v=1114p';
+import { Accounts, fresh, sanitize } from './store.js?v=1114p';
+import { Cloud } from './cloud.js?v=1114p';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -57,7 +57,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114o'), import('./models.js?v=1114o')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1114p'), import('./models.js?v=1114p')]);
     await md.preload();
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true});
     ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
@@ -90,7 +90,7 @@ function cardEl(id, o = {}){
   if (o.now) drawThumb(tk); else want(tk);
   b.className = `card r-${c.rar}` + (o.cls ? ' ' + o.cls : ''); b.dataset.id = id; b.dataset.tk = tk; b.setAttribute('aria-label', c.name);
   b.innerHTML = `<span class="cost">${c.cost}</span>` + (THUMB[tk] ? `<img alt="" src="${THUMB[tk]}">` : `<span class="ph">${esc(c.baseName.split(' ').map(w => w[0]).join('').slice(0, 2))}</span>`) +
-    (o.lvl ? `<span class="lv">Lv ${o.lvl}</span>` : '') + (o.tag ? `<span class="tagc${o.sale ? ' sale' : ''}">${o.tag}</span>` : `<span class="nm">${esc(c.name)}</span>`);
+    (o.lvl ? `<span class="lv">Lv ${o.lvl}</span>` : '') + (o.tag ? `<span class="tagc${o.sale ? ' sale' : ''}">${o.tag}</span>` : `<span class="nm">${esc(c.name)}</span>`) + '<span class="veil"></span>';
   return b;
 }
 
@@ -439,7 +439,10 @@ function hud(force){
     const hd = $('hand'); hd.innerHTML = ''; I.hand.forEach((c, i) => { const el = cardEl(c.id, {lvl:c.lvl, now:true}); el.dataset.slot = i; if (i === B.sel) el.classList.add('sel'); hd.appendChild(el); });
     const nx = $('nextCard'); nx.innerHTML = ''; nx.appendChild(cardEl(I.next.id, {div:true, now:true}));
   }
-  const cs = $('hand').children; for (let i = 0; i < cs.length; i++) cs[i].classList.toggle('poor', CARDS[I.hand[i].id].cost > I.el);
+  const cs = $('hand').children;
+  for (let i = 0; i < cs.length; i++){ const cost = CARDS[I.hand[i].id].cost, poor = cost > I.el, was = cs[i].classList.contains('poor');
+    if (poor !== was){ cs[i].classList.toggle('poor', poor); if (!poor && B.run){ cs[i].classList.remove('ready'); void cs[i].offsetWidth; cs[i].classList.add('ready'); } }
+    if (poor) cs[i].style.setProperty('--p', Math.min(1, I.el / cost).toFixed(3)); }
   $('coffeeFill').style.width = (I.el / MAX_EL * 100) + '%'; $('coffeeN').textContent = Math.floor(I.el);
   const dbl = I.phase === 'ot' || I.left <= DOUBLE_AT, bonus = I.bonus && I.el < MAX_EL;
   $('coffee').classList.toggle('dbl', dbl); $('coffee').classList.toggle('bonus', !!bonus); const nt = B.run ? myTraps().filter(t => !t.live && t.team === B.team).length : 0;

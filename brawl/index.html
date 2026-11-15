@@ -406,10 +406,90 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .pl small{display:block;font:700 10px/1.2 var(--f-body);color:#cfe1ff;letter-spacing:.04em}
 .pl .k-btn{padding:7px 10px 6px;font-size:13px;border-width:2px;box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2)}
 .pl .acts{display:flex;gap:6px}
-:root{--hand-h:168px}
-@media (max-width:759px){ .grid.deck,.grid.eight{gap:14px 8px} .grid.deck .card .nm,.grid.eight .card .nm{display:none} .grid.deck .card img,.grid.eight .card img{top:8%;height:84%} .grid.deck .card .lv,.grid.eight .card .lv{top:auto;bottom:4px;right:50%;transform:translateX(50%);white-space:nowrap} }
-@media (max-width:759px){ .hand .card .nm{display:none} .hand .card img{top:6%;height:82%} }
-@media (min-width:760px){ :root{--hand-h:230px} }
+
+/* ---------- cards, redrawn: a thick framed card, the character standing out of the top of it ---------- */
+@property --ray{syntax:'<angle>';initial-value:8deg;inherits:false}
+.r-c{--rc:#b9c9e6;--c0:#c4ebff;--c1:#4f9be8;--c2:#1c408c;--rim0:#f7fbff;--rim1:#a7bbdb;--rim2:#5b6f96}
+.r-r{--rc:#ffb24a;--c0:#fff0bf;--c1:#f58a2a;--c2:#96390a;--rim0:#fff4d4;--rim1:#ffab3d;--rim2:#b3540e}
+.r-e{--rc:#d68cff;--c0:#f6d6ff;--c1:#a54be6;--c2:#43127a;--rim0:#f9e4ff;--rim1:#c46cff;--rim2:#6520aa}
+.r-l{--rc:#fff0a0;--c0:#fffde0;--c1:#ffc02e;--c2:#c2540c;--rim0:#fffce6;--rim1:#ffd84a;--rim2:#d4840e}
+.card{border:4px solid transparent;border-radius:15px;overflow:visible;isolation:isolate;animation:none;
+  background:linear-gradient(156deg,rgba(255,255,255,.5) 0,rgba(255,255,255,0) 28%) padding-box,
+    radial-gradient(ellipse 100% 64% at 50% 30%,var(--c0),var(--c1) 56%,var(--c2)) padding-box,
+    linear-gradient(180deg,var(--rim0),var(--rim1) 46%,var(--rim2)) border-box;
+  box-shadow:0 0 0 2.5px var(--ink2),0 6px 0 2.5px var(--ink2),0 11px 10px rgba(0,0,0,.32)}
+.card::before{inset:0;border-radius:11px;z-index:0;background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.26) 0 10deg,rgba(255,255,255,0) 10deg 20deg);
+  -webkit-mask:radial-gradient(circle at 50% 34%,#000 10%,transparent 74%);mask:radial-gradient(circle at 50% 34%,#000 10%,transparent 74%)}
+.card.r-l{animation:none}
+.card.r-l::before{animation:rays 14s linear infinite;background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.5) 0 10deg,rgba(255,255,255,0) 10deg 20deg)}
+.card.r-e::before{animation:rays 26s linear infinite}
+@keyframes rays{to{--ray:368deg}}
+.card img{left:-7%;top:-14%;width:114%;height:90%;object-fit:contain;object-position:50% 100%;z-index:1;filter:drop-shadow(0 3px 0 rgba(8,18,46,.6)) drop-shadow(0 7px 5px rgba(0,0,0,.28))}
+.card .ph{z-index:1;inset:8% 10% 30%;font-size:26px}
+.card .nm{z-index:2;left:0;right:0;bottom:0;border-radius:0 0 10px 10px;padding:6px 3px 6px;font:400 12px/1.05 var(--f-game);letter-spacing:.01em;color:#fff;background:linear-gradient(180deg,#1b3a82,#0b1b45);box-shadow:inset 0 2px 0 rgba(255,255,255,.22),0 -2.5px 0 var(--ink2);
+  text-shadow:-1px 0 var(--ink2),1px 0 var(--ink2),0 -1px var(--ink2),0 1.5px var(--ink2)}
+.card .tagc{z-index:2;left:0;right:0;bottom:0;border-radius:0 0 10px 10px;border-top:0;box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 -2.5px 0 var(--ink2);padding:6px 2px 5px}
+.card .cost{left:-10px;top:-12px;width:36px;height:40px;font-size:21px;padding-top:10px;z-index:4}
+.card .cost::before{left:4px;top:9px;width:27px;height:27px;background:radial-gradient(circle at 66% 66%,#ffc2f8 0,#f24fe2 38%,#8f12a6 100%);box-shadow:0 0 0 3px var(--ink2),inset -3px -3px 0 rgba(90,0,110,.35)}
+.card .cost::after{content:"";position:absolute;left:11px;top:17px;width:8px;height:5px;border-radius:50%;background:rgba(255,255,255,.75);transform:rotate(-35deg);z-index:-1}
+.card .lv{z-index:3;right:-5px;top:-7px;border:2px solid var(--ink2);border-radius:9px;background:linear-gradient(180deg,#27408a,#101f52);padding:3px 6px 2px;font-size:11px}
+.card .veil{display:none}
+.card.inuse::after{z-index:5}
+.card.dim{opacity:.55}
+.card.dim img{filter:grayscale(.5) drop-shadow(0 3px 0 rgba(8,18,46,.6))}
+.grid .card,.mini .card{margin-top:8px}
+/* the tray your hand sits on: courtside hardwood with a brass rail along the top */
+.handbar{padding:20px 12px calc(10px + env(safe-area-inset-bottom));gap:11px;
+  background:radial-gradient(ellipse 60% 140% at 50% -10%,rgba(255,220,160,.28),transparent 62%),repeating-linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px 96px),repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 7px),linear-gradient(180deg,#93602f 0,#643e1d 36%,#2c180a 100%);
+  box-shadow:inset 0 5px 0 #ffe08a,inset 0 9px 0 #c98a26,inset 0 12px 0 #5a340f,inset 0 20px 18px -10px rgba(0,0,0,.55),0 -4px 0 var(--ink2)}
+.handrow{width:min(100%,calc((var(--hand-h) - 98px) * 3.75 + 122px));gap:12px;align-items:flex-end}
+.hand{gap:12px;padding:12px 0 6px}
+.hand .card{transition:transform .14s cubic-bezier(.3,1.5,.5,1),filter .14s}
+.hand .card .nm{padding:5px 2px 5px;font-size:11.5px}
+.hand .card .cost{left:-10px;top:-12px;bottom:auto;margin-left:0}
+.hand .card .veil{display:block;position:absolute;inset:0;border-radius:11px;z-index:1;pointer-events:none;opacity:0;transition:opacity .18s;
+  background:linear-gradient(0deg,rgba(236,70,220,.62) 0,rgba(236,70,220,.5) calc(var(--p,1) * 100% - 2px),#fff calc(var(--p,1) * 100% - 2px),#fff calc(var(--p,1) * 100%),rgba(6,10,28,.66) calc(var(--p,1) * 100%))}
+.hand .card.poor{filter:none}
+.hand .card.poor img{filter:grayscale(1) brightness(.75)}
+.hand .card.poor .veil{opacity:1}
+.hand .card.poor .cost{filter:saturate(.55) brightness(.85)}
+.hand .card.ready{animation:ready .45s ease-out}
+@keyframes ready{0%{transform:translateY(0) scale(1)}35%{transform:translateY(-9px) scale(1.07);filter:brightness(1.5)}100%{transform:none;filter:none}}
+.hand .card.sel{transform:translateY(-18px) scale(1.07);box-shadow:0 0 0 2.5px var(--ink2),0 0 0 6px #ffe066,0 0 0 8.5px var(--ink2),0 0 26px 6px rgba(255,224,102,.75),0 16px 14px rgba(0,0,0,.45)}
+.next{width:62px;padding-bottom:6px}
+.next small{font:400 12px/1 var(--f-game);margin-bottom:9px;color:#ffe9b8}
+.next .card{border-width:3px;border-radius:11px;box-shadow:0 0 0 2px var(--ink2),0 4px 0 2px var(--ink2);filter:saturate(.8) brightness(.92);transform:rotate(-4deg)}
+.next .card .cost{display:grid;left:-8px;top:-10px;width:26px;height:30px;font-size:15px;padding-top:8px}
+.next .card .cost::before{left:3px;top:7px;width:19px;height:19px;box-shadow:0 0 0 2.5px var(--ink2)}
+.next .card .cost::after{left:8px;top:12px;width:6px;height:4px}
+/* Mana: a glass tube of the stuff, ten measures along it */
+.coffee{width:min(100%,calc((var(--hand-h) - 98px) * 3.75 + 122px));height:30px;flex:none;border:3px solid var(--ink2);border-radius:16px;background:linear-gradient(180deg,#16041f,#3b1054);box-shadow:inset 0 5px 0 rgba(0,0,0,.5),0 3px 0 rgba(255,255,255,.16),0 6px 8px rgba(0,0,0,.35);overflow:visible;margin:0 auto}
+.coffee i{border-radius:12px;min-width:0;background:linear-gradient(180deg,#ffc6fa 0,#f55ae6 40%,#a214b4 100%);box-shadow:inset 0 5px 0 rgba(255,255,255,.55),inset 0 -5px 0 rgba(84,0,104,.55),0 0 16px rgba(245,90,230,.65);transition:width .12s linear}
+.coffee i::after{content:"";position:absolute;inset:0;border-radius:12px;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.55) 46%,transparent 60%);background-size:260% 100%;animation:pour 2.6s linear infinite}
+@keyframes pour{from{background-position:130% 0}to{background-position:-130% 0}}
+.coffee.dbl i{background:linear-gradient(180deg,#ffe2b8 0,#ff9a3a 40%,#dc4212 100%);box-shadow:inset 0 5px 0 rgba(255,255,255,.55),inset 0 -5px 0 rgba(120,30,0,.5),0 0 18px rgba(255,140,50,.75)}
+.coffee::after{border-radius:12px;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 2.5px),rgba(16,2,26,.85) calc(10% - 2.5px) 10%)}
+.coffee b{left:-14px;width:48px;height:52px;font-size:27px;padding-top:12px;transform:translateY(-54%)}
+.coffee b::before{left:6px;top:10px;width:36px;height:36px;background:radial-gradient(circle at 66% 66%,#ffc2f8 0,#f24fe2 38%,#8f12a6 100%);box-shadow:0 0 0 3px var(--ink2),inset -4px -4px 0 rgba(90,0,110,.35),0 4px 0 3px var(--ink2)}
+.coffee b::after{content:"";position:absolute;left:16px;top:22px;width:10px;height:6px;border-radius:50%;background:rgba(255,255,255,.75);transform:rotate(-35deg);z-index:-1}
+.coffee span{font:400 13px/1 var(--f-game);right:13px}
+.dragcard{width:112px}
+:root{--hand-h:176px}
+@media (max-width:759px){
+  .handbar{padding:16px 8px calc(8px + env(safe-area-inset-bottom));gap:9px}
+  .handrow,.hand{gap:8px} .hand{padding:10px 0 4px}
+  .handrow,.coffee{width:min(100%,calc((var(--hand-h) - 84px) * 3.75 + 84px))}
+  .card{border-width:3px;border-radius:12px} .card::before{border-radius:9px}
+  .card .cost{left:-7px;top:-10px;width:28px;height:32px;font-size:16px;padding-top:8px} .card .cost::before{left:3px;top:7px;width:21px;height:21px;box-shadow:0 0 0 2.5px var(--ink2)} .card .cost::after{left:9px;top:13px;width:6px;height:4px}
+  .hand .card .cost{left:-7px;top:-10px}
+  .hand .card img{top:-12%;height:108%} .hand .card .veil{border-radius:9px}
+  .next{width:44px} .next small{font-size:10px;margin-bottom:7px}
+  .coffee{height:26px} .coffee b{left:-9px;width:40px;height:44px;font-size:22px;padding-top:10px} .coffee b::before{left:5px;top:9px;width:30px;height:30px} .coffee b::after{left:13px;top:19px;width:8px;height:5px}
+  .dragcard{width:84px}
+}
+@media (max-width:759px){ .grid.deck,.grid.eight{gap:18px 9px} .grid.deck .card .nm,.grid.eight .card .nm{display:none} .grid.deck .card img,.grid.eight .card img{top:-12%;height:108%} .grid.deck .card .lv,.grid.eight .card .lv{top:auto;bottom:-6px;right:50%;transform:translateX(50%);white-space:nowrap} }
+@media (max-width:759px){ .hand .card .nm{display:none} }
+@media (min-width:760px){ :root{--hand-h:252px} }
 @media (max-height:620px){ :root{--hand-h:150px} }
 </style>
 <script src="../assets/roasts.js"></script>
@@ -558,6 +638,6 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1114o"></script>
+<script type="module" src="main.js?v=1114p"></script>
 </body>
 </html>

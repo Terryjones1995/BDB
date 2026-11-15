@@ -55,7 +55,8 @@ export const UNITS = {
   fivestar: {name:'Five-Star BDB',   hp:3000, dmg:260, hit:1.6, rng:1.0, spd:1.2,  r:.9,  splash:1.7},
   jumbo:    {name:'The Jumbotron',   hp:1200, dmg:900, hit:4.5, rng:4.5, spd:.95,  r:.8,  splash:1.8, shot:'beam', load:3},
   princess: {name:'Hoop Tower',      hp:1500, dmg:55,  hit:.8,  rng:7.5, spd:0,    r:1.15, bld:1, air:1, shot:'ball', twr:1},
-  king:     {name:'King Tower',      hp:2600, dmg:60,  hit:1.0, rng:7,   spd:0,    r:1.5,  bld:1, air:1, shot:'ball', twr:1}
+  king:     {name:'King Tower',      hp:2600, dmg:60,  hit:1.0, rng:7,   spd:0,    r:1.5,  bld:1, air:1, shot:'ball', twr:1},
+  bell:     {name:'Bellkeeper',      hp:1050, dmg:115, hit:1.25, rng:.8, spd:1.25, r:.55, splash:1.15}
 };
 
 /* The 24 characters. tier is how prized the character is; u = unit key, n = how many drop. */
@@ -84,6 +85,7 @@ const BASE = {
   witch:   {name:'Graveyard Witch',  cost:5, tier:'e', u:'witch', n:1,   desc:'Splash magic from range, and three fresh skeletons every few seconds.'},
   fivestar:{name:'Five-Star BDB',    cost:7, tier:'l', u:'fivestar', n:1, desc:'The prospect himself. Huge health and a slam that hits everything around him.'},
   jumbo:   {name:'The Jumbotron',    cost:6, tier:'l', u:'jumbo', n:1,   desc:'Charges up slowly, then one highlight reel blast wipes out a whole push.'},
+  bell:    {name:'Bellkeeper',       cost:4, tier:'r', u:'bell', n:1,    desc:'A stout little keeper in a bell-topped helm. Every swing of his fists catches everything around him.'},
   /* traps: set face down on your own half, unseen by the other side, and sprung by the first enemy on foot to walk over them */
   wetfloor:{name:'Wet Floor Sign',    cost:2, tier:'c', trap:{kind:'slip',    r:2.4, dmg:80, stun:2.6},  desc:'A hidden trap. The first enemy on foot to step on it sends everyone nearby sliding: stunned, with a little damage.'},
   screen:  {name:'Hard Screen',       cost:3, tier:'r', trap:{kind:'snap',    r:1.8, dmg:420},           desc:'A hidden trap. The first enemy on foot to run into it gets flattened, along with everyone right beside them.'},

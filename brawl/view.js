@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114o';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1114o';
-import { W, L, RIVER, TRIG } from './sim.js?v=1114o';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114p';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1114p';
+import { W, L, RIVER, TRIG } from './sim.js?v=1114p';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -853,16 +853,19 @@ export function createView(el, opt = {}){
 
   /* ---------- card art: render one model to a picture ---------- */
   let TR = null;
-  function thumb(key, aff, px = 200){
+  function thumb(key, aff, px = 320){
     if (!TR){
       const r = new THREE.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:true}); r.setPixelRatio(1); r.setSize(px, px, false); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.setClearColor(0x000000, 0);
       const sc = new THREE.Scene(), pm = new THREE.PMREMGenerator(r); sc.environment = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose();
-      sc.add(new THREE.HemisphereLight(0xffffff, 0x51443a, .9)); const d = new THREE.DirectionalLight(0xfff1dd, 1.8); d.position.set(3, 6, 5); sc.add(d);
-      TR = {r, sc, cam:new THREE.PerspectiveCamera(30, 1, .1, 80)};
+      sc.add(new THREE.HemisphereLight(0xffffff, 0x51443a, 1.05)); const d = new THREE.DirectionalLight(0xfff1dd, 2); d.position.set(3, 6, 5); sc.add(d);
+      const back = new THREE.DirectionalLight(0x9fd0ff, 1.5); back.position.set(-4, 3, -5); sc.add(back);            // a cool light from behind, so the outline of the figure catches
+      TR = {r, sc, cam:new THREE.PerspectiveCamera(22, 1, .1, 120)};
     }
     const m = makeModel(key, 0, {face:true, aff, ink:true}); outline(m.g, 1.07); m.g.scale.setScalar(m.s || 1); m.anim(.4, {mv:false, ph:.9, atk:99, sum:99, aim:.5, active:true, chg:false}); TR.sc.add(m.g);
-    const bx = new THREE.Box3().setFromObject(m.g), c = bx.getCenter(new THREE.Vector3()), rad = bx.getSize(new THREE.Vector3()).length() / 2;
-    TR.cam.position.copy(c).add(new THREE.Vector3(.75, .5, 2).normalize().multiplyScalar(rad / Math.sin(15 * PI / 180) * 1.02)); TR.cam.lookAt(c);
+    // fill the picture: the figure runs top to bottom, and a wide one (wings, a bench) runs side to side instead
+    const bx = new THREE.Box3().setFromObject(m.g), c = bx.getCenter(new THREE.Vector3()), sz = bx.getSize(new THREE.Vector3()), t = Math.tan(11 * PI / 180);
+    const dist = Math.max(sz.y * .5 / t * 1.03, Math.hypot(sz.x, sz.z * .5) * .5 / t * .74) + sz.z * .5;      // a wide one may lose its wing tips off the sides
+    TR.cam.position.copy(c).add(new THREE.Vector3(.52, .2, 1).normalize().multiplyScalar(dist)); TR.cam.lookAt(c);
     TR.r.render(TR.sc, TR.cam); TR.sc.remove(m.g);
     return TR.r.domElement.toDataURL('image/png');
   }

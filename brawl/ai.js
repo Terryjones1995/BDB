@@ -1,7 +1,7 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot.
    prof: {react, hold, derp, smart} from cards.js CPUS. */
-import { CARDS, UNITS, lvlMul } from './cards.js?v=1114o';
-import { TPS, W, L, RIVER } from './sim.js?v=1114o';
+import { CARDS, UNITS, lvlMul } from './cards.js?v=1114p';
+import { TPS, W, L, RIVER } from './sim.js?v=1114p';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 

@@ -3,7 +3,7 @@
    To add real logins later, keep this file's surface (all / get / save / remove / last / code / fromCode) and
    point `Accounts.remote` at a backend: save() already hands every change to remote.push(profile), and
    a login screen only needs remote.pull(name) -> profile, then Accounts.save(profile). Nothing else in the game touches storage. */
-import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, deckProblem } from './cards.js?v=1114o';
+import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, deckProblem } from './cards.js?v=1114p';
 
 const KEY = 'brawl-accounts-v2';
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, '').trim().slice(0, n);
