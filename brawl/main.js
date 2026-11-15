@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115f';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115f';
-import { createAI } from './ai.js?v=1115f';
-import { Accounts, fresh, sanitize } from './store.js?v=1115f';
-import { Cloud, cloudWhy } from './cloud.js?v=1115f';
-import { sayFor, sayWhen } from './talk.js?v=1115f';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115g';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115g';
+import { createAI } from './ai.js?v=1115g';
+import { Accounts, fresh, sanitize } from './store.js?v=1115g';
+import { Cloud, cloudWhy } from './cloud.js?v=1115g';
+import { sayFor, sayWhen } from './talk.js?v=1115g';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -64,7 +64,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115f'), import('./models.js?v=1115f')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115g'), import('./models.js?v=1115g')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
     ready3d = true;
@@ -117,6 +117,7 @@ const uName = (k, n) => { const s = UNITS[k] ? UNITS[k].name : 'unit'; return n 
 /* everything special a unit does, one short line each. m: what the card's level multiplies health and damage by */
 function abil(U, m = 1){
   const a = [], d = v => Math.round(v * m);
+  if (U.fly) a.push('Flies. Swords and fists cannot reach it: only other flyers, anything that shoots or throws, towers and spells.');
   if (U.only) a.push('Ignores troops and goes straight for buildings and towers.');
   if (U.kamikaze) a.push('Blows itself up on whatever it reaches. The blast is its only attack.');
   if (U.life && !U.bld) a.push(`Melts away after ${sec(U.life)}, whatever happens.`);
@@ -370,6 +371,16 @@ function profile(){
   }
   $('codeOut').value = Accounts.code(P);
 }
+
+/* codes typed into the Profile tab. What each one does is here; the codes themselves are not, only their fingerprints. */
+const fprint = s => { let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+const CODES = {'1frqvji':p => { p.coins = 99999999; return 'Done. 99,999,999 coins. Enter it again whenever you run low.'; }};
+$('promoGo').onclick = () => {
+  const f = CODES[fprint($('promoIn').value.trim().toUpperCase())];
+  if (!f){ $('promoMsg').textContent = 'That code does nothing.'; BDB.sfx.bad(); return; }
+  const msg = f(P); save(); BDB.sfx.big(); hub(); $('promoIn').value = ''; $('promoMsg').textContent = msg;
+};
+$('promoIn').onkeydown = e => { if (e.key === 'Enter') $('promoGo').click(); };
 
 /* ---------- market: packs, type packs, ready-made decks, today's deals, every card ---------- */
 let dealDay = -1, dealIds = [];
@@ -635,7 +646,7 @@ async function begin(o){
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
   const w = $('wait'); w.hidden = false; w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Bringing both decks onto the field.</div></div>`;
-  if (MD && V && o.units) try { await MD.needModels(o.units, Q.get('fast') ? 60000 : 25000); } catch(e){}
+  if (MD && V && o.units) try { await Promise.all([MD.needModels(o.units, Q.get('fast') ? 60000 : 25000), V.needFloor(o.map)]); } catch(e){}
   if (B !== me) return;                                   // they backed out while it loaded
   if (V) V.reset(B.team, o.map);
   if (o.coop && o.mode === 'host'){                       // 2v2: you and a friend against two BDBs

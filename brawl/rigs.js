@@ -37,7 +37,7 @@ export const RIGS = {
   thornweaver:K('Druid', 1.55, 'Cast', {rh:'dstaff'}), mushking:Q('Big_MushroomKing', 2.0, {atk:'Weapon'}), mushnub:Q('Blob_Mushnub', .6), sporecap:T('Mushroom', 1.2), cactoro:T('Cactus', 1.55), prickles:Q('Blob_Cactoro', .68),
   dartfrog:S('FrogRonin', 1.3, {atk:'Kick'}), slime:Q('Blob_GreenBlob', 1.0), slimelet:Q('Blob_GreenBlob', .6), spikeslime:Q('Blob_GreenSpikyBlob', 1.25), bee:Q('Flying_Armabee', .55),
   queen:Q('Flying_Armabee_Evolved', 1.2), cluckers:Q('Blob_Chicken', .58), pigeons:Q('Flying_Pigeon', .55),
-  gorak:R('Orc', 1.9, {lift:.3}), gronk:R('Ogre', 2.3, {lift:.3, at:.8}), gorehorn:R('Minotaur', 2.0, {lift:.3}), elderbark:R('Treant', 2.4, {lift:.35, at:.8}), brassbolt:R('Clockwork', 1.9, {lift:.4}), janitor:R('Janitor', 1.6, {lift:.3}), infernus:R('RedDragon', 2.3, {lift:.3, at:.6}), raider:K('OrcRaider', 1.5, 'Chop1', {rh:'orcAxe'}), skullcrusher:T('WolfskullOrc', 1.7, {idle:'IdleB'}), mauler:C('Cyclops', 1.8), orclings:R('Goblin', .8, {ws:2.6, lift:.3, at:.5}),
+  gorak:R('Orc', 1.9, {lift:.3}), gronk:R('Ogre', 2.3, {lift:.3, at:.8}), gorehorn:R('Minotaur', 2.0, {lift:.3}), elderbark:R('Treant', 2.4, {lift:.35, at:.8}), brassbolt:R('Clockwork', 1.9, {lift:.4}), janitor:R('Janitor', 1.6, {lift:.3}), infernus:R('RedDragon', 2.5, {lift:.3, at:.6, walk:'Idle', fly:1.7, flap:1}), raider:K('OrcRaider', 1.5, 'Chop1', {rh:'orcAxe'}), skullcrusher:T('WolfskullOrc', 1.7, {idle:'IdleB'}), mauler:C('Cyclops', 1.8), orclings:R('Goblin', .8, {ws:2.6, lift:.3, at:.5}),
   witchdoc:C('GoblinShaman', 1.5), skytotem:Q('Flying_Tribal', 1.3), gremlins:Q('Flying_Goleling', .6), gremking:Q('Flying_Goleling_Evolved', 1.0), bloodaxe:K('Barbarian', 1.6, 'Chop2', {walk:'Run', rh:'axe2'}),
   goliath:KL('Barbarian_Large', 2.8, 'Chop2', {rh:'axe2L'}), ugg:K('Caveman', 1.35, 'Punch'),
   tinker:K('Engineer', 1.45, 'Chop1', {rh:'wrench'}), scrapbot:K('Robot_One', 1.45, 'Shoot1'), shockbot:K('Robot_Two', 1.6, 'Punch'), titan:K('CombatMech', 1.9, 'Shoot2', {rh:'minigun', at:.3}), clanker:KL('Clanker', 2.7, 'Punch'),
@@ -53,7 +53,7 @@ export const RIGS = {
   rimeguard:R('FrostKnight', 1.6, {lift:.35}), neve:R('IceMage', 1.4, {lift:.3, at:.8}), hoot:R('OwlWizard', 1.45, {lift:.3, at:.8}), geode:R('CrystalGolem', 2.3, {lift:.5, at:.85}),
   wolfpack:R('WolfWarrior', 1.15, {ws:2.6, lift:.35, at:.5}), ironhide:R('Bear', 2.0, {lift:.3, at:.8}), bao:R('Panda', 1.5, {lift:.3, at:.5}), siegehorn:R('Rhino', 2.3, {lift:.35, at:.9}), bramblehorn:R('Faun', 1.5, {lift:.3, at:.8}),
   bjorn:R('Dwarf', 1.3, {lift:.3, at:.9}), redline:R('Mech', 2.4, {lift:.3, at:.8}), scraplet:K('Robot_One', 1.0, 'Shoot1'), hank:R('Guard', 1.75, {lift:.3}), vending:R('Vending', 2.0, {lift:.35, at:.8}),
-  kobolds:R('Kobold', .9, {ws:2.6, lift:.3, at:.5}), sirscorch:R('DragonKnight', 1.75, {lift:.3}), shiver:R('IceDragon', 1.7, {lift:.3, at:.8}),
+  kobolds:R('Kobold', .9, {ws:2.6, lift:.3, at:.5}), sirscorch:R('DragonKnight', 1.75, {lift:.3}), shiver:R('IceDragon', 1.8, {lift:.3, at:.8, walk:'Idle', fly:1.4, flap:1}),
   /* the Tripo wave */
   heartstone:T('StoneGolem', 2.2, {at:.8}), pridemane:T('LionPaladin', 1.6, {idle:'IdleB'}), brother:C('Monk', 1.45), halo:F('Cherub', 1.2), scarlet:T('ShieldMaiden', 1.4, {idle:'IdleB'}), halberd:T('SpearMaiden', 1.45), hilda:C('HammerValkyrie', 1.6),
   voidplate:T('ShadowKnight', 1.9, {idle:'IdleB', at:.7, lift:.5}), bandit:T('Bandit', 1.5, {idle:'IdleB'}), reynard:S('Fox', 1.3, {atk:'Kick'}), viper:S('HoodRogue', 1.4, {idle:'IdleB'}), corvus:F('CrowMan', 1.4, {fly:1.5, lift:.5}), whiskers:S('CatBurglar', 1.4, {atk:'Kick', lift:.45}),
@@ -68,16 +68,16 @@ export const RIGS = {
   goldmask:T('Wrestler', 1.65, {idle:'IdleB'}), pizza:S('PizzaGuy', 1.45, {atk:'Throw', at:.7}), flint:C('Firefighter', 1.55, {at:.7}), blitz:S('Linebacker', 1.5),
   fuse:S('GoblinBomber', 1.2), rattatat:T('Drummer', 1.2), stubbeard:C('Viking', 1.4, {at:.6, idle:'IdleB'}), howl:T('WolfPelt', 1.5, {idle:'IdleB'}), furball:T('FurKing', 2.1, {at:.8}), shortbows:C('GoblinArcher', 1.1, {at:.6}),
   smokey:C('FurnaceBot', 1.8), rivet:C('Mechanic', 1.35, {at:.6}), shrinkwell:C('Scientist', 1.5, {at:.7}), gearheart:T('GoldBot', 1.6), nugget:C('Gnome', 1.1, {at:.6}), ironbeard:C('Blacksmith', 1.6, {at:.7}),
-  scald:T('Salamander', 1.7, {idle:'IdleB'}), razorback:T('LizardPunk', 1.5, {idle:'IdleB'}), kai:T('DragonKid', 1.35, {atk:'Kick', idle:'IdleB', at:.45}), spikeback:T('SpikeTurtle', 1.6), plum:C('PurpleDragon', 1.2, {at:.7}),
+  scald:T('Salamander', 1.7, {idle:'IdleB'}), razorback:T('LizardPunk', 1.5, {idle:'IdleB'}), kai:T('DragonKid', 1.35, {atk:'Kick', idle:'IdleB', at:.45}), spikeback:T('SpikeTurtle', 1.6), plum:F('PurpleDragon', 1.2, {atk:'Throw', at:.7, fly:1.3}),
   noir:S('CoatDuelist', 1.45, {atk:'Throw', idle:'IdleB', lift:.4}), onyx:S('HornNinja', 1.4, {atk:'Kick', idle:'IdleB', lift:.35}), midnight:T('HatRogue', 1.7, {idle:'IdleB', lift:.5}), prior:T('RedCultist', 1.9, {idle:'IdleB', lift:.4}),
   malgrave:F('PurpleWraith', 1.8, {atk:'Throw', at:.8, fly:1.2, lift:.4}), turnkey:F('KeyWraith', 1.9, {atk:'Throw', at:.9, fly:1.3, lift:.5}), auditor:T('HaloMan', 2.1, {lift:.55}), slagmaw:T('LavaDemon', 2.1, {idle:'IdleB', lift:.55}),
   nightmare:R('BlackHorse', 1.7, {walk:'Run', lift:.55, at:.6}), horseman:{f:'T_Horseman', h:2.5, gallop:true, lift:.4},
-  jade:R('Dragon', 1.7, {lift:.25, at:.6}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
+  jade:R('Dragon', 2.2, {lift:.25, at:.6, walk:'Idle', fly:1.6, flap:1}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
 };
 const lib = {}, clips = {}, pending = {}, mats = new Map(), inks = new Map();
 let rack = null;                          // wp.glb: one named node per weapon
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-const qa = new THREE.Quaternion(), va = new THREE.Vector3();
+const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qc = new THREE.Quaternion(), va = new THREE.Vector3(), ZAX = new THREE.Vector3(0, 0, 1);
 /* how tall a model stands as loaded, and how far below (or above) its own origin its feet are: some files are built around their middle, not their feet.
    A skinned mesh is measured through its skeleton: its raw vertices can be in other units entirely. */
 const tb = new THREE.Box3(), tb2 = new THREE.Box3();
@@ -122,8 +122,9 @@ function matFor(src, def, tint, grad){
 function inkFor(t){
   const k = t.toFixed(3); let m = inks.get(k); if (m) return m;
   m = new THREE.MeshBasicMaterial({color:0x160d07, side:THREE.BackSide});
-  m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n\ttransformed += normalize( normal ) * ${k};`); };
-  m.customProgramCacheKey = () => 'ink' + k;
+  // the thickness is a number handed to one shared shader, not written into the shader: every character used to need a shader of its own built the moment it first walked on
+  m.onBeforeCompile = sh => { sh.uniforms.inkT = {value:t}; sh.vertexShader = 'uniform float inkT;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n\ttransformed += normalize( normal ) * inkT;'); };
+  m.customProgramCacheKey = () => 'ink';
   inks.set(k, m); return m;
 }
 
@@ -174,6 +175,16 @@ export function makeRig(key, o, grad, extras){
       root.scale.set(sc * (1 + a * .06), sc * (1 - a * .08 + (s.mv ? 0 : Math.sin(t * 2.4 + seed) * .014)), sc * (1 + a * .06));   // breathes at rest, squashes on the swing
     }};
   }
+  // wings that beat: the wing bones are found by name and swung about the body's long axis, whichever way the rig's own bones happen to point
+  const wings = [];
+  if (fly && def.flap){ root.updateMatrixWorld(true);
+    root.traverse(n => { const m = n.isBone && /^(Left|Right)Wing(1)?$/.exec(n.name); if (!m) return; const tip = n.children.find(c => c.isBone) || n;
+      wings.push({b:n, s:root.worldToLocal(tip.getWorldPosition(va.set(0, 0, 0))).x >= 0 ? 1 : -1, k:m[2] ? .55 : 1, lag:m[2] ? .9 : 0, base:n.quaternion.clone(), out:n.quaternion.clone()}); }); }
+  const flap = (t, mv) => { for (const w of wings){
+    if (!w.b.quaternion.equals(w.out)) w.base.copy(w.b.quaternion);                    // the clip moved it this frame: start from there
+    qa.identity(); for (let p = w.b.parent; p && p !== root; p = p.parent) qa.premultiply(p.quaternion);      // how the wing's parent sits in the body
+    qb.setFromAxisAngle(ZAX, w.s * w.k * (.12 + Math.sin(t * (mv ? 13 : 9) - w.lag) * (mv ? .62 : .5)));
+    qc.copy(qa).invert().multiply(qb).multiply(qa); w.b.quaternion.copy(w.base).premultiply(qc); w.out.copy(w.b.quaternion); } };
   const mixer = new THREE.AnimationMixer(root);
   const idle = mixer.clipAction(ic), walk = mixer.clipAction(wc), atk = mixer.clipAction(ac), at = def.at || .55;
   const dc = clip(def.death || 'Death'), death = dc && mixer.clipAction(dc), cc = clip(def.cheer || 'Cheer'), cheer = cc && mixer.clipAction(cc); let state = '';
@@ -191,6 +202,7 @@ export function makeRig(key, o, grad, extras){
     if (s.atk >= at) go(s.mv && walk !== idle ? walk : idle, .14);
     if (cur === walk) walk.timeScale = Math.max(.7, Math.min(2.4, (s.spd || 1.3) / ws)) * (s.chg ? 1.6 : 1);     // feet keep pace with the ground speed
     mixer.update(dt);
+    if (wings.length){ flap(t, s.mv); root.position.y = y0 + Math.sin(t * 2.3 + idle.time) * .07; }
   }};
 }
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;

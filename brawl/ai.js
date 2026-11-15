@@ -1,13 +1,13 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul } from './cards.js?v=1115f';
-import { TPS, W, L, RIVER } from './sim.js?v=1115f';
+import { CARDS, lvlMul } from './cards.js?v=1115g';
+import { TPS, W, L, riverOf } from './sim.js?v=1115g';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 export function createAI(sim, team, prof, rnd = Math.random, pid = team){
   const s = team === 0 ? 1 : -1;                 // f = z * s is "how deep on my own side"
-  const edge = (sim.map.river ? RIVER : 0) + .8;
+  const edge = riverOf(sim.map) + .8;
   let wait = Math.round((2.5 + prof.react) * TPS), hot = null;      // hot: the lane the other side last pushed down
   const seen = new Set(), warded = new Set();    // spells he has watched the other side cast, and the ones he has already answered
   const P = () => sim.players[pid];

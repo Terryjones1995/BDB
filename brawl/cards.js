@@ -54,7 +54,7 @@ export const ROLE_NAME = {swarm:'Horde', runner:'Runner', brawler:'Brawler', bru
   flyer:'Flyer', flock:'Flying horde', killer:'Assassin', build:'Building'};
 
 /* The roster: [key, name, type, rarity, job, Mana, how many, extras, description]. Mana 0 is a unit that only ever arrives through another card.
-   Extras: hm / dm scale health and damage; the rest are abilities the rules know (see sim.js). */
+   Extras: hm / dm scale health and damage; fly:1 puts it in the air whatever its job; the rest are abilities the rules know (see sim.js). */
 const ROSTER = [
   /* ----- Order ----- */
   ['ironclad', 'Ironclad', 'order', 'c', 'brawler', 3, 1, {shield:220}, 'Sword, shield and no days off. His shield soaks up the first few hits for free.'],
@@ -269,20 +269,20 @@ const ROSTER = [
   ['mascot', 'The Mascot', 'crew', 'r', 'giant', 5, 1, {}, 'Huge, slow and only interested in buildings. Protect him and towers fall.'],
   ['bdb', 'Five-Star BDB', 'crew', 'l', 'tank', 7, 1, {splash:1.7, dm:1.55, hm:1.08, rng:1, spd:1.2, r:.9, land:{r:2.6, dmg:140, push:1}}, 'The prospect himself. Huge health, a landing that clears space, and a slam that hits everything around him.'],
   /* ----- Dragon ----- */
-  ['infernus', 'Infernus', 'dragon', 'l', 'caster', 7, 1, {hm:3.2, rng:3.4, splash:1.6, burn:{dps:45, t:3}, dm:1.15, r:.75, land:{r:2.8, dmg:200, burn:1}, shot:'fire'}, 'The red dragon. Lands in a ring of fire, then breathes across everything in front of him, ground or air, and leaves it all burning.'],
-  ['jade', 'Jadefang', 'dragon', 'r', 'caster', 5, 1, {hm:2.2, rng:3.2, splash:1.4, burn:{dps:30, t:3}, dm:.95, r:.6, shot:'fire'}, 'Breathes fire across everything in front of her, ground or air, and leaves it burning.'],
+  ['infernus', 'Infernus', 'dragon', 'l', 'caster', 7, 1, {fly:1, hm:2.85, rng:3.4, splash:1.6, burn:{dps:45, t:3}, dm:1.15, r:.8, spd:1.4, land:{r:2.8, dmg:200, burn:1}, shot:'fire'}, 'The red dragon. Drops out of the sky in a ring of fire, then breathes across everything under him, ground or air, and leaves it all burning.'],
+  ['jade', 'Jadefang', 'dragon', 'l', 'caster', 6, 1, {fly:1, hm:2.9, rng:3.6, splash:1.8, burn:{dps:45, t:4}, dm:1.3, r:.8, spd:1.5, land:{r:3, dmg:260, burn:1}, pyre:{dmg:160, r:2}, feast:.12, shot:'fire'}, 'The green dragon, and she never lands. Arrives in a ring of fire and breathes over everything under her. Whatever dies burning blows up, and every death nearby heals her.'],
   ['emberwing', 'Emberwing', 'dragon', 'c', 'flyer', 4, 1, {rng:3, splash:1.3, dm:.55, r:.6, spd:1.6, shot:'fire'}, 'Flies over the river and breathes splash fire on ground and air.'],
   ['elder', 'Elder Wyrm', 'dragon', 'e', 'flyer', 6, 1, {rng:3.5, splash:1.5, burn:{dps:35, t:3}, dm:.6, hm:1.15, r:.8, spd:1.4, shot:'fire'}, 'The biggest thing in the sky. A wide breath of fire, and everything it catches keeps burning.'],
   ['raptor', 'Raptor', 'dragon', 'c', 'bruiser', 3, 1, {spd:1.9, leap:{min:2.2, max:4.5, mul:1.5}, hm:.9}, 'Fast on its feet and faster in the air. Pounces from a long way out.'],
   ['kaiju', 'Kaiju Kid', 'dragon', 'r', 'bruiser', 4, 1, {splash:1.1, dm:.8, grow:{per:.1, max:8}}, 'Hits everything around it, and gets stronger with every kill. Leave it alone and it becomes a problem.'],
   ['kobolds', 'Ember Kobolds', 'dragon', 'c', 'swarm', 3, 3, {burn:{dps:14, t:3}, hm:1.3, dm:.75}, 'Three little dragon-kin with matches. Whatever they bite keeps burning.'],
   ['sirscorch', 'Sir Scorch', 'dragon', 'e', 'bruiser', 5, 1, {splash:1.1, dm:.65, burn:{dps:26, t:3}, armor:20}, 'A dragon in knight’s armour. Small hits glance off, and his burning blade catches everyone around the target.'],
-  ['shiver', 'Shiver', 'dragon', 'e', 'caster', 5, 1, {hm:2.2, rng:3.2, splash:1.4, chill:2.2, brittle:2, dm:.6, r:.6, shot:'ice'}, 'An ice drake. Breathes frost over everything in front of him, ground or air, and anything already slowed or frozen takes double.'],
+  ['shiver', 'Shiver', 'dragon', 'e', 'caster', 5, 1, {fly:1, hm:2, rng:3.2, splash:1.4, chill:2.2, brittle:2, dm:.6, r:.6, spd:1.45, shot:'ice'}, 'An ice drake on the wing. Breathes frost over everything under him, ground or air, and anything already slowed or frozen takes double.'],
   ['scald', 'Scald', 'dragon', 'r', 'bruiser', 4, 1, {fireproof:1, burn:{dps:24, t:3}, regen:.025}, 'A fire salamander. Grows back whatever you cut off, cannot be burned, and leaves everything he hits alight.'],
   ['razorback', 'Razorback', 'dragon', 'c', 'bruiser', 3, 1, {thorns:.3, hm:1.05}, 'A lizard with spikes where it counts. Nearly a third of every punch thrown at him comes back.'],
   ['kai', 'Kai, Dragon Disciple', 'dragon', 'r', 'brawler', 3, 1, {leap:{min:2, max:4.5, mul:1.8}, crit:{every:3, mul:1.8}, hit:.9}, 'Opens with a flying kick, and every third hit after that lands nearly double.'],
   ['spikeback', 'Spikeback', 'dragon', 'r', 'tank', 4, 1, {thorns:.35, tough:{at:.5, cut:.5}}, 'Hurts to hit, and below half health he pulls into his shell and takes half damage.'],
-  ['plum', 'Plum', 'dragon', 'c', 'archer', 3, 1, {psn:{dps:22, t:4}, hm:1.3, shot:'spit'}, 'A small purple dragon who has not learned fire yet. Spits venom instead, at ground and air.'],
+  ['plum', 'Plum', 'dragon', 'c', 'archer', 3, 1, {fly:1, psn:{dps:22, t:4}, hm:1.05, shot:'spit'}, 'A small purple dragon who has not learned fire yet. Flies anyway, and spits venom at ground and air.'],
   /* ----- buildings ----- */
   ['cannon', 'Cannon', 'order', 'c', 'build', 3, 1, {dm:1.15, life:30, air:0, shot:'ball'}, 'A defence you can put down anywhere on your side. Fires at ground troops and pulls giants toward it.'],
   ['watchtower', 'Watchtower', 'order', 'r', 'build', 4, 1, {rng:6.5, hm:1.15, dm:.8, life:34, air:1, shot:'arrow'}, 'A guard tower with a long reach. Shoots ground and air.'],
@@ -321,7 +321,7 @@ const BASE = {};
 for (const [key, name, type, rar, role, cost, n, x, desc] of ROSTER){
   const R = ROLE[role], k = cost || x.as, cnt = n || 1, hit = x.hit || R[2];
   const U = {name, role, type, hp:Math.max(5, Math.round(R[0] * k / cnt * (x.hm || 1) / 5) * 5), dmg:x.nodmg ? 0 : Math.max(1, Math.round(R[1] * k / cnt * hit * (x.dm || 1))), hit, rng:x.rng ?? R[3], spd:x.spd ?? R[4], r:x.r ?? R[5]};
-  if (role === 'flyer' || role === 'flock') U.fly = 1;
+  if (role === 'flyer' || role === 'flock' || x.fly) U.fly = 1;
   if (U.fly || U.rng > 1.5) U.air = 1;
   if (x.air != null){ if (x.air) U.air = 1; else delete U.air; }
   if (role === 'caster' && x.splash == null) U.splash = 1.3;
@@ -425,7 +425,7 @@ export function unitsOf(ids){
 
 export const DECK_SIZE = 15, HAND = 5, MAX_LEGEND = 3, DECK_SLOTS = 3, START_COINS = 1500;
 /* the Rares a new player picks one of for free: the characters made for this game */
-export const FREE_RARES = ['bell', 'jade', 'glacius', 'gorak', 'vesper', 'janitor'];
+export const FREE_RARES = ['bell', 'hoot', 'glacius', 'gorak', 'vesper', 'janitor'];
 /* what a brand-new account holds before they have built a deck of their own, and the quick picks in the deck builder */
 export const STARTER_DECKS = [
   {id:'balanced', name:'A bit of everything', blurb:'Solid troops, two spells, a cannon and a trap. The easiest deck to learn on.', hero:'bell',
@@ -434,7 +434,7 @@ export const STARTER_DECKS = [
     bases:'bonecrew orclings gloombats shortbows piranhas cluckers rattatat pigeons raider howl zap arrows ugg bees'},
   {id:'heavy', name:'One giant push', blurb:'Slow, huge and hard to stop. Save up, then send everything at once.', hero:'glacius',
     bases:'trailboss ironclad yeti frosty mauler bloodaxe longshots hexa bonecrew arrows quake cannon barricade brother'},
-  {id:'air', name:'Over their heads', blurb:'Flyers and spells. Go over the defence, then shut it down.', hero:'jade',
+  {id:'air', name:'Over their heads', blurb:'Flyers and spells. Go over the defence, then shut it down.', hero:'hoot',
     bases:'emberwing lostsoul gloombats imps pigeons sentinel hexsprite gremlins longshots wizlings arrows zap scarlet bonecrew'},
   {id:'sneak', name:'Tricks and traps', blurb:'A hidden trap, fast hitters and a hero nobody sees coming.', hero:'vesper',
     bases:'nightbolt wetfloor viper bandit bonecrew raider blitz sarge starranger zap arrows cannon thumper frostbeak'},
@@ -453,13 +453,25 @@ export function deckProblem(ids, strict = true){
   return null;
 }
 
-/* Maps. bridges: where ground troops can cross the river (centre x and width). river:false is an open field. */
+/* Maps. bridges: where ground troops can cross the river (centre x and width). river:false is an open field.
+   rw: how far the river reaches either side of the halfway line (1 unless it says). The ten after the first five are painted floors (maps/<id>.webp):
+   their rivers and bridges are where the painting has them. */
 export const MAPS = {
   field:   {name:'Staff Picnic Field', river:true, bridges:[{x:-5.5, w:2.6}, {x:5.5, w:2.6}],          blurb:'Grass, a river and two bridges.'},
   court:   {name:'Centre Court',  river:true,  bridges:[{x:-5.5, w:2.6}, {x:5.5, w:2.6}],             blurb:'Two bridges. The classic.'},
   casino:  {name:'Casino Floor',  river:true,  bridges:[{x:-6.4, w:2.2}, {x:0, w:2.2}, {x:6.4, w:2.2}], blurb:'Three narrow bridges. Watch the middle.'},
   breakrm: {name:'Break Room',    river:true,  bridges:[{x:0, w:6}],                                  blurb:'One wide crossing. Everything meets in the middle.'},
-  lot:     {name:'Parking Lot',   river:false, bridges:[],                                            blurb:'No river. Troops walk straight at you.'}
+  lot:     {name:'Parking Lot',   river:false, bridges:[],                                            blurb:'No river. Troops walk straight at you.'},
+  ruins:   {name:'Mossy Ruins',    river:true, rw:2.03, bridges:[{x:-6.49, w:2.19}, {x:6.49, w:2.19}], blurb:'Stone heads in the jungle, and a slow green river that is wider than it looks.'},
+  glacier: {name:'Frostcrack',     river:true, rw:1.27, bridges:[{x:-6.65, w:1.89}, {x:6.65, w:1.89}], blurb:'A split in the ice. Two short bridges.'},
+  citadel: {name:'Cloud Citadel',  river:true, rw:1.4, bridges:[{x:-6.07, w:2.18}, {x:6.07, w:2.18}], blurb:'A castle yard in the sky. Two bridges and a long way down.'},
+  yard:    {name:'Lantern Yard',   river:true, rw:1.41, bridges:[{x:-6.86, w:2.68}, {x:6.86, w:2.68}], blurb:'A graveyard after dark. Two broad stone bridges, set wide.'},
+  temple:  {name:'Ember Temple',   river:true, rw:1.1, bridges:[{x:-7.88, w:1.66}, {x:7.88, w:1.66}], blurb:'Lava through the temple floor. Both bridges hug the walls.'},
+  keep:    {name:'Winter Keep',    river:true, rw:1.39, bridges:[{x:-5.45, w:1.68}, {x:5.45, w:1.68}], blurb:'A frozen moat and two narrow bridges, straight up from your guard towers.'},
+  hollow:  {name:'The Hollow',     river:true, rw:1.46, bridges:[{x:-6.46, w:2.14}, {x:6.46, w:2.14}], blurb:'Something green glows in the crack. Two bridges over it.'},
+  foundry: {name:'The Foundry',    river:true, rw:1.05, bridges:[{x:-6.23, w:2.19}, {x:6.23, w:2.19}], blurb:'An iron floor and a thin river of fire. Easy to shoot across.'},
+  cinder:  {name:'Cinder Keep',    river:true, rw:1.68, bridges:[{x:-6.69, w:2.85}, {x:6.69, w:2.85}], blurb:'A lot of lava, and the widest bridges there are.'},
+  heavens: {name:'Marble Heavens', river:true, rw:1.3, bridges:[{x:-7.02, w:1.57}, {x:7.02, w:1.57}], blurb:'White stone above the clouds. The bridges are one troop wide.'}
 };
 export const MAP_IDS = Object.keys(MAPS);
 
@@ -583,16 +595,16 @@ const lerp = (a, b, t) => a + (b - a) * t;
    ai: react = seconds between decisions, hold = Mana he sits on before attacking, derp = chance of a random play, smart = 0 to 1, el = Mana speed. */
 export const LEVELS = 1000;
 export const TIERS = [
-  {id:'trainee', name:'Trainee',      map:'field',   col:'#9fb3d9', tag:'First week. Still looking for the time clock.'},
-  {id:'breakrm', name:'Break Room',   map:'breakrm', col:'#7ccf4a', tag:'Defends the microwave line with his whole career.'},
-  {id:'bench',   name:'Bench Warmer', map:'court',   col:'#5fd6d0', tag:'Best seat in the house, every single game.'},
-  {id:'night',   name:'Night Shift',  map:'casino',  col:'#63c8ff', tag:'Wide awake at 4 a.m. and nothing to show for it.'},
-  {id:'rec',     name:'Rec League',   map:'lot',     col:'#a678ff', tag:'Captain, coach and leading scorer. Two points a night.'},
-  {id:'varsity', name:'Varsity',      map:'breakrm', col:'#ff7aa8', tag:'Made the team photo. Mostly the back row.'},
-  {id:'d1',      name:'D1 Dream',     map:'casino',  col:'#ff9d3c', tag:'Florida was a great idea on paper.'},
-  {id:'pro',     name:'Pro Day',      map:'field',   col:'#ff6a2b', tag:'Ran every drill. Nobody wrote anything down.'},
-  {id:'allstar', name:'All-Star',     map:'lot',     col:'#ffd23f', tag:'Voted in by one very loyal account.'},
-  {id:'five',    name:'Five-Star',    map:'court',   col:'#ffd95a', tag:'The prospect. The legend. The 2.0 points per game.'}
+  {id:'trainee', name:'Trainee',      map:'ruins',   col:'#9fb3d9', tag:'First week. Still looking for the time clock.'},
+  {id:'breakrm', name:'Break Room',   map:'glacier', col:'#7ccf4a', tag:'Defends the microwave line with his whole career.'},
+  {id:'bench',   name:'Bench Warmer', map:'citadel', col:'#5fd6d0', tag:'Best seat in the house, every single game.'},
+  {id:'night',   name:'Night Shift',  map:'yard',    col:'#63c8ff', tag:'Wide awake at 4 a.m. and nothing to show for it.'},
+  {id:'rec',     name:'Rec League',   map:'temple',  col:'#a678ff', tag:'Captain, coach and leading scorer. Two points a night.'},
+  {id:'varsity', name:'Varsity',      map:'keep',    col:'#ff7aa8', tag:'Made the team photo. Mostly the back row.'},
+  {id:'d1',      name:'D1 Dream',     map:'hollow',  col:'#ff9d3c', tag:'Florida was a great idea on paper.'},
+  {id:'pro',     name:'Pro Day',      map:'foundry', col:'#ff6a2b', tag:'Ran every drill. Nobody wrote anything down.'},
+  {id:'allstar', name:'All-Star',     map:'cinder',  col:'#ffd23f', tag:'Voted in by one very loyal account.'},
+  {id:'five',    name:'Five-Star',    map:'heavens', col:'#ffd95a', tag:'The prospect. The legend. The 2.0 points per game.'}
 ];
 const MINIONS = ['Temp', 'Intern', 'Overtime', 'Double Shift', 'Lunch Break', 'Clipboard', 'Substitute', 'Pickup Game', 'Day Off', 'Sixth Man', 'Garbage Time', 'Preseason', 'Walk-On', 'Scout Team', 'Water Boy', 'Towel Guy',
   'Layup Line', 'Shootaround', 'Film Room', 'Carpool', 'Coffee Run', 'Time Sheet', 'Reply All', 'Out of Office', 'Open Gym', 'Warm-Up', 'Fast Food', 'Late Shift', 'Stat Sheet', 'Fan Vote'];
@@ -615,7 +627,8 @@ export function ladderCpu(n){
   const deck = dealDeck(rnd, {types, rare:1 + Math.round(g * 9) + (boss ? 1 : 0), epic:Math.floor(g * 7 + (boss ? 1.5 : n > 30 ? .5 : 0)), legend:Math.floor(g * 3.4 + (boss && t >= 2 ? 1 : 0)), build:.08 + g * .5, traps:n < 20 ? 0 : n < 150 ? 1 : 3});
   const ai = {react:+lerp(3.2, .9, Math.pow(g, .6)).toFixed(2), hold:+lerp(9, 6, q).toFixed(1), derp:+lerp(.45, 0, Math.min(1, g * 2.2)).toFixed(2), smart:+lerp(.15, 1, Math.min(1, g * 1.8 + (boss ? .15 : 0))).toFixed(2), el:+lerp(.85, 1.3, g).toFixed(2) + (boss ? .05 : 0)};
   const name = boss ? T.name + ' BDB' : MINIONS[Math.floor(rnd() * MINIONS.length)] + ' BDB';
-  return {id:'lv' + n, level:n, boss, tier:t, name, tag:boss ? T.tag : `${TYPES[types[0]].name}${types[1] !== types[0] ? ' and ' + TYPES[types[1]].name : ''} deck.`, map:boss ? T.map : MAP_IDS[Math.floor(rnd() * MAP_IDS.length)],
+  return {id:'lv' + n, level:n, boss, tier:t, name, tag:boss ? T.tag : `${TYPES[types[0]].name}${types[1] !== types[0] ? ' and ' + TYPES[types[1]].name : ''} deck.`,
+    map:(r => r < .75 ? T.map : MAP_IDS[Math.floor((r - .75) * 4 * MAP_IDS.length)])(boss ? 0 : rnd()),      // three games in four are on the tier's own arena
     lvl:clamp(1 + Math.floor(g * 9.6) + (boss ? 1 : 0), 1, MAX_LVL), tower:clamp(1 + Math.floor(g * 11) + (boss ? 1 : 0), 1, 14), ai, deck, types, ...levelPrize(n)};
 }
 

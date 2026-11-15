@@ -1,8 +1,9 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115f';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115g';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
+export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
 export const MATCH = 600, OVERTIME = 60, DOUBLE_AT = 120, TRIPLE_AT = 60, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match: double Mana for the last two, triple for the last one
 export const TOWER_AT = [['king', 0, L - 3], ['princess', -5.5, L - 6.5], ['princess', 5.5, L - 6.5]];
 const DEPLOY = TPS, PROJ_SPD = 11;
@@ -19,7 +20,7 @@ function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Mat
 export function canPlace(map, team, card, x, z, pocket){
   if (Math.abs(x) > W - .4 || Math.abs(z) > L - .4) return false;
   if (card.kind === 'spell' || (card.U && card.U.any)) return true;            // spells land anywhere, and so does anyone who can drop in behind the lines
-  const zz = team === 0 ? z : -z, edge = map.river ? RIVER + .6 : .6;
+  const zz = team === 0 ? z : -z, edge = riverOf(map) + .6;
   if (zz >= edge) return true;
   // an enemy guard tower is down: that side of their half opens up
   const side = (team === 0 ? x : -x) < 0 ? 0 : 1;
@@ -28,7 +29,7 @@ export function canPlace(map, team, card, x, z, pocket){
 
 /* boost: per team {hp, dmg} for towers. start: Mana each player begins with. */
 export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1], boost = [], start = []}){
-  const map = MAPS[mapId], rnd = mulberry(seed);
+  const map = MAPS[mapId], rnd = mulberry(seed), RW = riverOf(map) || RIVER;
   let tick = 0, nid = 0, phase = 'play', over = false, winner = -1;
   const ents = [], byId = new Map(), projs = [], zones = [], traps = [];
   let events = [];
@@ -47,7 +48,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const U = unitVar(key, aff), m = lvlMul(lvl) * bm, hp = Math.round(U.hp * m);
     const e = {id:++nid, key, U, team, pid, bm, x, z, lvl, hp, max:hp, dmg:Math.round(U.dmg * m), d0:Math.round(U.dmg * m),
       cd:0, tgt:0, dep, frz:0, rage:0, slow:0, lock:false, fx:0, fz:team === 0 ? -1 : 1, mv:false, run:0, chg:false, active:key !== 'king',
-      sh:U.shield ? Math.round(U.shield * m) : 0, wd:0, bt:0, bd:0, pt:0, pd:0, mk:0, hid:!!U.stealth, ht:0, hits:0, rs:0, rt:0, gs:0, rev:0, lp:0, jmp:false, rn:0, rc:0, by:0, wk:0, ft:0, mt:0, gd:0, tb:0};
+      sh:U.shield ? Math.round(U.shield * m) : 0, wd:0, bt:0, bd:0, pt:0, pd:0, mk:0, hid:!!U.stealth, ht:0, hits:0, rs:0, rt:0, gs:0, rev:0, lp:0, jmp:false, rn:0, rc:0, by:0, wk:0, ft:0, mt:0, gd:0, tb:0, ln:Math.abs(x) >= 1.2 ? (x > 0 ? 1 : -1) : 0};
     if (U.spawn) e.sp = T(U.spawn.first ?? U.spawn.every);
     if (U.heal) e.hl = T(U.heal.every);
     if (U.mana) e.mn = T(U.mana.every);
@@ -67,7 +68,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   // towers[1] sits mirrored: its index 1 is at +x, index 2 at -x. For team 0 looking at x<0 that is towers[1][2].
 
   /* ---------- river and bridges ---------- */
-  const side = z => z >= RIVER ? 1 : z <= -RIVER ? -1 : 0;
+  const side = z => z >= RW ? 1 : z <= -RW ? -1 : 0;
   const bridgeAt = x => map.bridges.find(b => Math.abs(x - b.x) <= b.w / 2);
   function waypoint(e, tx, tz){
     if (e.U.fly || !map.river) return [tx, tz];
@@ -75,25 +76,25 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (su !== 0 && su === st) return [tx, tz];
     if (su === 0){
       const b = bridgeAt(e.x) || map.bridges[0], h = Math.max(.1, b.w / 2 - .2);
-      return st === 0 ? [clamp(tx, b.x - h, b.x + h), tz] : [clamp(tx, b.x - h, b.x + h), st * (RIVER + .1)];
+      return st === 0 ? [clamp(tx, b.x - h, b.x + h), tz] : [clamp(tx, b.x - h, b.x + h), st * (RW + .1)];
     }
     let b = null, bc = 1e9;
     for (const c of map.bridges){ const k = Math.abs(e.x - c.x) + Math.abs(tx - c.x); if (k < bc){ bc = k; b = c; } }
     const h = Math.max(.1, b.w / 2 - Math.min(e.U.r * .6, b.w / 2 - .1)), bx = clamp(e.x, b.x - h, b.x + h);
-    if (Math.abs(e.x - bx) < .1) return st === 0 && Math.abs(tx - b.x) <= b.w / 2 ? [tx, tz] : [bx, -su * (RIVER + .1)];
-    return [bx, su * (RIVER + .3)];
+    if (Math.abs(e.x - bx) < .1) return st === 0 && Math.abs(tx - b.x) <= b.w / 2 ? [tx, tz] : [bx, -su * (RW + .1)];
+    return [bx, su * (RW + .3)];
   }
   function constrain(e, px, pz){
     e.x = clamp(e.x, -W + e.U.r * .5, W - e.U.r * .5); e.z = clamp(e.z, -L + .3, L - .3);
-    if (!map.river || e.U.fly || Math.abs(e.z) >= RIVER) return;
+    if (!map.river || e.U.fly || Math.abs(e.z) >= RW) return;
     if (bridgeAt(e.x)) return;
-    if (Math.abs(pz) >= RIVER) e.z = (pz > 0 ? 1 : -1) * RIVER;
+    if (Math.abs(pz) >= RW) e.z = (pz > 0 ? 1 : -1) * RW;
     else { const b = bridgeAt(px) || map.bridges[0]; e.x = clamp(e.x, b.x - b.w / 2, b.x + b.w / 2); }
   }
   /* thrown, pulled or landed somewhere it cannot stand: put it on the nearer bank */
   function ashore(e, toward){
     e.x = clamp(e.x, -W + e.U.r * .5, W - e.U.r * .5); e.z = clamp(e.z, -L + .3, L - .3);
-    if (map.river && !e.U.fly && Math.abs(e.z) < RIVER && !bridgeAt(e.x)) e.z = ((toward ?? e.z) >= 0 ? 1 : -1) * RIVER;
+    if (map.river && !e.U.fly && Math.abs(e.z) < RW && !bridgeAt(e.x)) e.z = ((toward ?? e.z) >= 0 ? 1 : -1) * RW;
   }
 
   /* ---------- damage ---------- */
@@ -219,8 +220,10 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (e.lock && ok(e, cur) && gap(e, cur) <= U.rng + .3) return;          // mid-fight: finish what you started
     e.lock = false;
     let best = null, bd = 1e9, twr = null, td = 1e9, call = null, cd = 1e9, help = null, hd = 1e9;
+    const lt = U.bld ? null : laneTower(e);
     for (const o of ents){
       if (o.team === e.team || !ok(e, o)) continue;
+      if (o.key === 'princess' && e.ln && (o.x > 0) !== (e.ln > 0)) continue;      // the guard tower on the other side of the field is not this troop's business
       const d = gap(e, o);
       if (d < bd){ bd = d; best = o; }
       if (o.U.twr && d < td){ td = d; twr = o; }
@@ -229,9 +232,18 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     }
     if (U.bld) e.tgt = best && bd <= U.rng ? best.id : 0;
     else if (call) e.tgt = call.id;
-    else if (best && (bd <= SIGHT || U.only === 'b')) e.tgt = best.id;
+    else if (best && (bd <= SIGHT || U.only === 'b')) e.tgt = (bd > (best.U.twr ? SIGHT : 9) ? lt || best : best).id;      // a building far across the field does not drag a giant out of its lane
     else if (help && U.only !== 'b') e.tgt = help.id;                          // nothing in front of me, but a teammate is in a fight nearby: go and help
-    else e.tgt = twr ? twr.id : 0;
+    else { const t = lt || twr; e.tgt = t ? t.id : 0; }
+  }
+  /* Where a troop with nothing better to do is headed: the guard tower on its own side of the field, and once that one is down, the king.
+     Never across the field to the other guard tower, however near it happens to be. Its side is the one it was last on (e.ln), so a troop
+     funnelled over a bridge in the middle still knows where it came from; one that has only ever been in the middle takes the nearer guard tower. */
+  function laneTower(e){
+    if (Math.abs(e.x) >= 1.2) e.ln = e.x > 0 ? 1 : -1;
+    const en = towers[1 - e.team]; let g = null;
+    for (const t of [en[1], en[2]]) if (t.hp > 0 && (!e.ln || (t.x > 0) === (e.ln > 0)) && (!g || gap(e, t) < gap(e, g))) g = t;
+    return g || (en[0].hp > 0 ? en[0] : null);
   }
   function attack(e, t){
     const U = e.U;
@@ -312,7 +324,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const U = e.U, a = U.land, lv = lvlMul(e.lvl) * e.bm;
     if (U.charge && U.charge.dash){ e.chg = true; emit({e:'charge', id:e.id}); }
     if (!a) return;
-    if (a.dmg || a.stun || a.slow || a.push || a.weak) area(e.x, e.z, a.r, (a.dmg || 0) * lv, e.team, {air:true, twr:.4, src:e, each:o => {
+    if (a.dmg || a.stun || a.slow || a.push || a.weak) area(e.x, e.z, a.r, (a.dmg || 0) * lv, e.team, {air:!!U.air, twr:.4, src:e, each:o => {      // a troop that cannot reach the sky does not shake it by landing either
       if (o.U.twr) return;
       if (a.stun) o.frz = Math.max(o.frz, T(a.stun));
       if (a.slow) o.slow = Math.max(o.slow, T(a.slow));

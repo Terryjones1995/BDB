@@ -215,7 +215,7 @@ const S = {
   auditor:"I have some questions.|Your Mana. It is not adding up.|This will take a while.|Per section four. You lose.|Receipts. Now.|Everything slows down for an audit.",
   /* ----- Dragon ----- */
   infernus:"Kneel before the flame.|I land. Everything burns.|You brought an army. I brought fire.|Roast everyone.|The sky was mine. Now the ground is too.|Ash is all you will be.",
-  jade:"Breathe in. Breathe fire.|Green means go. Go burn.|Small dragon, big breath.|Everything in front of me is toast.|Hot take incoming.|Rawr. That is the warning.",
+  jade:"Look up. Last thing you will do.|Green means go. Go burn.|I do not land. I arrive.|Everything under me is toast.|Bow or bake. Your call.|Rawr. That was the warning.",
   emberwing:"Fire from above.|Splash zone is everywhere.|Wings up, towers down.|Smells like a win. And smoke.|Fly over. Burn through.|Well done. Extra crispy.",
   elder:"I am the biggest thing in the sky.|Burn, little things.|Look up and despair.|Wide breath. Wider damage.|Ancient and annoyed.|The sky has teeth.",
   raptor:"Clever girl.|Pounce.|Fast feet, sharp everything.|You did not see me. Then you did.|Run. It is more fun.|Dinner is served. It is you.",

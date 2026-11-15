@@ -1,7 +1,7 @@
 /* Break Room Brawl: player accounts.
    A player is a named save on this device (localStorage), with a save code to carry it to another device, and an online copy when they have an account (cloud.js).
    Everything that reads a save goes through sanitize(), so a bad or old save can never break the game: it is repaired or brought up to date instead. */
-import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF, deckProblem } from './cards.js?v=1115f';
+import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF, deckProblem } from './cards.js?v=1115g';
 
 const KEY = 'brawl-accounts-v2';
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, '').trim().slice(0, n);

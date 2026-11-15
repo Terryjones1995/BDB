@@ -409,10 +409,11 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .card::before{inset:0;border-radius:11px;z-index:0;background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.26) 0 10deg,rgba(255,255,255,0) 10deg 20deg);
   -webkit-mask:radial-gradient(circle at 50% 34%,#000 10%,transparent 74%);mask:radial-gradient(circle at 50% 34%,#000 10%,transparent 74%)}
 .card.r-l{animation:none}
-.card.r-l::before{animation:rays 14s linear infinite;background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.5) 0 10deg,rgba(255,255,255,0) 10deg 20deg)}
-.card.r-e::before{animation:rays 26s linear infinite}
+.card.r-l::before{background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.5) 0 10deg,rgba(255,255,255,0) 10deg 20deg)}
+/* the rays only turn on the one card being looked at (its sheet, or a pack being opened). Turning them on every Epic and Legendary in a list kept the whole screen repainting. */
+:is(.sheet-top,.pull.on) .card:is(.r-e,.r-l)::before{animation:rays 18s linear infinite}
 @keyframes rays{to{--ray:368deg}}
-.card img{left:-7%;top:-14%;width:114%;height:90%;object-fit:contain;object-position:50% 100%;z-index:1;filter:drop-shadow(0 3px 0 rgba(8,18,46,.6)) drop-shadow(0 7px 5px rgba(0,0,0,.28))}
+.card img{left:-7%;top:-14%;width:114%;height:90%;object-fit:contain;object-position:50% 100%;z-index:1;filter:drop-shadow(0 3px 0 rgba(8,18,46,.6))}
 .card .ph{z-index:1;inset:8% 10% 30%;font-size:26px}
 .card .nm{z-index:2;left:0;right:0;bottom:0;border-radius:0 0 10px 10px;padding:6px 3px 6px;font:400 12px/1.05 var(--f-game);letter-spacing:.01em;color:#fff;background:linear-gradient(180deg,#1b3a82,#0b1b45);box-shadow:inset 0 2px 0 rgba(255,255,255,.22),0 -2.5px 0 var(--ink2);
   text-shadow:-1px 0 var(--ink2),1px 0 var(--ink2),0 -1px var(--ink2),0 1.5px var(--ink2)}
@@ -589,7 +590,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .tpack span{display:inline-flex;align-items:center;font:400 13px/1 var(--f-game);color:#fff7c2;text-shadow:var(--stroke)}
 .tpack:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink2)}
 .tdecks{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:14px}
-.tdeck{position:relative;text-align:left;cursor:pointer;color:#fff;font-family:var(--f-body);padding:10px 12px 12px;border-radius:18px;border:3px solid var(--ink2);overflow:hidden;
+.tdeck{content-visibility:auto;contain-intrinsic-size:auto 262px;position:relative;text-align:left;cursor:pointer;color:#fff;font-family:var(--f-body);padding:10px 12px 12px;border-radius:18px;border:3px solid var(--ink2);overflow:hidden;
   background:linear-gradient(180deg,color-mix(in srgb,var(--ty) 50%,#12357c),#12357c 60%);box-shadow:inset 0 3px 0 rgba(255,255,255,.2),0 5px 0 var(--ink2)}
 .tdeck .fan{position:relative;height:112px;margin:8px 0 8px}
 .tdeck .fan .card{position:absolute;left:50%;top:8px;width:68px;margin-left:-34px;transform:translateX(calc(var(--i) * 41px)) rotate(calc(var(--i) * 7deg)) translateY(calc(var(--i) * var(--i) * 3px));cursor:pointer}
@@ -799,6 +800,11 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
             <textarea class="field" id="codeOut" readonly></textarea>
             <div class="k-row" style="justify-content:flex-start;margin-top:10px"><button type="button" class="k-btn" id="codeCopy">Copy code</button></div>
           </div>
+          <div class="panel">
+            <span class="k-label">Got a code?</span>
+            <div class="rowx" style="margin-top:8px"><input class="field" id="promoIn" placeholder="Enter it here" autocomplete="off" autocapitalize="characters" spellcheck="false" style="flex:1;min-width:0"><button type="button" class="k-btn" id="promoGo">Redeem</button></div>
+            <p class="note" id="promoMsg" style="margin:8px 0 0" role="status"></p>
+          </div>
         </div>
         <div>
           <div class="panel">
@@ -847,6 +853,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115f"></script>
+<script type="module" src="main.js?v=1115g"></script>
 </body>
 </html>

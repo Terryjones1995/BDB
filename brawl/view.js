@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115f';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115f';
-import { W, L, RIVER, TRIG } from './sim.js?v=1115f';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115g';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115g';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115g';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -20,6 +20,23 @@ const LOOK = {
   breakrm: {bg:0x0f2028, apron:0x1c3540, water:0x5a3418, bridge:0xcfd5e2, wall:0xcfd5e2, sun:1.7},
   field:   {bg:0x14351c, apron:0x3f8a36, water:0x2fa8ff, bridge:0xb9864a, wall:0x9aa3b5, sun:1.85},
   lot:     {bg:0x05070d, apron:0x12151c, water:0, bridge:0, wall:0xf2c14e, sun:1.1}
+};
+
+/* Painted arenas: one picture (maps/<id>.webp) is the whole floor, border art and all, with its edge fading out.
+   box: the piece of the world the picture covers [x0, x1, z0, z1], worked out so its field, river and bridges sit exactly where the rules have them.
+   bg, dark, light: the colours of the picture's own rim; the ground beyond it and the haze are made from them. sun, hemi, sc: the light on the troops.
+   amb: the motes that drift over the field. riv: sparks that rise off the river. */
+const PAINT = {
+  ruins:   {box:[-12.58, 12.66, -24.29, 24.85], bg:'#2f5123', dark:'#132e12', light:'#76953f', sun:1.7, hemi:.7, amb:0xe6ff9a},
+  glacier: {box:[-12.38, 12.42, -24.29, 24.56], bg:'#4d85bf', dark:'#234675', light:'#bad6ef', sun:1.6, hemi:.8, amb:0xffffff},
+  citadel: {box:[-12.22, 12.17, -24.77, 24.29], bg:'#83abb1', dark:'#426f8a', light:'#d5e0e0', sun:1.75, hemi:.75, amb:0xfff3c8},
+  yard:    {box:[-13.69, 13.69, -24.72, 24.63], bg:'#161a30', dark:'#090c1b', light:'#2a3f5e', sun:1.25, hemi:.6, sc:0xcfdcff, amb:0x7fe9ff},
+  temple:  {box:[-12.52, 12.45, -23.72, 23.24], bg:'#24300f', dark:'#0c160a', light:'#64691d', sun:1.5, hemi:.65, amb:0xffa24a, riv:0xff7a1e},
+  keep:    {box:[-12.54, 12.54, -22.78, 23.22], bg:'#569fde', dark:'#1e5791', light:'#bcdff9', sun:1.6, hemi:.8, amb:0xffffff},
+  hollow:  {box:[-11.74, 12, -23.33, 23.38], bg:'#121b2e', dark:'#090d1b', light:'#1b4d58', sun:1.2, hemi:.6, sc:0xc9d6ff, amb:0x6dffc4, riv:0x4dffb0},
+  foundry: {box:[-13.44, 13.39, -24.38, 25.01], bg:'#2d100e', dark:'#100504', light:'#8f2d10', sun:1.35, hemi:.6, sc:0xffe2c4, amb:0xff8a3c, riv:0xff6a1a},
+  cinder:  {box:[-12.64, 12.64, -23.28, 23.66], bg:'#20110e', dark:'#0d0605', light:'#732e16', sun:1.35, hemi:.6, sc:0xffe2c4, amb:0xff8a3c, riv:0xff6a1a},
+  heavens: {box:[-12.97, 12.53, -23.47, 22.9], bg:'#afbac3', dark:'#79828d', light:'#f1f1ef', sun:1.7, hemi:.8, amb:0xfff6d8}
 };
 
 /* ---------- the floor, painted per map ---------- */
@@ -208,11 +225,40 @@ export function createView(el, opt = {}){
       }
     }, 5, 5);
   }
+  /* A painted arena. One floor picture is kept at a time: it is asked for before the match starts (needFloor) so the field is never bare. */
+  let floorCur = null;
+  function needFloor(id){
+    if (!PAINT[id]) return Promise.resolve(true);
+    if (floorCur && floorCur.id === id) return floorCur.ready;
+    if (floorCur) floorCur.tex.dispose();
+    const cur = floorCur = {id, tex:null, ready:null};
+    cur.ready = new Promise(res => { cur.tex = new THREE.TextureLoader().load(`maps/${id}.webp`, () => res(true), undefined, () => res(false)); });
+    cur.tex.colorSpace = THREE.SRGBColorSpace; cur.tex.anisotropy = low ? 4 : 16;
+    return cur.ready;
+  }
+  /* the ground past the picture's edge: its rim colours in soft patches (drawn wrapped, so the tile repeats without a seam) */
+  function hazeTex(p){
+    return tiny('hz' + p.bg, 512, 512, (x, w, h) => {
+      x.fillStyle = p.bg; x.fillRect(0, 0, w, h);
+      let a = 91; const r = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; };
+      for (let i = 0; i < 64; i++){ const cx = r() * w, cy = r() * h, rad = i < 34 ? 70 + r() * 110 : 24 + r() * 46, col = (i % 2 ? p.dark : p.light), al = i < 34 ? .34 : .2;
+        for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]){ const g = x.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, rad); g.addColorStop(0, hexA(col, al)); g.addColorStop(1, hexA(col, 0)); x.fillStyle = g; x.fillRect(cx + ox - rad, cy + oy - rad, rad * 2, rad * 2); } }
+    }, 5, 5);
+  }
+  function paintMap(id){
+    const p = PAINT[id], [x0, x1, z0, z1] = p.box;
+    scene.background = new THREE.Color(p.bg); scene.fog = new THREE.Fog(p.bg, 64, 140); sun.intensity = p.sun; sun.color.set(p.sc ?? 0xfff0dc); hemi.intensity = p.hemi;
+    waterTex = null; needFloor(id);
+    const ap = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({map:hazeTex(p), roughness:.95, envMapIntensity:.1})); ap.rotation.x = -PI / 2; ap.position.y = -.05; ap.receiveShadow = true; stage.add(ap);
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshStandardMaterial({map:floorCur.tex, roughness:.92, envMapIntensity:.12, transparent:true, depthWrite:false}));
+    fl.rotation.x = -PI / 2; fl.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); fl.receiveShadow = true; fl.renderOrder = -20; stage.add(fl);        // drawn before every other see-through thing, so rings and sparks land on top of it
+  }
   function setMap(id){
     mapId = id; flags.length = 0; sway.length = 0;
     for (const c of stage.children.slice()){ stage.remove(c); c.traverse(o => { if (o.geometry && !o.userData.keep) o.geometry.dispose(); }); }
+    if (PAINT[id]) return paintMap(id);
     const lk = LOOK[id], map = MAPS[id];
-    scene.background = new THREE.Color(lk.bg); scene.fog = new THREE.Fog(lk.bg, 70, 150); sun.intensity = lk.sun; hemi.intensity = id === 'lot' ? .45 : .7;
+    scene.background = new THREE.Color(lk.bg); scene.fog = new THREE.Fog(lk.bg, 70, 150); sun.intensity = lk.sun; sun.color.set(0xfff0dc); hemi.intensity = id === 'lot' ? .45 : .7;
     const gm = new THREE.Mesh(new THREE.PlaneGeometry(18, 2 * L), new THREE.MeshStandardMaterial({map:groundTex(id), roughness:.9, envMapIntensity:.15}));
     gm.rotation.x = -PI / 2; gm.receiveShadow = true; stage.add(gm);
     const ap = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), new THREE.MeshStandardMaterial({map:apronTex(id), roughness:.95, envMapIntensity:.1})); ap.rotation.x = -PI / 2; ap.position.y = -.08; ap.receiveShadow = true; stage.add(ap);
@@ -502,7 +548,7 @@ export function createView(el, opt = {}){
     if (!U.twr){
       r.ring = new THREE.Mesh(baseRing, ringMat[rel]); r.ring.rotation.x = -PI / 2; r.ring.scale.setScalar(U.r * 1.12); r.ring.position.y = .045; g.add(r.ring);
     }
-    const bw = U.twr ? 2.1 : clamp(U.r * 2.2, .7, 1.7), bh = U.twr ? .26 : .13;
+    const bw = U.twr ? 2.1 : clamp(U.r * 2.2, .8, 1.7), bh = U.twr ? .26 : .15;
     r.bar = new THREE.Group(); r.bar.renderOrder = 10;
     const bg = new THREE.Mesh(barG, barBg); bg.scale.set(bw + .08, bh + .08, 1); bg.renderOrder = 10; r.bar.add(bg);
     r.fill = new THREE.Mesh(barG, barCol[rel]); r.fill.scale.set(bw, bh, 1); r.fill.renderOrder = 11; r.fill.position.z = .01; r.bar.add(r.fill); r.bw = bw;
@@ -518,7 +564,7 @@ export function createView(el, opt = {}){
   }
   function drop(r){
     root.remove(r.g); bars.remove(r.bar); if (r.badge) bars.remove(r.badge);
-    if (r.num){ r.num.t.dispose(); }
+    if (r.num){ r.num.t.dispose(); if (r.ns) r.ns.material.dispose(); }
     recs.delete(r.e.id);
   }
   function die(r){
@@ -534,7 +580,7 @@ export function createView(el, opt = {}){
       burst(r.x, .3, r.z, 3 + Math.round(U.r * 4), 0xd9dde8, {smoke:true, spd:1, up:1, life:.7, grav:-.6});
     }
     if (U.twr) drop(r);
-    else { bars.remove(r.bar); if (r.badge) bars.remove(r.badge); recs.delete(r.e.id); if (r.ring) r.ring.visible = false; if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); if (r.gone || r.quiet){ root.remove(r.g); return; } dying.push({g:r.g, t:0, spin:(Math.random() - .5) * 16, rig:r.m.die && r.m.die() ? r.m : null}); flat(r.x, r.z, {r0:.2, r1:U.r * 2.2, dur:.3, color:0xffffff, add:true, a:.6}); }   // knocked into the air, spinning, then gone
+    else { bars.remove(r.bar); if (r.badge) bars.remove(r.badge); if (r.num){ r.num.t.dispose(); if (r.ns) r.ns.material.dispose(); r.num = null; } recs.delete(r.e.id); if (r.ring) r.ring.visible = false; if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); if (r.gone || r.quiet){ root.remove(r.g); return; } dying.push({g:r.g, t:0, spin:(Math.random() - .5) * 16, rig:r.m.die && r.m.die() ? r.m : null}); flat(r.x, r.z, {r0:.2, r1:U.r * 2.2, dur:.3, color:0xffffff, add:true, a:.6}); }   // knocked into the air, spinning, then gone
   }
   const dying = [], DEAD = {mv:false, atk:99, ph:0}, FLASH = new THREE.MeshBasicMaterial({color:0xffffff});
   function setFlash(r, on){
@@ -585,21 +631,24 @@ export function createView(el, opt = {}){
       if (e.sh > 0 && !r.shield){ r.shield = new THREE.Mesh(shG, shMat); r.shield.scale.set(U.r * 1.5 + .25, m.h * .62, U.r * 1.5 + .25); r.shield.position.y = mid; r.g.add(r.shield); }
       else if (!(e.sh > 0) && r.shield){ r.g.remove(r.shield); r.shield = null; }
       if (r.shield) r.shield.rotation.y = time * 1.5;
-      if (e.hp < r.hp - .5 && r.landed){ dmgNum(r, r.hp - e.hp); if (e.hp < r.hp - 12 || Math.random() < .3) burst(r.x, m.h * .55 + (m.fly || 0), r.z, U.twr ? 5 : 3, 0xffe3a0, {spd:2, up:1.6, life:.3}); if (r.pop <= 0) r.pop = .1; r.hit = .18; if (!U.twr && r.hp - e.hp >= 20){ r.white = .07; setFlash(r, true); } }
+      if (U.life) r.hp -= e.max / U.life * dt;                // something that melts or runs down loses health all the time: that is not a hit, and must not make it flinch
+      if (e.hp < r.hp - .5 - (U.life ? e.max / U.life * .25 : 0) && r.landed){ dmgNum(r, r.hp - e.hp); if (e.hp < r.hp - 12 || Math.random() < .3) burst(r.x, m.h * .55 + (m.fly || 0), r.z, U.twr ? 5 : 3, 0xffe3a0, {spd:2, up:1.6, life:.3}); if (r.pop <= 0) r.pop = .1; r.hit = .18; if (!U.twr && r.hp - e.hp >= 20){ r.white = .07; setFlash(r, true); } }
       else if (e.hp > r.hp + 5) burst(r.x, m.h * .6 + (m.fly || 0), r.z, 4, 0x6dff9a, {spd:.8, up:2.2, life:.6, grav:-1});
       r.hp = e.hp;
       if (!frozen) m.anim(time, {mv:e.mv, ph:r.ph, atk:r.atk, chg:e.chg, aim, sum:r.sum, active:e.active, spd:U.spd * (e.rage ? 1.35 : 1) * (e.slow ? .62 : 1)});
       if (frozen && !r.ice){ r.ice = new THREE.Mesh(iceG, iceMat); r.ice.scale.set(U.r * 1.25, m.h * .58, U.r * 1.25); r.ice.position.y = m.h * .5 + (m.fly || 0); r.g.add(r.ice); }
       else if (!frozen && r.ice){ r.g.remove(r.ice); r.ice = null; burst(r.x, m.h * .5, r.z, 8, 0xbfe9ff, {spd:2.5, up:2, life:.4}); }
       if (r.ring){ r.ring.material = e.hid ? hidMat : e.rage ? rageMat : ringMat[r.rel]; r.ring.scale.setScalar(U.r * (e.rage ? 1.3 + Math.sin(time * 12) * .1 : e.dep ? .7 + (time * 2 % 1) * .5 : 1.12)); }
-      const show = r.landed && !e.dep && !gone && (U.twr || e.hp < e.max - .5);
+      const show = r.landed && !e.dep && !gone && (U.twr || e.hp < e.max - .5 || e.max >= 700);      // the big ones wear their health from the start
       r.bar.visible = show;
       tv.set(r.x, m.h + (m.fly || 0) + (U.twr ? .5 : .34), r.z); root.localToWorld(tv);
       if (r.badge){ r.badge.visible = r.landed && !e.dep && !gone; r.badge.position.copy(tv); }
       if (show){
         r.bar.position.copy(tv); if (r.badge) r.bar.position.y += .36; r.bar.quaternion.copy(camera.quaternion);
         const f = clamp(e.hp / e.max, 0, 1); r.fill.scale.x = Math.max(.001, r.bw * f); r.fill.position.x = -r.bw * (1 - f) / 2;
-        if (r.num) drawNum(r, Math.max(0, Math.ceil(e.hp)));
+        if (!r.num){                                              // a troop's bar carries its health as a number too, from the moment the bar first shows
+          r.num = numTex(); r.ns = new THREE.Sprite(new THREE.SpriteMaterial({map:r.num.t, depthTest:false, transparent:true})); r.ns.scale.set(1.02, .38, 1); r.ns.position.y = .2; r.ns.renderOrder = 12; r.bar.add(r.ns); r.nt = 0; }
+        if (U.twr || (r.nt -= dt) <= 0){ r.nt = .08; drawNum(r, Math.max(0, Math.ceil(e.hp))); }       // redrawn at most a dozen times a second each
       }
     }
     for (const r of [...recs.values()]) if (!seen.has(r.e.id)) die(r);
@@ -867,7 +916,7 @@ export function createView(el, opt = {}){
   }
   function setNoGo(on, pocket){
     nogo.visible = !!on; if (!on) return;
-    const e = (MAPS[mapId].river ? RIVER : 0) + .6;
+    const e = riverOf(MAPS[mapId]) + .6;
     const put = (m, x0, x1, z0, z1, vis) => { m.visible = vis; m.scale.set(x1 - x0, z1 - z0, 1); m.position.set((x0 + x1) / 2, .06, (z0 + z1) / 2); };
     put(ng[0], -W, W, -L, -(L - 8.5), true); put(ng[1], -W, W, -e, e, true);
     put(ng[2], -W, 0, -(L - 8.5), -e, !(pocket && pocket[0])); put(ng[3], 0, W, -(L - 8.5), -e, !(pocket && pocket[1]));
@@ -913,7 +962,9 @@ export function createView(el, opt = {}){
       const k = d.t / .42; if (k >= 1){ root.remove(d.g); dying.splice(i, 1); continue; } d.g.position.y += dt * (5 - k * 9); d.g.rotation.z += dt * d.spin; d.g.rotation.x += dt * 6; d.g.scale.setScalar(Math.max(.01, 1 - k * k)); }
     for (let i = 0; i < sway.length; i++){ sway[i].rotation.z = Math.sin(time * 1.1 + i * 1.7) * .028; sway[i].rotation.x = Math.sin(time * .8 + i) * .02; }
     for (let i = 0; i < flags.length; i++){ flags[i].rotation.y = Math.sin(time * 3.2 + i * 1.7) * .4; flags[i].scale.x = 1 + Math.sin(time * 5 + i) * .06; }
-    if ((amb += dt) > (low ? .45 : .16)){ amb = 0; tc.set(AMB[mapId] || 0xffffff); glow.emit((Math.random() * 2 - 1) * 9, .4 + Math.random() * 2.5, (Math.random() * 2 - 1) * 16, (Math.random() - .5) * .4, .2 + Math.random() * .35, (Math.random() - .5) * .4, 2.6, tc, 0); }
+    if ((amb += dt) > (low ? .45 : .16)){ amb = 0; tc.set(PAINT[mapId] ? PAINT[mapId].amb : AMB[mapId] || 0xffffff); glow.emit((Math.random() * 2 - 1) * 9, .4 + Math.random() * 2.5, (Math.random() * 2 - 1) * 16, (Math.random() - .5) * .4, .2 + Math.random() * .35, (Math.random() - .5) * .4, 2.6, tc, 0); }
+    if (PAINT[mapId] && PAINT[mapId].riv && Math.random() < dt * (low ? 5 : 11)){ tc.set(PAINT[mapId].riv); const rw = riverOf(MAPS[mapId]);      // sparks off the lava, wisps off the green
+      glow.emit((Math.random() * 2 - 1) * 12, .1, (Math.random() * 2 - 1) * rw * .7, (Math.random() - .5) * .3, .5 + Math.random() * .9, (Math.random() - .5) * .3, 1.1 + Math.random(), tc, -.4); }
     look.set(LOOKAT.x + panX, 0, LOOKAT.z + panZ); home.copy(camDir).multiplyScalar(camDist / zoomK).add(look); camera.position.copy(home);
     if (intro < 2.8){                                  // fly in around the arena at the start
       intro += dt; const k = Math.min(1, intro / 2.8), q = 1 - Math.pow(1 - k, 3);
@@ -959,5 +1010,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; } };
+  return { loadProps, needFloor, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get gl(){ return renderer; } };
 }
