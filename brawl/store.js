@@ -1,12 +1,16 @@
 /* Break Room Brawl: player accounts.
    A player is a named save on this device (localStorage), with a save code to carry it to another device, and an online copy when they have an account (cloud.js).
    Everything that reads a save goes through sanitize(), so a bad or old save can never break the game: it is repaired or brought up to date instead. */
-import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, MAX_LEGEND, MAX_GOD, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115k';
+import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, MAX_LEGEND, MAX_GOD, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115n';
 
 const KEY = 'brawl-accounts-v2';
+function sum(s){ let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, '').trim().slice(0, n);
 const int = (v, lo, hi, d) => Number.isFinite(v) ? Math.max(lo, Math.min(hi, Math.round(v))) : d;
 const id = n => clean(n, 20).toLowerCase();
+/* The owner's account, known by the fingerprint of its name. The limits on Legendary and God cards in a deck do not apply to it (main.js has its other perks). */
+const OWNERS = ['1vpdqid'];
+export const isOwner = name => OWNERS.includes(sum(id(name)));
 
 function read(){ try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && typeof d.list === 'object') return d; } catch(e){} return {last:null, list:{}}; }
 function write(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); return true; } catch(e){ return false; } }
@@ -43,10 +47,10 @@ export function sanitize(p){
   if (Array.isArray(p.decks)) for (let i = 0; i < DECK_SLOTS; i++){
     const src = p.decks[i]; if (!Array.isArray(src)) continue;
     // keep every card that is real, owned and within the deck rules, in the order it was in
-    const d = [], seen = new Set(); let leg = 0, god = 0;
+    const d = [], seen = new Set(), free = isOwner(o.name); let leg = 0, god = 0;
     for (const k of src){
       const c = cardId(k); if (!c || d.length >= DECK_SIZE || !(o.cards[c] > 0)) continue;
-      const C = CARDS[c]; if (seen.has(C.base) || (C.rar === 'l' && leg >= MAX_LEGEND) || (C.rar === 'g' && god >= MAX_GOD)) continue;
+      const C = CARDS[c]; if (seen.has(C.base) || (!free && ((C.rar === 'l' && leg >= MAX_LEGEND) || (C.rar === 'g' && god >= MAX_GOD)))) continue;
       seen.add(C.base); if (C.rar === 'l') leg++; else if (C.rar === 'g') god++; d.push(c);
     }
     if (partOK) o.decks[i] = d;
@@ -65,7 +69,6 @@ export function sanitize(p){
 
 const b64 = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64 = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
-const sum = s => { let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 
 export const Accounts = {
   remote:null,

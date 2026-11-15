@@ -35,7 +35,7 @@ export const AFF = {
   ice:  {name:'Frozen',  tint:0x7fd4ff, cost:0,  hp:1,    dmg:.9,   spd:.95,  size:1,    w:7,  pm:1.4, note:'Frozen: every hit slows the target.', chill:1.8},
   fire: {name:'Blazing', tint:0xff5a1f, cost:0,  hp:.88,  dmg:1.05, spd:1.05, size:1,    w:7,  pm:1.4, note:'Blazing: every hit sets the target on fire.', burn:.3},
   quick:{name:'Turbo',   tint:0xc8f53a, cost:0,  hp:.82,  dmg:.95,  spd:1.4,  size:.94,  w:7,  pm:1.4, note:'Turbo: much faster on its feet and on the attack, but fragile.', haste:.85},
-  iron: {name:'Iron',    tint:0x8f99ad, cost:0,  hp:1.5,  dmg:.9,   spd:.8,   size:1.05, w:7,  pm:1.3, note:'Iron: far more health, but slower.'},
+  iron: {name:'Iron',    tint:0x8f99ad, cost:0,  hp:1.3,  dmg:.9,   spd:.8,   size:1.05, w:7,  pm:1.3, note:'Iron: a lot more health, but slower and a little softer on the hit.'},
   tox:  {name:'Toxic',   tint:0x58d848, cost:0,  hp:.95,  dmg:.95,  spd:1,    size:1,    w:5,  pm:1.5, note:'Toxic: bursts and hurts everything nearby when it is defeated.', toxic:1},
   vamp: {name:'Vampire', tint:0x8a4fd8, cost:0,  hp:.92,  dmg:1,    spd:1,    size:1,    w:4,  pm:1.6, note:'Vampire: heals itself with every hit.', steal:.35},
   gold: {name:'Golden',  tint:0xffcf3a, cost:1,  hp:1.25, dmg:1.28, spd:1.08, size:1.05, w:3,  pm:2,   note:'Golden: stronger and quicker. Costs 1 more Mana.'},
@@ -270,7 +270,7 @@ const ROSTER = [
   ['mascot', 'The Mascot', 'crew', 'r', 'giant', 5, 1, {}, 'Huge, slow and only interested in buildings. Protect him and towers fall.'],
   ['bdb', 'Five-Star BDB', 'crew', 'l', 'tank', 6, 1, {splash:1.7, dm:1.81, hm:1.26, rng:1, spd:1.2, r:.9, land:{r:2.6, dmg:140, push:1}}, 'The prospect himself. Huge health, a landing that clears space, and a slam that hits everything around him.'],
   /* ----- Gods: one to a deck, and each does something to the whole field ----- */
-  ['thor', 'Thor, God of Thunder', 'order', 'g', 'bruiser', 7, 1, {smite:{dmg:400, stun:1.5, twr:.4}, chain:{n:4, r:3.4, fall:.85}, stun:{every:3, t:.8}, hm:1.55, dm:1.1, r:.7, spd:1.45}, 'He arrives and lightning hits every enemy on the field at once, wherever it stands, and stops it dead for a moment. After that his fists carry the storm: every blow jumps to four more.'],
+  ['thor', 'Thor, God of Thunder', 'order', 'g', 'bruiser', 7, 1, {smite:{dmg:400, stun:1.5, twr:.4}, chain:{n:4, r:3.4, fall:.85}, stun:{every:3, t:.8}, hm:.952, dm:1.1, r:.7, spd:1.45}, 'He arrives and lightning hits every enemy on the field at once, wherever it stands, and stops it dead for a moment. After that his fists carry the storm: every blow jumps to four more.'],
   ['deathgod', 'Death', 'dark', 'g', 'bruiser', 7, 1, {reap:.25, land:{r:3.4, summon:{u:'skel', n:20}}, raise:{u:'skel', r:99, max:26, cd:.5}, splash:1.3, hm:1.05, dm:.75, r:.75, spd:1.15}, 'Arrives in a ring of twenty skeletons, and every enemy troop on the field loses a quarter of its health on the spot. From then on whatever dies, anywhere, on either side, gets up as one of his.'],
   ['zeus', 'Zeus, King of Olympus', 'arcane', 'g', 'sniper', 7, 1, {land:{r:99, shield:150, rage:5}, wrath:{every:6, first:2.5, dmg:300, r:1.5}, chain:{n:2, r:3, fall:.6}, hm:1.7, dm:.8, r:.6, shot:'zap'}, 'His arrival shields every troop you have, wherever it is, and sends them all into a rage. Every six seconds a bolt from the sky finds the biggest enemy on the field, and his own thunderbolts jump to two more.'],
   /* ----- Dragon ----- */
@@ -455,7 +455,7 @@ export function deckProblem(ids, strict = true){
   if (ids.some(i => !CARDS[i])) return 'Unknown card.';
   if (new Set(ids.map(i => CARDS[i].base)).size !== ids.length) return 'Only one version of each character per deck.';
   if (strict && ids.filter(i => CARDS[i].rar === 'l').length > MAX_LEGEND) return `No more than ${MAX_LEGEND} Legendary cards per deck.`;
-  if (ids.filter(i => CARDS[i].rar === 'g').length > MAX_GOD) return 'Only one God to a deck.';
+  if (strict && ids.filter(i => CARDS[i].rar === 'g').length > MAX_GOD) return 'Only one God to a deck.';
   if (strict && !ids.some(i => CARDS[i].kind === 'unit')) return 'A deck needs at least one troop.';
   return null;
 }

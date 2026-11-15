@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115k';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115k';
-import { createAI } from './ai.js?v=1115k';
-import { Accounts, fresh, sanitize } from './store.js?v=1115k';
-import { Cloud, cloudWhy } from './cloud.js?v=1115k';
-import { sayFor, sayWhen } from './talk.js?v=1115k';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115n';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115n';
+import { createAI } from './ai.js?v=1115n';
+import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115n';
+import { Cloud, cloudWhy } from './cloud.js?v=1115n';
+import { sayFor, sayWhen } from './talk.js?v=1115n';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -65,7 +65,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115k'), import('./models.js?v=1115k')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115n'), import('./models.js?v=1115n')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -75,11 +75,11 @@ async function initView(){
 
 /* ---------- profile ---------- */
 let P = null;
-/* The owner's account, known by the fingerprint of its name: its coins never run out, and the first time it signs in it is handed Thor and the
+/* The owner's account (store.js knows which it is): its coins never run out, no limit on Legendary or God cards applies to its decks, and the first time it signs in it is handed Thor and the
    strongest deck testing could find, every card at full level. (Found by search, CPU against CPU: the fifteen characters win 99% of their matches against
-   every ready-made deck and the top of the ladder, and these builds of them beat the plain builds 86% of the time.) */
-const OWNERS = ['1vpdqid'], OWN_COINS = 99999999;
-const OWN_DECK = 'thor-std jade-iron manager-std phoenix-std queen-iron wraith-iron archon-iron winter-vamp oathkeeper-std baron-std tempus-iron plum-iron zap-std arrows-std gremlins-tox'.split(' ');
+   every ready-made deck and the top of the ladder, and these builds of them beat the plain builds 69% of the time.) */
+const OWN_COINS = 99999999;
+const OWN_DECK = 'thor-std jade-std manager-std phoenix-iron queen-vamp wraith-std archon-iron winter-vamp oathkeeper-std baron-std tempus-std plum-std zap-std arrows-std gremlins-tox'.split(' ');
 let OWN = false, ownGift = -1, ownOver = false;
 function ownerPerks(){
   if (!OWN || !P) return;
@@ -96,13 +96,13 @@ const curDeck = () => P.decks[P.deck];
 const myDeck = () => curDeck().map(id => ({id, lvl:Math.max(1, lvl(id))}));
 const myTower = () => Math.round(curDeck().reduce((a, id) => a + Math.max(1, lvl(id)), 0) / DECK_SIZE);
 /* a deck can stand part-built while it is being put together. These are the rules a part-built one still keeps, and the test for one that is ready to play. */
-const limitProblem = d => new Set(d.map(i => CARDS[i].base)).size !== d.length ? 'Only one version of each character per deck.' : d.filter(i => CARDS[i].rar === 'l').length > MAX_LEGEND ? `No more than ${MAX_LEGEND} Legendary cards per deck.` : d.filter(i => CARDS[i].rar === 'g').length > MAX_GOD ? 'Only one God to a deck.' : '';
-const deckOK = (d = curDeck()) => d.length === DECK_SIZE && !deckProblem(d);
-let deckMsg = '', pend = null, clearT = 0;            // a line to show under the deck; a card waiting to take a place in a full deck; when "clear" was first pressed
+const limitProblem = d => new Set(d.map(i => CARDS[i].base)).size !== d.length ? 'Only one version of each character per deck.' : OWN ? '' : d.filter(i => CARDS[i].rar === 'l').length > MAX_LEGEND ? `No more than ${MAX_LEGEND} Legendary cards per deck.` : d.filter(i => CARDS[i].rar === 'g').length > MAX_GOD ? 'Only one God to a deck.' : '';
+const deckOK = (d = curDeck()) => d.length === DECK_SIZE && !deckProblem(d, !OWN);
+let deckMsg = '', pend = null, clearT = 0, slotOn = false;      // a line to show under the deck; a card waiting to take a place in a full deck; when "clear" was first pressed; an empty place was clicked
 /* a match needs a whole deck: true (and it says so, on the Deck tab) when the one in use is not finished */
 function noDeck(){
   const d = curDeck(); if (deckOK(d)) return false;
-  deckMsg = (d.length < DECK_SIZE ? `Deck ${P.deck + 1} has ${d.length} of ${DECK_SIZE} cards.` : deckProblem(d)) + ' Finish it, or pick another deck, before you play.';
+  deckMsg = (d.length < DECK_SIZE ? `Deck ${P.deck + 1} has ${d.length} of ${DECK_SIZE} cards.` : deckProblem(d, !OWN)) + ' Finish it, or pick another deck, before you play.';
   BDB.sfx.bad(); dlgClose(); tab('Deck'); return true;
 }
 const coinsTxt = () => OWN ? '\u221e' : fmt(P.coins);
@@ -116,7 +116,8 @@ function cardEl(id, o = {}){
   b.className = `card r-${c.rar}` + (o.cls ? ' ' + o.cls : ''); b.dataset.id = id; b.setAttribute('aria-label', c.name);
   b.innerHTML = `<span class="cost">${c.cost}</span><img alt="" ${o.now ? '' : 'loading="lazy" '}decoding="async" src="${src}" onerror="this.style.visibility='hidden'">` + (A.tint != null ? `<i class="tint" style="--tc:${hex(A.tint)};-webkit-mask-image:url(${src});mask-image:url(${src})"></i>` : '') +
     `<i class="ty" style="--ty:${T.col}"></i>` + (c.n > 1 ? `<span class="cnt">x${c.n}</span>` : '') +
-    (o.lvl ? `<span class="lv">Lv ${o.lvl}</span>` : '') + (o.tag ? `<span class="tagc${o.sale ? ' sale' : ''}">${o.tag}</span>` : `<span class="nm">${esc(c.name)}</span>`) + '<span class="veil"></span>';
+    (o.lvl ? `<span class="lv">Lv ${o.lvl}</span>` : '') + (o.tag ? `<span class="tagc${o.sale ? ' sale' : ''}">${o.tag}</span>` : `<span class="nm">${esc(c.name)}</span>`) + '<span class="veil"></span>' +
+    (o.price ? `<span class="pr${o.sale ? ' sale' : ''}${o.own ? ' own' : ''}">${o.own ? '' : COIN}${o.was ? `<s>${o.was}</s>` : ''}${o.price}</span>` : '');
   return b;
 }
 const typeChip = t => `<span class="tchip" style="--ty:${TYPES[t].col}">${esc(TYPES[t].name)}</span>`;
@@ -312,7 +313,7 @@ function listUI(key, source, label){
     ids.sort(st.sort === 'price' ? (a, b) => CARDS[a].price - CARDS[b].price : st.sort === 'name' ? (a, b) => CARDS[a].name.localeCompare(CARDS[b].name) : st.sort === 'lvl' ? (a, b) => lvl(b) - lvl(a) || byCost(a, b) : st.sort === 'rar' ? (a, b) => RO[CARDS[b].rar] - RO[CARDS[a].rar] || byCost(a, b) : byCost);
     const g = $(key + 'Grid'), dl = key === 'shop' ? deals() : [], dk = curDeck(); g.innerHTML = '';
     for (const id of ids.slice(0, st.n)){
-      const c = cardEl(id, key === 'shop' ? {tag:lvl(id) ? 'Owned' : fmt(priceNow(id)), sale:dl.includes(id) && !lvl(id), lvl:lvl(id), cls:lvl(id) ? 'dim' : ''} : {lvl:lvl(id), cls:(dk.includes(id) ? 'inuse' : '') + (pend === id ? ' pend' : '')});
+      const c = cardEl(id, key === 'shop' ? {price:lvl(id) ? 'Owned' : fmt(priceNow(id)), own:!!lvl(id), sale:dl.includes(id) && !lvl(id), was:dl.includes(id) && !lvl(id) ? fmt(CARDS[id].price) : '', lvl:lvl(id), cls:lvl(id) ? 'dim' : ''} : {lvl:lvl(id), cls:(dk.includes(id) ? 'inuse' : '') + (pend === id ? ' pend' : '')});
       if (key === 'own'){ withInfo(c, id); c.onclick = e => { if (e.target.closest('.inf')) return sheet(id); const i = curDeck().indexOf(id); if (i >= 0) takeOut(i); else addCard(id); }; }
       else c.onclick = () => sheet(id);
       g.appendChild(c);
@@ -328,8 +329,8 @@ function listUI(key, source, label){
 }
 
 /* ---------- hub ---------- */
-let curTab = 'Battle', deckType = '';
-function tab(t){ curTab = t; for (const k of ['Battle', 'Deck', 'Market', 'Profile']) $('tab' + k).hidden = k !== t; for (const b of $('tabbar').children) b.setAttribute('aria-selected', b.dataset.tab === t); if (t !== 'Deck'){ pend = null; deckMsg = ''; clearT = 0; } hub(); $('hubBody').scrollTop = 0; }
+let curTab = 'Battle', deckType = '', deckAll = false;
+function tab(t){ curTab = t; for (const k of ['Battle', 'Deck', 'Market', 'Profile']) $('tab' + k).hidden = k !== t; for (const b of $('tabbar').children) b.setAttribute('aria-selected', b.dataset.tab === t); if (t !== 'Deck'){ pend = null; deckMsg = ''; clearT = 0; slotOn = false; } hub(); $('hubBody').scrollTop = 0; }
 $('tabbar').onclick = e => { const b = e.target.closest('button'); if (b) tab(b.dataset.tab); };
 $('toDeck').onclick = () => tab('Deck');
 const avgCost = d => d.length ? (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.length).toFixed(1) : '0';
@@ -371,15 +372,17 @@ function hub(){
     for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small>${COIN}${sk.coins}</small><em>${sk.pack ? 'card and a pack' : sk.card ? 'and a card' : 'coins'}</em>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
   } else if (curTab === 'Deck'){
     const d = curDeck(), seg = $('deckSeg'); seg.innerHTML = '';
-    for (let i = 0; i < DECK_SLOTS; i++){ const n = P.decks[i].length, b = document.createElement('button'); b.type = 'button'; b.innerHTML = `Deck ${i + 1}${n === DECK_SIZE ? '' : ` <small>${n}/${DECK_SIZE}</small>`}`; b.setAttribute('aria-pressed', i === P.deck); b.onclick = () => { P.deck = i; pend = null; deckMsg = ''; save(); hub(); }; seg.appendChild(b); }
+    for (let i = 0; i < DECK_SLOTS; i++){ const n = P.decks[i].length, b = document.createElement('button'); b.type = 'button'; b.innerHTML = `Deck ${i + 1}${n === DECK_SIZE ? '' : ` <small>${n}/${DECK_SIZE}</small>`}`; b.setAttribute('aria-pressed', i === P.deck); b.onclick = () => { P.deck = i; pend = null; deckMsg = ''; slotOn = false; save(); hub(); }; seg.appendChild(b); }
     $('deckAvg').textContent = d.length ? `${d.length} of ${DECK_SIZE} cards, average ${avgCost(d)} Mana` : 'Nothing in it yet';
     $('deckSets').innerHTML = setsHTML(d);
     const g = $('deckGrid'); g.innerHTML = '';
     d.forEach((id, i) => { const c = withInfo(cardEl(id, {lvl:lvl(id), cls:pend ? 'pickme' : ''}), id); c.onclick = e => { if (e.target.closest('.inf')) return sheet(id); if (pend) putIn(pend, i); else takeOut(i); }; g.appendChild(c); });
-    for (let i = d.length; i < DECK_SIZE; i++){ const sl = document.createElement('div'); sl.className = 'slot'; sl.textContent = '+'; g.appendChild(sl); }
+    for (let i = d.length; i < DECK_SIZE; i++){ const sl = document.createElement('button'); sl.type = 'button'; sl.className = 'slot' + (slotOn && i === d.length ? ' on' : ''); sl.textContent = '+'; sl.setAttribute('aria-label', 'Empty place. Pick a card for it'); sl.onclick = pickForSlot; g.appendChild(sl); }
     $('deckFill').disabled = d.length >= DECK_SIZE; $('deckClear').disabled = !d.length; $('deckClear').textContent = clearT ? 'Press again to empty it' : 'Clear this deck';
+    const side = matchMedia('(min-width:1100px)').matches;
     $('deckHint').innerHTML = deckMsg ? `<span class="err">${esc(deckMsg)}</span>${pend ? ' <button type="button" class="link" id="swapX" style="padding:2px 6px">Cancel</button>' : ''}`
-      : `Click a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character, no more than ${MAX_LEGEND} Legendary and one God. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
+      : slotOn && d.length < DECK_SIZE ? `<b>Now pick a card from ${side ? 'your cards on the right' : 'your cards below'}.</b> It goes in the lit place.`
+      : `Click a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Legendary and God cards do not apply to this account' : `, no more than ${MAX_LEGEND} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
     const sx = $('swapX'); if (sx) sx.onclick = () => { pend = null; deckMsg = ''; hub(); };
     lists.own.draw();
   } else if (curTab === 'Market') market();
@@ -387,7 +390,15 @@ function hub(){
 }
 /* the little i on a card in the deck builder: the card itself is the button that moves it, so its sheet needs a handle of its own (I on the keyboard) */
 function withInfo(c, id){ const s = document.createElement('span'); s.className = 'inf'; s.textContent = 'i'; s.title = 'What it does'; c.appendChild(s); c.addEventListener('keydown', e => { if (e.key === 'i' || e.key === 'I'){ e.preventDefault(); sheet(id); } }); return c; }
-const setDeck = d => { P.decks[P.deck] = d; pend = null; deckMsg = ''; clearT = 0; save(); hub(); };
+const setDeck = d => { P.decks[P.deck] = d; pend = null; deckMsg = ''; clearT = 0; slotOn = false; save(); hub(); };
+/* an empty place in the deck was clicked: light the next free one and show where the cards are */
+function pickForSlot(){
+  slotOn = true; deckMsg = ''; pend = null; BDB.sfx.tick(); hub();
+  const own = document.querySelector('.dk-own'); if (!own) return;
+  own.classList.remove('nudge'); void own.offsetWidth; own.classList.add('nudge');
+  if (!matchMedia('(min-width:1100px)').matches) own.scrollIntoView({behavior:BDB.reduced ? 'auto' : 'smooth', block:'start'});
+  else { const q = own.querySelector('input[type=search], input'); if (q && matchMedia('(hover:hover)').matches) q.focus({preventScroll:true}); }
+}
 function addCard(id){
   const d = curDeck().slice(), C = CARDS[id], same = d.findIndex(x => CARDS[x].base === C.base);
   if (same >= 0) d[same] = id;                                       // another build of a character already in the deck takes that one's place
@@ -449,6 +460,7 @@ $('promoGo').onclick = () => {
   const msg = f(P); save(); BDB.sfx.big(); hub(); $('promoIn').value = ''; $('promoMsg').textContent = msg;
 };
 $('promoIn').onkeydown = e => { if (e.key === 'Enter') $('promoGo').click(); };
+$('tdeckMoreB').onclick = () => { deckAll = true; BDB.sfx.tick(); market(); };
 
 /* ---------- market: packs, type packs, ready-made decks, today's deals, every card ---------- */
 let dealDay = -1, dealIds = [];
@@ -481,10 +493,13 @@ function market(){
     tp.appendChild(b);
   }
   const tf = $('tdeckF'); if (!tf.children.length){ tf.innerHTML = `<button type="button" data-t="" aria-pressed="true">All ${THEME_DECKS.length}</button>` + TYPE_IDS.filter(t => THEME_DECKS.some(d => d.type === t)).map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('');
-    tf.onclick = e => { const b = e.target.closest('button'); if (!b) return; deckType = b.dataset.t; for (const o of tf.children) o.setAttribute('aria-pressed', o.dataset.t === deckType); market(); }; }
+    tf.onclick = e => { const b = e.target.closest('button'); if (!b) return; deckType = b.dataset.t; deckAll = false; for (const o of tf.children) o.setAttribute('aria-pressed', o.dataset.t === deckType); market(); }; }
   const td = $('tdeckRow'); td.innerHTML = '';
+  const sample = !deckType && !deckAll, shown = new Set(); let nd = 0;
   for (const d of THEME_DECKS){
     if (deckType && d.type !== deckType) continue;
+    if (sample){ if (shown.has(d.type) || nd >= 8) continue; shown.add(d.type); }
+    nd++;
     const miss = d.deck.filter(id => !lvl(id)).length, el = document.createElement('button'), top5 = d.deck.slice().sort((a, b) => CARDS[b].price - CARDS[a].price).slice(0, 5);
     el.type = 'button'; el.className = 'tdeck' + (miss ? '' : ' own'); el.style.setProperty('--ty', TYPES[d.type].col);
     el.innerHTML = `<div class="fan"></div><h4>${esc(d.name)}</h4><p>${esc(d.blurb)}</p><div class="foot">${typeChip(d.type)}<span class="pr">${miss ? COIN + fmt(deckCost(d)) : 'Owned'}</span></div>`;
@@ -492,8 +507,9 @@ function market(){
     el.onclick = () => deckBox(d);
     td.appendChild(el);
   }
+  $('tdeckMore').hidden = !sample; $('tdeckMoreB').textContent = `Show all ${THEME_DECKS.length} decks`;
   const dg = $('dealGrid'); dg.innerHTML = '';
-  for (const id of deals()){ const c = cardEl(id, {tag:lvl(id) ? 'Owned' : fmt(priceNow(id)), sale:!lvl(id), lvl:lvl(id)}); c.onclick = () => sheet(id); dg.appendChild(c); }
+  for (const id of deals()){ const c = cardEl(id, {price:lvl(id) ? 'Owned' : fmt(priceNow(id)), own:!!lvl(id), sale:!lvl(id), was:lvl(id) ? '' : fmt(CARDS[id].price), lvl:lvl(id)}); c.onclick = () => sheet(id); dg.appendChild(c); }
   lists.shop.draw();
 }
 /* one ready-made deck: every card in it, what it costs, buy it, use it */
@@ -562,7 +578,7 @@ function loginScreen(){
   $('loginErr').textContent = '';
 }
 function signIn(p){
-  P = p; OWN = OWNERS.includes(fprint(String(P.name).trim().toLowerCase())); ownGift = -1; ownerPerks(); Accounts.save(P);
+  P = p; OWN = isOwner(P.name); ownGift = -1; ownerPerks(); Accounts.save(P);
   if (!P.onboarded && !Q.get('skip')) return onboard();
   P.onboarded = true; if (OWN) save();
   show('scrHub'); tab('Battle'); hallStart();
@@ -660,7 +676,7 @@ function onboard(){
       <div class="qfill"><span class="note">Or start from a ready one:</span>${STARTER_DECKS.map((d, i) => `<button type="button" class="k-btn" data-i="${i}">${esc(d.name)}</button>`).join('')}<button type="button" class="link" id="obClear">Clear</button></div>
       <div class="filters"><div class="tfilter" id="obT" role="group" aria-label="Type">${TYPE_IDS.map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('')}</div>
         <select class="field" id="obK" aria-label="Kind"><option value="">Any kind</option><option value="unit">Troops</option><option value="build">Buildings</option><option value="spell">Spells</option><option value="trap">Traps</option></select></div>
-      <div class="grid" id="obPool"></div><p class="err" id="obErr"></p>
+      <div class="grid priced" id="obPool"></div><p class="err" id="obErr"></p>
       <div class="k-row"><button type="button" class="k-btn" id="onBack">Back</button><button type="button" class="k-btn primary big" id="onDone">Start playing</button></div>
       <p class="note">Epic and Legendary cards come from packs, the ladder and the Market once you are in.</p>`;
     const say = t => { $('obErr').textContent = t; if (t) BDB.sfx.bad(); };
@@ -674,7 +690,7 @@ function onboard(){
       pl.innerHTML = '';
       for (const id of pool){
         const c = CARDS[id]; if (c.base === CARDS[hero].base || (ft && c.type !== ft) || (fk && c.kind !== fk)) continue;
-        const inDeck = picks.includes(id), cant = !inDeck && (c.price > left || picks.length >= NEED), el = cardEl(id, {tag:fmt(c.price), cls:inDeck ? 'inuse' : cant ? 'dim' : ''});
+        const inDeck = picks.includes(id), cant = !inDeck && (c.price > left || picks.length >= NEED), el = cardEl(id, {price:fmt(c.price), cls:inDeck ? 'inuse' : cant ? 'dim' : ''});
         el.onclick = () => {
           if (inDeck) picks = picks.filter(p => p !== id);
           else if (picks.length >= NEED) return say('Your deck is full. Tap a card in it to take it out.');
@@ -1109,7 +1125,7 @@ async function joinFriend(code){
   enterMatch(code, false, true);
   OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('Nobody there', 'No match was found with that code. Ask your friend to start a new one.'); } }, 30000);
 }
-function okDeck(d){ return Array.isArray(d) && d.every(c => c && typeof c.id === 'string') && !deckProblem(d.map(c => c.id)) && d.every(c => Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL); }
+function okDeck(d){ return Array.isArray(d) && d.every(c => c && typeof c.id === 'string') && !deckProblem(d.map(c => c.id), false) && d.every(c => Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL); }
 function enterMatch(code, host, keepBox, coop){
   if (lobby){ clearInterval(OL && OL.iv); const l = lobby; lobby = null; setTimeout(() => { try { l.leave(); } catch(e){} }, 300); }
   if (OL) clearTimeout(OL.pt);

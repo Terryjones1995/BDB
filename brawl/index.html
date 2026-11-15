@@ -219,7 +219,13 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .dkb{display:grid;grid-template-columns:minmax(0,1fr)}
 @media (min-width:1100px){ .dkb{grid-template-columns:minmax(440px,5fr) minmax(0,7fr);gap:16px;align-items:start} .dk-deck{position:sticky;top:0} .dkb .panel{margin-bottom:0} }
 .dkb .grid.deck{max-width:none}
-.slot{aspect-ratio:3/4;margin-top:8px;border-radius:15px;border:3px dashed rgba(255,255,255,.34);background:rgba(6,18,58,.34);display:grid;place-items:center;color:rgba(255,255,255,.42);font:400 26px/1 var(--f-game)}
+.slot{aspect-ratio:3/4;width:100%;padding:0;margin-top:8px;border-radius:15px;border:3px dashed rgba(255,255,255,.34);background:rgba(6,18,58,.34);display:grid;place-items:center;color:rgba(255,255,255,.42);font:400 26px/1 var(--f-game);cursor:pointer}
+.slot:hover{border-color:rgba(255,255,255,.7);color:#fff}
+.slot.on{border-style:solid;border-color:#ffd23f;color:#ffd23f;background:rgba(255,210,63,.14);animation:slotOn 1s ease-in-out infinite alternate}
+@keyframes slotOn{to{background:rgba(255,210,63,.3)}}
+.dk-own.nudge{animation:nudge .9s ease-out}
+@keyframes nudge{0%{outline:4px solid rgba(255,210,63,.95);outline-offset:0}100%{outline:4px solid rgba(255,210,63,0);outline-offset:16px}}
+@media (prefers-reduced-motion:reduce){ .slot.on,.dk-own.nudge{animation:none} }
 .dk-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 .dk-tools .k-btn{flex:1 1 150px}
 .k-seg button small{font:inherit;font-size:11px;opacity:.8}
@@ -461,6 +467,13 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .card .veil{display:none}
 .card.inuse::after{z-index:5}
 .card.dim{opacity:.55}
+/* a price under a card on a shelf: the card keeps its name */
+.grid.priced{row-gap:34px;padding-bottom:26px}
+.card .pr{position:absolute;z-index:2;left:-4px;right:-4px;top:calc(100% + 7px);display:flex;align-items:center;justify-content:center;gap:3px;font:400 14px/1 var(--f-game);color:#ffe27a;text-shadow:var(--stroke);white-space:nowrap;pointer-events:none}
+.card .pr .coin{flex:none;width:12px;height:12px;margin:0 1px 0 0}
+.card .pr s{font:800 10px/1 var(--f-body);color:#a9c4f5;text-shadow:none;margin-right:2px}
+.card .pr.sale{color:#9dff8a}
+.card .pr.own{font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#cfe0ff;text-shadow:none}
 .card.dim img{filter:grayscale(.5) drop-shadow(0 3px 0 rgba(8,18,46,.6))}
 .grid .card,.mini .card{margin-top:8px}
 /* the tray your hand sits on: courtside hardwood with a brass rail along the top */
@@ -619,10 +632,13 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .foil.big{width:150px;margin:6px auto 2px}
 .foil.shake{animation:shake 1.15s ease-in-out infinite}
 @keyframes shake{0%,100%{transform:none}18%{transform:rotate(-5deg) translateY(-4px)}36%{transform:rotate(4deg)}54%{transform:rotate(-3deg) translateY(-2px)}72%{transform:rotate(2deg)}}
-.tpacks{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:26px 10px;padding-top:18px}
+.tpacks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px 10px;padding-top:18px}
+@media (min-width:480px){ .tpacks{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@media (min-width:760px){ .tpacks{grid-template-columns:repeat(6,minmax(0,1fr))} }
+@media (min-width:1180px){ .tpacks{grid-template-columns:repeat(12,minmax(0,1fr));gap:26px 8px} .tpack b{font-size:14px} }
 .tpack{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:0 6px 9px;border-radius:14px;border:3px solid var(--ink2);cursor:pointer;color:#fff;font-family:var(--f-body);
   background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 78%,#fff),var(--pc) 52%,color-mix(in srgb,var(--pc) 48%,#0a1430));box-shadow:inset 0 3px 0 rgba(255,255,255,.36),0 4px 0 var(--ink2)}
-.tpack img{width:78%;aspect-ratio:1;object-fit:contain;margin-top:-18px;pointer-events:none;filter:drop-shadow(0 3px 0 rgba(8,18,46,.5))}
+.tpack img{width:min(78%,96px);aspect-ratio:1;object-fit:contain;margin-top:-18px;pointer-events:none;filter:drop-shadow(0 3px 0 rgba(8,18,46,.5))}
 .tpack b{font:400 15px/1 var(--f-game);text-shadow:var(--stroke)}
 .tpack span{display:inline-flex;align-items:center;font:400 13px/1 var(--f-game);color:#fff7c2;text-shadow:var(--stroke)}
 .tpack:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink2)}
@@ -858,15 +874,16 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
       </div>
       <div class="panel">
         <span class="k-label">Ready-made decks</span>
-        <p class="note" style="margin:0 0 10px">Thirty full decks, built to work from the first match. You only pay for the cards you are missing.</p>
+        <p class="note" style="margin:0 0 10px">Full 15 card decks, built to work from the first match. You only pay for the cards you are missing. Pick a type to see every deck of it.</p>
         <div class="tfilter" id="tdeckF" role="group" aria-label="Deck type"></div>
         <div class="tdecks" id="tdeckRow"></div>
+        <div class="more-row" id="tdeckMore"><button type="button" class="k-btn" id="tdeckMoreB">Show all decks</button></div>
       </div>
       <div class="split">
-        <div class="panel"><span class="k-label">Today's deals</span><div class="grid" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down 30%. New ones every day.</p></div>
+        <div class="panel"><span class="k-label">Today's deals</span><div class="grid priced" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down 30%. New ones every day.</p></div>
         <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Every win pays coins, and harder fights pay more. The first win on a ladder level pays in full, replays pay half, and a loss still pays a little. Spend coins on packs, decks, single cards, or upgrades for the cards you have. Every level adds 8% health and damage, up to level 10. A card you pull twice goes up a level for free.</p></div>
       </div>
-      <div class="panel"><span class="k-label" id="shopLbl">All cards</span><div class="filters" id="shopF"></div><div class="grid" id="shopGrid"></div><div class="more-row"><button type="button" class="k-btn" id="shopMore">Show more</button></div></div>
+      <div class="panel"><span class="k-label" id="shopLbl">All cards</span><div class="filters" id="shopF"></div><div class="grid priced" id="shopGrid"></div><div class="more-row"><button type="button" class="k-btn" id="shopMore">Show more</button></div></div>
     </div>
 
     <div id="tabProfile" hidden>
@@ -931,6 +948,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115k"></script>
+<script type="module" src="main.js?v=1115n"></script>
 </body>
 </html>
