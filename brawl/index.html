@@ -758,8 +758,23 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res-crowns{display:flex;justify-content:center;gap:10px}
 .res-crowns i{width:44px;height:32px;background:#1b2550;opacity:.55;clip-path:polygon(0 100%,0 16%,25% 60%,50% 0,75% 60%,100% 16%,100% 100%)}
 .res-crowns i.on{opacity:1;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);filter:drop-shadow(0 3px 0 var(--ink2))}
-.res-crowns i:nth-child(2){transform:translateY(-7px) scale(1.18)}
-.res.loss .res-crowns i.on{background:linear-gradient(180deg,#eef3ff,#b8c4e0 45%,#8493b8)}
+.res-crowns span{display:flex;flex-direction:column;align-items:center;gap:5px}
+.res-crowns span.on i{opacity:1;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);filter:drop-shadow(0 3px 0 var(--ink2))}
+.res-crowns span:nth-child(2) i{transform:translateY(-7px) scale(1.18)}
+.res-crowns.paid{margin-bottom:2px}
+.res-crowns b{font:400 13px/1 var(--f-game);color:#5a2c00;opacity:.45}
+.res-crowns span.now b{opacity:1;color:#fff;font-size:17px;text-shadow:var(--stroke)}
+.res-crowns span.on i{animation:crpop .5s cubic-bezier(.2,1.6,.4,1) both;animation-delay:calc(.25s + var(--i) * .22s)}
+@keyframes crpop{from{opacity:0;scale:.2}to{opacity:1;scale:1}}
+@media (prefers-reduced-motion:reduce){ .res-crowns span.on i{animation:none} }
+.res.loss .res-crowns span.on i{background:linear-gradient(180deg,#eef3ff,#b8c4e0 45%,#8493b8)}
+/* how the coins add up, line by line */
+.res-sum{margin:16px 22px 0;padding:10px 14px;border-radius:14px;background:#0a1e52;border:3px solid var(--ink2);text-align:left}
+.res-sum div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;font:700 13px/1.3 var(--f-body);color:#dbe8ff}
+.res-sum dt{min-width:0}
+.res-sum dd{margin:0;flex:none;font:400 15px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.res-sum .tot{margin-top:4px;padding-top:8px;border-top:2px solid rgba(255,255,255,.16);font-weight:800;color:#fff}
+.res-sum .tot dd{font-size:19px;color:#ffd23f}
 .res-score{display:inline-flex;align-items:center;gap:10px;padding:6px 14px 7px;border-radius:999px;background:rgba(10,20,56,.72);border:3px solid var(--ink2);font:400 15px/1 var(--f-game);color:#fff}
 .res-score span{display:inline-flex;align-items:center;gap:8px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .res-score b{font:400 24px/1 var(--f-game);color:#ffd23f}
@@ -781,6 +796,9 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res > .note{margin:16px 22px 0;color:#dbe8ff}
 .res-btns{display:flex;flex-direction:column;gap:10px;padding:18px 22px 22px}
 .res-btns .k-btn{width:100%}
+@media (max-width:520px){ .rw{min-width:68px;padding:8px 3px 9px} .rw-pic{height:88px} .rw-pic .coin{width:50px;height:50px} .rw-pic .card{width:min(62px,100%)} .rw-pic .foil{width:min(60px,100%)} .rw > b{font-size:13px} .res-loot{gap:6px;margin:14px 12px 0} .res-top{padding:22px 16px 14px} .res-say{margin:14px 16px 0} .res-sum{margin:12px 16px 0;padding:8px 12px} .res > .note{margin:12px 16px 0}
+  .res-btns{padding:14px 16px 16px;gap:8px} .res-btns .k-btn.big{font-size:21px;padding:13px 12px 12px} .res-btns .k-btn{padding:10px 12px 9px}
+  .vs-prizes .big-card{width:92px;flex-basis:92px} .vs .av{width:54px;height:54px} .k-box:has(.odds){gap:10px;padding-top:16px;padding-bottom:16px} }
 .loot{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:flex-end;width:100%}
 .lt{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:76px}
 .lt > b{font:400 30px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
@@ -791,6 +809,32 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .lt.packz .foil{width:76px;cursor:default}
 .lt.packz .foil b{font-size:12px;bottom:9px;padding:3px 7px 1px}
 .vs .av{box-shadow:0 0 0 3px var(--tc,#b8201a)}
+.vs .avs{display:flex;justify-content:center;margin:0 auto 6px}
+.vs .avs .av{margin:0}
+.vs .avs .av + .av{margin-left:-18px}
+.vs .avs .av:nth-child(2){transform:translateY(5px)}
+.vs .side small{display:block;margin-top:3px;font:800 11px/1.25 var(--f-body);color:#cfe1ff;text-shadow:none}
+/* the odds: one, two or three BDBs. Three buttons that say what each costs you and what it pays */
+.odds{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.odds button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 8px;border-radius:14px;border:3px solid var(--ink2);background:#0a1e52;color:#a9c4f5;box-shadow:inset 0 2px 0 rgba(255,255,255,.12);cursor:pointer}
+.odds button b{font:400 20px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.odds button small{font:800 10px/1.1 var(--f-body);letter-spacing:.06em;text-transform:uppercase}
+.odds button em{font:400 13px/1 var(--f-game);font-style:normal;color:#ffd23f;text-shadow:var(--stroke)}
+.odds button[aria-pressed="true"]{background:linear-gradient(180deg,#ffe066,#ffb52e 55%,#f08a12);color:#5a2c00;box-shadow:inset 0 3px 0 rgba(255,255,255,.55),0 4px 0 var(--ink2);transform:translateY(-2px)}
+.odds button[aria-pressed="true"] em{color:#fff}
+.odds button[data-n="2"][aria-pressed="true"]{background:linear-gradient(180deg,#ff9a6a,#e2461a);color:#fff}
+.odds button[data-n="3"][aria-pressed="true"]{background:linear-gradient(180deg,#e58bff,#8a22c8);color:#fff}
+.odds button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.k-box .vs-note{margin:0;font:800 13px/1.35 var(--f-body);color:#fff;text-align:center}
+.facts{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:100%}
+.facts span{padding:5px 9px;border-radius:999px;background:rgba(10,30,82,.75);border:2px solid var(--ink2);font:800 11px/1.1 var(--f-body);color:#dbe8ff}
+.crpay{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:8px 10px;border-radius:14px;background:rgba(10,30,82,.6);border:2px solid var(--ink2)}
+.crpay > span{font:800 10px/1.1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#a9c4f5}
+.crpay div{display:flex;align-items:center;gap:2px}
+.crpay i{width:15px;height:11px;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);clip-path:polygon(0 100%,0 16%,25% 60%,50% 0,75% 60%,100% 16%,100% 100%)}
+.crpay b{margin-left:4px;font:400 15px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.vs-prizes{display:flex;justify-content:center;gap:10px;width:100%}
+.vs-prizes .big-card{width:112px;margin:8px 0 0;flex:0 1 112px;min-width:0}
 
 /* ----- in the match: what the characters say, and the last minute ----- */
 .sayb{position:absolute;left:0;top:0;z-index:4;max-width:176px;padding:5px 9px 6px;border-radius:12px;border:2.5px solid var(--ink2);background:#ffe9e5;color:#0a1430;font:400 13px/1.15 var(--f-game);text-align:center;pointer-events:none;box-shadow:0 3px 0 var(--ink2);transition:opacity .15s;will-change:transform}
@@ -871,12 +915,12 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
       <div class="c3">
         <div class="panel">
           <span class="k-label">Quick battle</span>
-          <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. The better he is, the more a win pays.</p>
+          <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. The better he is, the more a win pays, and you can take on two or three at once for double or triple.</p>
           <div class="quick" id="quickRow"></div>
         </div>
         <div class="panel">
           <span class="k-label">Play online</span>
-          <p class="note" style="margin:0 0 10px">Play a real person with your current deck, or team up with a friend for 2v2 against two BDBs.</p>
+          <p class="note" style="margin:0 0 10px">Play a real person with your current deck, or team up with a friend against two BDBs. Take on three for double the coins.</p>
           <div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn primary" id="olQuick">Quick match</button><button type="button" class="k-btn" id="olFriend">Play a friend</button></div>
         </div>
         <div class="panel"><span class="k-label" id="hallLbl">Who's on</span><div id="hall"><p class="note" style="margin:0">Connecting.</p></div></div>
@@ -983,6 +1027,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115r"></script>
+<script type="module" src="main.js?v=1115s"></script>
 </body>
 </html>

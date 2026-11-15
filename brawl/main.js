@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115r';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115r';
-import { createAI } from './ai.js?v=1115r';
-import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115r';
-import { Cloud, cloudWhy } from './cloud.js?v=1115r';
-import { sayFor, sayWhen } from './talk.js?v=1115r';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115s';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115s';
+import { createAI } from './ai.js?v=1115s';
+import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115s';
+import { Cloud, cloudWhy } from './cloud.js?v=1115s';
+import { sayFor, sayWhen } from './talk.js?v=1115s';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -39,7 +39,11 @@ const TALK = {
   foulOnHim:["A technical? On ME? I didn't even say anything.", "You can't wave that off. I practised that shot."],
   foulOnYou:["Whistle! No basket. Read the rulebook.", "Denied. Put that one on the highlight reel."],
   emo:["Emojis won't save your towers.", "Cute. I'm still a five-star prospect.", "Less typing, more defending.", "I'd reply but I'm on my break."],
-  pvpUp:["Crown for you. BDB could never.", "Tower down. BDB is taking notes he won't read."], pvpDown:["Your tower just got benched.", "That's a tower gone. BDB felt that from the break room."]
+  pvpUp:["Crown for you. BDB could never.", "Tower down. BDB is taking notes he won't read."], pvpDown:["Your tower just got benched.", "That's a tower gone. BDB felt that from the break room."],
+  start2:["Two of me, one of you. I like these odds.", "I brought backup. He's also me.", "Outnumbered already? We haven't even started.", "Double coverage. Coach would be proud, if I had one."],
+  start3:["Three of me. That's a full shift.", "Three on one. Finally, a fair fight for me.", "You picked three of us. Bold. Wrong, but bold."],
+  winMany:["You beat all of us. We're blaming each other.", "That many of me and still no win. Film session is going to be short.", "We lost? I was the good one. The other guy missed his rotation."],
+  loseMany:["It only took a few of me. Efficient.", "Teamwork. I passed to myself and I scored.", "That's what a deep bench looks like."]
 };
 const EMO = ['😂', '😭', '😎', '🔥', '🤡', '👏'], CHAT = ['Good game.', 'Nice move.', 'Clock out already.', "That's 2.0 PPG energy.", 'The scouts saw that.', 'Break room is that way.', 'Oops.', 'Rematch after this?'];
 let lastTalk = 0;
@@ -66,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115r'), import('./models.js?v=1115r')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115s'), import('./models.js?v=1115s')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -378,11 +382,11 @@ const avgCost = d => d.length ? (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.
 const PACK = Object.fromEntries(PACKS.map(p => [p.id, p]));
 const PACK_ART = {bronze:'scarlet', silver:'bell', gold:'kingbellow', diamond:'infernus', mythic:'isolde', divine:'zeus'};
 const TYPE_ART = {dragon:'jade', fire:'phoenix', frost:'isolde', arcane:'genie', dark:'baron', shadow:'kitsune', beast:'pridelord', nature:'elderbark', horde:'gorak', order:'kingbellow', tech:'brassbolt', crew:'manager'};
-const nextLevel = () => Math.min(LEVELS, P.ladder + 1);
+const nextLevel = () => Math.min(LEVELS, P.ladder + 1), NUM = ['No', 'One', 'Two', 'Three'];
 /* what a win is worth, as a row of chips. first: the first-win extras are still there to be won */
-function prizeChips(cpu, first){
-  const f = cpu.first || {}, out = [`<span class="pz">${COIN}${fmt(first || cpu.rand ? cpu.coins : cpu.coins / 2)}</span>`];
-  if (first || cpu.card) out.push('<span class="pz cardz">One of his cards</span>');
+function prizeChips(cpu, first, n = 1){
+  const f = cpu.first || {}, out = [`<span class="pz">${COIN}${fmt((first || cpu.rand ? cpu.coins : cpu.coins / 2) * ODDS[n].pay)}</span>`];
+  if (first || cpu.card) out.push(`<span class="pz cardz">${n === 3 ? 'A card from all three' : n === 2 ? 'A card from both' : 'One of his cards'}</span>`);
   const pk = cpu.rand ? cpu.pack : first ? f.pack : null; if (pk) out.push(`<span class="pz packz" style="--pc:${PACK[pk].col}">${esc(PACK[pk].name)}</span>`);
   if (first && f.rar) out.push(`<span class="pz r-${f.rar}">${RAR[f.rar].name} card</span>`);
   if (first && f.token) out.push(`<span class="pz tokz">${f.token} upgrade ${f.token > 1 ? 'tokens' : 'token'}</span>`);
@@ -787,20 +791,47 @@ function onboard(){
   step1();
 }
 
-/* ---------- before a CPU match: who he is, what is on the line, and the draw for which of his cards is up for grabs ---------- */
-function preCpu(cpu){
+/* ---------- before a CPU match: who he is, what is on the line, the odds you want, and the draw for which of his cards is up for grabs ---------- */
+/* what towers are worth, as a picture: one crown, two, three, and what each multiplies a win's coins by */
+const crownPay = () => `<div class="crpay" role="img" aria-label="Towers taken multiply the coins of a win: one tower by ${CROWN_PAY[1]}, two by ${CROWN_PAY[2]}, all three by ${CROWN_PAY[3]}"><span>Towers pay</span>${[1, 2, 3].map(k => `<div>${'<i></i>'.repeat(k)}<b>x${CROWN_PAY[k]}</b></div>`).join('')}</div>`;
+function preCpu(cpu, odds = 1){
   if (noDeck()) return;
-  const ladder = !cpu.rand, first = ladder && cpu.level > P.ladder, prize = first || cpu.card ? weightedPick(cpu.deck, id => DRAW_W[CARDS[id].rar]) : null, map = MAPS[cpu.map], T = ladder ? TIERS[cpu.tier] : null;
+  const ladder = !cpu.rand, first = ladder && cpu.level > P.ladder, carded = first || cpu.card, map = MAPS[cpu.map], T = ladder ? TIERS[cpu.tier] : null;
+  const squad = [cpu, ...backupCpus(cpu, 3, myTower())], prizes = carded ? squad.map(c => weightedPick(c.deck, id => DRAW_W[CARDS[id].rar])) : [];
+  let n = clamp(odds | 0, 1, 3);
   const b = dlg(`<div class="k-eyebrow">${esc(map.name)}. ${esc(map.blurb)}</div>
-    <div class="vs"><div class="side"><div class="av me">${esc(P.name[0].toUpperCase())}</div>${esc(P.name)}</div><div class="mid">VS</div><div class="side"><div class="av"${T ? ` style="--tc:${T.col}"` : ''}></div>${esc(cpu.name)}</div></div>
-    <p class="note" style="margin:0">${ladder ? `Level ${fmt(cpu.level)}, ${esc(T.name)} tier. ` : ''}${esc(cpu.tag)} His cards are level ${cpuLvl(cpu)}${cpuLvl(cpu) > cpu.lvl ? ', brought up to match your deck' : ''}.${cpuSoft(cpu) < 1 ? ` This early on his towers have ${Math.round(cpuSoft(cpu) * 100)}% of their full health.` : ''}</p>
-    <div class="pzrow">${prizeChips(cpu, first)}</div>
-    ${prize ? '<div class="big-card spin" id="vsPrize" style="width:112px"></div><p class="note" id="vsLine">Drawing one of his cards.</p>' : `<p class="note">${ladder ? 'You have beaten this level before, so it pays half the coins and no card.' : 'Lose and you still get a few coins for showing up.'}</p>`}
+    <div class="vs"><div class="side"><div class="av me">${esc(P.name[0].toUpperCase())}</div>${esc(P.name)}</div><div class="mid">VS</div><div class="side" id="vsThem"></div></div>
+    <div class="odds" id="vsOdds" role="group" aria-label="Odds">${[1, 2, 3].map(k => `<button type="button" data-n="${k}"><b>1 v ${k}</b><small>${esc(ODDS[k].name)}</small><em>${k > 1 ? 'x' + ODDS[k].pay + ' coins' : 'fair fight'}</em></button>`).join('')}</div>
+    <p class="vs-note" id="vsNote"></p>
+    <div class="facts" id="vsFacts"></div>
+    <div class="pzrow" id="vsChips"></div>
+    ${crownPay()}
+    ${carded ? '<div class="vs-prizes" id="vsPrizes"></div><p class="note" id="vsLine">Drawing the cards.</p>' : `<p class="note">${ladder ? 'You have beaten this level before, so it pays half the coins and no card.' : 'Lose and you still get a few coins for showing up.'}</p>`}
     <div class="k-row"><button type="button" class="k-btn primary big" id="vsGo">Start</button><button type="button" class="k-btn" id="vsNo">Back</button></div>`);
-  const slot = b.querySelector('#vsPrize'); let n = 0, iv = 0;
-  if (slot) iv = setInterval(() => { const fin = ++n >= 10; slot.innerHTML = ''; slot.appendChild(cardEl(fin ? prize : pick(cpu.deck), {div:true, now:true})); if (fin){ clearInterval(iv); slot.classList.remove('spin'); BDB.sfx.pop(); const l = b.querySelector('#vsLine'); if (l) l.textContent = `Beat him and ${CARDS[prize].name} is yours. Lose and you keep everything.`; } else BDB.sfx.tick(); }, BDB.reduced ? 10 : 110);
+  const slots = [], box = b.querySelector('#vsPrizes'); let spun = !carded, iv = 0, k = 0;
+  if (box) for (let i = 0; i < 3; i++){ const d = document.createElement('div'); d.className = 'big-card spin'; box.appendChild(d); slots.push(d); }
+  const line = () => { const l = b.querySelector('#vsLine'); if (l && spun) l.textContent = n > 1 ? `Beat ${n === 2 ? 'both' : 'all three'} and these ${NUM[n].toLowerCase()} cards are yours. Lose and you keep everything.` : `Beat him and ${CARDS[prizes[0]].name} is yours. Lose and you keep everything.`; };
+  const draw = () => {
+    for (const q of b.querySelectorAll('#vsOdds button')) q.setAttribute('aria-pressed', +q.dataset.n === n);
+    b.querySelector('#vsThem').innerHTML = `<div class="avs">${squad.slice(0, n).map(() => `<div class="av"${T ? ` style="--tc:${T.col}"` : ''}></div>`).join('')}</div>${n > 1 ? `${NUM[n]} BDBs<small>${esc(squad.slice(0, n).map(c => c.name.replace(/ BDB$/, '')).join(', '))}</small>` : esc(cpu.name)}`;
+    const O = ODDS[n], lv = cpuLvl(cpu), soft = cpuSoft(cpu);
+    const nt = b.querySelector('#vsNote'); nt.hidden = n < 2; nt.textContent = n > 1 ? `${NUM[n]} BDBs at once. Each has a deck of his own and ${Math.round(O.el * 100)}% of the usual Mana.` : '';
+    b.querySelector('#vsFacts').innerHTML = [ladder ? `Level ${fmt(cpu.level)}, ${T.name}` : cpu.tag.replace(/\..*$/, ''), n > 1 ? '' : ladder ? cpu.tag.replace(/\.$/, '') : '', `Cards level ${lv}${lv > cpu.lvl ? ', matched to yours' : ''}`, soft < 1 ? `Towers at ${Math.round(soft * 100)}% health` : '']
+      .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
+    b.querySelector('#vsChips').innerHTML = prizeChips(cpu, first, n);
+    slots.forEach((d, i) => { d.hidden = i >= n; });
+    line();
+  };
+  b.querySelector('#vsOdds').onclick = e => { const q = e.target.closest('button[data-n]'); if (!q || +q.dataset.n === n) return; n = +q.dataset.n; BDB.sfx.tick(); draw(); };
+  if (carded) iv = setInterval(() => { const fin = ++k >= 10; slots.forEach((d, i) => { d.innerHTML = ''; d.appendChild(cardEl(fin ? prizes[i] : pick(squad[i].deck), {div:true, now:true})); if (fin) d.classList.remove('spin'); });
+    if (fin){ clearInterval(iv); spun = true; BDB.sfx.pop(); line(); } else BDB.sfx.tick(); }, BDB.reduced ? 10 : 110);
+  draw();
   b.querySelector('#vsNo').onclick = () => { clearInterval(iv); dlgClose(); };
-  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu:{...cpu, lvl:cpuLvl(cpu), tower:cpuTower(cpu), soft:cpuSoft(cpu)}, first, prize, map:cpu.map, oppName:cpu.name, units:unitsOf([...curDeck(), ...cpu.deck])}); };
+  b.querySelector('#vsGo').onclick = () => {
+    clearInterval(iv); dlgClose();
+    const lead = {...cpu, lvl:cpuLvl(cpu), tower:cpuTower(cpu), soft:cpuSoft(cpu)}, more = squad.slice(1, n).map(c => ({...c, lvl:lead.lvl, tower:lead.tower}));
+    begin({mode:'cpu', cpu:lead, more, odds:n, first, prize:prizes.slice(0, n), map:cpu.map, oppName:n > 1 ? NUM[n] + ' BDBs' : cpu.name, units:unitsOf([...curDeck(), ...squad.slice(0, n).flatMap(c => c.deck)])});
+  };
 }
 
 /* ---------- the match ---------- */
@@ -817,24 +848,27 @@ async function begin(o){
   if (B !== me) return;                                   // they backed out while it loaded
   if (V) V.reset(B.team, o.map);
   if (V && o.units){ try { await Promise.race([V.warm(o.units), sleep(9000)]); } catch(e){} if (B !== me) return; }      // build every shader and send every model to the graphics card now, not mid-match
-  if (o.coop && o.mode === 'host'){                       // 2v2: you and a friend against two BDBs
-    const [a, b] = o.cpus, dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
-    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, dk(a), dk(b)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, a.ai.el * .85, b.ai.el * .85], towerLvl:[myTower(), a.tower || a.lvl]});
-    B.ais = [createAI(B.sim, 1, a.ai, Math.random, 2), createAI(B.sim, 1, b.ai, Math.random, 3)];
+  B.ais = [];
+  if (o.coop && o.mode === 'host'){                       // you and a friend against two BDBs, or three for a handicap. Two decks a side, so both sides' towers are tougher
+    const cs = o.cpus, O = TEAM_ODDS[cs.length], dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
+    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, ...cs.map(dk)], teams:[0, 0, ...cs.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, ...cs.map(c => c.ai.el * O.el)], start:[5, 5, ...cs.map(() => 5 * O.el)],
+      towerLvl:[o.teamTower || myTower(), cs[0].tower || cs[0].lvl], boost:[{hp:TEAM_TOWERS}, {hp:TEAM_TOWERS * (cs[0].soft || 1)}]});
+    B.ais = cs.map((c, i) => createAI(B.sim, 1, c.ai, Math.random, 2 + i));
   } else if (o.mode === 'host'){
     B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck], seed:(Math.random() * 2 ** 31) | 0, towerLvl:[myTower(), o.oppTower]});
   } else if (o.mode === 'cpu'){                           // against BDB your player upgrades count; online everyone is even
-    const c = o.cpu, k = P.perks;
-    B.sim = createSim({map:o.map, decks:[myDeck(), c.deck.map(id => ({id, lvl:c.lvl}))], seed:(Math.random() * 2 ** 31) | 0, elMul:[1 + k.flow * PERKS.flow.per, c.ai.el], towerLvl:[myTower(), c.tower || c.lvl],
-      boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}, {hp:c.soft || 1}], start:[5 + k.start * PERKS.start.per, 5]});
-    B.ai = createAI(B.sim, 1, c.ai);
+    const c = o.cpu, k = P.perks, all = [c, ...(o.more || [])], O = ODDS[all.length];      // raised odds: every BDB has his own deck and Mana bar, and a share of the usual Mana
+    B.sim = createSim({map:o.map, decks:[myDeck(), ...all.map(q => q.deck.map(id => ({id, lvl:c.lvl})))], teams:[0, ...all.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0,
+      elMul:[1 + k.flow * PERKS.flow.per, ...all.map(q => q.ai.el * O.el)], start:[5 + k.start * PERKS.start.per, ...all.map(() => 5 * O.el)], towerLvl:[myTower(), c.tower || c.lvl],
+      boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}, {hp:c.soft || 1}]});
+    B.ais = all.map((q, i) => createAI(B.sim, 1, q.ai, Math.random, 1 + i));
   }
   hud(true);
   cancelAnimationFrame(raf); lastT = performance.now(); raf = requestAnimationFrame(loop);
   if (o.mode === 'guest' && room) room.send('rd', {}, OL && OL.opp);
   if (o.mode === 'host'){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Waiting for ${esc(o.mate || o.oppName)} to load in.</div></div>`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
   let n = 3;
-  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? TALK.start : o.coop ? [`Two of you? Fine. There are two of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
   cd();
 }
 function startTicker(){ try { ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'], {type:'text/javascript'}))); ticker.onmessage = () => { if (document.hidden) hostPump(); }; } catch(e){} }
@@ -842,7 +876,7 @@ function hostPump(){
   if (!B || B.mode !== 'host' || !B.run) return;
   const target = Math.floor((performance.now() - B.t0) / 50); let n = 0;
   while (B.sim.tick < target && n++ < 60 && !B.simDone){
-    if (B.ais) for (const a of B.ais) a.tick();
+    for (const a of B.ais) a.tick();
     B.sim.step(); pump();
     if (B.sim.tick % 2 === 0 || B.sim.over){ room && room.send('s', {s:B.sim.encode(1), ev:B.netEv}, OL && OL.opp); B.netEv = []; }
     if (B.sim.over) B.simDone = true;
@@ -853,7 +887,7 @@ function loop(now){
   if (!B) return;
   const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
   if (B.run && !B.over){
-    if (B.mode === 'cpu'){ B.acc += dt; let n = 0; while (B.acc >= DT && n++ < 6 && !B.sim.over){ B.ai.tick(); B.sim.step(); B.acc -= DT; pump(); } if (n >= 6) B.acc = 0; }
+    if (B.mode === 'cpu'){ B.acc += dt; let n = 0; while (B.acc >= DT && n++ < 6 && !B.sim.over){ for (const a of B.ais) a.tick(); B.sim.step(); B.acc -= DT; pump(); } if (n >= 6) B.acc = 0; }
     else if (B.mode === 'host') hostPump();
   }
   if (V){ V.setTraps(myTraps()); V.frame(B.pz || (B.mode === 'cpu' && !B.run) ? 0 : dt, B.mode === 'guest' ? B.ents : B.sim.ents); stepBubbles(); }
@@ -889,7 +923,7 @@ function onEvents(ev){
   for (const e of ev){
     if (e.e === 'tower'){
       const mine = e.team === B.team; SND.boom();
-      if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine) BDB.sfx.big(); talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
+      if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine){ BDB.sfx.big(); const I = info(), n = I ? I.crowns[B.team] | 0 : 0; if (n >= 1 && n <= 2) note(`A win now pays x${CROWN_PAY[n]}`); } talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
     } else if (e.e === 'king'){ if (e.team !== B.team && B.mode === 'cpu') talk(TALK.king); }
     else if (e.e === 'ot'){ stamp('Overtime'); SND.horn(); if (B.mode === 'cpu') talk(TALK.ot, true); }
     else if (e.e === 'drop' || e.e === 'spell'){
@@ -1089,59 +1123,83 @@ function pzUI(){
 }
 
 /* ---------- after the match: coins, cards, packs and upgrade tokens ---------- */
+/* What the coins come to, and why. A win starts from what the match pays. Every tower taken raises it (CROWN_PAY), raised odds multiply it, then a win streak and
+   the Signing Bonus upgrade add their share. A loss or a draw pays the showing-up money, half as much again for every tower you did take. */
+function payout(base, crowns, o = {}){
+  const rows = [[o.label || 'Match', fmt(base)]]; let c = base;
+  const k = clamp(crowns | 0, 0, 3);
+  if (o.win){
+    if (k > 0){ c *= CROWN_PAY[k]; rows.push([k >= 3 ? 'All three towers' : k === 2 ? 'Two towers' : 'One tower', 'x' + CROWN_PAY[k]]); }
+    if (o.pay > 1){ c *= o.pay; rows.push([o.payLabel, 'x' + o.pay]); }
+    if (o.streak > 1){ c *= o.streak; rows.push([`Win streak of ${o.wins}`, '+' + Math.round((o.streak - 1) * 100) + '%']); }
+    if (o.perk > 0){ c *= 1 + o.perk; rows.push(['Signing Bonus', '+' + Math.round(o.perk * 100) + '%']); }
+  } else if (k > 0){ c *= 1 + .5 * k; rows.push([k >= 2 ? `${NUM[k]} towers taken` : 'One tower taken', '+' + 50 * k + '%']); }
+  if (o.extra){ c += o.extra; rows.push([o.extraLabel, '+' + fmt(o.extra)]); }
+  return {coins:Math.round(c), rows};
+}
 function finish(w, cr, why){
   if (!B || B.done) return; B.done = true; B.over = true; clearInterval(pzIv); B.pz = null; $('wait').hidden = true; clearBubbles();
-  const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = crowns[B.team], win = w === B.team, draw = w < 0, lines = [], got = [];
-  let coins = 0, pack = null, tokens = 0, title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
+  const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = clamp(crowns[B.team] | 0, 0, 3), win = w === B.team, draw = w < 0, lines = [], got = [];
+  let pack = null, tokens = 0, pay, title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
+  if (win){ P.streak++; P.best = Math.max(P.best, P.streak); } else if (!draw) P.streak = 0;
+  const up = {win, wins:P.streak, streak:win ? streakMul(P.streak) : 1};
   if (B.mode === 'cpu'){
-    const c = B.cpu;
+    const c = B.cpu, n = B.odds || 1, O = ODDS[n];
     if (win){
-      P.stats.w++;
-      coins = ((B.first || c.rand ? c.coins : c.coins / 2) + mine * 10) * (1 + P.perks.coin * PERKS.coin.per);
-      if (B.prize){ got.push(grant(B.prize)); P.stats.won++; }
+      P.stats.w++; let extra = 0, xl = '';
+      for (const id of B.prize || []){ got.push(grant(id)); P.stats.won++; }
       if (c.rand){ if (c.pack) pack = PACK[c.pack]; }
       else if (B.first){
         const f = c.first || {}, was = P.ladder; P.ladder = Math.max(P.ladder, c.level);
-        if (c.level > was + 1){ let sk = 0; for (let i = was + 1; i < c.level; i++) sk += levelPrize(i).coins; sk = Math.round(sk / 2 / 10) * 10; coins += sk; lines.push(`${c.level - was - 1} levels skipped: ${fmt(sk)} coins for them.`); }
+        if (c.level > was + 1){ for (let i = was + 1; i < c.level; i++) extra += levelPrize(i).coins; extra = Math.round(extra / 2 / 10) * 10; xl = `${c.level - was - 1} levels skipped, at half pay`; }
         lines.push(c.level >= LEVELS ? 'That was the last one. The whole ladder is yours.' : c.boss ? `${c.name} is down. ${TIERS[c.tier + 1].name} tier is open.` : `Level ${fmt(c.level)} cleared.`);
         if (f.rar) got.push(grant(rollCard(f.rar)));
         if (f.token){ P.tokens += f.token; tokens = f.token; }
         if (f.pack) pack = PACK[f.pack];
-      } else lines.push('You had beaten this one before, so it paid half.');
-    } else if (draw){ coins = (c.lose || 15) + mine * 10; P.stats.d++; lines.push('Nobody blinked. You keep everything.'); }
-    else { coins = (c.lose || 10) + mine * 5; P.stats.l++; lines.push('You keep all your cards, and a few coins for showing up.'); }
+      }
+      pay = payout(B.first || c.rand ? c.coins : c.coins / 2, mine, {...up, label:c.rand ? `${SKILLS.find(k => k.id === c.skill).name} quick battle won` : B.first ? `Level ${fmt(c.level)} beaten` : `Level ${fmt(c.level)} again, at half pay`,
+        pay:O.pay, payLabel:`${O.name}, 1 v ${n}`, perk:P.perks.coin * PERKS.coin.per, extra, extraLabel:xl});
+    } else {
+      if (draw) P.stats.d++; else P.stats.l++;
+      lines.push(draw ? 'Nobody blinked. You keep everything.' : 'You keep all your cards.');
+      pay = payout((c.lose || 10) * (draw ? 1.5 : 1), mine, {...up, label:draw ? 'A draw' : 'Showing up'});
+    }
   } else {
-    if (B.coop){ coins = win ? 120 : draw ? 50 : 30; lines.push(win ? 'You and your friend beat two BDBs.' : draw ? 'Nobody blinked.' : 'Two BDBs were too many this time.'); }
-    else if (win){ coins = 150; P.trophies += 30; P.stats.ow++; lines.push('+30 trophies'); } else if (draw){ coins = 50; } else { coins = 25; P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies'); }
+    const n = B.coop | 0, O = TEAM_ODDS[n];
+    if (n){ lines.push(win ? `You and ${B.mate || 'your friend'} beat ${NUM[n].toLowerCase()} BDBs.` : draw ? 'Nobody blinked.' : `${NUM[n]} BDBs were too many this time.`);
+      pay = payout(win ? 120 : draw ? 50 : 30, mine, {...up, label:win ? `${n === 3 ? '2 v 3' : '2 v 2'} won` : draw ? 'A draw' : 'Showing up', pay:O.pay, payLabel:'Outnumbered, 2 v 3'}); }
+    else {
+      if (win){ P.trophies += 30; P.stats.ow++; lines.push('+30 trophies.'); } else if (!draw){ P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies.'); }
+      pay = payout(win ? 150 : draw ? 50 : 25, mine, {...up, label:win ? 'Online win' : draw ? 'A draw' : 'Showing up'});
+    }
     endOnline();
   }
-  // on top of the match itself: all three towers pays extra, a win streak pays extra, and every tower taken counts towards the bounty pack
-  if (win && mine >= 3 && B.mode === 'cpu'){ coins *= 1.25; lines.push('All three towers: 25% more coins.'); }
-  if (win){ P.streak++; P.best = Math.max(P.best, P.streak); const m = streakMul(P.streak); if (m > 1){ coins *= m; lines.push(`Win streak ${P.streak}: ${Math.round((m - 1) * 100)}% more coins.`); } }
-  else if (!draw) P.streak = 0;
+  // every tower taken also counts towards the bounty pack
   if (mine > 0){ P.bounty = Math.min(999, P.bounty + mine); lines.push(P.bounty >= BOUNTY ? `Tower bounty full: a ${PACK[bountyPack()].name} is waiting on the Battle tab.` : `Tower bounty ${P.bounty} of ${BOUNTY}.`); }
   const packGot = pack ? openPack(pack).map(grant) : null; if (pack) P.stats.packs++;
   if (why) lines.unshift(why);
-  coins = Math.round(coins); P.coins += coins; save();
+  const coins = pay.coins; P.coins += coins; save();
   win ? BDB.sfx.big() : BDB.sfx.bad();
-  const line = B.mode === 'cpu' ? pick(win ? TALK.win : draw ? ["A draw. We'll both tell people we won."] : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : 'BDB says he could have won that one. He could not.');
-  const c = B.cpu, wasCpu = B.mode === 'cpu', ladder = wasCpu && !c.rand, nextUp = ladder && win && c.level < LEVELS && c.level + 1 <= P.ladder + 1;
-  // the result: who took how many towers, what BDB has to say about it, and everything won laid out in one even row
-  const mineN = crowns[B.team], theirN = crowns[1 - B.team], crownRow = n => Array.from({length:3}, (_, i) => `<i${i < n ? ' class="on"' : ''}></i>`).join('');
+  const many = B.mode === 'cpu' && B.odds > 1;
+  const line = B.mode === 'cpu' ? pick(win ? (many ? TALK.winMany : TALK.win) : draw ? ["A draw. We'll both tell people we won."] : many ? TALK.loseMany : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : draw ? 'A draw. BDB is counting it as a win for him anyway.' : 'BDB says he could have won that one. He could not.');
+  const c = B.cpu, wasCpu = B.mode === 'cpu', ladder = wasCpu && !c.rand, nextUp = ladder && win && c.level < LEVELS && c.level + 1 <= P.ladder + 1, odds = B.odds || 1;
+  // the result: who took how many towers and what each was worth, what BDB has to say about it, everything won laid out in one even row, and how the coins add up
+  const theirN = crowns[1 - B.team] | 0, crownRow = n => Array.from({length:3}, (_, i) => `<span class="${i < n ? 'on' : ''}${i === n - 1 ? ' now' : ''}" style="--i:${i}"><i></i>${win ? `<b>x${CROWN_PAY[i + 1]}</b>` : ''}</span>`).join('');
   const rw = [`<div class="rw"><div class="rw-pic"><span class="coin"></span></div><b>+${fmt(coins)}</b><small>Coins</small></div>`]
     .concat(got.map((g, i) => `<div class="rw cardz" data-i="${i}"><div class="rw-pic"></div><b>${esc(CARDS[g.id].name)}</b><small>${esc(g.tag === 'New' ? 'New card' : g.tag)}</small></div>`))
     .concat(pack ? [`<div class="rw"><div class="rw-pic"><div class="foil" style="--pc:${pack.col}"><img alt="" src="art/${PACK_ART[pack.id]}.webp"></div></div><b>${esc(pack.name)}</b><small>${pack.n} cards inside</small></div>`] : [])
     .concat(tokens ? [`<div class="rw"><div class="rw-pic"><span class="tokbig"></span></div><b>+${tokens}</b><small>Upgrade ${tokens > 1 ? 'tokens' : 'token'}</small></div>`] : []);
   const b = dlg(`<div class="res ${win ? 'win' : draw ? 'draw' : 'loss'}">
-    <div class="res-top"><div class="res-crowns" aria-hidden="true">${crownRow(mineN)}</div><h3>${title}</h3>
-      <div class="res-score"><span>${esc(P.name)}<b>${mineN}</b></span><em>towers</em><span><b>${theirN}</b>${esc(B.coop ? 'Two BDBs' : B.oppName || 'BDB')}</span></div></div>
+    <div class="res-top"><div class="res-crowns${win ? ' paid' : ''}" aria-hidden="true">${crownRow(mine)}</div><h3>${title}</h3>
+      <div class="res-score"><span>${esc(P.name)}<b>${mine}</b></span><em>towers</em><span><b>${theirN}</b>${esc(B.oppName || 'BDB')}</span></div></div>
     <div class="res-say"><span class="av"></span><p>${esc(line)}</p></div>
     <div class="res-loot">${rw.join('')}</div>
+    <dl class="res-sum">${pay.rows.map(r => `<div><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join('')}<div class="tot"><dt>Coins</dt><dd>+${fmt(coins)}</dd></div></dl>
     ${lines.length || tokens ? `<p class="note">${lines.map(esc).join(' ')}${tokens ? ' Spend tokens on tower and Mana upgrades in your Profile.' : ''}</p>` : ''}
     <div class="res-btns">${pack ? `<button type="button" class="k-btn primary big" id="rsPack">Open the ${esc(pack.name)}</button>` : wasCpu ? `<button type="button" class="k-btn primary big" id="rsAgain">${c.rand ? 'Another one' : nextUp ? 'Next level' : 'Rematch'}</button>` : ''}<button type="button" class="k-btn${wasCpu || pack ? '' : ' primary big'}" id="rsBack">Back to menu</button></div></div>`, {lock:true});
   for (const el of b.querySelectorAll('.rw.cardz')){ const g = got[+el.dataset.i], cd = cardEl(g.id, {lvl:g.lvl, now:true}); cd.onclick = () => sheet(g.id); el.querySelector('.rw-pic').appendChild(cd); }
   const leave = () => { dlgClose(); stopBattle(); show('scrHub'); hub(); };
-  const again = () => { leave(); preCpu(c.rand ? randomCpu(c.skill, myTower()) : ladderCpu(nextUp ? c.level + 1 : c.level)); };
+  const again = () => { leave(); preCpu(c.rand ? randomCpu(c.skill, myTower()) : ladderCpu(nextUp ? c.level + 1 : c.level), odds); };      // the same odds as last time, until you change them
   b.querySelector('#rsBack').onclick = leave;
   const ra = b.querySelector('#rsAgain'), rp = b.querySelector('#rsPack');
   if (ra) ra.onclick = again;
@@ -1153,7 +1211,7 @@ function stopBattle(){ cancelAnimationFrame(raf); clearInterval(pzIv); if (ticke
 let net = null, lobby = null, room = null, OL = null;
 async function netUp(){ if (!net) net = await openTransport(Q.get('net') === 'local'); return net; }
 function endOnline(){ const r = room, l = lobby; room = lobby = null; if (OL){ clearInterval(OL.iv); clearInterval(OL.hiIv); clearTimeout(OL.pt); clearTimeout(OL.to); } OL = null; setTimeout(() => { try { r && r.leave(); } catch(e){} try { l && l.leave(); } catch(e){} }, 400); }
-function waitBox(title, text, extra = ''){ const b = dlg(`<div class="k-eyebrow">Online 1v1</div><h3>${esc(title)}</h3><p id="olText">${esc(text)}</p>${extra}<div class="k-row"><button type="button" class="k-btn" id="olX">Cancel</button></div>`, {lock:true}); b.querySelector('#olX').onclick = () => { endOnline(); dlgClose(); }; return b; }
+function waitBox(title, text, extra = ''){ const b = dlg(`<div class="k-eyebrow">Online</div><h3>${esc(title)}</h3><p id="olText">${esc(text)}</p>${extra}<div class="k-row"><button type="button" class="k-btn" id="olX">Cancel</button></div>`, {lock:true}); b.querySelector('#olX').onclick = () => { endOnline(); dlgClose(); }; return b; }
 const netFail = () => { endOnline(); msgBox('No connection', 'Could not reach the matchmaking relays. Check your internet and try again.'); };
 $('olQuick').onclick = async () => {
   if (noDeck()) return;
@@ -1172,8 +1230,8 @@ $('olQuick').onclick = async () => {
 };
 $('olFriend').onclick = () => {
   if (noDeck()) return;
-  const b = dlg(`<div class="k-eyebrow">Online 1v1</div><h3>Play a friend</h3><p>Start a match and send your friend the code, or type in the code they sent you. In 2v2 you share a side and take on two BDBs together.</p>
-    <div class="k-row"><button type="button" class="k-btn primary" id="frNew">Start 1v1</button><button type="button" class="k-btn primary" id="frCo">Start 2v2 vs BDBs</button></div>
+  const b = dlg(`<div class="k-eyebrow">Online</div><h3>Play a friend</h3><p>Start a match and send your friend the code, or type in the code they sent you. Team up and you share a side against two BDBs, or against three for double the coins.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" id="frNew">Start 1v1</button><button type="button" class="k-btn primary" id="frCo">Team up, 2 v 2</button><button type="button" class="k-btn primary" id="frCo3">Team up, 2 v 3</button></div>
     <div class="rowx" style="width:100%"><input class="field" id="frCode" maxlength="12" placeholder="Friend's code" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="k-btn" id="frJoin">Join</button></div><div class="err" id="frErr"></div>
     <div class="k-row"><button type="button" class="k-btn" id="frX">Close</button></div>`);
   b.querySelector('#frX').onclick = dlgClose;
@@ -1184,7 +1242,7 @@ $('olFriend').onclick = () => {
     try { await netUp(); } catch(e){ return netFail(); }
     if (!$('dlg').hidden) enterMatch(code, true, true, coop);
   };
-  b.querySelector('#frNew').onclick = () => startFr(false); b.querySelector('#frCo').onclick = () => startFr(true);
+  b.querySelector('#frNew').onclick = () => startFr(0); b.querySelector('#frCo').onclick = () => startFr(2); b.querySelector('#frCo3').onclick = () => startFr(3);
   b.querySelector('#frJoin').onclick = () => { const c = b.querySelector('#frCode').value.trim().toLowerCase(); if (!okCode(c)){ b.querySelector('#frErr').textContent = 'That code does not look right.'; return; } joinFriend(c); };
 };
 async function joinFriend(code){
@@ -1199,7 +1257,7 @@ function okDeck(d){ return Array.isArray(d) && d.every(c => c && typeof c.id ===
 function enterMatch(code, host, keepBox, coop){
   if (lobby){ clearInterval(OL && OL.iv); const l = lobby; lobby = null; setTimeout(() => { try { l.leave(); } catch(e){} }, 300); }
   if (OL) clearTimeout(OL.pt);
-  OL = {state:'wait', code, host, opp:null, coop:!!coop};
+  OL = {state:'wait', code, host, opp:null, coop:coop === true ? 2 : [2, 3].includes(coop) ? coop : 0};      // coop: how many BDBs the two of you are up against, 0 for a duel
   room = net.join('brawl2-m-' + code);
   if (!keepBox){ const t = $('olText'); if (t) t.textContent = 'Found someone. Setting up the match.'; }
   const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower()}, to);
@@ -1210,15 +1268,19 @@ function enterMatch(code, host, keepBox, coop){
     if (t === 'hi'){
       if (!OL.host || OL.opp || !okDeck(d.d)) return;
       OL.opp = from; clearInterval(OL.hiIv);
-      const map = pick(MAP_IDS), name = clean(d.n, 20) || 'Player', od = d.d.map(c => ({id:c.id, lvl:c.lvl})), ci = Math.max(1, P.ladder);
-      const cpus = OL.coop ? [ladderCpu(ci), ladderCpu(Math.max(1, ci - 3))] : null, units = unitsOf([...curDeck(), ...od.map(c => c.id), ...(cpus ? cpus.flatMap(c => c.deck) : [])]);
-      room.send('go', {map, n:P.name, co:OL.coop ? 1 : 0, uk:units}, from); dlgClose();
-      begin({mode:'host', map, coop:OL.coop, cpus, mate:name, oppName:OL.coop ? 'Two BDBs' : name, oppDeck:od, oppTower:Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1, units});
+      const map = pick(MAP_IDS), name = clean(d.n, 20) || 'Player', od = d.d.map(c => ({id:c.id, lvl:c.lvl})), tw = Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1;
+      // teamed up, the BDBs come from the host's place on the ladder and scout the two decks in front of them the way a ladder BDB does: cards and towers within two levels of the pair's
+      const team = Math.round((myTower() + tw) / 2), lead = OL.coop ? ladderCpu(Math.max(1, P.ladder)) : null;
+      const cpus = lead ? [lead, ...backupCpus(lead, OL.coop)].map(c => ({...c, lvl:Math.min(MAX_LVL, Math.max(lead.lvl, team - CPU_GAP)), tower:Math.max(lead.tower, team - CPU_GAP), soft:team > lead.lvl + 1 ? 1 : lead.soft})) : null;
+      const units = unitsOf([...curDeck(), ...od.map(c => c.id), ...(cpus ? cpus.flatMap(c => c.deck) : [])]);
+      room.send('go', {map, n:P.name, co:OL.coop, uk:units}, from); dlgClose();
+      begin({mode:'host', map, coop:OL.coop, cpus, teamTower:team, mate:name, oppName:OL.coop ? NUM[OL.coop] + ' BDBs' : name, oppDeck:od, oppTower:tw, units});
     } else if (t === 'go'){
       if (OL.host || OL.opp || !MAPS[d.map]) return;
       OL.opp = from; clearInterval(OL.hiIv); clearTimeout(OL.to); dlgClose();
       const uk = Array.isArray(d.uk) ? d.uk.filter(k => typeof k === 'string' && Object.hasOwn(UNITS, k)).slice(0, 260) : [];
-      begin({mode:'guest', map:d.map, coop:!!d.co, mate:clean(d.n, 20) || 'Player', oppName:d.co ? 'Two BDBs' : clean(d.n, 20) || 'Player', units:[...new Set([...uk, ...unitsOf(curDeck())])]});
+      const co = d.co === 3 ? 3 : d.co ? 2 : 0;
+      begin({mode:'guest', map:d.map, coop:co, mate:clean(d.n, 20) || 'Player', oppName:co ? NUM[co] + ' BDBs' : clean(d.n, 20) || 'Player', units:[...new Set([...uk, ...unitsOf(curDeck())])]});
     } else if (from !== OL.opp || !B) return;
     else if (t === 'rd'){ if (B.mode === 'host' && B.rdRes) B.rdRes(); }
     else if (t === 's' && B.mode === 'guest') snap(d);
@@ -1236,7 +1298,14 @@ function snap(d){
   B.info = {el:+s.el || 0, hand:s.h.slice(0, HAND).map((id, i) => ({id:ok(id), lvl:(s.hl && s.hl[i]) || 1})), next:{id:ok(s.n)}, left:+s.l || 0, phase:s.ph === 'ot' ? 'ot' : s.ph === 'over' ? 'over' : 'play', crowns:Array.isArray(s.cr) ? s.cr : [0, 0], pocket:Array.isArray(s.pk) ? s.pk : [false, false], bonus:!!s.bo};
   if (Array.isArray(d.ev) && d.ev.length){ if (V) V.events(d.ev); onEvents(d.ev); }
 }
-function oppLeft(){ if (!B || B.done) return; B.over = true; if (B.coop) finish(-1, null, 'Your teammate left the match.'); else finish(B.team, null, 'Your opponent left the match.'); }
+const STANDIN = {react:1.3, hold:6.5, derp:.04, smart:.75, el:1};      // who plays a teammate's cards once they have gone
+function oppLeft(){
+  if (!B || B.done) return;
+  if (B.coop && B.mode === 'host' && B.sim && B.run && !B.sim.over){      // your teammate dropped out: a stand-in takes their hand and the match goes on
+    B.ais.push(createAI(B.sim, 0, STANDIN, Math.random, 1)); endOnline(); note(`${B.mate || 'Your teammate'} left. A stand-in has their cards.`); return;
+  }
+  B.over = true; if (B.coop) finish(-1, null, 'Your teammate left the match.'); else finish(B.team, null, 'Your opponent left the match.');
+}
 
 /* right-click any card, or hold your finger on it, for what it does and its stats */
 addEventListener('contextmenu', e => { const c = e.target.closest && e.target.closest('.card[data-id]'); if (!c) return; e.preventDefault(); sheet(c.dataset.id); });
@@ -1272,19 +1341,26 @@ function renderHall(){
   const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
   $('hallLbl').textContent = `Who's on: ${on.length}`;
   box.innerHTML = (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
-    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">2v2</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
+    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">Team up</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
     off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend, seen ${ago(P.friends[n])}</small></div><div></div></div>`).join('');
 }
-$('hall').onclick = e => { const b = e.target.closest('button[data-k]'); if (b && !B) sendInvite(b.parentNode.dataset.n, b.dataset.k); };
-async function sendInvite(to, kind){
+$('hall').onclick = e => {
+  const q = e.target.closest('button[data-k]'); if (!q || B) return; const to = q.parentNode.dataset.n;
+  if (q.dataset.k !== 'coop') return sendInvite(to, q.dataset.k);
+  const b = dlg(`<div class="k-eyebrow">Team up</div><h3>You and ${esc(to)}</h3><p>You share a side against BDBs from your place on the ladder. Three of them is a handicap match: it pays double.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" data-n="2">2 v 2</button><button type="button" class="k-btn primary" data-n="3">2 v 3, coins x2</button><button type="button" class="k-btn" id="tuX">Cancel</button></div>`);
+  b.querySelector('#tuX').onclick = dlgClose;
+  for (const k of b.querySelectorAll('button[data-n]')) k.onclick = () => { dlgClose(); sendInvite(to, 'coop', +k.dataset.n); };
+};
+async function sendInvite(to, kind, n = 2){
   if (kind !== 'trade' && noDeck()) return;
   const code = rid(6);
   if (kind === 'trade') openTrade(code, to);
-  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? 'Asking them to team up against two BDBs. They have a minute to answer.' : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop'); OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
+  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? `Asking them to team up against ${NUM[n].toLowerCase()} BDBs. They have a minute to answer.` : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop' ? n : 0); OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
   try { const r = await Cloud.invite(to, kind, code); if (!r || r.error) throw 0; } catch(e){ if (kind === 'trade') closeTrade(); else { endOnline(); dlgClose(); } msgBox('Could not send', 'The invite did not go through. Try again.'); }
 }
 function gotInvite(iv){
-  const what = {duel:'wants a 1v1', coop:'wants to team up against two BDBs', trade:'wants to trade cards'}[iv.kind], from = clean(iv.from, 20);
+  const what = {duel:'wants a 1v1', coop:'wants to team up against BDBs', trade:'wants to trade cards'}[iv.kind], from = clean(iv.from, 20);
   if (!what || !okCode(iv.code) || !from) return;
   if (B || TR || !$('dlg').hidden || $('scrHub').hidden){ Cloud.inviteDone(iv.id); return; }        // busy: it lapses
   const b = dlg(`<div class="k-eyebrow">Invite</div><h3>${esc(from)}</h3><p>${what}.</p><div class="k-row"><button type="button" class="k-btn primary" id="ivY">Accept</button><button type="button" class="k-btn" id="ivN">Not now</button></div>`, {lock:true});
@@ -1359,7 +1435,7 @@ window.__game = {
   get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? (P.onboarded ? 'hub' : 'onboard') : 'login'; }, get score(){ return P ? P.coins : 0; },
   get P(){ return P; }, get B(){ return B; }, get TR(){ return TR; }, get hall(){ return HALL; }, cloud:Cloud, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get bubbles(){ return bubbles.length; },
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
-  ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ B.ai.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
+  ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
   end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS
 };

@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115r';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115s';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -27,8 +27,9 @@ export function canPlace(map, team, card, x, z, pocket){
   return !!(pocket && pocket[side]) && zz >= -(L - 8.5) && zz <= -edge;
 }
 
-/* boost: per team {hp, dmg} for towers. start: Mana each player begins with. */
-export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1], boost = [], start = []}){
+/* boost: per team {hp, dmg} for towers. start: Mana each player begins with. teams: which side each deck fights for, so the sides need not be the same size
+   (one against two, two against three). Left out, two decks are a duel and four are two a side. */
+export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1], boost = [], start = [], teams}){
   const map = MAPS[mapId], rnd = mulberry(seed), RW = riverOf(map) || RIVER;
   let tick = 0, nid = 0, phase = 'play', over = false, winner = -1;
   const ents = [], byId = new Map(), projs = [], zones = [], traps = [];
@@ -43,7 +44,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     return {el:clamp(start[i] ?? 5, 0, MAX_EL), hand:q.splice(0, HAND), next:q.shift(), queue:q, played:0, idle:0, bon};
   });
 
-  const tm = pid => players.length > 2 ? (pid < 2 ? 0 : 1) : pid;
+  const sides = teams || (decks.length > 2 ? decks.map((d, i) => i < decks.length / 2 ? 0 : 1) : [0, 1]);
+  const tm = pid => sides[pid];
   function add(key, team, x, z, lvl, dep = DEPLOY, aff = 'std', pid = team, bm = 1){
     const U = unitVar(key, aff), m = lvlMul(lvl) * bm, hp = Math.round(U.hp * m);
     const e = {id:++nid, key, U, team, pid, bm, x, z, lvl, hp, max:hp, dmg:Math.round(U.dmg * m), d0:Math.round(U.dmg * m),
@@ -550,7 +552,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   const timeLeft = () => phase === 'ot' ? MATCH + OVERTIME - tick / TPS : phase === 'over' ? 0 : MATCH - tick / TPS;
 
   /* ---------- playing a card ---------- */
-  /* pid is the player. With four decks it is 2v2: players 0 and 1 share team 0, players 2 and 3 share team 1. */
+  /* pid is the player, and tm(pid) the side he is on: with four decks, players 0 and 1 share team 0 and players 2 and 3 share team 1. */
   function play(pid, slot, x, z){
     const p = players[pid], team = tm(pid), c = p && p.hand[slot];
     if (over || !c) return false;
@@ -591,7 +593,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
 
   return {
-    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, encode, pocket,
+    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, encode, pocket, sides,
     canPlace:(team, card, x, z) => canPlace(map, team, card, x, z, pocket(team)),
     drain(){ const ev = events; events = []; return ev; },
     get tick(){ return tick; }, get phase(){ return phase; }, get over(){ return over; }, get winner(){ return winner; },

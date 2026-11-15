@@ -639,7 +639,7 @@ const MINIONS = ['Temp', 'Intern', 'Overtime', 'Double Shift', 'Lunch Break', 'C
 export const tierOf = n => TIERS[clamp(Math.floor((n - 1) / 100), 0, TIERS.length - 1)];
 /* what beating level n pays, and what the first win there adds on top */
 export function levelPrize(n){
-  const boss = n % 100 === 0, coins = Math.round((30 + n * 1.1) * (boss ? 4 : n % 10 === 0 ? 1.6 : 1) / 5) * 5, t = Math.floor((n - 1) / 100);
+  const boss = n % 100 === 0, coins = Math.round((40 + n * 1.1) * (boss ? 4 : n % 10 === 0 ? 1.6 : 1) / 5) * 5, t = Math.floor((n - 1) / 100);
   const first = {};
   if (boss){ first.pack = t >= 6 ? 'mythic' : t >= 2 ? 'diamond' : 'gold'; first.token = 2; first.rar = t >= 4 ? 'l' : 'e'; }
   else if (n % 25 === 0){ first.pack = t >= 5 ? 'diamond' : 'gold'; first.token = 1; }
@@ -674,6 +674,28 @@ export function randomCpu(skill, myLvl = 1, rnd = Math.random){
   const S = SKILLS.find(s => s.id === skill) || SKILLS[1], pick = a => a[Math.floor(rnd() * a.length)];
   return {id:'rand-' + S.id, rand:true, skill:S.id, name:pick(MINIONS) + ' BDB', tag:`${S.name}. A different deck every time.`, map:pick(MAP_IDS), lvl:clamp(Math.round(myLvl + S.dl), 1, MAX_LVL), tower:clamp(Math.round(myLvl + S.dl), 1, 14),
     coins:S.coins, lose:S.lose, card:S.card, pack:S.pack, ai:S.ai, deck:dealDeck(rnd, S.deal)};
+}
+
+/* Odds. Fight more than one BDB at once and a win pays more. Each of them has a deck and a Mana bar of his own, so each gets only a share of the usual Mana:
+   el is that share, pay is what the coins are multiplied by, and a card is on the line from every one of them. Tuned by playing the CPU against itself
+   (br/co2.mjs): a deck that wins about four in five one against one wins about two in five outnumbered and about one in five against three. */
+export const ODDS = [null, {n:1, name:'Even', el:1, pay:1}, {n:2, name:'Outnumbered', el:.58, pay:2}, {n:3, name:'Last stand', el:.4, pay:3}];
+/* with a friend beside you there are two decks a side, so the towers of both sides are tougher; a third BDB makes it a handicap match that pays double */
+export const TEAM_ODDS = {2:{el:1, pay:1}, 3:{el:.77, pay:2}}, TEAM_TOWERS = 1.35;
+/* every tower taken raises what the match pays: a quarter more, half as much again, and double for all three */
+export const CROWN_PAY = [1, 1.25, 1.5, 2], CROWN_COINS = 10;
+/* the BDBs who back him up when the odds are raised: each from a few levels down the ladder (or another dealt at random in a quick battle), with a deck and a name
+   of his own, playing as well as the one he is helping and with cards at the same level. n: how many are on the field in all. */
+export function backupCpus(cpu, n, myLvl = 1, rnd = Math.random){
+  const out = [], used = new Set([cpu.name]);
+  for (let i = 1; i < n; i++){
+    const b = cpu.rand ? randomCpu(cpu.skill, myLvl, rnd) : ladderCpu(cpu.level > 3 * i ? cpu.level - 3 * i : cpu.level + 3 * i);
+    let name = b.name, k = MINIONS.indexOf(name.replace(/ BDB$/, ''));
+    for (let t = 0; t < MINIONS.length && (b.boss || used.has(name)); t++){ k = (k + 7 + MINIONS.length) % MINIONS.length; name = MINIONS[k] + ' BDB'; if (!used.has(name)) break; }
+    used.add(name);
+    out.push({id:cpu.id + '+' + i, name, deck:b.deck, types:b.types, lvl:cpu.lvl, tower:cpu.tower, ai:cpu.ai, backup:true});
+  }
+  return out;
 }
 
 /* Player upgrades, bought with tokens won on the ladder. They count against the CPU only; online matches are always even. */
