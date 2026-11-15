@@ -55,12 +55,13 @@ const lib = {}, clips = {}, pending = {}, mats = new Map(), inks = new Map();
 let rack = null;                          // wp.glb: one named node per weapon
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 const qa = new THREE.Quaternion(), va = new THREE.Vector3();
-/* how tall a model stands as loaded. A skinned mesh is measured through its skeleton: its raw vertices can be in other units entirely. */
+/* how tall a model stands as loaded, and how far below (or above) its own origin its feet are: some files are built around their middle, not their feet.
+   A skinned mesh is measured through its skeleton: its raw vertices can be in other units entirely. */
 const tb = new THREE.Box3(), tb2 = new THREE.Box3();
 function tallOf(scene){
   scene.updateMatrixWorld(true); tb.makeEmpty();
   scene.traverse(o => { if (o.isSkinnedMesh){ o.computeBoundingBox(); tb.union(tb2.copy(o.boundingBox).applyMatrix4(o.matrixWorld)); } else if (o.isMesh) tb.expandByObject(o); });
-  return tb.isEmpty() ? 2 : tb.getSize(va).y || 2;
+  return tb.isEmpty() ? {tall:2, base:0} : {tall:tb.getSize(va).y || 2, base:tb.min.y};
 }
 const fetchOne = f => pending[f] || (pending[f] = new Promise(res => loader.load(`models/${f}.glb`, g => { res(g); }, undefined, () => res(null))));
 /* load whatever these units need: their own files, plus the clip library and weapon rack if any of them uses one. Resolves when everything has either arrived or failed. */
@@ -68,7 +69,7 @@ export function needRigs(keys){
   const jobs = [];
   for (const k of new Set(keys)){
     const d = RIGS[k]; if (!d) continue;
-    if (!lib[d.f]) jobs.push(fetchOne(d.f).then(g => { if (g && !lib[d.f]){ g.tall = tallOf(g.scene); lib[d.f] = g; } }));
+    if (!lib[d.f]) jobs.push(fetchOne(d.f).then(g => { if (g && !lib[d.f]){ const m = tallOf(g.scene); g.tall = m.tall; g.base = m.base; lib[d.f] = g; } }));
     if (d.fam && !clips[d.fam]) jobs.push(fetchOne('a' + d.fam).then(g => { if (g) clips[d.fam] = g.animations; }));
     if ((d.rh || d.lh) && !rack) jobs.push(fetchOne('wp').then(g => { if (g) rack = g.scene; }));
   }
@@ -105,7 +106,8 @@ function inkFor(t){
 
 export function makeRig(key, o, grad, extras){
   const def = RIGS[key], gl = lib[def.f], root = cloneRig(gl.scene), g = new THREE.Group(), sc = def.h / (def.fam ? NATIVE[def.fam] : gl.tall), anims = def.fam ? clips[def.fam] : gl.animations;
-  root.scale.setScalar(sc); g.add(root);
+  const y0 = -(gl.base || 0) * sc;                        // feet on the ground, wherever the file put its origin
+  root.scale.setScalar(sc); root.position.y = y0; g.add(root);
   let head = null, hr = null, hl = null, skin = null;
   root.traverse(n => {
     if (n.isBone){ if (n.name === 'head') head = n; else if (/^handslot\.?r$/.test(n.name)) hr = n; else if (/^handslot\.?l$/.test(n.name)) hl = n; }
@@ -139,7 +141,7 @@ export function makeRig(key, o, grad, extras){
       const a = s.atk < .32 ? Math.sin(s.atk / .32 * Math.PI) : 0, w = s.mv ? Math.sin(s.ph) : 0;
       root.rotation.z = w * .1; root.rotation.y = w * .12;                                   // a waddle: rocks side to side and twists with each step
       root.rotation.x = a * .42 + (s.mv ? .07 : 0);                                         // leans into the hit
-      root.position.y = s.mv ? Math.abs(Math.sin(s.ph)) * .09 : 0;
+      root.position.y = y0 + (s.mv ? Math.abs(Math.sin(s.ph)) * .09 : 0);
       root.scale.set(sc * (1 + a * .06), sc * (1 - a * .08 + (s.mv ? 0 : Math.sin(t * 2.4 + seed) * .014)), sc * (1 + a * .06));   // breathes at rest, squashes on the swing
     }};
   }

@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115b';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115b';
-import { createAI } from './ai.js?v=1115b';
-import { Accounts, fresh, sanitize } from './store.js?v=1115b';
-import { Cloud } from './cloud.js?v=1115b';
-import { sayFor, sayWhen } from './talk.js?v=1115b';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115c';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115c';
+import { createAI } from './ai.js?v=1115c';
+import { Accounts, fresh, sanitize } from './store.js?v=1115c';
+import { Cloud, cloudWhy } from './cloud.js?v=1115c';
+import { sayFor, sayWhen } from './talk.js?v=1115c';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -64,7 +64,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115b'), import('./models.js?v=1115b')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115c'), import('./models.js?v=1115c')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
     ready3d = true;
@@ -482,7 +482,7 @@ async function accSign(create){
       if (r.error) return err('Wrong name or password.');
       signIn(r.data && r.data.cards ? sanitize({...r.data, name:r.name}) : fresh(r.name));
     }
-  } catch(e){ err('Could not reach the account server. Check your connection, or play on this device only.'); }
+  } catch(e){ err(cloudWhy(e)); }
 }
 $('accIn').onclick = () => accSign(false); $('accNew').onclick = () => accSign(true);
 $('newPass').addEventListener('keydown', e => { if (e.key === 'Enter') accSign(false); });
