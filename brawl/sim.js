@@ -1,10 +1,10 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115s';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115t';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
-export const MATCH = 600, OVERTIME = 60, MANA_STEP = 120, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match. Mana comes in faster every two minutes: x1, x1.5, x2, x2.5, then x3 for the last two
+export const MATCH = 600, OVERTIME = 120, MANA_STEP = 120, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match, and two minutes of overtime if it is level. Mana comes in faster every two minutes: x1, x1.5, x2, x2.5, then x3 for the last two
 export const TOWER_AT = [['king', 0, L - 3], ['princess', -5.5, L - 6.5], ['princess', 5.5, L - 6.5]];
 const DEPLOY = TPS, PROJ_SPD = 11, SKY_WIND = .45;      // SKY_WIND: how long a hammer is in the air before the sky answers it
 export const PATIENT = 3 * TPS;
@@ -12,7 +12,8 @@ export const MAX_TRAPS = 3, TRIG = 1.1;            // traps each player can have
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const T = s => Math.max(1, Math.round(s * TPS));
 export const KEYS = Object.keys(UNITS);
-export const manaRate = (left, ot) => ot ? 3.5 : 1 + .5 * Math.min(4, Math.max(0, Math.floor((MATCH - left) / MANA_STEP)));      // and x3.5 in overtime
+export const OT_MANA = 4;
+export const manaRate = (left, ot) => ot ? OT_MANA : 1 + .5 * Math.min(4, Math.max(0, Math.floor((MATCH - left) / MANA_STEP)));      // and x4 for the whole of overtime
 
 function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -268,6 +269,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (e.mt > 0) dmg *= 1.25;                                                // fighting beside someone who makes the whole side hit harder
     if (e.wk > 0) dmg *= .7;                                                  // rattled: standing near something that frightens it
     if (t.U.twr && (U.any || U.stealth)) dmg *= U.any ? .35 : .5;              // whoever sneaks up on a tower is there for the troops, not the masonry
+    if (t.U.twr && U.chip) dmg *= U.chip;                                     // and bones only chip at stone
     if (U.pack){ let n = 0; for (const o of ents) if (o !== e && o.team === e.team && o.key === e.key && o.hp > 0 && Math.hypot(o.x - e.x, o.z - e.z) <= U.pack.r) n++; dmg *= 1 + U.pack.per * Math.min(U.pack.max, n); }
     if (U.ramp){ if (e.rt === t.id) e.rs = Math.min(U.ramp.max, e.rs + U.ramp.step); else { e.rs = 0; e.rt = t.id; } dmg *= 1 + e.rs; }
     e.run = 0;

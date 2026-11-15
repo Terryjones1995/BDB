@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115s';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115s';
-import { createAI } from './ai.js?v=1115s';
-import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115s';
-import { Cloud, cloudWhy } from './cloud.js?v=1115s';
-import { sayFor, sayWhen } from './talk.js?v=1115s';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115t';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115t';
+import { createAI } from './ai.js?v=1115t';
+import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115t';
+import { Cloud, cloudWhy } from './cloud.js?v=1115t';
+import { sayFor, sayWhen } from './talk.js?v=1115t';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -27,7 +27,7 @@ const TALK = {
   heScores:["Tower down! Somebody call a scout, I'm heating up.", "That's more damage than I did all of last season.", "Write that down. BDB actually scored.", "One tower. I'm basically averaging 2.0 now.", "Did you see that? Nobody saw that? Typical.", "Clocked in, knocked it down. Signature move.", "Put that on the Jumbotron and loop it."],
   youScore:["That tower was a walk-on anyway.", "Lucky bounce. I was on my break.", "My defence is more of a suggestion.", "I let you have that. Confidence still at 99.", "Ref! That has to be a foul somewhere.", "Fine. I only needed two towers.", "That tower never listened to my coaching."],
   king:["You woke up the king. He was mid nap in the break room.", "Now the big tower's up. He hates extra work as much as I do."],
-  ot:["Overtime? I don't do overtime. Check my timesheet.", "Sudden death. Next tower wins and my shift ends in five."],
+  ot:["Overtime? I don't do overtime. Check my timesheet.", "Sudden death. Next tower wins and my shift ends in two minutes.", "Two more minutes and four times the Mana. Somebody is getting a highlight."],
   late:["Double Mana already. This is where I usually clock out.", "Mana's flowing twice as fast. Finally, my kind of conditions."],
   last:["Two minutes left. Triple Mana. Even I can afford something now.", "Triple Mana. Everybody panic. I already am.", "Two minutes on the clock. Empty the bench."],
   legend:["Here comes a Legendary. Avert your eyes.", "Roll out the big card. Put my highlights on. Both of them.", "Legendary on the floor. Just like my scouting report said."],
@@ -70,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115s'), import('./models.js?v=1115s')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115t'), import('./models.js?v=1115t')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -193,6 +193,7 @@ function abil(U, m = 1){
   if (U.wrath) a.push(`Every ${sec(U.wrath.every)} a bolt from the sky strikes the enemy troop with the most health left, anywhere on the field: ${d(U.wrath.dmg)} damage within ${U.wrath.r}.`);
   if (U.fly) a.push('Flies. Swords and fists cannot reach it: only other flyers, anything that shoots or throws, towers and spells.');
   if (U.only) a.push('Ignores troops and goes straight for buildings and towers.');
+  if (U.chip) a.push(`Made for fighting troops: only ${Math.round(U.chip * 100)}% of its damage lands on a tower.`);
   if (U.kamikaze) a.push('Blows itself up on whatever it reaches. The blast is its only attack.');
   if (U.life && !U.bld) a.push(`Melts away after ${sec(U.life)}, whatever happens.`);
   if (U.any) a.push('Can be dropped anywhere on the field, their side included. Does a third of its damage to towers.');
@@ -718,7 +719,7 @@ function onboard(){
     box.innerHTML = `<div class="k-eyebrow">Welcome, ${esc(P.name)}</div><h2>How a brawl works</h2>
       <div class="tips"><div><b>1</b><h4>Drop cards on your half</h4><p>Drag a card onto the field, or tap the card and then the spot. Stronger cards cost more Mana.</p></div>
       <div><b>2</b><h4>Mind your Mana</h4><p>It refills on its own, and half as fast again every two minutes, up to triple for the last two. The longer the match, the bigger the plays.</p></div>
-      <div><b>3</b><h4>Take his towers</h4><p>Knock down more towers than he does in ten minutes. Take the king tower and it ends on the spot.</p></div>
+      <div><b>3</b><h4>Take his towers</h4><p>Knock down more towers than he does in ten minutes. Take the king tower and it ends on the spot. Level at the bell means two minutes of overtime at four times the Mana, and the next tower wins.</p></div>
       <div><b>4</b><h4>Build around a type</h4><p>Every card has a type: Dragon, Fire, Dark Arts and nine more. Four or more of one type in your deck and that type fights harder.</p></div></div>
       <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Pick my free Rare</button></div>`;
     $('onNext').onclick = step2;
@@ -925,7 +926,7 @@ function onEvents(ev){
       const mine = e.team === B.team; SND.boom();
       if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine){ BDB.sfx.big(); const I = info(), n = I ? I.crowns[B.team] | 0 : 0; if (n >= 1 && n <= 2) note(`A win now pays x${CROWN_PAY[n]}`); } talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
     } else if (e.e === 'king'){ if (e.team !== B.team && B.mode === 'cpu') talk(TALK.king); }
-    else if (e.e === 'ot'){ stamp('Overtime'); SND.horn(); if (B.mode === 'cpu') talk(TALK.ot, true); }
+    else if (e.e === 'ot'){ stamp('Overtime'); note(`Two minutes, Mana x${OT_MANA}. The next tower wins`); SND.horn(); if (B.mode === 'cpu') talk(TALK.ot, true); }
     else if (e.e === 'drop' || e.e === 'spell'){
       const c = CARDS[e.id];
       if ((e.rar === 'l' || e.rar === 'g') && c){ const god = e.rar === 'g'; if (god) SND.god(); else SND.legend(); const d = document.createElement('div'); d.className = 'legend-banner' + (god ? ' god' : ''); d.innerHTML = `<small>${god ? 'A God takes the field' : 'Legendary'}</small><b>${esc(c.name)}</b>`; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2000); if (e.team !== B.team && B.mode === 'cpu') talk(TALK.legend); }

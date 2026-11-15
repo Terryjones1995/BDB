@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115s';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115s';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115s';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115t';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115t';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115t';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };

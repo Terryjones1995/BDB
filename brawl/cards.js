@@ -312,7 +312,7 @@ const ROSTER = [
   ['wardrum', 'War Drum', 'horde', 'r', 'build', 4, 1, {nodmg:1, hm:.9, life:36, aura:{r:4, haste:1}}, 'While it beats, your troops near it move and hit a third faster.'],
   ['nest', 'Dragon Nest', 'dragon', 'e', 'build', 5, 1, {nodmg:1, hm:1.44, life:40, spawn:{u:'whelp', every:6.5, n:1, first:1.5}}, 'Hatches a flying Whelp every few seconds.'],
   /* ----- units that only arrive through another card ----- */
-  ['skel', 'Skeleton', 'dark', 'c', 'swarm', 0, 1, {as:.5}, ''],
+  ['skel', 'Skeleton', 'dark', 'c', 'swarm', 0, 1, {as:.5, chip:.4}, ''],      // chip: the share of its damage it does to a tower. A crowd of bones buries a giant; it does not bring a wall down
   ['gbat', 'Gloom Bat', 'dark', 'c', 'flock', 0, 1, {as:.5}, ''],
   ['slimelet', 'Slimelet', 'nature', 'c', 'brawler', 0, 1, {as:.6, r:.38, spd:1.5, hit:1.1, dm:1.4}, ''],
   ['mushnub', 'Mushnub', 'nature', 'c', 'swarm', 0, 1, {as:.5, psn:{dps:10, t:3}}, ''],
@@ -330,7 +330,7 @@ const ROSTER = [
 const ABIL = ['shield', 'heal', 'land', 'taunt', 'stun', 'charge', 'knock', 'pack', 'leech', 'stealth', 'any', 'dodge', 'crit', 'revive', 'spawn', 'raise', 'mark', 'steal', 'grow', 'chill', 'split', 'armor', 'burn', 'psn', 'berserk', 'aura',
   'death', 'regen', 'numb', 'leap', 'thorns', 'chain', 'morph', 'exec', 'mana', 'ramp', 'only', 'life', 'shot', 'splash', 'first', 'curse', 'loot', 'rise', 'pierce', 'brittle', 'riposte',
   'stoic', 'deflect', 'rob', 'infect', 'sap', 'wild', 'mirror', 'siphon', 'fireproof', 'sear', 'pyre', 'shatter', 'mend', 'brew', 'bless', 'feast', 'kamikaze', 'frenzy', 'recharge', 'eject', 'raze', 'tough', 'lock',
-  'smite', 'reap', 'wrath'];
+  'smite', 'reap', 'wrath', 'chip'];
 
 /* Units. Speeds are arena units per second, hit is seconds between attacks, rng is reach beyond the bodies.
    air: can hit flyers. only:'b': walks past troops and only hits buildings. splash: hit radius. */
@@ -354,8 +354,8 @@ for (const [key, name, type, rar, role, cost, n, x, desc] of ROSTER){
 }
 for (const k of ['bonecrew', 'bonehorde', 'bonelegion', 'gloombats', 'mushnubs', 'bees']) delete UNITS[k];          // those cards drop the shared small unit, not one of their own
 delete UNITS.interns;
-UNITS.princess = {name:'Guard Tower', role:'build', type:'order', hp:2300, dmg:60, hit:.8, rng:7.5, spd:0, r:1.15, bld:1, air:1, shot:'ball', twr:1, splash:.7};      // its shot bursts: whatever stands a short step from the target is hit too, so a crowd at the wall does not last
-UNITS.king     = {name:'King Tower',  role:'build', type:'order', hp:3900, dmg:68, hit:1.0, rng:7,  spd:0, r:1.5,  bld:1, air:1, shot:'ball', twr:1, splash:.8};
+UNITS.princess = {name:'Guard Tower', role:'build', type:'order', hp:2300, dmg:55, hit:.8, rng:7.5, spd:0, r:1.15, bld:1, air:1, shot:'ball', twr:1};      // one target at a time. (For a day its shots burst and hit everything round the target: towers then killed whole pushes, and matches stalled.)
+UNITS.king     = {name:'King Tower',  role:'build', type:'order', hp:3900, dmg:62, hit:1.0, rng:7,  spd:0, r:1.5,  bld:1, air:1, shot:'ball', twr:1};
 
 /* Spells and traps: [key, name, type, rarity, Mana, spell or trap, description] */
 const MAGIC = [
