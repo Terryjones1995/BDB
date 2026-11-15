@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115c';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115c';
-import { W, L, RIVER, TRIG } from './sim.js?v=1115c';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115d';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115d';
+import { W, L, RIVER, TRIG } from './sim.js?v=1115d';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -951,6 +951,7 @@ export function createView(el, opt = {}){
     }
     const m = makeModel(key, 0, {face:true, aff, ink:true}); outline(m.g, 1.07); m.g.scale.setScalar(m.s || 1); m.anim(.4, {mv:false, ph:.9, atk:99, sum:99, aim:.5, active:true, chg:false}); TR.sc.add(m.g);
     // fill the picture: the figure runs top to bottom, and a wide one (wings, a bench) runs side to side instead
+    m.g.updateMatrixWorld(true); m.g.traverse(o => { if (o.isSkinnedMesh) o.computeBoundingBox(); });      // measured as it stands now, not as the file was built: a scaled rig is otherwise measured twice over
     const bx = new THREE.Box3().setFromObject(m.g), c = bx.getCenter(new THREE.Vector3()), sz = bx.getSize(new THREE.Vector3()), t = Math.tan(11 * PI / 180);
     const dist = Math.max(sz.y * .5 / t * 1.03, Math.hypot(sz.x, sz.z * .5) * .5 / t * .74) + sz.z * .5;      // a wide one may lose its wing tips off the sides
     TR.cam.position.copy(c).add(new THREE.Vector3(.52, .2, 1).normalize().multiplyScalar(dist)); TR.cam.lookAt(c);

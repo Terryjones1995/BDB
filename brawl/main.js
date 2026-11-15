@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115c';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115c';
-import { createAI } from './ai.js?v=1115c';
-import { Accounts, fresh, sanitize } from './store.js?v=1115c';
-import { Cloud, cloudWhy } from './cloud.js?v=1115c';
-import { sayFor, sayWhen } from './talk.js?v=1115c';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115d';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115d';
+import { createAI } from './ai.js?v=1115d';
+import { Accounts, fresh, sanitize } from './store.js?v=1115d';
+import { Cloud, cloudWhy } from './cloud.js?v=1115d';
+import { sayFor, sayWhen } from './talk.js?v=1115d';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -64,7 +64,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115c'), import('./models.js?v=1115c')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115d'), import('./models.js?v=1115d')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
     ready3d = true;
@@ -118,26 +118,47 @@ const uName = (k, n) => { const s = UNITS[k] ? UNITS[k].name : 'unit'; return n 
 function abil(U, m = 1){
   const a = [], d = v => Math.round(v * m);
   if (U.only) a.push('Ignores troops and goes straight for buildings and towers.');
+  if (U.kamikaze) a.push('Blows itself up on whatever it reaches. The blast is its only attack.');
+  if (U.life && !U.bld) a.push(`Melts away after ${sec(U.life)}, whatever happens.`);
   if (U.any) a.push('Can be dropped anywhere on the field, their side included. Does a third of its damage to towers.');
   if (U.land){ const l = U.land, b = [];
     if (l.dmg) b.push(d(l.dmg) + ' damage'); if (l.stun) b.push(`a ${sec(l.stun)} stun`); if (l.slow) b.push(`a ${sec(l.slow)} slow`); if (l.weak) b.push(`a roar that makes them hit 30% softer for ${sec(l.weak)}`); if (l.push) b.push('a shove back'); if (l.burn) b.push('fire');
     if (b.length) a.push(`Lands with ${b.join(', ')} for every enemy within ${l.r}.`);
     if (l.shield) a.push(`Lands and hands every teammate within ${l.r} a ${d(l.shield)} shield.`);
+    if (l.rage) a.push(`Lands with a war cry: teammates within ${l.r} move and hit a third faster for ${sec(l.rage)}.`);
     if (l.summon) a.push(`Arrives with ${l.summon.n} ${uName(l.summon.u, l.summon.n)}.`); }
-  if (U.charge) a.push(`${U.charge.dash ? 'Arrives already sprinting, and winds up again after a run-up' : 'Breaks into a sprint after a run-up'}. A sprint hit lands for ${x10(U.charge.dmg)}x.`);
+  if (U.charge) a.push(`${U.charge.dash ? 'Arrives already sprinting, and winds up again after a run-up' : 'Breaks into a sprint after a run-up'}. A sprint hit lands for ${x10(U.charge.dmg)}x${U.charge.stun ? ` and stuns for ${sec(U.charge.stun)}` : ''}.`);
   if (U.leap) a.push(`Pounces on targets ${U.leap.min} to ${U.leap.max} away. The landing hits for ${x10(U.leap.mul)}x.`);
   if (U.stealth) a.push(`Unseen until it strikes. The hit from the dark lands for ${x10(U.stealth.mul)}x, and it fades again ${sec(U.stealth.re)} later. Half damage to towers.`);
-  if (U.shield) a.push(`Starts with a ${d(U.shield)} shield.`);
+  if (U.shield) a.push(`Starts with a ${d(U.shield)} shield${U.recharge ? ` that winds itself back up ${sec(U.recharge.every)} after it is broken` : ''}.`);
+  if (U.stoic) a.push('Cannot be stunned, frozen, slowed or rattled.');
+  if (U.fireproof) a.push('Cannot be set on fire.');
+  if (U.deflect) a.push(`Takes ${pc(U.deflect)} less damage from arrows, bolts and spells.`);
+  if (U.tough) a.push(`Below ${pc(U.tough.at)} health it takes ${pc(U.tough.cut)} less damage.`);
   if (U.armor) a.push(`Armour knocks ${d(U.armor)} off every hit it takes.`);
   if (U.dodge) a.push(`${pc(U.dodge)} of attacks miss it.`);
   if (U.regen) a.push(`Heals ${x10(U.regen * 100)}% of its health every second.`);
   if (U.revive) a.push(`Gets back up once, at ${pc(U.revive)} health${U.rise ? `, in a blast of ${d(U.rise.dmg)} damage to every enemy within ${U.rise.r}` : ''}.`);
   if (U.thorns) a.push(`Sends ${pc(U.thorns)} of every melee hit back at the attacker.`);
+  if (U.mirror) a.push(`Whoever hits it, from any distance, takes ${pc(U.mirror)} of that hit themselves.`);
+  if (U.sear) a.push(`Whatever hits it up close catches fire: ${d(U.sear.dps)} a second for ${sec(U.sear.t)}.`);
   if (U.numb) a.push(`Whatever hits it up close is slowed for ${sec(U.numb)}.`);
   if (U.taunt) a.push(`Enemies within ${U.taunt} have to go for it first.`);
   if (U.stun) a.push(`Every ${ORD[U.stun.every] || 'few'} hit stuns for ${sec(U.stun.t)}.`);
   if (U.crit) a.push(`Every ${ORD[U.crit.every] || 'few'} hit lands for ${x10(U.crit.mul)}x.`);
   if (U.exec) a.push(`${x10(U.exec.mul)}x damage to anything under ${pc(U.exec.at)} health.`);
+  if (U.raze) a.push(`${x10(U.raze)}x damage to buildings and towers.`);
+  if (U.wild) a.push('Every hit does anywhere from half to triple damage.');
+  if (U.eject) a.push(`Every ${ORD[U.eject.every] || 'few'} hit is a red card: the target is sent back to its own king tower.`);
+  if (U.sap) a.push(`Whatever it hits is weakened for ${sec(U.sap)} and deals 30% less damage.`);
+  if (U.brew) a.push('Every hit burns, slows or poisons the target. Not even he knows which.');
+  if (U.rob) a.push(`Every hit on a troop lifts ${x10(U.rob)} Mana from its owner and hands it to you.`);
+  if (U.mend) a.push(`Its splash also heals your own troops for ${d(U.mend)}.`);
+  if (U.siphon) a.push(`${pc(U.siphon.frac)} of the damage it deals goes to your most hurt troop within ${U.siphon.r} as healing.`);
+  if (U.frenzy) a.push(`Every kill sends it into a rage for ${sec(U.frenzy)}: faster on its feet and on the swing.`);
+  if (U.infect) a.push(`Whatever it kills gets back up as ${uName(U.infect.u, 1)} on your side, up to ${U.infect.max || 4} at a time.`);
+  if (U.pyre) a.push(`Anything it finishes off while burning explodes: ${d(U.pyre.dmg)} damage within ${U.pyre.r}.`);
+  if (U.feast) a.push(`Heals ${pc(U.feast)} of its health whenever anything dies close by.`);
   if (U.first) a.push(`The first hit on every new target lands for ${x10(U.first.mul)}x. Not on towers.`);
   if (U.brittle) a.push(`${x10(U.brittle)}x damage to anything slowed or frozen.`);
   if (U.pierce) a.push('Its attacks ignore shields and armour.');
@@ -156,8 +177,18 @@ function abil(U, m = 1){
   if (U.chain) a.push(`Each attack jumps to ${U.chain.n} more ${U.chain.n === 1 ? 'target' : 'targets'}.`);
   if (U.steal) a.push(`Heals itself for ${pc(U.steal)} of the damage it deals.`);
   if (U.leech) a.push('Every hit on a tower steals Mana for you.');
-  if (U.heal) a.push(`Heals ${U.heal.bld ? 'your towers and buildings' : 'teammates'} within ${U.heal.r} for ${d(U.heal.amt / (U.heal.every || 1))} a second.`);
-  if (U.aura) a.push(U.aura.haste ? `Your troops within ${U.aura.r} move and hit a third faster.` : U.aura.burn ? `Burns every enemy within ${U.aura.r} for ${d(U.aura.burn)} a second.` : U.aura.weak ? `Enemy troops within ${U.aura.r} hit 30% softer.` : U.aura.slow ? `Enemy troops within ${U.aura.r} move and hit slower.` : `Poisons every enemy within ${U.aura.r} for ${d(U.aura.psn)} a second.`);
+  if (U.heal) a.push(`Heals ${U.heal.bld ? 'your towers and buildings' : 'teammates'} within ${U.heal.r} for ${d(U.heal.amt / (U.heal.every || 1))} a second${U.heal.cure ? ', and clears fire, poison, slows and curses off them' : ''}.`);
+  if (U.aura){ const A = U.aura;
+    if (A.haste) a.push(`Your ${A.bld ? 'buildings' : 'troops'} within ${A.r} ${A.bld ? 'fire and build' : 'move and hit'} a third faster.`);
+    if (A.might) a.push(`Teammates within ${A.r} hit 25% harder.`);
+    if (A.guard) a.push(`Teammates within ${A.r} take 20% less damage.`);
+    if (A.thorns) a.push(`Teammates within ${A.r} send 30% of every melee hit back at the attacker.`);
+    if (A.burn) a.push(`Burns every enemy within ${A.r} for ${d(A.burn)} a second.`);
+    if (A.psn) a.push(`Poisons every enemy within ${A.r} for ${d(A.psn)} a second.`);
+    if (A.weak) a.push(`Enemy troops within ${A.r} hit 30% softer.`);
+    if (A.slow) a.push(`Enemy troops within ${A.r} move and hit slower.`); }
+  if (U.shatter) a.push(`Any enemy that dies within ${U.shatter.r} of her bursts into ice: everything of theirs within ${U.shatter.br} freezes for ${sec(U.shatter.t)}.`);
+  if (U.bless) a.push(`Grants ${U.bless.n} wishes: the next ${U.bless.n} teammates to fall within ${U.bless.r} get straight back up at ${pc(U.bless.hp)} health.`);
   if (U.spawn) a.push(`Sends out ${U.spawn.n} ${uName(U.spawn.u, U.spawn.n)} every ${sec(U.spawn.every)}.`);
   if (U.raise) a.push(`Anything that dies within ${U.raise.r} gets back up as its ${uName(U.raise.u, 1)}, up to ${U.raise.max} times.`);
   if (U.split) a.push(`Breaks into ${U.split.n} ${uName(U.split.u, U.split.n)} when it is defeated.`);
@@ -264,8 +295,8 @@ $('tabbar').onclick = e => { const b = e.target.closest('button'); if (b) tab(b.
 $('toDeck').onclick = () => tab('Deck');
 const avgCost = d => (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.length).toFixed(1);
 const PACK = Object.fromEntries(PACKS.map(p => [p.id, p]));
-const PACK_ART = {bronze:'ironclad', silver:'bell', gold:'zephyr', diamond:'infernus', mythic:'lich'};
-const TYPE_ART = {dragon:'jade', fire:'magmaw', frost:'glacius', arcane:'zephyr', dark:'mort', shadow:'vesper', beast:'gorehorn', nature:'elderbark', horde:'gorak', order:'bell', tech:'brassbolt', crew:'janitor'};
+const PACK_ART = {bronze:'scarlet', silver:'bell', gold:'kingbellow', diamond:'infernus', mythic:'isolde'};
+const TYPE_ART = {dragon:'jade', fire:'phoenix', frost:'isolde', arcane:'genie', dark:'baron', shadow:'kitsune', beast:'pridelord', nature:'elderbark', horde:'gorak', order:'kingbellow', tech:'brassbolt', crew:'manager'};
 const nextLevel = () => Math.min(LEVELS, P.ladder + 1);
 /* what a win is worth, as a row of chips. first: the first-win extras are still there to be won */
 function prizeChips(cpu, first){
@@ -369,7 +400,7 @@ function market(){
     b.onclick = () => packInfo(p, t);
     tp.appendChild(b);
   }
-  const tf = $('tdeckF'); if (!tf.children.length){ tf.innerHTML = `<button type="button" data-t="" aria-pressed="true">All 30</button>` + TYPE_IDS.filter(t => THEME_DECKS.some(d => d.type === t)).map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('');
+  const tf = $('tdeckF'); if (!tf.children.length){ tf.innerHTML = `<button type="button" data-t="" aria-pressed="true">All ${THEME_DECKS.length}</button>` + TYPE_IDS.filter(t => THEME_DECKS.some(d => d.type === t)).map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('');
     tf.onclick = e => { const b = e.target.closest('button'); if (!b) return; deckType = b.dataset.t; for (const o of tf.children) o.setAttribute('aria-pressed', o.dataset.t === deckType); market(); }; }
   const td = $('tdeckRow'); td.innerHTML = '';
   for (const d of THEME_DECKS){
@@ -458,7 +489,7 @@ function whatsNew(){
   const b = dlg(`<div class="k-eyebrow">Big update</div><h3>Welcome back, ${esc(P.name)}</h3>
     <p>The game has been rebuilt around your save. Your cards came across as their new versions, and any character that left the game was paid out at 150 coins.</p>
     <ul class="abil"><li>Every character now has one rarity and one of twelve types. Stack a type in your deck and it fights harder.</li><li>The ladder is 1,000 levels, with packs, cards and tower upgrades along the way.</li>
-    <li>The Market sells card packs and 30 ready-made decks.</li><li>Mana doubles for the last two minutes of a match and triples for the last one.</li></ul>
+    <li>The Market sells card packs and ${THEME_DECKS.length} ready-made decks.</li><li>Mana doubles for the last two minutes of a match and triples for the last one.</li></ul>
     <div class="k-row"><button type="button" class="k-btn primary" id="wnOk">Show me</button></div>`);
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
 }

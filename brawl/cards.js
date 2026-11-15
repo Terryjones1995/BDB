@@ -1,5 +1,5 @@
 /* Break Room Brawl: every card, unit, map, pack, deck and CPU opponent. Pure data, no DOM, shared by the rules, the CPU and the screens.
-   157 characters, spells, buildings and traps, each in 10 builds = 1,570 cards. Every character has one fixed rarity and one type. */
+   233 characters, spells, buildings and traps, each in 10 builds = 2,330 cards. Every character has one fixed rarity and one type. */
 
 export const RAR = {
   c:{name:'Common',    w:60, col:'#9fb3d9', base:50,   per:15},
@@ -65,14 +65,28 @@ const ROSTER = [
   ['whitemane', 'Whitemane', 'order', 'e', 'bruiser', 5, 1, {charge:{after:2.5, spd:1.7, dmg:3, dash:1}, knock:1.2, spd:1.9, r:.65, hm:1.25}, 'A lancer at full gallop from the moment she lands. The first hit of every charge lands triple and throws the target back.'],
   ['brynja', 'Brynja, Sky Maiden', 'order', 'e', 'flyer', 5, 1, {leap:{min:2, max:5.5, mul:2}, shield:200, hm:1.05}, 'Flies over everything, picks a target and dives on it from a long way out. The dive lands double.'],
   ['kingbellow', 'King Bellow', 'order', 'l', 'tank', 7, 1, {land:{r:3, summon:{u:'kguard', n:2}}, aura:{r:4, haste:1}, hm:.85, dm:1.3, splash:1}, 'The king himself, with two royal guards. Everyone fighting near him moves and hits a third faster, and he is not shy with the sceptre.'],
+  ['heartstone', 'Heartstone', 'order', 'e', 'tank', 6, 1, {regen:.02, taunt:3.2, armor:20, hm:.85}, 'A stone guardian with a crystal heart. It mends itself, small hits bounce off, and enemies close by cannot look away from it.'],
+  ['pridemane', 'Sir Pridemane', 'order', 'r', 'brawler', 4, 1, {stoic:1, hm:1.1}, 'A lion in full plate. Nothing stops him: he cannot be stunned, frozen, slowed or rattled.'],
+  ['brother', 'Brother Tome', 'order', 'c', 'support', 3, 1, {heal:{amt:34, r:3, every:1, cure:1}, rng:1, dm:1.3, hit:1.2}, 'Reads from the good book. Teammates near him heal, and fire, poison, slows and curses come right off them.'],
+  ['halo', 'Halo', 'order', 'r', 'flyer', 4, 1, {shield:180, land:{r:3, shield:220}, hm:.9, dm:.85}, 'A very small angel. Arrives with a shield for himself and one for every teammate close by.'],
+  ['scarlet', 'Dame Scarlet', 'order', 'c', 'brawler', 3, 1, {shield:200, stun:{every:3, t:.8}, dm:.9}, 'Shield first, questions later. Every third hit is a shield bash that stuns.'],
+  ['halberd', 'Dame Halberd', 'order', 'c', 'brawler', 3, 1, {rng:1.4, hm:.9}, 'Her spear reaches over the shoulder of whoever is standing in front of her.'],
+  ['hilda', 'Hilda Hammerfall', 'order', 'e', 'bruiser', 5, 1, {splash:1.2, knock:1.1, stun:{every:3, t:.9}, raze:1.5, dm:.75}, 'The hammer comes down and everything around the target goes flying. Every third swing stuns, and walls do not last long.'],
   /* ----- Shadow ----- */
+  ['voidplate', 'Voidplate', 'shadow', 'e', 'tank', 6, 1, {deflect:.6, steal:.2, hm:.8, dm:1.2}, 'Armour with nothing inside it. Arrows, bolts and spells mostly pass straight through, and every swing feeds it.'],
+  ['bandit', 'Stickup Stan', 'shadow', 'c', 'bruiser', 3, 1, {rob:.15, hm:1.05}, 'Your Mana or your life. Every hit on a troop picks its owner’s pocket and hands the Mana to you.'],
+  ['reynard', 'Reynard', 'shadow', 'r', 'killer', 3, 1, {stealth:{mul:2, re:5}, dodge:.2, spd:2.2}, 'A fox in a hood. Unseen until he strikes, double damage from the dark, and hard to pin down after.'],
+  ['viper', 'Viper', 'shadow', 'c', 'killer', 3, 1, {psn:{dps:30, t:4}, spd:2.1, dm:.8}, 'Fast, quiet and never without a poisoned blade.'],
+  ['corvus', 'Corvus', 'shadow', 'r', 'flyer', 4, 1, {exec:{at:.5, mul:2}, mark:{t:3}, hm:.9}, 'Circles overhead and drops on anything already hurt: double damage below half health. Whatever he pecks is marked.'],
+  ['whiskers', 'Whiskers', 'shadow', 'r', 'killer', 3, 1, {any:1, leech:.5, hm:1.4}, 'A cat burglar. Drops in anywhere on the field, and every hit on a tower steals Mana for you.'],
+  ['kitsune', 'Kitsune', 'shadow', 'e', 'killer', 4, 1, {land:{r:2, summon:{u:'kitshade', n:2}}, crit:{every:3, mul:2.2}, dodge:.2, spd:2}, 'Arrives with two copies of herself. They hit hard and vanish at a touch. Good luck picking the right one.'],
   ['akaoni', 'Akaoni, the Red Blade', 'shadow', 'e', 'bruiser', 5, 1, {first:{mul:3}, hm:1.05, spd:1.5, hit:1.1}, 'Draws on every new opponent: his first cut on anything lands triple. Send him at their biggest troop.'],
   ['redbeard', 'Captain Redbeard', 'shadow', 'r', 'bruiser', 4, 1, {loot:.5, hm:1.1}, 'Every kill is plunder. Half a Mana for you each time he finishes something off.'],
   ['cutpurse', 'Cutpurse', 'shadow', 'r', 'killer', 3, 1, {hm:1.25, spd:2.2, leech:.35}, 'Quick hands. Every hit he lands on a tower lifts a little Mana for you.'],
   ['nightbolt', 'Nightbolt', 'shadow', 'c', 'sniper', 4, 1, {shot:'bolt'}, 'One crossbow, one target, a very long way off.'],
   ['vesper', 'Vesper', 'shadow', 'r', 'killer', 4, 1, {stealth:{mul:3, re:3.5}}, 'Nobody sees her coming. Her first strike from the dark lands triple, then she slips away again.'],
   ['kage', 'Kage', 'shadow', 'e', 'killer', 4, 1, {any:1, dodge:.3, crit:{every:3, mul:2}}, 'Drops in anywhere on the field, their side included. Dodges, and every third cut lands double.'],
-  ['shinobi', 'Shinobi Brute', 'shadow', 'r', 'bruiser', 4, 1, {crit:{every:3, mul:2.2}}, 'Two blades and a short fuse. Every third swing is a monster.'],
+  ['shinobi', 'Shinobi', 'shadow', 'r', 'bruiser', 4, 1, {crit:{every:3, mul:2.2}}, 'Fast feet and a short fuse. Every third strike is a monster.'],
   /* ----- Dark Arts ----- */
   ['bonecrew', 'Bone Crew', 'dark', 'c', 'swarm', 2, 4, {u:'skel'}, 'Four skeletons on the night shift. Cheap, fast, and gone in one hit.'],
   ['boneknight', 'Bone Knight', 'dark', 'c', 'brawler', 3, 1, {revive:.35, hm:.85}, 'Knock him down and he gets back up. Once.'],
@@ -90,11 +104,21 @@ const ROSTER = [
   ['tatters', 'King Tatters', 'dark', 'r', 'tank', 5, 1, {curse:4, hm:.95}, 'Wrapped in a curse. Whoever hits him up close is cursed too, and takes extra damage from everything.'],
   ['jackhollow', 'Jack Hollow', 'dark', 'r', 'killer', 4, 1, {aura:{r:3, weak:1}, hm:1.45}, 'A pumpkin-headed nightmare. Enemies near him lose their nerve and hit a third softer.'],
   ['miasma', 'Doctor Miasma', 'dark', 'e', 'caster', 5, 1, {psn:{dps:32, t:4}, aura:{r:2.2, psn:20}, hm:1.3, shot:'vial'}, 'Throws vials that poison everything they splash, and walks in a cloud that poisons whatever gets close.'],
+  ['baron', 'Baron Dusk', 'dark', 'e', 'bruiser', 5, 1, {steal:.4, morph:{u:'terror', at:.35}, hm:1.05}, 'Heals with every bite. Get him down to a third and he turns into a giant bat and keeps coming.'],
+  ['rotter', 'Rotter', 'dark', 'c', 'brawler', 3, 1, {infect:{u:'shambler', max:4}, hm:.95, spd:1.1}, 'Slow, patient and catching. Whatever he kills gets back up as a Shambler on your side.'],
+  ['acolyte', 'The Acolyte', 'dark', 'r', 'caster', 4, 1, {sap:4, shot:'magic'}, 'His hexes splash, and everything they touch goes weak at the knees: 30 percent less damage for a while.'],
+  ['grinn', 'Grinn', 'dark', 'r', 'killer', 4, 1, {wild:1, dodge:.2, dm:.62}, 'A jester with a skull for a face. Every hit is a coin toss: a tap, or a haymaker for triple.'],
+  ['rattlecage', 'Rattlecage', 'dark', 'r', 'brawler', 4, 1, {split:{u:'skel', n:3}, armor:15}, 'A skeleton in a helmet. Break him and three more climb out of the pile.'],
+  ['pins', 'Pins', 'dark', 'r', 'brawler', 3, 1, {mirror:.5, dm:.7, hm:1.2}, 'A voodoo doll. Whoever hits it, from any distance, feels half of it themselves.'],
+  ['nocturne', 'Nocturne', 'dark', 'e', 'caster', 5, 1, {splash:0, siphon:{r:5, frac:.5}, dm:1.3, hm:1.2, shot:'magic'}, 'Takes from them and gives to you: half of the damage he deals goes to your most hurt troop as healing.'],
   /* ----- Fire ----- */
+  ['flicker', 'Flicker', 'fire', 'c', 'killer', 3, 1, {burn:{dps:22, t:3}, spd:2.2, fireproof:1, death:{dmg:140, r:1.8, delay:.3}, hm:.9}, 'Fast, bright and gone in a flash. Every hit burns, and she goes out with a bang.'],
+  ['obsidian', 'Obsidian', 'fire', 'e', 'tank', 6, 1, {fireproof:1, armor:25, sear:{dps:28, t:3}, hm:.85}, 'A knight of cooled lava. Small hits bounce off, fire does nothing, and whatever hits him up close catches light.'],
+  ['kindle', 'Kindle', 'fire', 'r', 'caster', 4, 1, {burn:{dps:26, t:3}, pyre:{dmg:120, r:2}, fireproof:1, shot:'fire'}, 'His fire splashes and sticks. Anything he finishes off while it is burning explodes over its friends.'],
   ['ashjaw', 'Ashjaw', 'fire', 'r', 'killer', 3, 1, {charge:{after:2, spd:1.5, dmg:2}, burn:{dps:24, t:3}, hm:1.2, spd:2.3}, 'A hellhound that runs everything down. The first bite of a sprint lands double, and every bite sets the target alight.'],
   ['azar', 'Azar, Flame Djinn', 'fire', 'e', 'bruiser', 5, 1, {ramp:{step:.25, max:1.5}, aura:{r:2.2, burn:40}, hm:1.15}, 'Burns everything standing near him, and every hit on the same target lands harder than the last.'],
   ['phoenix', 'Solaris, the Phoenix', 'fire', 'l', 'flyer', 6, 1, {revive:.6, rise:{dmg:220, r:2.8, burn:30}, rng:2.5, splash:1.2, burn:{dps:35, t:3}, dm:.6, hm:.8, r:.6, shot:'fire'}, 'Breathes fire from above and leaves everything burning. Shoot it down and it goes up in a blast of flame, then rises from the ashes for a second go.'],
-  ['hellion', 'Hellion', 'fire', 'r', 'bruiser', 5, 1, {land:{r:2.4, dmg:160, burn:1}, burn:{dps:38, t:3}}, 'Lands in a burst of fire that burns everything close, then keeps setting things alight with a pitchfork.'],
+  ['hellion', 'Hellion', 'fire', 'r', 'bruiser', 5, 1, {land:{r:2.4, dmg:160, burn:1}, burn:{dps:38, t:3}}, 'Lands in a burst of fire that burns everything close, then keeps setting things alight with his bare hands.'],
   ['imps', 'Fire Imps', 'fire', 'c', 'flock', 3, 3, {burn:{dps:18, t:3}, hm:1.2}, 'Three flying imps. Whatever they touch keeps burning after they leave.'],
   ['cinder', 'Cinder', 'fire', 'r', 'killer', 4, 1, {burn:{dps:30, t:3}, berserk:1}, 'A flaming sword and a temper. The more hurt she is, the faster she swings.'],
   ['magmaw', 'Magmaw', 'fire', 'e', 'giant', 7, 1, {aura:{r:2.2, burn:45}, death:{dmg:260, r:2.6, delay:.5, pool:{dps:70, t:5}}}, 'A lava giant that walks at towers and burns everything beside it. It leaves a pool of fire where it falls.'],
@@ -102,18 +126,31 @@ const ROSTER = [
   ['glacius', 'Glacius', 'frost', 'r', 'tank', 5, 1, {regen:.025, chill:2, dm:1.15, land:{r:2.8, dmg:70, slow:3.5}}, 'Lands with a blast of cold that slows everything near. Heals himself the whole time he is standing.'],
   ['permafrost', 'Permafrost', 'frost', 'e', 'giant', 6, 1, {numb:2, death:{dmg:120, r:2.8, delay:.3, frz:1.6}}, 'An ice giant bound for towers. Anything that hits it slows down, and it freezes the area solid when it shatters.'],
   ['yeti', 'Yeti', 'frost', 'c', 'brawler', 4, 1, {chill:1.6}, 'Big, furry and cold to the touch. Every hit slows the target.'],
-  ['frostbeak', 'Frostbeak', 'frost', 'c', 'bruiser', 3, 1, {leap:{min:2, max:4.5, mul:1.6}}, 'Pounces on whatever it is hunting. The landing hits extra hard.'],
-  ['tundra', 'Tundra Ogre', 'frost', 'r', 'tank', 5, 1, {knock:1.3, dm:1.3, hit:1.7}, 'Swings a bat like he means it. Every hit knocks the target back.'],
+  ['frostbeak', 'Frostbeak', 'frost', 'c', 'bruiser', 3, 1, {leap:{min:2, max:4.5, mul:1.6}}, 'A penguin in a helmet. Belly-slides onto whatever it is hunting, and the landing hits extra hard.'],
+  ['tundra', 'Tundra Ogre', 'frost', 'r', 'tank', 5, 1, {knock:1.3, dm:1.3, hit:1.7}, 'Hits like a rockslide. Every punch knocks the target back.'],
   ['rimeguard', 'Rimeguard', 'frost', 'r', 'brawler', 4, 1, {shield:240, chill:1.8, numb:1.5}, 'A knight in living ice. A shield for the first hits, a blade that slows, and anyone who hits him up close slows down too.'],
   ['neve', 'Neve, Snow Mage', 'frost', 'r', 'caster', 4, 1, {chill:2, stun:{every:4, t:1.3}, shot:'ice'}, 'Her ice splashes and slows everything near the target. Every fourth spell freezes it solid.'],
+  ['nix', 'Nix', 'frost', 'r', 'flyer', 4, 1, {chill:2, stun:{every:3, t:1}, dodge:.2, dm:.8}, 'A little ghost made of frost. She floats over everything, slows what she touches and freezes it on every third hit.'],
+  ['mohawk', 'Mohawk', 'frost', 'c', 'bruiser', 3, 1, {regen:.03, chill:1.5}, 'An ice troll with a haircut. Heals the whole time he is standing, and every punch slows.'],
+  ['winter', 'Old Man Winter', 'frost', 'e', 'caster', 5, 1, {chill:2.5, mark:{t:4}, hm:1.3, shot:'ice'}, 'His ice splashes. Whatever it touches is slowed and turns brittle: it takes extra damage from everyone.'],
+  ['tusk', 'Admiral Tusk', 'frost', 'r', 'tank', 5, 1, {leap:{min:2, max:4.5, mul:1.7}, splash:1.2, chill:2, dm:.7}, 'A walrus in uniform. Belly-flops onto his target from a long way off and slows everything under him.'],
+  ['isolde', 'Isolde, Winter Queen', 'frost', 'l', 'caster', 6, 1, {hm:2.4, chill:2.5, land:{r:3.2, stun:2}, shatter:{r:4.5, br:2, t:1.3, dmg:40}, shot:'ice'}, 'She lands and everything near stops dead. Her ice splashes and slows, and any enemy that dies near her bursts and freezes its friends.'],
+  ['frosty', 'Sir Melts-a-Lot', 'frost', 'c', 'tank', 2, 1, {life:22, numb:2, hm:1.5, dm:.6}, 'A lot of snowman for two Mana. Whoever hits him slows down. He melts in about twenty seconds, so use him now.'],
+  ['woolly', 'Woolly', 'frost', 'r', 'giant', 5, 1, {stoic:1, chill:2, hm:1.05}, 'A mammoth bound for the nearest building. Too heavy to stun, freeze, slow or scare, and every hit chills.'],
   /* ----- Wizard ----- */
+  ['hagatha', 'Hagatha', 'arcane', 'r', 'caster', 4, 1, {psn:{dps:22, t:4}, mend:60, dm:.8, shot:'vial'}, 'One cauldron, two recipes. Her brew poisons every enemy it splashes and mends every teammate it splashes.'],
+  ['vex', 'Vex', 'arcane', 'c', 'sniper', 3, 1, {hit:.55, rng:5, shot:'magic', hm:1.1}, 'Three quick bolts where anyone else gets one. Cheap, fast and always casting.'],
+  ['stargazer', 'Stargazer', 'arcane', 'r', 'brawler', 4, 1, {crit:{every:4, mul:2.6}, stun:{every:4, t:1}, dm:1.05}, 'Reads the sky between swings. Every fourth hit a star comes down with it: big damage and a stun.'],
+  ['fizzle', 'Doc Fizzle', 'arcane', 'r', 'caster', 4, 1, {brew:28, hm:1.2, shot:'vial'}, 'Throws whatever is bubbling. Every flask burns, slows or poisons everything it splashes, and not even he knows which.'],
+  ['tempus', 'Tempus', 'arcane', 'e', 'caster', 5, 1, {land:{r:3.2, stun:2}, chill:2.5, aura:{r:3.5, haste:1}, hm:1.5, dm:.85, shot:'magic'}, 'Stops the clock when he lands: everything near is frozen in place. After that your side runs fast and theirs runs slow.'],
+  ['genie', 'The Genie', 'arcane', 'l', 'caster', 6, 1, {hm:2.2, bless:{r:4.5, n:3, hp:.5}, splash:1.2, dm:.8, shot:'magic'}, 'Three wishes. The next three teammates to fall near him get straight back up at half health.'],
   ['hoot', 'Professor Hoot', 'arcane', 'r', 'sniper', 4, 1, {pierce:1, shot:'magic', hm:1.1}, 'An owl with tenure. One spell, one target, a very long way off, and it goes straight through shields and armour.'],
   ['geode', 'Geode', 'arcane', 'e', 'tank', 6, 1, {thorns:.4, armor:30, hm:.8, death:{dmg:200, r:2.6, delay:.4}}, 'A golem grown from crystal. Small hits bounce off, nearly half of every punch comes back at whoever threw it, and he shatters over everything nearby when he breaks.'],
   ['zephyr', 'Zephyr, Stormcaller', 'arcane', 'e', 'caster', 5, 1, {splash:0, chain:{n:3, r:3, fall:.75}, stun:{every:3, t:.5}, dm:1.1, hit:1.4, shot:'zap'}, 'His lightning jumps from the target to three more. Every third bolt stuns.'],
   ['hexa', 'Hexa', 'arcane', 'c', 'caster', 4, 1, {shot:'magic'}, 'Throws spells that splash everything near the target, ground or air.'],
   ['tonic', 'Tonic', 'arcane', 'r', 'support', 4, 1, {heal:{amt:48, r:3, every:1}, shot:'potion'}, 'A witch with a potion for everything. Keeps everyone around her topped up.'],
   ['wizlings', 'Wizlings', 'arcane', 'c', 'archer', 3, 2, {shot:'magic', hm:.9}, 'Two apprentice wizards. Small hats, real spells.'],
-  ['stalker', 'Void Stalker', 'arcane', 'r', 'bruiser', 4, 1, {mark:{t:4}}, 'Whatever it hits is marked, and marked targets take extra damage from everyone.'],
+  ['stalker', 'Zorp the Abductor', 'arcane', 'r', 'bruiser', 4, 1, {mark:{t:4}}, 'Came a very long way to tag your troops. Whatever Zorp hits is marked, and marked targets take extra damage from everyone.'],
   ['hexsprite', 'Hex Sprite', 'arcane', 'c', 'flyer', 3, 1, {rng:3.5, shot:'magic', mark:{t:3}, dm:.8, hm:.8}, 'Flies and throws hexes. Whatever it tags takes extra damage.'],
   ['mindsquid', 'Mind Squid', 'arcane', 'r', 'flyer', 4, 1, {rng:3.5, splash:1.2, chill:2.2, dm:.6, shot:'ink'}, 'Sprays ink from above. Everything it splashes slows right down.'],
   ['sentinel', 'Star Sentinel', 'arcane', 'c', 'flyer', 3, 1, {shield:160, hm:.85}, 'A flyer with a shield. The first hits are on the house.'],
@@ -122,15 +159,26 @@ const ROSTER = [
   ['gorehorn', 'Gorehorn', 'beast', 'e', 'bruiser', 5, 1, {charge:{after:2, spd:2, dmg:2.4, dash:1}, knock:1.4, hm:1.25, r:.7}, 'A minotaur who is already charging when he arrives. The first hit lands for more than double and flattens whoever is in the way.'],
   ['lycan', 'Lycan', 'beast', 'e', 'bruiser', 5, 1, {leap:{min:2, max:5, mul:1.8}, steal:.3, spd:1.7}, 'Leaps onto its target and heals with every bite.'],
   ['woodsman', 'Woodsman', 'beast', 'r', 'brawler', 4, 1, {morph:{u:'lycan', at:.5}, hm:.8}, 'A man with an axe, until you get him down to half health. Then he is a werewolf.'],
-  ['thumper', 'Thumper', 'beast', 'c', 'bruiser', 3, 1, {leap:{min:2, max:4.5, mul:1.5}}, 'A very large rabbit. Jumps on things. Hits them with a carrot.'],
-  ['monkroose', 'Monkroose', 'beast', 'c', 'caster', 4, 1, {rng:4.5, splash:1.1, hm:1.6, shot:'rock'}, 'Lobs rocks that splash. Tougher than most things that fight from range.'],
+  ['thumper', 'Thumper', 'beast', 'c', 'bruiser', 3, 1, {leap:{min:2, max:4.5, mul:1.5}}, 'A boxing kangaroo. Jumps on things. Hits them with both gloves.'],
+  ['monkroose', 'Silverback', 'beast', 'c', 'caster', 4, 1, {rng:4.5, splash:1.1, hm:1.6, shot:'rock'}, 'A gorilla who lobs rocks that splash. Tougher than most things that fight from range.'],
   ['landshark', 'Landshark', 'beast', 'r', 'bruiser', 4, 1, {exec:{at:.4, mul:2}}, 'Smells blood. Hits anything below 40 percent health for double.'],
   ['piranhas', 'Piranha Pack', 'beast', 'c', 'swarm', 2, 4, {exec:{at:.5, mul:1.6}}, 'Four of them. They go faster through anything already half finished.'],
   ['wolfpack', 'Moonfang Pack', 'beast', 'r', 'swarm', 4, 3, {pack:{r:3.2, per:.15, max:2}, exec:{at:.4, mul:1.6}, hm:1.6, dm:.8, spd:2.1, r:.34}, 'Three wolves that hunt together. Each hits harder for every packmate beside it, and they tear through anything already wounded.'],
   ['ironhide', 'Ironhide', 'beast', 'r', 'tank', 5, 1, {armor:25, land:{r:3, weak:5, dmg:40}}, 'A bear in plate armour. Small hits bounce off, and his roar on arrival rattles every enemy close: they hit a third softer for five seconds.'],
   ['bao', 'Master Bao', 'beast', 'r', 'brawler', 4, 1, {dodge:.3, riposte:1.5, hit:.9, hm:.9}, 'A monk who is never quite where the punch lands. Nearly a third of all attacks miss him, and every punch he slips is answered at once with a kick.'],
   ['siegehorn', 'Siegehorn', 'beast', 'e', 'giant', 6, 1, {charge:{after:2, spd:2.2, dmg:3, dash:1}, armor:25, hm:.85}, 'An armoured rhino with one idea: the nearest building. Arrives at full charge, and the first hit of every charge lands triple.'],
+  ['squeak', 'King Squeak', 'beast', 'e', 'support', 5, 1, {land:{r:2, summon:{u:'mouseling', n:3}}, spawn:{u:'mouseling', every:5.5, n:1}, rng:1, hm:1.5, dm:1.3, hit:1.2}, 'A very small king with a very large family. Arrives with three Mouselings and another turns up every few seconds.'],
+  ['pridelord', 'Pridelord', 'beast', 'l', 'bruiser', 6, 1, {land:{r:3.4, weak:6, dmg:90}, aura:{r:3.6, might:1}, crit:{every:3, mul:2}, hm:1.5, r:.65}, 'The king of the beasts. His roar on arrival rattles everything near, teammates beside him hit a quarter harder, and every third swing lands double.'],
+  ['hogwild', 'Hogwild', 'beast', 'c', 'bruiser', 3, 1, {charge:{after:2.2, spd:1.6, dmg:2}, knock:.9, hm:.95}, 'A boar with a run-up. The first hit of a charge lands double and sends the target backwards.'],
+  ['cackle', 'Cackle', 'beast', 'r', 'killer', 3, 1, {feast:.2, exec:{at:.35, mul:1.6}, spd:2}, 'A hyena who eats well. He heals a fifth of his health whenever anything dies close by, friend or foe.'],
+  ['stripes', 'Sensei Stripes', 'beast', 'e', 'brawler', 5, 1, {ramp:{step:.2, max:1.2}, hit:.7, leap:{min:2, max:4.2, mul:1.6}, dodge:.15}, 'A tiger in a black belt. Kicks fast, each kick on the same target lands harder than the last, and the first one arrives from the air.'],
   /* ----- Nature ----- */
+  ['greenhorn', 'Greenhorn', 'nature', 'r', 'bruiser', 4, 1, {grow:{per:.12, max:6}, regen:.02}, 'A forest spirit in antlers. Mends himself as he goes, and every kill makes him hit harder for the rest of the match.'],
+  ['bogmaw', 'Bogmaw', 'nature', 'e', 'tank', 6, 1, {regen:.025, land:{r:3, slow:4, dmg:50}, split:{u:'mudling', n:2}, hm:.85}, 'A walking swamp. Mud slows everything where he lands, he mends himself, and he falls apart into two Mudlings when he is beaten.'],
+  ['beekeeper', 'The Beekeeper', 'nature', 'r', 'support', 4, 1, {spawn:{u:'bee', every:4.5, n:2, first:1}, rng:1, hm:1.4, dm:1.2, hit:1.2}, 'Calm man, angry bees. Two more fly out of the suit every few seconds.'],
+  ['sunny', 'Sunny', 'nature', 'r', 'archer', 3, 1, {mana:{every:14, amt:1}, regen:.02, dm:.7, shot:'leaf'}, 'Soaks up the light and hands you a Mana every fourteen seconds for as long as she is standing. Spits seeds at whatever objects.'],
+  ['willow', 'Willow', 'nature', 'r', 'support', 4, 1, {heal:{amt:38, r:3.2, every:1}, aura:{r:3.2, thorns:1}, dm:1.2, hm:1.25, shot:'leaf'}, 'A dryad. Teammates near her heal, and brambles grow over them: a third of every melee hit goes back at whoever threw it.'],
+  ['mossback', 'Old Mossback', 'nature', 'r', 'brawler', 4, 1, {rng:1.4, shield:220, dm:1.05}, 'A turtle with a spear and all the time in the world. Shell for the first hits, and a reach that goes over the front line.'],
   ['bramblehorn', 'Bramblehorn', 'nature', 'r', 'support', 4, 1, {heal:{amt:40, r:3, every:1}, aura:{r:3.2, slow:1}, shot:'leaf', dm:1.2}, 'A faun with a tune for everything. It mends your troops near him and makes enemies near him drowsy and slow.'],
   ['thornweaver', 'Thornweaver', 'nature', 'r', 'support', 4, 1, {heal:{amt:40, r:3, every:1}, chill:2, rng:4.5, dm:1.3, shot:'leaf'}, 'A druid who heals everyone near him and tangles whatever he hits in roots.'],
   ['elderbark', 'Elderbark', 'nature', 'e', 'tank', 6, 1, {regen:.02, heal:{amt:45, r:3.2, every:1}, land:{r:3, slow:3.5, dmg:60}, hm:1.05}, 'A walking tree. Roots burst out where he lands and slow everything near, he mends himself, and he heals everyone beside him.'],
@@ -139,7 +187,7 @@ const ROSTER = [
   ['sporecap', 'Sporecap', 'nature', 'r', 'brawler', 3, 1, {aura:{r:2, psn:22}}, 'Walks in a cloud of spores. Standing next to it is the mistake.'],
   ['cactoro', 'Cactoro', 'nature', 'r', 'brawler', 4, 1, {thorns:.45}, 'Punch a cactus and see what happens. Nearly half of every hit comes straight back.'],
   ['prickles', 'Prickles', 'nature', 'c', 'swarm', 2, 3, {thorns:.3, hm:1.2}, 'Three small cacti in big hats. They hurt to hit.'],
-  ['dartfrog', 'Dart Frog', 'nature', 'c', 'bruiser', 3, 1, {psn:{dps:28, t:4}, leap:{min:2, max:4, mul:1.3}, dm:.8}, 'Hops onto its target and leaves it poisoned.'],
+  ['dartfrog', 'Dart Frog Ronin', 'nature', 'c', 'bruiser', 3, 1, {psn:{dps:28, t:4}, leap:{min:2, max:4, mul:1.3}, dm:.8}, 'A frog in a straw hat with a poisoned blade. Hops onto its target and leaves it poisoned.'],
   ['slime', 'Slime', 'nature', 'c', 'brawler', 3, 1, {split:{u:'slimelet', n:2}, hm:.6, r:.6, spd:1.1}, 'Pop it and it splits into two smaller ones.'],
   ['spikeslime', 'Spike Slime', 'nature', 'r', 'tank', 4, 1, {thorns:.35, split:{u:'slimelet', n:3}, hm:.7}, 'Hurts to hit, and breaks into three Slimelets when it finally goes.'],
   ['bees', 'Bee Swarm', 'nature', 'c', 'flock', 2, 4, {u:'bee'}, 'Four bees. The sting keeps hurting after they are gone.'],
@@ -150,7 +198,7 @@ const ROSTER = [
   ['gorak', 'Gorak, Warchief', 'horde', 'r', 'bruiser', 5, 1, {aura:{r:3.6, haste:1}, hm:1.15, splash:.9, dm:.8}, 'Everyone fighting near him moves and hits a third faster. He hits a few of them at once himself.'],
   ['raider', 'Orc Raider', 'horde', 'c', 'brawler', 3, 1, {dm:1.15, hm:.92}, 'An axe and an attitude. Good at the front of anything.'],
   ['skullcrusher', 'Skullcrusher', 'horde', 'r', 'bruiser', 4, 1, {stun:{every:3, t:1}}, 'Every third hit leaves the target seeing stars.'],
-  ['mauler', 'Orc Mauler', 'horde', 'c', 'bruiser', 4, 1, {splash:1, dm:.7}, 'Swings a spiked club wide enough to catch everything around him.'],
+  ['mauler', 'Cyclops Mauler', 'horde', 'c', 'bruiser', 4, 1, {splash:1, dm:.7}, 'One eye, one club, one very wide swing. Catches everything around him.'],
   ['orclings', 'Goblin Gang', 'horde', 'c', 'swarm', 2, 4, {pack:{r:3, per:.1, max:3}}, 'Four goblins who raid towers the way BDB raids the vending machine. They hit harder when the mob stays together.'],
   ['witchdoc', 'Witch Doctor', 'horde', 'r', 'caster', 4, 1, {mark:{t:5}, splash:.9, shot:'magic'}, 'His hexes splash, and everything they touch takes extra damage for a while.'],
   ['skytotem', 'Sky Totem', 'horde', 'r', 'flyer', 4, 1, {aura:{r:3.2, haste:1}, hm:1.1, dm:.6}, 'A flying mask that drums. Your troops beneath it move and hit a third faster.'],
@@ -160,7 +208,19 @@ const ROSTER = [
   ['goliath', 'Goliath', 'horde', 'e', 'giant', 7, 1, {land:{r:2.6, dmg:180, stun:1.2}}, 'Lands hard enough to stun and hurt everything close, then walks at the nearest tower and ignores everything else.'],
   ['gronk', 'Gronk', 'horde', 'e', 'tank', 6, 1, {steal:.25, knock:1.2, hm:1.05, dm:1.2}, 'An ogre who eats what he hits. Every swing heals him and knocks the target back.'],
   ['ugg', 'Ugg', 'horde', 'c', 'brawler', 2, 1, {knock:.7}, 'Two Mana of caveman. Hits things. Things go backwards.'],
+  ['fuse', 'Fuse', 'horde', 'r', 'killer', 3, 1, {only:'b', kamikaze:1, death:{dmg:520, r:2.2, delay:.15}, spd:2.5, hm:.8}, 'A goblin carrying a bomb bigger than he is. Runs straight at the nearest building, ignores everything else and goes off when he gets there.'],
+  ['rattatat', 'Rattatat', 'horde', 'c', 'support', 2, 1, {aura:{r:3.4, haste:1}, rng:1, hm:1.6, hit:1.2}, 'A goblin with a drum. Everyone near him moves and hits a third faster. Protect the drummer.'],
+  ['stubbeard', 'Stubbeard', 'horde', 'r', 'bruiser', 4, 1, {frenzy:4, raze:1.4, hm:1.05}, 'Short, loud and never calmer than after a kill: each one sends him into a rage for four seconds.'],
+  ['howl', 'Howl', 'horde', 'c', 'brawler', 3, 1, {land:{r:3.2, rage:4}, dm:1.05}, 'Arrives with a war cry that sends every teammate close by into a rage for four seconds.'],
+  ['furball', 'King Furball', 'horde', 'e', 'tank', 6, 1, {spawn:{u:'orclings', every:5.5, n:2, first:2}, hm:.8}, 'Wide, loud and never alone. Two more goblins fall out of the coat every few seconds.'],
+  ['shortbows', 'Shortbows', 'horde', 'c', 'archer', 3, 2, {shot:'arrow', pack:{r:3, per:.15, max:1}}, 'Two goblin archers. They hit ground and air, and they shoot better standing together.'],
   /* ----- Machine ----- */
+  ['smokey', 'Old Smokey', 'tech', 'r', 'archer', 4, 1, {hm:2, rng:4, burn:{dps:22, t:3}, fireproof:1, dm:.8, r:.5, shot:'fire'}, 'A furnace on legs. Lobs hot coals from range, and takes a lot more punishment than anything else that does.'],
+  ['rivet', 'Rivet', 'tech', 'c', 'support', 3, 1, {aura:{r:3.6, haste:1, bld:1}, heal:{amt:40, r:3.6, every:1, bld:1}, rng:1, dm:1.2, hit:1.2}, 'Overclocks your buildings: anything of yours near her fires and builds a third faster, and she patches it up while she is there.'],
+  ['shrinkwell', 'Professor Shrinkwell', 'tech', 'e', 'sniper', 5, 1, {sap:4, mark:{t:4}, hm:1.2, shot:'laser'}, 'Shrink ray. Whatever he hits is cut down to size for four seconds: it deals less damage and takes more.'],
+  ['gearheart', 'Gearheart', 'tech', 'r', 'brawler', 4, 1, {shield:220, recharge:{amt:220, every:7}, hm:.9}, 'A brass gentleman with a wind-up shield. Break it and it winds itself back up seven seconds later.'],
+  ['nugget', 'Nugget', 'tech', 'r', 'brawler', 3, 1, {any:1, raze:1.6, hm:.9}, 'A miner. Tunnels up anywhere on the field and takes a pickaxe to the nearest building.'],
+  ['ironbeard', 'Ironbeard', 'tech', 'r', 'support', 4, 1, {aura:{r:3.5, guard:1}, rng:1, hm:1.6, dm:1.5, hit:1.3}, 'The blacksmith. Everyone fighting near him takes a fifth less damage, and the hammer is not just for show.'],
   ['tinker', 'Tinker', 'tech', 'r', 'support', 4, 1, {heal:{amt:70, r:3.5, every:1, bld:1}, rng:1, dm:1.4, hit:1.2}, 'Repairs your towers and buildings while he stands near them. Swings a wrench at anything that objects.'],
   ['brassbolt', 'Brassbolt', 'tech', 'e', 'brawler', 5, 1, {armor:35, berserk:1, hm:1.15}, 'A brass diving suit with something angry inside. Small hits bounce off the plating, and the more damage he takes the faster he swings.'],
   ['scrapbot', 'Scrap Bot', 'tech', 'c', 'archer', 3, 1, {hm:1.5, hit:1.3, r:.45, shot:'laser'}, 'One sturdy robot with an arm cannon. Hits ground and air.'],
@@ -176,6 +236,17 @@ const ROSTER = [
   ['bjorn', 'Boomstick Bjorn', 'tech', 'e', 'sniper', 4, 1, {only:'b', rng:8.2, splash:1.3, hit:3.2, dm:.7, hm:1.25, spd:1, shot:'shell'}, 'A walking mortar. Ignores troops and lobs shells at towers and buildings from further away than they can shoot back. Helpless up close.'],
   ['redline', 'Redline', 'tech', 'e', 'tank', 6, 1, {knock:1.2, dm:1.25, hm:.85, split:{u:'scraplet', n:2}}, 'A war machine with fists like wrecking balls. Every punch throws the target back, and two Scraplets climb out of the wreck when it goes down.'],
   /* ----- Break Room ----- */
+  ['finn', 'Field Trip Finn', 'crew', 'c', 'brawler', 2, 1, {raze:2, spd:1.9, hm:.9}, 'Two Mana of enthusiasm and a shovel. Digs through buildings and towers at double damage.'],
+  ['lagspike', 'Lag Spike', 'crew', 'r', 'sniper', 4, 1, {chill:2, stun:{every:4, t:.9}, shot:'laser'}, 'Plays from the back with a headset on. His target stutters: slowed on every shot, frozen on the fourth.'],
+  ['chef', 'Chef Sizzle', 'crew', 'r', 'bruiser', 4, 1, {burn:{dps:26, t:3}, stun:{every:3, t:.8}}, 'A hot pan and a short temper. Every hit burns, and every third one rings like a dinner bell.'],
+  ['crusty', 'Crusty', 'crew', 'c', 'support', 3, 1, {land:{r:3, shield:160}, heal:{amt:22, r:3, every:1}, rng:1, dm:1.2, hit:1.2}, 'The baker. Arrives with fresh shields for everyone close by and keeps them topped up after.'],
+  ['gert', 'Lunch Lady Gert', 'crew', 'r', 'caster', 4, 1, {chill:2.2, psn:{dps:14, t:3}, hm:1.3, shot:'spit'}, 'Mystery meat, served at range. It splashes, it slows, and it does not agree with anyone.'],
+  ['ref', 'The Ref', 'crew', 'e', 'brawler', 4, 1, {eject:{every:4}, land:{r:2.8, stun:1.2}, hm:1.1}, 'Blows the whistle when he lands and everything near stops. Every fourth hit is a red card: the target is sent back to its own king tower.'],
+  ['manager', 'The Regional Manager', 'crew', 'l', 'tank', 6, 1, {aura:{r:3.8, haste:1, slow:1}, land:{r:2.5, summon:{u:'internA', n:2}}, hm:.9, dm:1.2}, 'Arrives with two interns and a clipboard. Your side works a third faster while he is watching. Theirs slows right down.'],
+  ['goldmask', 'Goldmask', 'crew', 'e', 'brawler', 5, 1, {crit:{every:3, mul:2.5}, stun:{every:3, t:1}, hm:1.1}, 'Undefeated at the office party. Every third hit is a body slam: big damage and a stun.'],
+  ['pizza', 'Pizza Pete', 'crew', 'c', 'support', 3, 1, {heal:{amt:36, r:3, every:1}, spd:2, rng:1, dm:1.2, hit:1.2}, 'Thirty minutes or less. Keeps up with any push and feeds everyone near him back to health.'],
+  ['flint', 'Fire Warden Flint', 'crew', 'r', 'bruiser', 4, 1, {fireproof:1, raze:2, hm:1.1, dm:.9}, 'Cannot be set on fire, which is the job. His axe goes through buildings and towers at double damage.'],
+  ['blitz', 'Blitz', 'crew', 'c', 'killer', 3, 1, {charge:{after:2.2, spd:1.6, dmg:2, dash:1, stun:1}, hm:1.3, dm:.8}, 'Arrives at a sprint. The tackle lands double and leaves the target seeing stars.'],
   ['hank', 'Officer Hank', 'crew', 'r', 'tank', 4, 1, {taunt:3.5, armor:20}, 'Building security. One blast on the whistle and every enemy nearby has to deal with him first. Small hits bounce off the vest.'],
   ['vending', 'The Vending Machine', 'crew', 'e', 'tank', 5, 1, {mana:{every:10, amt:1}, hm:.7, dm:.8, spd:.75}, 'It finally grew legs. One extra Mana every ten seconds for as long as it stays standing, and it body-checks anything in its way.'],
   ['janitor', 'The Night Janitor', 'crew', 'r', 'brawler', 4, 1, {chill:2, land:{r:2.4, stun:1.4, dmg:40}}, 'Mops the floor on his way in: everything near slips and is stunned. Whatever he hits after that slows right down.'],
@@ -197,6 +268,11 @@ const ROSTER = [
   ['kobolds', 'Ember Kobolds', 'dragon', 'c', 'swarm', 3, 3, {burn:{dps:14, t:3}, hm:1.3, dm:.75}, 'Three little dragon-kin with matches. Whatever they bite keeps burning.'],
   ['sirscorch', 'Sir Scorch', 'dragon', 'e', 'bruiser', 5, 1, {splash:1.1, dm:.65, burn:{dps:26, t:3}, armor:20}, 'A dragon in knight’s armour. Small hits glance off, and his burning blade catches everyone around the target.'],
   ['shiver', 'Shiver', 'dragon', 'e', 'caster', 5, 1, {hm:2.2, rng:3.2, splash:1.4, chill:2.2, brittle:2, dm:.6, r:.6, shot:'ice'}, 'An ice drake. Breathes frost over everything in front of him, ground or air, and anything already slowed or frozen takes double.'],
+  ['scald', 'Scald', 'dragon', 'r', 'bruiser', 4, 1, {fireproof:1, burn:{dps:24, t:3}, regen:.025}, 'A fire salamander. Grows back whatever you cut off, cannot be burned, and leaves everything he hits alight.'],
+  ['razorback', 'Razorback', 'dragon', 'c', 'bruiser', 3, 1, {thorns:.3, hm:1.05}, 'A lizard with spikes where it counts. Nearly a third of every punch thrown at him comes back.'],
+  ['kai', 'Kai, Dragon Disciple', 'dragon', 'r', 'brawler', 3, 1, {leap:{min:2, max:4.5, mul:1.8}, crit:{every:3, mul:1.8}, hit:.9}, 'Opens with a flying kick, and every third hit after that lands nearly double.'],
+  ['spikeback', 'Spikeback', 'dragon', 'r', 'tank', 4, 1, {thorns:.35, tough:{at:.5, cut:.5}}, 'Hurts to hit, and below half health he pulls into his shell and takes half damage.'],
+  ['plum', 'Plum', 'dragon', 'c', 'archer', 3, 1, {psn:{dps:22, t:4}, hm:1.3, shot:'spit'}, 'A small purple dragon who has not learned fire yet. Spits venom instead, at ground and air.'],
   /* ----- buildings ----- */
   ['cannon', 'Cannon', 'order', 'c', 'build', 3, 1, {dm:1.15, life:30, air:0, shot:'ball'}, 'A defence you can put down anywhere on your side. Fires at ground troops and pulls giants toward it.'],
   ['watchtower', 'Watchtower', 'order', 'r', 'build', 4, 1, {rng:6.5, hm:1.15, dm:.8, life:34, air:1, shot:'arrow'}, 'A guard tower with a long reach. Shoots ground and air.'],
@@ -218,10 +294,15 @@ const ROSTER = [
   ['internA', 'Intern', 'crew', 'c', 'swarm', 0, 1, {as:1, hm:1.4}, ''],
   ['internB', 'Intern', 'crew', 'c', 'swarm', 0, 1, {as:1, hm:1.4}, ''],
   ['kguard', 'Royal Guard', 'order', 'c', 'brawler', 0, 1, {as:1.6, shield:120}, ''],
-  ['scraplet', 'Scraplet', 'tech', 'c', 'archer', 0, 1, {as:1.3, hm:1.4, r:.36, shot:'laser'}, '']
+  ['scraplet', 'Scraplet', 'tech', 'c', 'archer', 0, 1, {as:1.3, hm:1.4, r:.36, shot:'laser'}, ''],
+  ['kitshade', 'Illusion', 'shadow', 'c', 'killer', 0, 1, {as:2.2, hm:.05, spd:2, dodge:.2}, ''],
+  ['shambler', 'Shambler', 'dark', 'c', 'brawler', 0, 1, {as:1.1, spd:1.1}, ''],
+  ['mouseling', 'Mouseling', 'beast', 'c', 'swarm', 0, 1, {as:.6, spd:2.2}, ''],
+  ['mudling', 'Mudling', 'nature', 'c', 'brawler', 0, 1, {as:1.4, regen:.02}, '']
 ];
 const ABIL = ['shield', 'heal', 'land', 'taunt', 'stun', 'charge', 'knock', 'pack', 'leech', 'stealth', 'any', 'dodge', 'crit', 'revive', 'spawn', 'raise', 'mark', 'steal', 'grow', 'chill', 'split', 'armor', 'burn', 'psn', 'berserk', 'aura',
-  'death', 'regen', 'numb', 'leap', 'thorns', 'chain', 'morph', 'exec', 'mana', 'ramp', 'only', 'life', 'shot', 'splash', 'first', 'curse', 'loot', 'rise', 'pierce', 'brittle', 'riposte'];
+  'death', 'regen', 'numb', 'leap', 'thorns', 'chain', 'morph', 'exec', 'mana', 'ramp', 'only', 'life', 'shot', 'splash', 'first', 'curse', 'loot', 'rise', 'pierce', 'brittle', 'riposte',
+  'stoic', 'deflect', 'rob', 'infect', 'sap', 'wild', 'mirror', 'siphon', 'fireproof', 'sear', 'pyre', 'shatter', 'mend', 'brew', 'bless', 'feast', 'kamikaze', 'frenzy', 'recharge', 'eject', 'raze', 'tough'];
 
 /* Units. Speeds are arena units per second, hit is seconds between attacks, rng is reach beyond the bodies.
    air: can hit flyers. only:'b': walks past troops and only hits buildings. splash: hit radius. */
@@ -327,7 +408,7 @@ export const baseName = b => BASE[b].name;
 export const baseOf = b => BASE[b];
 /* every unit a set of cards can put on the field, including what those units spawn, split into, raise or turn into */
 export function unitsOf(ids){
-  const out = new Set(['princess', 'king']), add = k => { if (!k || out.has(k) || !UNITS[k]) return; out.add(k); const U = UNITS[k]; add(U.spawn && U.spawn.u); add(U.split && U.split.u); add(U.raise && U.raise.u); add(U.morph && U.morph.u); add(U.land && U.land.summon && U.land.summon.u); };
+  const out = new Set(['princess', 'king']), add = k => { if (!k || out.has(k) || !UNITS[k]) return; out.add(k); const U = UNITS[k]; add(U.spawn && U.spawn.u); add(U.split && U.split.u); add(U.raise && U.raise.u); add(U.morph && U.morph.u); add(U.land && U.land.summon && U.land.summon.u); add(U.infect && U.infect.u); };
   for (const id of ids){ const c = CARDS[id]; if (!c) continue; if (c.us) c.us.forEach(add); else if (c.u) add(c.u); else if (c.spell && c.spell.u) add(c.spell.u); }
   return [...out];
 }
@@ -338,17 +419,17 @@ export const FREE_RARES = ['bell', 'jade', 'glacius', 'gorak', 'vesper', 'janito
 /* what a brand-new account holds before they have built a deck of their own, and the quick picks in the deck builder */
 export const STARTER_DECKS = [
   {id:'balanced', name:'A bit of everything', blurb:'Solid troops, two spells, a cannon and a trap. The easiest deck to learn on.', hero:'bell',
-    bases:'bonecrew ironclad longshots orclings gloombats arrows slime cannon raider hexa nightbolt yeti wetfloor emberwing'},
+    bases:'bonecrew scarlet longshots orclings gloombats arrows mohawk cannon hogwild vex plum yeti wetfloor pizza'},
   {id:'swarm', name:'Bury them in bodies', blurb:'Cheap, fast and everywhere. Never stop summoning.', hero:'gorak',
-    bases:'bonecrew orclings gloombats mushnubs piranhas cluckers prickles pigeons raider longshots zap arrows ugg bees'},
+    bases:'bonecrew orclings gloombats shortbows piranhas cluckers rattatat pigeons raider howl zap arrows ugg bees'},
   {id:'heavy', name:'One giant push', blurb:'Slow, huge and hard to stop. Save up, then send everything at once.', hero:'glacius',
-    bases:'trailboss ironclad yeti boneknight mauler bloodaxe longshots hexa bonecrew arrows quake cannon barricade monkroose'},
+    bases:'trailboss ironclad yeti frosty mauler bloodaxe longshots hexa bonecrew arrows quake cannon barricade brother'},
   {id:'air', name:'Over their heads', blurb:'Flyers and spells. Go over the defence, then shut it down.', hero:'jade',
-    bases:'emberwing lostsoul gloombats imps pigeons sentinel hexsprite gremlins longshots wizlings arrows zap ironclad bonecrew'},
+    bases:'emberwing lostsoul gloombats imps pigeons sentinel hexsprite gremlins longshots wizlings arrows zap scarlet bonecrew'},
   {id:'sneak', name:'Tricks and traps', blurb:'A hidden trap, fast hitters and a hero nobody sees coming.', hero:'vesper',
-    bases:'nightbolt wetfloor piranhas courier bonecrew raider scrapbot sarge starranger zap arrows cannon thumper frostbeak'},
+    bases:'nightbolt wetfloor viper bandit bonecrew raider blitz sarge starranger zap arrows cannon thumper frostbeak'},
   {id:'crew', name:'The night shift', blurb:'The break room regulars, and a janitor who makes everyone slip.', hero:'janitor',
-    bases:'interns helpers courier trailboss funbear ironclad longshots bonecrew cluckers arrows zap cannon wetfloor hexa'}
+    bases:'interns helpers courier trailboss finn crusty pizza blitz cluckers arrows zap cannon wetfloor hexa'}
 ].map(d => ({...d, deck:d.bases.split(' ').concat(d.hero).map(b => b + '-std')}));
 export const STARTERS = STARTER_DECKS[0].deck;
 export const upgradeCost = (id, lvl) => Math.max(30, Math.round(CARDS[id].price * .22 * lvl / 10) * 10);
@@ -411,7 +492,7 @@ export function openPack(pack, type = null, rnd = Math.random){
 export function crateRoll(rnd = Math.random){ return rollCard(weightedPick(RAR_IDS, r => RAR[r].w, rnd), null, rnd); }
 export const DRAW_W = {c:50, r:30, e:15, l:5};
 
-/* ---------- ready-made decks to buy: 30 of them, by theme ---------- */
+/* ---------- ready-made decks to buy, by theme ---------- */
 const TD = (id, name, type, blurb, bases) => ({id, name, type, blurb, deck:bases.split(' ').map(b => b.includes('-') ? b : b + '-std')});
 export const THEME_DECKS = [
   TD('dragon1', 'Dragon\u2019s Hoard', 'dragon', 'All ten dragons in one deck, the red one included, with a nest to hatch more. The full Dragon bonus.', 'jade emberwing elder infernus raptor kaiju nest kobolds sirscorch shiver fireball imps arrows longshots zap'),
@@ -443,6 +524,18 @@ export const THEME_DECKS = [
   TD('mix1', 'Mana Bank', 'arcane', 'Three ways to make extra Mana and the biggest cards in the game to spend it on.', 'manawell vending redbeard gronk goliath colossus magmaw meteor lightning barricade cannon bonecrew zap arrows ward'),
   TD('mix2', 'Sky High', 'dragon', 'Fifteen cards and every one of them flies.', 'emberwing elder lostsoul wraith terror gloombats imps pigeons bees queen gremlins skytotem sentinel archon captain'),
   TD('mix3', 'Giants Only', 'horde', 'Seven giants that want towers and nothing else. Subtlety not included.', 'goliath colossus magmaw permafrost clanker mascot siegehorn rage heal ward bonecrew orclings zap arrows barricade'),
+  TD('order3', 'Shining Armour', 'order', 'A stone guardian, a lion nobody can stop and a king to lead them. Shields and healing on everything.', 'heartstone pridemane brother halo scarlet halberd hilda kingbellow whitemane brynja bell ward arrows zap heal'),
+  TD('shadow3', 'Smoke and Mirrors', 'shadow', 'Illusions, thieves and a suit of armour with nobody in it. They will never hit what they are aiming at.', 'kitsune voidplate reynard viper corvus whiskers bandit akaoni vesper kage shinobi redbeard wetfloor screen zap'),
+  TD('dark4', 'Graveyard Shift', 'dark', 'A vampire who turns into a bat, a zombie who recruits, and a doll you really should not hit.', 'baron rotter acolyte grinn rattlecage pins nocturne mort bonecrew gloombats terror poison zap arrows crypt'),
+  TD('fire3', 'Burn Notice', 'fire', 'A lava knight, a phoenix, and a mage whose victims explode. Stand well back.', 'obsidian kindle flicker phoenix azar ashjaw hellion imps cinder fireball meteor flamespire scald zap arrows'),
+  TD('frost3', 'Long Winter', 'frost', 'The Winter Queen and her whole court. Thirteen Frost cards: the full bonus, and nothing of theirs moves at full speed again.', 'isolde winter nix mohawk tusk frosty woolly neve rimeguard glacius yeti freeze permafrost arrows zap'),
+  TD('wizard3', 'Three Wishes', 'arcane', 'A genie who will not let your troops stay dead, a wizard who stops the clock, and a Mana Well to pay for it all.', 'genie tempus hagatha vex stargazer fizzle hoot geode zephyr hexa manawell lightning zap tornado arrows'),
+  TD('beast4', 'The Pride', 'beast', 'The king of the beasts and everything that follows him. Roars, charges and a tiger with a black belt.', 'pridelord squeak hogwild cackle stripes ironhide wolfpack bao gorehorn thumper monkroose landshark rage arrows zap'),
+  TD('nature3', 'Deep Woods', 'nature', 'Brambles, bees and a swamp that walks. Everything heals and everything bites back.', 'greenhorn bogmaw beekeeper sunny willow mossback bramblehorn elderbark thornweaver cactoro sporecap dartfrog heal quake arrows'),
+  TD('horde3', 'Goblin Town', 'horde', 'A king with goblins in his coat, a drummer to hurry them up and one very large bomb.', 'furball fuse rattatat stubbeard howl shortbows orclings witchdoc skullcrusher mauler gorak wardrum rage arrows zap'),
+  TD('tech3', 'The Workshop', 'tech', 'A walking mortar, a shrink ray and a mechanic who makes your buildings fire faster.', 'smokey rivet shrinkwell gearheart nugget ironbeard bjorn redline tinker cannon stormcoil watchtower scrapbot zap arrows'),
+  TD('crew3', 'Office Party', 'crew', 'The Regional Manager brought everyone: the Ref, the chef, the lunch lady and a wrestler from accounts.', 'manager ref goldmask chef gert crusty pizza flint blitz lagspike finn hank vending janitor arrows'),
+  TD('dragon3', 'Scales', 'dragon', 'Fifteen cards with scales, shells or both. A salamander who grows back, a turtle who hides, and three dragons who breathe on things.', 'scald razorback kai spikeback plum sirscorch shiver kobolds jade emberwing raptor kaiju nest fireball zap'),
   TD('mix4', 'The Full Legend', 'crew', 'Three Legendaries in one deck, with the best support money can buy.', 'lich infernus kingbellow zephyr oathkeeper mort tonic lightning manawell bonecrew ironclad longshots zap arrows gravewitch')
 ];
 export const deckPrice = d => Math.round(d.deck.reduce((a, id) => a + CARDS[id].price, 0) * .8 / 10) * 10;
