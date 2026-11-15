@@ -17,20 +17,21 @@ const CONE = (r, h, n = 14) => geo(`n${r}|${h}|${n}`, () => new THREE.ConeGeomet
 const TOR = (r, t, arc = PI * 2) => geo(`t${r}|${t}|${arc}`, () => new THREE.TorusGeometry(r, t, 8, 28, arc));
 const ROCK = r => geo(`d${r}`, () => new THREE.DodecahedronGeometry(r, 0));
 
+const GRAD = (() => { const t = new THREE.DataTexture(new Uint8Array([105, 105, 105, 255, 180, 180, 180, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
 let TINT = null; const _tc = new THREE.Color(), _tt = new THREE.Color();
 export function M(color, o = {}){
   if (TINT != null && !o.keep) color = _tc.set(color).lerp(_tt.set(TINT), .46).getHex();     // a card style recolours the whole character
   const k = color + '|' + (o.r ?? '') + '|' + (o.m ?? '') + '|' + (o.e ?? '') + '|' + (o.ei ?? '') + '|' + (o.o ?? '') + '|' + (o.flat ? 1 : 0) + '|' + (o.ds ? 1 : 0) + '|' + (o.map ? o.map.uuid : '') + '|' + (o.emap ? o.emap.uuid : '');
   let m = MC.get(k);
   if (!m){
-    m = new THREE.MeshStandardMaterial({color, roughness:o.r ?? .62, metalness:o.m ?? 0, emissive:o.e ?? 0, emissiveIntensity:o.ei ?? 1, transparent:o.o != null, opacity:o.o ?? 1,
-      flatShading:!!o.flat, side:o.ds ? THREE.DoubleSide : THREE.FrontSide, map:o.map || null, emissiveMap:o.emap || null, depthWrite:o.o == null || o.o > .6, envMapIntensity:.5});
+    m = new THREE.MeshToonMaterial({color, gradientMap:GRAD, emissive:o.e ?? 0, emissiveIntensity:o.ei ?? 1, transparent:o.o != null, opacity:o.o ?? 1,
+      side:o.ds ? THREE.DoubleSide : THREE.FrontSide, map:o.map || null, emissiveMap:o.emap || null, depthWrite:o.o == null || o.o > .6});
     MC.set(k, m);
   }
   return m;
 }
 function P(par, g, m, p, r, s){
-  const o = new THREE.Mesh(g, m);
+  const o = new THREE.Mesh(g, m); o.castShadow = true;
   if (p) o.position.set(p[0], p[1], p[2]);
   if (r) o.rotation.set(r[0], r[1], r[2]);
   if (s) typeof s === 'number' ? o.scale.setScalar(s) : o.scale.set(s[0], s[1], s[2]);
@@ -66,7 +67,7 @@ export const TX = {
     for (let i = 0; i < 10; i++){ const a = i / 10 * 6.283 - PI / 2, r = i % 2 ? 22 : 50; x.lineTo(64 + Math.cos(a) * r, 66 + Math.sin(a) * r); } x.fill(); })
 };
 const ballMat = () => M(0xffffff, {map:TX.ball(), r:.8});
-export const basketball = r => new THREE.Mesh(SPH(r, 16, 12), ballMat());
+export const basketball = r => { const b = new THREE.Mesh(SPH(r, 16, 12), ballMat()); b.castShadow = true; return b; };
 function starGeo(){ return geo('star', () => { const s = new THREE.Shape(); for (let i = 0; i < 10; i++){ const a = i / 10 * PI * 2 + PI / 2, r = i % 2 ? .05 : .12; s[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } return new THREE.ExtrudeGeometry(s, {depth:.04, bevelEnabled:false}); }); }
 function wingGeo(k, sc){ return geo('wing' + k, () => { const s = new THREE.Shape(); s.moveTo(0, 0); s.lineTo(sc, .35 * sc); s.lineTo(.95 * sc, -.05 * sc); s.lineTo(.72 * sc, -.2 * sc); s.lineTo(.62 * sc, -.02 * sc); s.lineTo(.42 * sc, -.24 * sc); s.lineTo(.3 * sc, -.04 * sc); s.lineTo(.12 * sc, -.22 * sc); s.closePath(); return new THREE.ShapeGeometry(s); }); }
 
@@ -357,3 +358,10 @@ export function makeModel(key, team = 0, o){
   return m;
 }
 export const hasModel = k => !!MK[k];
+
+const INK = new THREE.MeshBasicMaterial({color:0x160d07, side:THREE.BackSide});
+export function outline(g, k = 1.085){
+  const ms = [];
+  g.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && !o.material.transparent && o.material.side !== THREE.DoubleSide && o.geometry.type !== 'PlaneGeometry' && o.geometry.type !== 'ShapeGeometry' && o.geometry.type !== 'TorusGeometry') ms.push(o); });
+  for (const o of ms){ const h = new THREE.Mesh(o.geometry, INK); h.scale.setScalar(k); o.add(h); }
+}

@@ -50,7 +50,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114'), import('./models.js')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1114b'), import('./models.js?v=1114b')]);
     await md.preload();
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced});
     ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
@@ -170,6 +170,9 @@ function hub(){
   if (curTab === 'Battle'){
     $('bDeckLbl').textContent = `Deck ${P.deck + 1} · average ${avgCost(curDeck())} Mana`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
+    const ni = Math.min(P.ladder, CPUS.length - 1), nc = CPUS[ni];
+    $('hero').innerHTML = `<div class="pic"></div><div><small>${P.ladder >= CPUS.length ? 'You beat them all. Run it back against' : 'Next up'}</small><h2>${esc(nc.name)}</h2><p>${esc(nc.tag)} ${esc(MAPS[nc.map].name)}, level ${nc.lvl} cards.</p><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
+    $('heroGo').onclick = () => preCpu(ni);
     const ld = $('ladder'); ld.innerHTML = '';
     CPUS.forEach((c, i) => {
       const locked = i > P.ladder, wins = P.beaten[c.id] || 0, row = document.createElement('div');
@@ -343,7 +346,7 @@ function hud(force){
   $('coffee').classList.toggle('dbl', dbl); $('coffee').classList.toggle('bonus', !!bonus); $('coffeeLbl').textContent = (dbl ? 'Mana x2' : 'Mana') + (bonus ? ' · charging +30%' : '');
   if (dbl && !B.said.dbl && I.phase === 'play' && B.run){ B.said.dbl = true; stamp('Double Mana'); if (B.mode === 'cpu') talk(TALK.late, true); }
   const t = Math.ceil(I.left); $('clockT').textContent = mmss(t);
-  $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : 'Time'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
+  $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
   $('meCr').textContent = I.crowns[B.team]; $('oppCr').textContent = I.crowns[1 - B.team];
   if (B.run && !B.over && B.mode === 'cpu' && performance.now() - lastTalk > 38000){ lastTalk = performance.now(); BDB.roast(); }
 }
