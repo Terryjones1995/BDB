@@ -330,6 +330,20 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .wait{font-family:var(--f-game);font-weight:400;font-size:20px;color:#fff;text-shadow:var(--stroke);background:rgba(6,14,36,.72)}
 .wait b{font-family:var(--f-game);font-size:84px;color:#ffd23f;text-shadow:-3px 0 var(--ink2),3px 0 var(--ink2),0 -3px var(--ink2),0 3px var(--ink2),0 8px 0 var(--ink2)}
 .wait .note{font-family:var(--f-body);text-shadow:none}
+.insp{position:absolute;left:62px;bottom:calc(var(--hand-h,150px) + 10px);z-index:7;width:min(300px,calc(100% - 130px));padding:10px 12px;border-radius:16px;border:3px solid var(--ink2);background:linear-gradient(180deg,#2f79e6,#1a48a6);box-shadow:inset 0 3px 0 rgba(255,255,255,.3),0 5px 0 var(--ink2);color:#fff;pointer-events:none;animation:inspIn .16s ease-out}
+.insp.theirs{background:linear-gradient(180deg,#e2574c,#a8241c)}
+@keyframes inspIn{from{opacity:0;transform:translateY(8px) scale(.96)}}
+.insp .ih b{display:block;font:400 19px/1.05 var(--f-game);text-shadow:var(--stroke)}
+.insp .ih span{font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#ffe9a8}
+.insp p{margin:6px 0 8px;font:600 12px/1.35 var(--f-body);color:#eef5ff}
+.insp .ig{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.insp .ig div{background:rgba(6,14,40,.55);border-radius:9px;padding:5px 4px;text-align:center}
+.insp .ig small{display:block;font:800 8px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#cfe1ff;margin-bottom:3px}
+.insp .ig b{font:400 14px/1 var(--f-game)}
+.dmg{position:absolute;z-index:4;transform:translate(-50%,-50%);font:400 17px/1 var(--f-game);color:#fff3b0;text-shadow:var(--stroke);pointer-events:none;animation:dmg .75s ease-out forwards;white-space:nowrap}
+.dmg.me{color:#ff8f85}
+.dmg.big{font-size:26px;color:#ffd23f}
+@keyframes dmg{0%{opacity:0;transform:translate(-50%,-30%) scale(.5)}18%{opacity:1;transform:translate(-50%,-90%) scale(1.25)}35%{transform:translate(-50%,-110%) scale(1)}100%{opacity:0;transform:translate(-50%,-210%) scale(.9)}}
 .dragcard{position:fixed;left:0;top:0;z-index:60;width:88px;pointer-events:none;transition:opacity .14s;will-change:transform;filter:drop-shadow(0 16px 12px rgba(0,0,0,.5))}
 .dragcard.over{opacity:.55}
 .dragcard.gone{opacity:0;transition:opacity .15s}
@@ -464,7 +478,8 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
     <div><svg viewBox="0 0 52 50"><path d="M5 40 L3 14 L16 25 L26 6 L36 25 L49 14 L47 40 Z" fill="#f0564c" stroke="#0a1430" stroke-width="3" stroke-linejoin="round"/><rect x="5" y="38" width="42" height="8" rx="3" fill="#b8241c" stroke="#0a1430" stroke-width="3"/></svg><b id="oppCr">0</b></div>
     <div><svg viewBox="0 0 52 50"><path d="M5 40 L3 14 L16 25 L26 6 L36 25 L49 14 L47 40 Z" fill="#4f9bff" stroke="#0a1430" stroke-width="3" stroke-linejoin="round"/><rect x="5" y="38" width="42" height="8" rx="3" fill="#1c5fd0" stroke="#0a1430" stroke-width="3"/></svg><b id="meCr">0</b></div>
   </div>
-  <div id="btTools"><button type="button" id="btQuit" aria-label="Quit match">✕</button><button type="button" id="btPause" aria-label="Pause">❚❚</button><button type="button" id="btEmo" aria-label="Emotes and chat">💬</button></div>
+  <div id="btTools"><button type="button" id="btQuit" aria-label="Quit match">✕</button><button type="button" id="btPause" aria-label="Pause">❚❚</button><button type="button" id="btEmo" aria-label="Emotes and chat">💬</button><button type="button" id="btView" aria-label="Reset view" title="Reset view">⟲</button></div>
+  <div class="insp" id="insp" hidden></div>
   <div id="emoPanel" hidden></div>
   <div class="k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
   <div class="handbar">
@@ -478,6 +493,6 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1114f"></script>
+<script type="module" src="main.js?v=1114k"></script>
 </body>
 </html>

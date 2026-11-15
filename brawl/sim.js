@@ -137,8 +137,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       const d = clamp((gap(e, t) + e.U.r) / PROJ_SPD, .14, .9);
       projs.push({tgt:t.id, x:t.x, z:t.z, t:T(d), dmg, splash:U.splash || 0, team:e.team, air:!!U.air, chill:U.chill});
       emit({e:'shot', id:e.id, t:t.id, d, k:U.shot});
-    } else if (U.splash) area(t.x, t.z, U.splash, dmg, e.team, !!U.air, 1, U.chill);
-    else { if (U.chill && !t.U.twr) t.slow = T(U.chill); hurt(t, dmg); }
+    } else projs.push({tgt:t.id, x:t.x, z:t.z, t:T(U.wind ?? .24), dmg, splash:U.splash || 0, team:e.team, air:!!U.air, chill:U.chill, src:e.id});     // a melee hit lands when the swing does, and not at all if the attacker drops first
   }
 
   /* ---------- one tick ---------- */
@@ -165,6 +164,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (t && t.hp > 0){ p.x = t.x; p.z = t.z; }
       if (--p.t > 0) continue;
       projs.splice(i, 1);
+      if (p.src && !byId.has(p.src)) continue;
       if (p.splash) area(p.x, p.z, p.splash, p.dmg, p.team, p.air, 1, p.chill);
       else if (t && t.hp > 0){ if (p.chill && !t.U.twr) t.slow = T(p.chill); hurt(t, p.dmg); }
     }

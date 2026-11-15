@@ -3,7 +3,7 @@
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
 import { AFF } from './cards.js';
-import { loadRigs, hasRig, makeRig } from './rigs.js?v=1114e';
+import { loadRigs, hasRig, makeRig, useRim } from './rigs.js?v=1114j';
 
 const PI = Math.PI;
 export const TEAM = [0x3d8bff, 0xff4b47];
@@ -19,6 +19,13 @@ const TOR = (r, t, arc = PI * 2) => geo(`t${r}|${t}|${arc}`, () => new THREE.Tor
 const ROCK = r => geo(`d${r}`, () => new THREE.DodecahedronGeometry(r, 0));
 
 const GRAD = (() => { const t = new THREE.DataTexture(new Uint8Array([105, 105, 105, 255, 180, 180, 180, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+/* a soft edge light, so characters and buildings lift off whatever is behind them */
+export function rim(m){
+  m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', 'float rimK = pow( 1.0 - clamp( dot( normalize( vViewPosition ), normal ), 0.0, 1.0 ), 3.0 );\n\toutgoingLight += vec3( 1.0, 0.96, 0.86 ) * rimK * 0.34;\n\t#include <opaque_fragment>'); };
+  m.customProgramCacheKey = () => 'rim';
+  return m;
+}
+useRim(rim);
 let TINT = null; const _tc = new THREE.Color(), _tt = new THREE.Color();
 export function M(color, o = {}){
   if (TINT != null && !o.keep) color = _tc.set(color).lerp(_tt.set(TINT), .46).getHex();     // a card style recolours the whole character
@@ -27,6 +34,7 @@ export function M(color, o = {}){
   if (!m){
     m = new THREE.MeshToonMaterial({color, gradientMap:GRAD, emissive:o.e ?? 0, emissiveIntensity:o.ei ?? 1, transparent:o.o != null, opacity:o.o ?? 1,
       side:o.ds ? THREE.DoubleSide : THREE.FrontSide, map:o.map || null, emissiveMap:o.emap || null, depthWrite:o.o == null || o.o > .6});
+    rim(m);
     MC.set(k, m);
   }
   return m;
@@ -56,8 +64,11 @@ export const TX = {
   ball: () => ctex('ball', 256, 128, (x, w, h) => { x.fillStyle = '#e8792a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3a1a06'; x.lineWidth = 5;
     for (const u of [0, .25, .5, .75, 1]){ x.beginPath(); x.moveTo(u * w, 0); x.lineTo(u * w, h); x.stroke(); } x.beginPath(); x.moveTo(0, h / 2); x.lineTo(w, h / 2); x.stroke(); }),
   stripes: () => ctex('stripes', 128, 32, (x, w, h) => { for (let i = 0; i < 8; i++){ x.fillStyle = i % 2 ? '#15171c' : '#f6f6f2'; x.fillRect(i * w / 8, 0, w / 8, h); } }),
-  brick: () => ctex('brick', 256, 256, (x, w, h) => { x.fillStyle = '#aab4c8'; x.fillRect(0, 0, w, h);
-    for (let r = 0; r < 8; r++) for (let c = 0; c < 5; c++){ const o = r % 2 ? 26 : 0, v = 150 + ((r * 7 + c * 13) % 5) * 9; x.fillStyle = `rgb(${v},${v + 8},${v + 26})`; x.fillRect(c * 52 - o + 2, r * 32 + 2, 48, 28); if (c === 4 && o) x.fillRect(c * 52 + 26 + 2, r * 32 + 2, 48, 28); } }, [3, 1.4]),
+  brick: () => ctex('brick', 512, 512, (x, w, h) => {                 // rounded stones with soft shading, not hard little rectangles
+    x.fillStyle = '#8f9ab0'; x.fillRect(0, 0, w, h);
+    for (let r = 0; r < 8; r++) for (let c = -1; c < 5; c++){ const o = r % 2 ? 51 : 0, v = 168 + ((r * 7 + c * 13) % 6) * 9, bx = c * 102.4 + o + 4, by = r * 64 + 4;
+      const g = x.createLinearGradient(0, by, 0, by + 56); g.addColorStop(0, `rgb(${v + 22},${v + 28},${v + 44})`); g.addColorStop(1, `rgb(${v - 14},${v - 6},${v + 14})`);
+      x.fillStyle = g; x.beginPath(); x.roundRect(bx, by, 94.4, 56, 13); x.fill(); x.fillStyle = 'rgba(255,255,255,.2)'; x.beginPath(); x.roundRect(bx + 6, by + 5, 82, 12, 6); x.fill(); } }, [3, 1.4]),
   snacks: () => ctex('snacks', 128, 192, (x, w, h) => { x.fillStyle = '#0c1326'; x.fillRect(0, 0, w, h); const cs = ['#ff8a2b', '#f2c14e', '#4ade80', '#ff5a8a', '#4fb3ff', '#c77dff'];
     for (let r = 0; r < 5; r++){ x.fillStyle = '#26324f'; x.fillRect(4, r * 36 + 32, w - 8, 4); for (let c = 0; c < 4; c++){ x.fillStyle = cs[(r * 3 + c * 5) % 6]; x.fillRect(10 + c * 29, r * 36 + 8, 20, 24); x.fillStyle = 'rgba(255,255,255,.5)'; x.fillRect(12 + c * 29, r * 36 + 12, 16, 5); } } }),
   digits: () => ctex('digits', 128, 64, (x, w, h) => { x.fillStyle = '#12060a'; x.fillRect(0, 0, w, h); x.fillStyle = '#ff3a2a'; x.font = '700 56px "Arial Narrow", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = '#ff3a2a'; x.shadowBlur = 10; x.fillText('00', w / 2, h / 2 + 3); }),
@@ -361,7 +372,7 @@ function bigHead(){
 }
 export function makeModel(key, team = 0, o){
   if (hasRig(key)){
-    const A = o && o.aff && AFF[o.aff], m = makeRig(key, {tint:A && A.tint != null ? A.tint : null}, GRAD, {bighead:bigHead});
+    const A = o && o.aff && AFF[o.aff], m = makeRig(key, {tint:A && A.tint != null ? A.tint : null, ink:!!(o && o.ink)}, GRAD, {bighead:bigHead});
     m.s = A ? A.size : 1; m.h *= m.s; return m;
   }
   const f = MK[key];
@@ -376,6 +387,7 @@ export const hasModel = k => !!MK[k];
 
 const INK = new THREE.MeshBasicMaterial({color:0x160d07, side:THREE.BackSide});
 export function outline(g, k = 1.085){
+  if (g.userData.inked) return;                 // rigged characters bring their own
   const ms = [];
   g.traverse(o => { if (o.isMesh && !o.isSkinnedMesh && !Array.isArray(o.material) && !o.material.transparent && o.material.side !== THREE.DoubleSide && o.geometry.type !== 'PlaneGeometry' && o.geometry.type !== 'ShapeGeometry' && o.geometry.type !== 'TorusGeometry') ms.push(o); });
   for (const o of ms){ const h = new THREE.Mesh(o.geometry, INK); h.scale.setScalar(k); o.add(h); }

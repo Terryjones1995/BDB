@@ -50,10 +50,11 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114e'), import('./models.js?v=1114e')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1114k'), import('./models.js?v=1114j')]);
     await md.preload();
-    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced});
+    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true});
     ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
+    V.loadProps('field');
   } catch(e){ console.warn('3D view unavailable', e); V = null; }
 }
 const tkOf = c => c.art + '|' + c.aff;
@@ -280,7 +281,7 @@ function preCpu(i){
 let B = null, raf = 0, lastT = 0, ticker = null;
 function begin(o){
   B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false]};
-  show('scrBattle'); $('emoPanel').hidden = true; $('btPause').disabled = false;
+  show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false;
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
   if (V) V.reset(B.team, o.map);
@@ -403,10 +404,50 @@ addEventListener('pointermove', e => {
 });
 const endAim = e => { if (!aim || e.pointerId !== aim.pid) return; const a = aim; aim = null; if (a.el){ a.el.classList.add('gone'); setTimeout(() => a.el.remove(), 160); } a.card.classList.remove('lifting'); if (!B) return; if (a.moved){ if (a.p && overArena(e.clientX, e.clientY) && e.type === 'pointerup') tryPlay(B.sel, a.p); else if (V) V.setGhost(false); } };
 addEventListener('pointerup', endAim); addEventListener('pointercancel', endAim);
-let floorAim = false;
-$('arena').addEventListener('pointerdown', e => { if (!B || B.sel < 0 || aim) return; floorAim = true; ghostAt(e.clientX, e.clientY); });
-$('arena').addEventListener('pointermove', e => { if (floorAim) ghostAt(e.clientX, e.clientY); });
-$('arena').addEventListener('pointerup', e => { if (!floorAim) return; floorAim = false; const p = ghostAt(e.clientX, e.clientY); if (!tryPlay(B.sel, p) && V) V.setGhost(false); });
+let floorAim = false, pan = null, pinch = 0; const ptrs = new Map();
+const KEYCARD = {}; for (const id of CARD_IDS){ const c = CARDS[id]; if (c.U) KEYCARD[c.U.key + '|' + c.aff + '|' + c.rar] = KEYCARD[c.U.key + '|' + c.aff + '|' + c.rar] || id; }
+$('arena').addEventListener('pointerdown', e => {
+  if (!B || aim) return;
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY}); try { $('arena').setPointerCapture(e.pointerId); } catch(er){}
+  if (ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); floorAim = false; pan = null; if (V) V.setGhost(false); }
+  else if (B.sel >= 0){ floorAim = true; ghostAt(e.clientX, e.clientY); }
+  else pan = {x:e.clientX, y:e.clientY, moved:false};
+});
+$('arena').addEventListener('pointermove', e => {
+  if (!B || !V) return;
+  const pt = ptrs.get(e.pointerId); if (pt){ pt.x = e.clientX; pt.y = e.clientY; }
+  if (ptrs.size === 2 && pinch){ const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); V.zoomBy(d / pinch); pinch = d; }
+  else if (floorAim) ghostAt(e.clientX, e.clientY);
+  else if (pan){
+    if (!pan.moved && Math.hypot(e.clientX - pan.x, e.clientY - pan.y) > 7) pan.moved = true;
+    if (pan.moved){ const a = V.pickWorld(pan.x, pan.y), b = V.pickWorld(e.clientX, e.clientY); if (a && b) V.panBy(a.x - b.x, a.z - b.z); pan.x = e.clientX; pan.y = e.clientY; }
+  }
+});
+const arenaUp = e => {
+  ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0;
+  if (!B) return;
+  if (floorAim){ floorAim = false; const p = ghostAt(e.clientX, e.clientY); if (!tryPlay(B.sel, p) && V) V.setGhost(false); }
+  else if (pan){ const moved = pan.moved; pan = null; if (!moved && e.type === 'pointerup') inspect(e.clientX, e.clientY); }
+};
+$('arena').addEventListener('pointerup', arenaUp); $('arena').addEventListener('pointercancel', arenaUp);
+$('arena').addEventListener('wheel', e => { if (!B || !V) return; e.preventDefault(); V.zoomBy(e.deltaY < 0 ? 1.14 : 1 / 1.14); }, {passive:false});
+$('btView').onclick = () => { if (V) V.resetCam(); };
+
+/* tap any character or tower on the field: who it is, what it does, how much health it has left */
+let inspT = 0;
+function inspect(cx, cy){
+  const box = $('insp'), e = V && V.entityAt(cx, cy);
+  if (!e){ box.hidden = true; return; }
+  const U = e.U, id = KEYCARD[U.key + '|' + U.aff + '|' + U.rar], c = id && CARDS[id], mine = e.team === B.team, m = lvlMul(e.lvl || 1);
+  const rows = [['Health', `${Math.max(0, Math.ceil(e.hp))} / ${e.max}`]];
+  if (U.dmg) rows.push([U.splash ? 'Area damage' : 'Damage', Math.round(U.dmg * m)], ['Hit speed', U.hit + 's'], ['Range', U.rng <= 1.5 ? 'Melee' : U.rng]);
+  if (!U.bld) rows.push(['Speed', SPD(U.spd)]);
+  rows.push(['Targets', U.only ? 'Buildings' : !U.dmg ? 'None' : U.air ? 'Air and ground' : 'Ground']);
+  const what = U.twr ? (U.key === 'king' ? 'The king tower. Lose it and the match is over. It only wakes up once it is hit or a hoop tower falls.' : 'A hoop tower. It fires at anything in range, ground or air.') : c ? c.desc + (c.note ? ' ' + c.note : '') : 'Summoned by another card.';
+  box.className = 'insp ' + (mine ? 'mine' : 'theirs') + (c ? ' r-' + c.rar : '');
+  box.innerHTML = `<div class="ih"><b>${esc(c && (!c.n || c.n === 1) ? c.name : (AFF[U.aff].name ? AFF[U.aff].name + ' ' : '') + U.name)}</b><span>${mine ? 'Yours' : 'Enemy'} · Level ${e.lvl || 1}${c ? ' · ' + RAR[c.rar].name : ''}</span></div><p>${esc(what)}</p><div class="ig">${rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
+  box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; }, 7000);
+}
 addEventListener('keydown', e => { if (!B || $('scrBattle').hidden) return; if (e.key >= '1' && e.key <= String(HAND)) select(B.sel === +e.key - 1 ? -1 : +e.key - 1); else if (e.key === 'Escape') select(-1); });
 new ResizeObserver(() => { if (V && !$('scrBattle').hidden) V.resize(); }).observe($('arena'));
 $('btQuit').onclick = () => { if (!B || B.over) return; confirmBox('Walk off the court?', 'Quitting counts as a loss.', 'Quit match', () => { if (!B || B.over) return; B.over = true; if (B.mode !== 'cpu' && room) room.send('bye', {}, OL && OL.opp); finish(1 - B.team, null, 'You walked off.'); }); };
