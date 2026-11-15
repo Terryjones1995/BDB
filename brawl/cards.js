@@ -116,6 +116,13 @@ export const CARD_IDS = Object.keys(CARDS), BASE_IDS = Object.keys(BASE);
 export const baseName = b => BASE[b].name;
 export const STARTERS = ['skels', 'bench', 'shooters', 'gobs', 'bats', 'airball', 'slime', 'hoop', 'mascot', 'barista', 'ref', 'trainer', 'coffee', 'vending', 'dragon'].map(b => b + '-std-c');
 export const DECK_SIZE = 15, HAND = 5, MAX_LEGEND = 3, DECK_SLOTS = 3;
+/* what a brand-new player chooses between */
+export const STARTER_DECKS = [
+  {id:'balanced', name:'The Starting Five', blurb:'A bit of everything. The easiest deck to learn with.',      bases:'skels bench shooters gobs bats airball slime hoop mascot barista ref trainer coffee vending dragon'},
+  {id:'swarm',    name:'Rush Hour',         blurb:'Cheap, fast and everywhere. Bury him in bodies.',          bases:'skels gobs bats shooters slime vending witch overtime airball bench trainer fast ghost hoop coffee'},
+  {id:'heavy',    name:'The Big Shift',     blurb:'Slow, huge and hard to stop. Build one giant push.',       bases:'golem mascot buzzer bench fast barista ref trainer shooters skels coffee airball hoop slime clockout'},
+  {id:'air',      name:'Night Flight',      blurb:'Flyers and spells. Go over his defence, then freeze it.',  bases:'dragon ghost bats witch barista ref shooters clockout coffee airball overtime bench skels gobs mascot'}
+].map(d => ({...d, deck:d.bases.split(' ').map(b => b + '-std-c')}));
 export const upgradeCost = (id, lvl) => Math.max(40, Math.round(CARDS[id].price * .15 * lvl / 10) * 10);
 
 export function deckProblem(ids, strict = true){
@@ -169,3 +176,23 @@ export function weightedPick(ids, weightOf, rnd = Math.random){
 }
 const BY_RAR = {}; for (const id of CARD_IDS) (BY_RAR[CARDS[id].rar] = BY_RAR[CARDS[id].rar] || []).push(id);
 export function crateRoll(rnd = Math.random){ const pool = BY_RAR[weightedPick(RAR_IDS, r => RAR[r].w, rnd)]; return pool[Math.floor(rnd() * pool.length)]; }
+
+/* A CPU with a deck dealt at random, at one of four skill levels. dl: his card level relative to yours. */
+export const SKILLS = [
+  {id:'easy',   name:'Easy',   coins:60,  dl:-1, ai:{react:3,    hold:9,   derp:.4,  smart:.2,  el:.85}, rar:'cccr'},
+  {id:'medium', name:'Medium', coins:110, dl:0,  ai:{react:2.1,  hold:8,   derp:.18, smart:.5,  el:1},   rar:'ccrre'},
+  {id:'hard',   name:'Hard',   coins:170, dl:1,  ai:{react:1.5,  hold:7,   derp:.07, smart:.8,  el:1.05}, rar:'crreel'},
+  {id:'insane', name:'Insane', coins:260, dl:2,  ai:{react:1.05, hold:6,   derp:.02, smart:1,   el:1.2},  rar:'reeel'}
+];
+const RAND_NAMES = ['Temp BDB', 'Intern BDB', 'Overtime BDB', 'Double Shift BDB', 'Lunch Break BDB', 'Clipboard BDB', 'Substitute BDB', 'Pickup Game BDB', 'Day Off BDB', 'Sixth Man BDB', 'Garbage Time BDB', 'Preseason BDB', 'Walk-On BDB', 'Scout Team BDB'];
+export function randomCpu(skill, myLvl = 1, rnd = Math.random){
+  const S = SKILLS.find(s => s.id === skill) || SKILLS[1], pick = a => a[Math.floor(rnd() * a.length)];
+  const pool = BASE_IDS.slice(); for (let i = pool.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  // any 15 characters, as long as there is something cheap, something big and at least one spell in there
+  const need = [b => BASE[b].cost <= 2, b => BASE[b].cost <= 3 && !BASE[b].spell, b => !!BASE[b].spell, b => BASE[b].u && (UNITS[BASE[b].u].only === 'b' || UNITS[BASE[b].u].hp >= 900)], bases = [];
+  for (const f of need){ const b = pool.find(x => f(x) && !bases.includes(x)); if (b) bases.push(b); }
+  for (const b of pool) if (bases.length < DECK_SIZE && !bases.includes(b)) bases.push(b);
+  let legends = 0;
+  const deck = bases.map(b => { let r = pick(S.rar.split('')); if (r === 'l' && ++legends > MAX_LEGEND) r = 'e'; return `${b}-${rnd() < .5 ? 'std' : pick(AFF_IDS)}-${r}`; });
+  return {id:'rand-' + S.id, rand:true, skill:S.id, name:pick(RAND_NAMES), tag:`${S.name}. A different deck every time.`, map:pick(MAP_IDS), lvl:clamp(Math.round(myLvl + S.dl), 1, MAX_LVL), coins:S.coins, ai:S.ai, deck};
+}

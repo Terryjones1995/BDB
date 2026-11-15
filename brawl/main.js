@@ -1,8 +1,9 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
-import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll } from './cards.js';
+import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js';
 import { createSim, decodeEnts, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT } from './sim.js';
 import { createAI } from './ai.js';
-import { Accounts, fresh } from './store.js';
+import { Accounts, fresh, sanitize } from './store.js';
+import { Cloud } from './cloud.js';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -70,7 +71,7 @@ function pumpThumbs(){
 
 /* ---------- profile ---------- */
 let P = null;
-const save = () => { Accounts.save(P); top(); };
+const save = () => { Accounts.save(P); Cloud.push(P); top(); };
 const lvl = id => P.cards[id] || 0;
 const curDeck = () => P.decks[P.deck];
 const myDeck = () => curDeck().map(id => ({id, lvl:Math.max(1, lvl(id))}));
@@ -175,6 +176,7 @@ function hub(){
     const ni = Math.min(P.ladder, CPUS.length - 1), nc = CPUS[ni];
     $('hero').innerHTML = `<div class="pic"></div><div><small>${P.ladder >= CPUS.length ? 'You beat them all. Run it back against' : 'Next up'}</small><h2>${esc(nc.name)}</h2><p>${esc(nc.tag)} ${esc(MAPS[nc.map].name)}, level ${nc.lvl} cards.</p><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
     $('heroGo').onclick = () => preCpu(ni);
+    const qr = $('quickRow'); qr.innerHTML = ''; for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small><span class="coin"></span>${sk.coins}</small>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
     const ld = $('ladder'); ld.innerHTML = '';
     CPUS.forEach((c, i) => {
       const locked = i > P.ladder, wins = P.beaten[c.id] || 0, row = document.createElement('div');
@@ -202,6 +204,7 @@ function hub(){
     $('crateBuy').innerHTML = `Open for <span class="coin" style="margin-left:6px"></span>${fmt(CRATE)}`; $('crateBuy').disabled = P.coins < CRATE;
   } else {
     $('pName').textContent = P.name;
+    $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. Create an account from the sign in screen to keep it online and show up for friends.' : 'Saved on this device.';
     const s = P.stats, own = Object.keys(P.cards).length;
     $('pStats').innerHTML = [['Coins', fmt(P.coins)], ['Trophies', fmt(P.trophies)], ['BDBs beaten', `${Math.min(P.ladder, CPUS.length)} of ${CPUS.length}`], ['Wins against BDB', s.w], ['Losses against BDB', s.l], ['Online wins', s.ow], ['Online losses', s.ol], ['Cards collected', `${fmt(own)} of ${fmt(CARD_IDS.length)}`], ['Cards won from BDB', s.won], ['Upgrades bought', s.up]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
     $('codeOut').value = Accounts.code(P);
@@ -241,31 +244,85 @@ function reveal(title, id, line, done){
 }
 
 /* ---------- sign in ---------- */
-function show(scr){ for (const s of ['scrLogin', 'scrHub', 'scrBattle']) $(s).hidden = s !== scr; }
+function show(scr){ for (const s of ['scrLogin', 'scrOnb', 'scrHub', 'scrBattle']) $(s).hidden = s !== scr; }
 function loginScreen(){
   show('scrLogin'); P = null;
   const w = $('whoList'); w.innerHTML = '';
   for (const p of Accounts.all()){ const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span>${esc(p.name)}</span><small>${fmt(p.coins)} coins · ${Object.keys(p.cards).length} cards</small>`; b.onclick = () => signIn(p); w.appendChild(b); }
   $('loginErr').textContent = '';
 }
-function signIn(p){ P = p; Accounts.save(P); show('scrHub'); tab('Battle'); const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } }
+function signIn(p){ P = p; Accounts.save(P); if (!P.onboarded && !Q.get('skip')) return onboard(); P.onboarded = true; show('scrHub'); tab('Battle'); hallStart(); const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } }
 $('newGo').onclick = () => {
   const n = Accounts.cleanName($('newName').value);
   if (n.length < 2){ $('loginErr').textContent = 'Pick a name with at least two letters.'; return; }
   signIn(Accounts.get(n) || fresh(n));
 };
+async function accSign(create){
+  const n = Accounts.cleanName($('newName').value), pw = $('newPass').value, err = t => { $('loginErr').textContent = t; };
+  if (n.length < 2) return err('Pick a name with at least two letters.');
+  if (pw.length < 4) return err('Use a password with at least four characters.');
+  err(create ? 'Creating your account.' : 'Signing in.');
+  try {
+    if (create){
+      const local = Accounts.get(n) || fresh(n), r = await Cloud.register(n, pw, local);
+      if (r.error) return err(r.error === 'taken' ? 'That name is taken. Sign in instead, or pick another.' : 'That did not work. Check the name and password.');
+      local.name = r.name; signIn(local);
+    } else {
+      const r = await Cloud.login(n, pw);
+      if (r.error) return err('Wrong name or password.');
+      signIn(sanitize(r.data && r.data.cards ? {...r.data, name:r.name} : fresh(r.name)));
+    }
+  } catch(e){ err('Could not reach the account server. Check your connection, or play on this device only.'); }
+}
+$('accIn').onclick = () => accSign(false); $('accNew').onclick = () => accSign(true);
+$('newPass').addEventListener('keydown', e => { if (e.key === 'Enter') accSign(false); });
+if (!Cloud.on){ document.querySelector('.login').classList.add('nocloud'); $('newGo').textContent = 'Play'; $('newGo').classList.add('primary'); }
 $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newGo').click(); });
 $('codeToggle').onclick = () => { $('codeBox').hidden = !$('codeBox').hidden; };
 $('codeGo').onclick = () => { try { signIn(Accounts.fromCode($('codeIn').value)); } catch(e){ $('loginErr').textContent = e.message; } };
 $('codeCopy').onclick = async () => { try { await navigator.clipboard.writeText($('codeOut').value); $('codeCopy').textContent = 'Copied'; } catch(e){ $('codeOut').select(); } setTimeout(() => { $('codeCopy').textContent = 'Copy code'; }, 1500); };
-$('signOut').onclick = () => { Accounts.signOut(); loginScreen(); };
+$('signOut').onclick = () => { Cloud.flush(); Cloud.signOut(); Accounts.signOut(); clearInterval(hallT); loginScreen(); };
 $('wipe').onclick = () => confirmBox('Delete this player?', `${P.name}'s cards, coins and decks will be gone from this device.`, 'Delete', () => { Accounts.remove(P.name); loginScreen(); });
 $('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; };
 $('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
 
+/* ---------- first time in: how it works, pick a starting deck, here are your coins ---------- */
+function onboard(){
+  show('scrOnb'); const box = $('onbBox'); let pickd = 0;
+  const step1 = () => {
+    box.innerHTML = `<div class="k-eyebrow">Welcome, ${esc(P.name)}</div><h2>How a brawl works</h2>
+      <div class="tips"><div><b>1</b><h4>Drop cards on your half</h4><p>Drag a card onto the field, or tap the card and then the spot. Each one costs Mana.</p></div>
+      <div><b>2</b><h4>Mind your Mana</h4><p>It refills on its own, and 30% faster once you hold off summoning for three seconds.</p></div>
+      <div><b>3</b><h4>Take his towers</h4><p>Knock down more towers than he does in ten minutes. Take the king tower and it ends on the spot.</p></div></div>
+      <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Pick my deck</button></div>`;
+    $('onNext').onclick = step2;
+  };
+  const step2 = () => {
+    box.innerHTML = `<div class="k-eyebrow">Step 2 of 3</div><h2>Pick your starting deck</h2><p class="note">15 cards, 5 in your hand at a time. You can change every card later.</p><div class="decks" id="onDecks"></div>
+      <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Take this deck</button></div>`;
+    const wrap = $('onDecks');
+    STARTER_DECKS.forEach((d, i) => {
+      const el = document.createElement('button'); el.type = 'button'; el.className = 'sdeck' + (i === pickd ? ' on' : '');
+      el.innerHTML = `<h4>${esc(d.name)}</h4><p>${esc(d.blurb)}</p><div class="mini"></div><span>Average ${avgCost(d.deck)} Mana</span>`;
+      const m = el.querySelector('.mini'); for (const id of d.deck) m.appendChild(cardEl(id, {div:true}));
+      el.onclick = () => { pickd = i; for (const c of wrap.children) c.classList.toggle('on', c === el); BDB.sfx.tick(); };
+      wrap.appendChild(el);
+    });
+    $('onNext').onclick = () => { const d = STARTER_DECKS[pickd].deck; P.cards = {}; for (const id of d) P.cards[id] = 1; P.decks = Array.from({length:DECK_SLOTS}, () => d.slice()); P.deck = 0; save(); BDB.sfx.good(); step3(); };
+  };
+  const step3 = () => {
+    box.innerHTML = `<div class="k-eyebrow">Step 3 of 3</div><h2>Here is ${fmt(P.coins)} coins</h2><p class="note" style="max-width:520px;margin:0 auto 6px">Spend them in the Market on new cards, or on upgrades for the ones in your deck. There are over a thousand to collect. Beat a BDB and you take one of his cards too.</p>
+      <div class="bigcoin"><span class="coin"></span>${fmt(P.coins)}</div>
+      <div class="k-row"><button type="button" class="k-btn primary big" id="onShop">Spend them in the Market</button><button type="button" class="k-btn big" id="onFight">Fight Trainee BDB</button></div>`;
+    const done = t => { P.onboarded = true; save(); show('scrHub'); tab(t); hallStart(); };
+    $('onShop').onclick = () => done('Market'); $('onFight').onclick = () => { done('Battle'); preCpu(0); };
+  };
+  step1();
+}
+
 /* ---------- before a CPU match: the draw for which of his cards is up for grabs ---------- */
 function preCpu(i){
-  const cpu = CPUS[i], prize = weightedPick(cpu.deck, id => DRAW_W[CARDS[id].rar]), map = MAPS[cpu.map];
+  const cpu = typeof i === 'number' ? CPUS[i] : i, prize = weightedPick(cpu.deck, id => DRAW_W[CARDS[id].rar]), map = MAPS[cpu.map];
   const b = dlg(`<div class="k-eyebrow">${esc(map.name)} · ${esc(map.blurb)}</div>
     <div class="vs"><div class="side"><div class="av me">${esc(P.name[0].toUpperCase())}</div>${esc(P.name)}</div><div class="mid">VS</div><div class="side"><div class="av"></div>${esc(cpu.name)}</div></div>
     <div class="k-label">Up for grabs</div><div class="big-card spin" id="vsPrize" style="width:112px"></div>
@@ -274,7 +331,7 @@ function preCpu(i){
   const slot = b.querySelector('#vsPrize'); let n = 0;
   const iv = setInterval(() => { const fin = ++n >= 10; slot.innerHTML = ''; slot.appendChild(cardEl(fin ? prize : pick(cpu.deck), {div:true, now:fin})); if (fin){ clearInterval(iv); slot.classList.remove('spin'); BDB.sfx.pop(); const l = b.querySelector('#vsLine'); if (l) l.textContent = `Beat him and ${CARDS[prize].name} is yours. Lose and you keep everything.`; } else BDB.sfx.tick(); }, BDB.reduced ? 10 : 110);
   b.querySelector('#vsNo').onclick = () => { clearInterval(iv); dlgClose(); };
-  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu, idx:i, prize, map:cpu.map, oppName:cpu.name}); };
+  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu, idx:typeof i === 'number' ? i : -1, prize, map:cpu.map, oppName:cpu.name}); };
 }
 
 /* ---------- the match ---------- */
@@ -508,9 +565,9 @@ function finish(w, cr, note){
   const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = crowns[B.team], win = w === B.team, draw = w < 0;
   let coins = 0, lines = [], prize = '', title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
   if (B.mode === 'cpu'){
-    const c = B.cpu, first = !P.beaten[c.id];
+    const c = B.cpu, first = !c.rand && !P.beaten[c.id];
     if (win){
-      coins = (first ? c.coins : c.coins / 2) + mine * 10; P.stats.w++; P.beaten[c.id] = (P.beaten[c.id] || 0) + 1;
+      coins = (first || c.rand ? c.coins : c.coins / 2) + mine * 10; P.stats.w++; if (!c.rand) P.beaten[c.id] = (P.beaten[c.id] || 0) + 1;
       lines.push(first ? `First win over ${c.name}.` : `Another win over ${c.name}.`);
       if (B.idx === P.ladder && P.ladder < CPUS.length){ P.ladder++; lines.push(P.ladder < CPUS.length ? `${CPUS[P.ladder].name} is unlocked.` : 'That was the last BDB. The ladder is yours.'); }
       prize = B.prize; P.stats.won++; lines.push(`You took his ${CARDS[prize].name}. ${grant(prize)}.`);
@@ -528,12 +585,13 @@ function finish(w, cr, note){
     ${prize ? '<div class="big-card" id="rsCard" style="width:104px"></div>' : ''}
     <div class="k-jumbo k-stats"><div class="cell"><small>Coins</small><b>+${fmt(coins)}</b></div><div class="cell"><small>Total</small><b>${fmt(P.coins)}</b></div></div>
     <p class="note">${lines.map(esc).join(' ')}</p>
-    <div class="k-row">${B.mode === 'cpu' ? `<button type="button" class="k-btn primary" id="rsAgain">${win && B.idx + 1 < CPUS.length && B.idx + 1 <= P.ladder ? 'Next BDB' : 'Rematch'}</button>` : ''}<button type="button" class="k-btn${B.mode === 'cpu' ? '' : ' primary'}" id="rsBack">Back to menu</button></div>`, {lock:true});
+    <div class="k-row">${B.mode === 'cpu' ? `<button type="button" class="k-btn primary" id="rsAgain">${B.cpu.rand ? 'Another one' : win && B.idx + 1 < CPUS.length && B.idx + 1 <= P.ladder ? 'Next BDB' : 'Rematch'}</button>` : ''}<button type="button" class="k-btn${B.mode === 'cpu' ? '' : ' primary'}" id="rsBack">Back to menu</button></div>`, {lock:true});
   if (prize) b.querySelector('#rsCard').appendChild(cardEl(prize, {div:true, lvl:lvl(prize), now:true}));
   const idx = B.idx, nextIdx = win && idx + 1 < CPUS.length && idx + 1 <= P.ladder ? idx + 1 : idx, wasCpu = B.mode === 'cpu';
   const leave = () => { dlgClose(); stopBattle(); show('scrHub'); hub(); };
   b.querySelector('#rsBack').onclick = leave;
-  if (wasCpu) b.querySelector('#rsAgain').onclick = () => { leave(); preCpu(nextIdx); };
+  const again = wasCpu && B.cpu.rand ? B.cpu.skill : null;
+  if (wasCpu) b.querySelector('#rsAgain').onclick = () => { leave(); preCpu(again ? randomCpu(again, myTower()) : nextIdx); };
 }
 function stopBattle(){ cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner')) e.remove(); }
 
@@ -624,16 +682,123 @@ function oppLeft(){ if (!B || B.done) return; B.over = true; if (B.coop) finish(
 /* right-click (or long-press on Android) any card for what it does and its stats */
 addEventListener('contextmenu', e => { const c = e.target.closest && e.target.closest('.card[data-id]'); if (!c) return; e.preventDefault(); sheet(c.dataset.id); });
 
+/* ---------- who's on: everyone signed in shows up, and everyone you see becomes a friend ---------- */
+let hallT = 0, HALL = {online:[], invites:[]}; const seenInv = new Set();
+function hallStart(){
+  clearInterval(hallT); renderHall();
+  if (!Cloud.session()) return;
+  const tick = async () => {
+    if (!P || !Cloud.session()) return;
+    try {
+      const r = await Cloud.ping(B ? 'battle' : TR ? 'trading' : 'menu'); if (!r || r.error || !Array.isArray(r.online)) return;
+      HALL = r; let fresh2 = false; for (const o of r.online){ const nm = clean(o.name, 20); if (nm && !P.friends[nm]) fresh2 = true; if (nm) P.friends[nm] = Date.now(); }
+      if (fresh2) save();
+      renderHall();
+      for (const iv of r.invites || []) if (iv && !seenInv.has(iv.id)){ seenInv.add(iv.id); gotInvite(iv); }
+    } catch(e){}
+  };
+  tick(); hallT = setInterval(tick, (+Q.get('ping') || 8) * 1000);
+}
+const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+function renderHall(){
+  const box = $('hall'); if (!box || !P) return;
+  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on the sign in screen to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
+  const on = (HALL.online || []).map(o => ({name:clean(o.name, 20), status:o.status, tr:o.trophies | 0})).filter(o => o.name), names = new Set(on.map(o => o.name));
+  const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
+  $('hallLbl').textContent = `Who's on · ${on.length}`;
+  box.innerHTML = (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
+    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'} · ${fmt(o.tr)} trophies</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">2v2</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
+    off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend · seen ${ago(P.friends[n])}</small></div><div></div></div>`).join('');
+}
+$('hall').onclick = e => { const b = e.target.closest('button[data-k]'); if (b && !B) sendInvite(b.parentNode.dataset.n, b.dataset.k); };
+async function sendInvite(to, kind){
+  const code = rid(6);
+  if (kind === 'trade') openTrade(code, to);
+  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? 'Asking them to team up against two BDBs. They have a minute to answer.' : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop'); OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
+  try { const r = await Cloud.invite(to, kind, code); if (!r || r.error) throw 0; } catch(e){ if (kind === 'trade') closeTrade(); else { endOnline(); dlgClose(); } msgBox('Could not send', 'The invite did not go through. Try again.'); }
+}
+function gotInvite(iv){
+  const what = {duel:'wants a 1v1', coop:'wants to team up against two BDBs', trade:'wants to trade cards'}[iv.kind], from = clean(iv.from, 20);
+  if (!what || !okCode(iv.code) || !from) return;
+  if (B || TR || !$('dlg').hidden || $('scrHub').hidden){ Cloud.inviteDone(iv.id); return; }        // busy: it lapses
+  const b = dlg(`<div class="k-eyebrow">Invite</div><h3>${esc(from)}</h3><p>${what}.</p><div class="k-row"><button type="button" class="k-btn primary" id="ivY">Accept</button><button type="button" class="k-btn" id="ivN">Not now</button></div>`, {lock:true});
+  BDB.sfx.big();
+  b.querySelector('#ivY').onclick = () => { Cloud.inviteDone(iv.id); dlgClose(); if (iv.kind === 'trade') openTrade(iv.code, from); else joinFriend(iv.code); };
+  b.querySelector('#ivN').onclick = () => { Cloud.inviteDone(iv.id); dlgClose(); };
+}
+
+/* ---------- trading: each side offers spare cards and coins, both lock, both confirm ---------- */
+let TR = null;
+const spare = () => { const used = new Set(P.decks.flat()); return Object.keys(P.cards).filter(id => !used.has(id)); };
+async function openTrade(code, name){
+  TR = {code, name, opp:null, mine:{cards:[], coins:0, lock:false}, theirs:{cards:[], coins:0, lock:false}, okMine:false, okTheirs:false, done:false};
+  drawTrade();
+  try { await netUp(); } catch(e){ TR = null; return netFail(); }
+  if (!TR) return;
+  const room = TR.room = net.join('brawl-t-' + code), hello = to => TR && room.send('th', {n:P.name}, to);
+  room.onJoin(id => hello(id)); hello(); TR.iv = setInterval(() => { if (TR && !TR.opp) hello(); }, 1500);
+  TR.to = setTimeout(() => { if (TR && !TR.opp) closeTrade(`${name} did not pick up.`); }, 70000);
+  room.onLeave(id => { if (TR && id === TR.opp && !TR.done) closeTrade(`${TR.name} left the trade.`); });
+  room.onMessage((t, d, from) => {
+    if (!TR || !d || typeof d !== 'object') return;
+    if (t === 'th'){ if (!TR.opp){ TR.opp = from; TR.name = clean(d.n, 20) || TR.name; clearInterval(TR.iv); clearTimeout(TR.to); hello(from); sendOffer(); drawTrade(); } return; }
+    if (from !== TR.opp || TR.done) return;
+    if (t === 'to'){
+      const cs = Array.isArray(d.cards) ? d.cards.filter(c => c && CARDS[c.id] && Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL).slice(0, 5).map(c => ({id:c.id, lvl:c.lvl})) : [], coins = Math.max(0, Math.min(1e6, d.coins | 0));
+      if (JSON.stringify(cs) !== JSON.stringify(TR.theirs.cards) || coins !== TR.theirs.coins){ TR.okMine = TR.okTheirs = false; if (TR.mine.lock){ TR.mine.lock = false; sendOffer(); } }      // their offer changed: nothing is agreed any more
+      TR.theirs = {cards:cs, coins, lock:!!d.lock}; drawTrade();
+    } else if (t === 'tc'){ if (TR.mine.lock && TR.theirs.lock){ TR.okTheirs = true; finishTrade(); drawTrade(); } }
+    else if (t === 'tx') closeTrade(`${TR.name} called it off.`);
+  });
+}
+function sendOffer(){ if (TR && TR.opp) TR.room.send('to', {cards:TR.mine.cards.map(id => ({id, lvl:lvl(id)})), coins:TR.mine.coins, lock:TR.mine.lock}, TR.opp); }
+function changed(){ TR.mine.lock = false; TR.okMine = TR.okTheirs = false; sendOffer(); drawTrade(); }
+function closeTrade(msg){ const t = TR; TR = null; if (t){ clearInterval(t.iv); clearTimeout(t.to); if (t.room){ if (t.opp && !t.done) t.room.send('tx', {}, t.opp); setTimeout(() => { try { t.room.leave(); } catch(e){} }, 400); } } dlgClose(); if (msg) msgBox('Trade', msg); hub(); }
+function finishTrade(){
+  if (!TR || TR.done || !TR.okMine || !TR.okTheirs) return;
+  TR.done = true;
+  for (const id of TR.mine.cards) delete P.cards[id];
+  for (const c of TR.theirs.cards) P.cards[c.id] = Math.max(lvl(c.id), c.lvl);
+  P.coins += TR.theirs.coins - TR.mine.coins; P.stats.tr = (P.stats.tr || 0) + 1; save(); BDB.sfx.big();
+  const got = TR.theirs.cards.map(c => CARDS[c.id].name).concat(TR.theirs.coins ? [fmt(TR.theirs.coins) + ' coins'] : []).join(', ') || 'nothing';
+  closeTrade(`Done. You got ${got} from ${TR.name}.`);
+}
+function drawTrade(){
+  if (!TR) return;
+  const linked = !!TR.opp, me = TR.mine, th = TR.theirs, both = me.lock && th.lock;
+  const b = dlg(`<div class="k-eyebrow">Trade</div><h3>You and ${esc(TR.name)}</h3>
+    <div class="trade"><div><span class="k-label">You give</span><div class="tg" id="tMine"></div><label class="tcoin"><span class="coin"></span><input class="field" id="tCoins" type="number" min="0" max="${P.coins}" value="${me.coins}" ${linked ? '' : 'disabled'}></label></div>
+      <div><span class="k-label">You get</span><div class="tg" id="tTheirs"></div><div class="tcoin"><span class="coin"></span><b>${fmt(th.coins)}</b>${th.lock ? '<em>Locked</em>' : ''}</div></div></div>
+    <p class="note" id="tMsg">${!linked ? `Waiting for ${esc(TR.name)} to join.` : TR.okMine ? `Waiting for ${esc(TR.name)} to confirm.` : both ? 'Both offers are locked. Confirm to make the swap.' : me.lock ? `Your offer is locked. Waiting for ${esc(TR.name)} to lock theirs.` : 'Tap spare cards to add them, set any coins, then lock your offer.'}</p>
+    <span class="k-label">Your spare cards (not in a deck)</span><div class="grid tpool" id="tPool"></div>
+    <div class="k-row"><button type="button" class="k-btn ${me.lock ? '' : 'primary'}" id="tLock" ${linked && !TR.okMine ? '' : 'disabled'}>${me.lock ? 'Unlock' : 'Lock my offer'}</button><button type="button" class="k-btn primary" id="tOk" ${both && !TR.okMine ? '' : 'disabled'}>Confirm trade</button><button type="button" class="k-btn ghost" id="tX">Cancel</button></div>`, {lock:true});
+  const mineEl = b.querySelector('#tMine'), thEl = b.querySelector('#tTheirs'), pool = b.querySelector('#tPool');
+  for (const id of me.cards){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => { if (TR.okMine) return; me.cards = me.cards.filter(x => x !== id); changed(); }; mineEl.appendChild(c); }
+  for (const c of th.cards) thEl.appendChild(cardEl(c.id, {div:true, lvl:c.lvl}));
+  if (!me.cards.length) mineEl.innerHTML = '<p class="note">Nothing yet.</p>'; if (!th.cards.length) thEl.innerHTML = '<p class="note">Nothing yet.</p>';
+  const sp = spare().filter(id => !me.cards.includes(id)).sort((a, c) => CARDS[c].price - CARDS[a].price).slice(0, 40);
+  for (const id of sp){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => { if (!linked || TR.okMine || me.cards.length >= 5) return; me.cards.push(id); changed(); }; pool.appendChild(c); }
+  if (!sp.length) pool.innerHTML = '<p class="note">No spare cards. Cards in any of your three decks cannot be traded.</p>';
+  b.querySelector('#tCoins').onchange = e => { me.coins = Math.max(0, Math.min(P.coins, Math.round(+e.target.value || 0))); changed(); };
+  b.querySelector('#tLock').onclick = () => { me.lock = !me.lock; TR.okMine = TR.okTheirs = false; sendOffer(); drawTrade(); };
+  b.querySelector('#tOk').onclick = () => { if (!(me.lock && th.lock)) return; TR.okMine = true; TR.room.send('tc', {}, TR.opp); finishTrade(); drawTrade(); };
+  b.querySelector('#tX').onclick = () => closeTrade();
+}
+
 /* ---------- start ---------- */
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) $('sheet').hidden = true; });
 listUI('own', () => Object.keys(P.cards), 'Your cards');
 listUI('shop', () => CARD_IDS, 'All cards');
 window.__game = {
   get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? 'hub' : 'login'; }, get score(){ return P ? P.coins : 0; },
-  get P(){ return P; }, get B(){ return B; }, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get thumbsLeft(){ return tq.length; },
+  get P(){ return P; }, get B(){ return B; }, get TR(){ return TR; }, get hall(){ return HALL; }, cloud:Cloud, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get thumbsLeft(){ return tq.length; },
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(){ P.ladder = CPUS.length; save(); hub(); },
   end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, preCpu, sheet, showEmote, pzAct
 };
-const last = Accounts.last();
-if (last && !Q.get('fresh')) signIn(last); else loginScreen();
+const last = Accounts.last(), sess0 = Cloud.session();
+if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach
+  loginScreen(); $('loginErr').textContent = 'Signing you in.';
+  Cloud.load().then(r => { if (r.error){ Cloud.signOut(); loginScreen(); } else signIn(sanitize({...r.data, name:r.name})); })
+    .catch(() => { const p = Accounts.get(sess0.name); if (p) signIn(p); else { loginScreen(); $('loginErr').textContent = 'Could not reach the account server.'; } });
+} else if (last && !Q.get('fresh')) signIn(last); else loginScreen();
 initView();

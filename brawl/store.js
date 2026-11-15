@@ -15,8 +15,8 @@ function write(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); return tr
 
 export function fresh(name){
   const cards = {}; for (const c of STARTERS) cards[c] = 1;
-  return {v:2, name:clean(name, 20) || 'Player', coins:600, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, () => STARTERS.slice()), deck:0,
-    ladder:0, beaten:{}, stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0}, made:Date.now()};   // cards: id -> level
+  return {v:2, name:clean(name, 20) || 'Player', coins:1500, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, () => STARTERS.slice()), deck:0,
+    ladder:0, beaten:{}, stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0}, made:Date.now(), onboarded:false, friends:{}};   // cards: id -> level
 }
 /* Anything loaded from disk or a pasted code goes through here, so a bad save can never break the game. */
 export function sanitize(p){
@@ -24,9 +24,11 @@ export function sanitize(p){
   if (!p || typeof p !== 'object') return o;
   o.coins = int(p.coins, 0, 9999999, 500); o.trophies = int(p.trophies, 0, 99999, 0); o.ladder = int(p.ladder, 0, 99, 0); o.made = int(p.made, 0, 9e15, Date.now());
   if (p.cards && typeof p.cards === 'object') for (const k in p.cards) if (CARDS[k]){ const n = int(p.cards[k], 0, MAX_LVL, 0); if (n > 0) o.cards[k] = n; }
-  for (const c of STARTERS) o.cards[c] = Math.max(1, o.cards[c] || 0);              // everyone always has the starter set
   if (Array.isArray(p.decks)) for (let i = 0; i < DECK_SLOTS; i++){ const d = p.decks[i]; if (Array.isArray(d) && !deckProblem(d) && d.every(c => o.cards[c] > 0)) o.decks[i] = d.slice(); }
-  o.deck = int(p.deck, 0, DECK_SLOTS - 1, 0);
+  if (p.cards && typeof p.cards === 'object' && Object.keys(o.cards).length > DECK_SLOTS){ for (const c of STARTERS) if (!(p.cards[c] > 0)) delete o.cards[c]; }   // only what they actually own
+  for (const d of o.decks) for (const c of d) o.cards[c] = Math.max(1, o.cards[c] || 0);          // a deck slot that fell back to the starter deck brings its cards with it
+  o.deck = int(p.deck, 0, DECK_SLOTS - 1, 0); o.onboarded = p.onboarded !== false;
+  if (p.friends && typeof p.friends === 'object'){ let n = 0; for (const k in p.friends){ const nm = clean(k, 20); if (nm && n++ < 200) o.friends[nm] = int(p.friends[k], 0, 9e15, 0); } }
   if (p.beaten && typeof p.beaten === 'object') for (const k in p.beaten) if (/^[a-z0-9]{1,12}$/.test(k)) o.beaten[k] = int(p.beaten[k], 0, 99999, 0);
   if (p.stats && typeof p.stats === 'object') for (const k in o.stats) o.stats[k] = int(p.stats[k], 0, 9999999, 0);
   return o;

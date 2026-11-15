@@ -344,10 +344,66 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .dmg.me{color:#ff8f85}
 .dmg.big{font-size:26px;color:#ffd23f}
 @keyframes dmg{0%{opacity:0;transform:translate(-50%,-30%) scale(.5)}18%{opacity:1;transform:translate(-50%,-90%) scale(1.25)}35%{transform:translate(-50%,-110%) scale(1)}100%{opacity:0;transform:translate(-50%,-210%) scale(.9)}}
+.login.nocloud .acc{display:none}
+.login .err{color:#ffd9d4}
+.who:empty{display:none}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;text-align:left}
+.trade > div{background:#12357c;border:3px solid var(--ink2);border-radius:14px;padding:10px;min-width:0}
+.tg{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:12px 8px;padding:8px 2px 4px;min-height:92px;align-content:start}
+.tg .card .nm,.tpool .card .nm{display:none}
+.tg .card img,.tpool .card img{top:8%;height:84%}
+.tcoin{display:flex;align-items:center;gap:8px;margin-top:8px;font:400 20px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.tcoin .field{width:110px;padding:7px 9px;font-size:15px}
+.tcoin em{margin-left:auto;font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;font-style:normal;background:#2fbf3a;color:#fff;border-radius:7px;padding:4px 7px;text-shadow:none}
+.tpool{grid-template-columns:repeat(auto-fill,minmax(56px,1fr));max-height:190px;overflow:auto;width:100%}
+#dlgBox:has(.trade){width:min(660px,100%);max-width:min(660px,100%)}
+.tpool p,.tg p{grid-column:1/-1;margin:0}
 .dragcard{position:fixed;left:0;top:0;z-index:60;width:88px;pointer-events:none;transition:opacity .14s;will-change:transform;filter:drop-shadow(0 16px 12px rgba(0,0,0,.5))}
 .dragcard.over{opacity:.55}
 .dragcard.gone{opacity:0;transition:opacity .15s}
 .hand .card.lifting{opacity:.3;transform:translateY(6px) scale(.94)}
+.wrapx{max-width:1380px}
+.bgrid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);align-items:start}
+.bgrid .hero{margin:0}
+.bgrid .panel:last-child{margin-bottom:0}
+@media (min-width:900px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)} .bgrid .hero,.bgrid .c3{grid-column:1/-1} .bgrid .c3{display:grid;grid-template-columns:1fr 1fr;gap:16px} .bgrid .c3 .panel{margin:0} }
+@media (min-width:1280px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.8fr)} .bgrid .hero{grid-column:1/3} .bgrid .c3{grid-column:3;grid-row:1/3;display:block} .bgrid .c3 .panel{margin-bottom:16px} }
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.quick .k-btn{padding:10px 4px 8px;font-size:16px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.quick small{font:800 11px/1 var(--f-body);color:#fff7c2;text-shadow:none;display:flex;align-items:center}
+.quick .coin{width:11px;height:11px;margin-right:3px}
+.sk-easy{background:linear-gradient(180deg,#8dff7a,#2fbf3a)}.sk-medium{background:linear-gradient(180deg,#ffe066,#f59a1c)}.sk-hard{background:linear-gradient(180deg,#ff9a6a,#e2461a)}.sk-insane{background:linear-gradient(180deg,#e58bff,#8a22c8)}
+#scrOnb{align-items:center;justify-content:flex-start;overflow:auto;padding:22px 14px;background:radial-gradient(ellipse 120% 70% at 50% -10%,#4aa0ff 0,#1f5fd0 42%,#0d2f86 100%)}
+.onb{width:min(1080px,100%);margin:auto;text-align:center;background:linear-gradient(180deg,#2f79e6,#1d50b4);border:4px solid var(--ink2);border-radius:24px;box-shadow:inset 0 4px 0 rgba(255,255,255,.3),0 8px 0 var(--ink2);padding:24px 18px 26px}
+.onb h2{margin:6px 0 12px;font:400 clamp(28px,5vw,44px)/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.onb .k-eyebrow{font:400 16px/1 var(--f-game);letter-spacing:.03em;text-transform:none;color:#ffd23f;text-shadow:var(--stroke)}
+.onb .k-row{margin-top:18px}
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:8px}
+.tips > div{position:relative;background:#12357c;border:3px solid var(--ink2);border-radius:18px;padding:30px 14px 14px;margin-top:18px}
+.tips b{position:absolute;left:50%;top:-22px;transform:translateX(-50%);width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(180deg,#ffe066,#f59a1c);border:3px solid var(--ink2);font:400 24px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.tips h4{margin:0 0 6px;font:400 20px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.tips p{margin:0;color:#d6e6ff;font:600 13px/1.4 var(--f-body)}
+.decks{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:12px}
+.sdeck{text-align:left;cursor:pointer;color:#fff;background:#12357c;border:3px solid var(--ink2);border-radius:18px;padding:12px;box-shadow:0 5px 0 var(--ink2);font-family:var(--f-body)}
+.sdeck.on{background:linear-gradient(180deg,#3aa13a,#22762a);box-shadow:0 0 0 3px #ffd23f,0 5px 0 3px var(--ink2);transform:translateY(-3px)}
+.sdeck h4{margin:0 0 4px;font:400 21px/1.1 var(--f-game);text-shadow:var(--stroke)}
+.sdeck p{margin:0 0 10px;color:#d6e6ff;font:600 12px/1.35 var(--f-body);min-height:32px}
+.sdeck.on p{color:#eaffdf}
+.sdeck .mini{display:grid;grid-template-columns:repeat(5,1fr);gap:9px 6px;padding:4px 2px 2px}
+.sdeck .mini .card{cursor:pointer}
+.sdeck .mini .card .nm{display:none}
+.sdeck .mini .card img{top:8%;height:84%}
+.sdeck .mini .card .cost{transform:scale(.8);transform-origin:left top}
+.sdeck span{display:block;margin-top:8px;font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#ffe9a8}
+.bigcoin{display:inline-flex;align-items:center;gap:10px;margin:14px 0 2px;font:400 54px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.bigcoin .coin{width:44px;height:44px;margin:0;box-shadow:0 0 0 3px var(--ink2)}
+.pl{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:8px}
+.pl i{width:12px;height:12px;border-radius:50%;background:#5d6f95;box-shadow:0 0 0 2px var(--ink2)}
+.pl.on i{background:#4ade80;box-shadow:0 0 0 2px var(--ink2),0 0 8px #4ade80}
+.pl b{font:400 16px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl small{display:block;font:700 10px/1.2 var(--f-body);color:#cfe1ff;letter-spacing:.04em}
+.pl .k-btn{padding:7px 10px 6px;font-size:13px;border-width:2px;box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2)}
+.pl .acts{display:flex;gap:6px}
 :root{--hand-h:168px}
 @media (max-width:759px){ .grid.deck,.grid.eight{gap:14px 8px} .grid.deck .card .nm,.grid.eight .card .nm{display:none} .grid.deck .card img,.grid.eight .card img{top:8%;height:84%} .grid.deck .card .lv,.grid.eight .card .lv{top:auto;bottom:4px;right:50%;transform:translateX(50%);white-space:nowrap} }
 @media (max-width:759px){ .hand .card .nm{display:none} .hand .card img{top:6%;height:82%} }
@@ -368,14 +424,20 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
     <div class="k-eyebrow">BDB Entertainment presents</div>
     <h1>Break Room <span>Brawl</span></h1>
     <p class="sub">Over 1,000 cards. Build a 15 card deck, flood the lanes and knock down BDB's towers. Win coins, upgrade your cards, take his.</p>
-    <div class="who" id="whoList"></div>
-    <div class="rowx"><input class="field" id="newName" maxlength="20" placeholder="Player name" autocomplete="off" spellcheck="false"><button type="button" class="k-btn primary" id="newGo">Play</button></div>
+    <div class="rowx"><input class="field" id="newName" maxlength="20" placeholder="Player name" autocomplete="username" spellcheck="false"></div>
+    <div class="rowx acc"><input class="field" id="newPass" type="password" maxlength="72" placeholder="Password" autocomplete="current-password"></div>
+    <div class="rowx acc"><button type="button" class="k-btn primary" id="accIn" style="flex:1">Sign in</button><button type="button" class="k-btn" id="accNew" style="flex:1">Create account</button></div>
     <div class="err" id="loginErr"></div>
+    <div class="who" id="whoList"></div>
+    <div class="rowx"><button type="button" class="k-btn" id="newGo" style="flex:1">Play on this device only</button></div>
     <button type="button" class="link" id="codeToggle">I have a save code</button>
     <div id="codeBox" hidden><textarea class="field" id="codeIn" placeholder="Paste your save code" spellcheck="false"></textarea><div class="rowx"><button type="button" class="k-btn" id="codeGo" style="flex:1">Load save</button></div></div>
-    <p class="note" style="margin-top:12px">Your cards, coins and decks save on this device under your name. A save code moves them to another phone or computer.</p>
+    <p class="note" style="margin-top:12px">An account keeps your cards, coins and decks online, so you can sign in anywhere and your friends can see when you are on. Without one, everything saves on this device.</p>
   </div>
 </section>
+
+<!-- first time -->
+<section class="scr" id="scrOnb" hidden><div class="onb" id="onbBox"></div></section>
 
 <!-- hub -->
 <section class="scr" id="scrHub" hidden>
@@ -389,30 +451,31 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
   </header>
   <div class="body" id="hubBody"><div class="wrapx">
 
-    <div id="tabBattle">
+    <div id="tabBattle" class="bgrid">
       <div class="hero" id="hero"></div>
-      <div class="split">
-        <div>
-          <div class="panel">
-            <span class="k-label">Beat the BDBs</span>
-            <div id="ladder"></div>
-          </div>
+      <div class="c1"><div class="panel"><span class="k-label">Beat the BDBs</span><div id="ladder"></div></div></div>
+      <div class="c2">
+        <div class="panel">
+          <div class="deckbar"><span class="k-label" id="bDeckLbl">Your deck</span><button type="button" class="link" id="toDeck" style="padding:4px">Change deck</button></div>
+          <div class="grid eight" id="bDeck"></div>
         </div>
-        <div>
-          <div class="panel">
-            <div class="deckbar"><span class="k-label" id="bDeckLbl">Your deck</span><button type="button" class="link" id="toDeck" style="padding:4px">Change deck</button></div>
-            <div class="grid eight" id="bDeck"></div>
-          </div>
-          <div class="panel">
-            <span class="k-label">Win his cards</span>
-            <p class="note" style="margin:0">Before each fight a random draw picks one card from his deck. Beat him and it is yours. Already have it? It goes up a level for free. You never lose cards for losing.</p>
-          </div>
-          <div class="panel">
-            <span class="k-label">Online 1v1</span>
-            <p class="note" style="margin:0 0 10px">Play a real person with your current deck, or team up with a friend for 2v2 against two BDBs.</p>
-            <div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn primary" id="olQuick">Quick match</button><button type="button" class="k-btn" id="olFriend">Play a friend</button></div>
-          </div>
+        <div class="panel">
+          <span class="k-label">Quick battle</span>
+          <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. Pick how good he is.</p>
+          <div class="quick" id="quickRow"></div>
         </div>
+        <div class="panel">
+          <span class="k-label">Win his cards</span>
+          <p class="note" style="margin:0">Before each fight a random draw picks one card from his deck. Beat him and it is yours. Already have it? It goes up a level for free. You never lose cards for losing.</p>
+        </div>
+      </div>
+      <div class="c3">
+        <div class="panel">
+          <span class="k-label">Play online</span>
+          <p class="note" style="margin:0 0 10px">Play a real person with your current deck, or team up with a friend for 2v2 against two BDBs.</p>
+          <div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn primary" id="olQuick">Quick match</button><button type="button" class="k-btn" id="olFriend">Play a friend</button></div>
+        </div>
+        <div class="panel"><span class="k-label" id="hallLbl">Who's on</span><div id="hall"><p class="note" style="margin:0">Connecting.</p></div></div>
       </div>
     </div>
 
@@ -444,7 +507,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 
     <div id="tabProfile" hidden>
       <div class="split">
-        <div class="panel"><span class="k-label" id="pName">Player</span><div class="kv" id="pStats"></div></div>
+        <div class="panel"><span class="k-label" id="pName">Player</span><p class="note" id="accNote" style="margin:0 0 12px"></p><div class="kv" id="pStats"></div></div>
         <div>
           <div class="panel">
             <span class="k-label">Save code</span>
@@ -493,6 +556,6 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1114k"></script>
+<script type="module" src="main.js?v=1114m"></script>
 </body>
 </html>
