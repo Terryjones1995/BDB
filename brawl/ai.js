@@ -1,14 +1,14 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot.
    prof: {react, hold, derp, smart} from cards.js CPUS. */
-import { CARDS, UNITS, lvlMul } from './cards.js';
-import { TPS, W, L, RIVER } from './sim.js';
+import { CARDS, UNITS, lvlMul } from './cards.js?v=1114n';
+import { TPS, W, L, RIVER } from './sim.js?v=1114n';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 export function createAI(sim, team, prof, rnd = Math.random, pid = team){
   const s = team === 0 ? 1 : -1;                 // f = z * s is "how deep on my own side"
   const edge = (sim.map.river ? RIVER : 0) + .8;
-  let wait = Math.round((2.5 + prof.react) * TPS);
+  let wait = Math.round((2.5 + prof.react) * TPS), hot = null;      // hot: the lane the other side last pushed down
   const P = () => sim.players[pid];
 
   function put(h, x, f){
@@ -21,6 +21,7 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     return false;
   }
   const dpsOf = (U, n = 1) => U.dmg / U.hit * n;
+  const myTraps = () => sim.traps.filter(t => t.pid === pid && !t.live).length;      // his own, which he is allowed to know about
 
   /* best place for an area spell and what it is worth there */
   function spellSpot(sp, lvl, foes, towers){
@@ -70,6 +71,19 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     if (threats.length){
       threats.sort((a, b) => b.z * s - a.z * s);
       const lead = threats[0], near = lead.z * s > 4;
+      hot = lead.x;
+      const onFoot = threats.filter(o => !o.U.fly && !o.U.bld), big = onFoot.find(o => o.max >= 700) || onFoot[0];
+      if (onFoot.length && myTraps() < 2 && rnd() < .25 + prof.smart * .6){                       // a push on foot: set a trap where it will be standing when the trap arms
+        const home = o => myTw.reduce((a, t) => Math.hypot(t.x - o.x, t.z - o.z) < Math.hypot(a.x - o.x, a.z - o.z) ? t : a, myTw[0]);
+        const ahead = (o, h) => { const k = home(o), dx = k.x - o.x, df = (k.z - o.z) * s, d = Math.hypot(dx, df) || 1, a = Math.min(d * .7, o.U.spd * h.card.trap.arm + .2); return put(h, o.x + dx / d * a, Math.max(edge, o.z * s + df / d * a)); };
+        const tr = k => hand.find(h => h.card.type === 'trap' && h.card.trap.kind === k);
+        const mir = tr('mirror'), bnc = tr('bounce'), snp = tr('snap'), slp = tr('slip');
+        if (mir && near){ const k = home(lead); return put(mir, k.x + clamp(lead.x - k.x, -1, 1), Math.max(edge, k.z * s - 1.7)); }      // Instant Replay goes where they will stand and swing at the tower
+        if (bnc && big.max >= 700) return ahead(big, bnc);
+        if (slp && onFoot.length >= 3) return ahead(onFoot[0], slp);
+        if (snp) return ahead(big, snp);
+        if (slp) return ahead(onFoot[0], slp);
+      }
       const power = threats.reduce((a, o) => a + o.hp * .4 + o.dmg, 0), have = mine.filter(o => o.z * s > -2).reduce((a, o) => a + o.hp * .4 + o.dmg, 0);
       if (have < power * 1.15 && (near || p.el >= prof.hold - 2.5 || power > 900)){
         const air = threats.filter(o => o.U.fly).length / threats.length, many = threats.length >= 4, big = threats.some(o => o.hp > 800), pull = threats.some(o => o.U.only === 'b');
@@ -102,6 +116,14 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     }
 
     // 3. attack when the cup is full enough
+    const trapH = hand.find(h => h.card.type === 'trap');     // nothing coming: leave a trap on the lane he expects you down next
+    if (trapH && p.el >= Math.max(6, trapH.card.cost + 3) && rnd() < .2 + prof.smart * .3 && myTraps() < 2){
+      const k = trapH.card.trap.kind, weak = myTw.filter(o => o.key === 'princess').sort((a, b) => a.hp - b.hp)[0] || myTw[0];
+      if (k === 'counter') return put(trapH, weak.x + (rnd() - .5) * 2, Math.max(edge, weak.z * s - 1.5));                              // by the tower a spell would finish
+      const lanes = sim.map.bridges.length ? sim.map.bridges.map(b => b.x) : [-5.5, 5.5], want = hot ?? weak.x, lane = lanes.reduce((a, b) => Math.abs(b - want) < Math.abs(a - want) ? b : a);
+      if (k === 'mirror') return put(trapH, weak.x + (rnd() - .5), Math.max(edge, weak.z * s - 1.7));
+      return put(trapH, lane + (rnd() - .5) * 1.2, edge + 1.2 + rnd() * 3.5);
+    }
     if (p.el < prof.hold && p.el < 9.6) return;
     const front = mine.filter(o => !o.U.bld).sort((a, b) => a.z * s - b.z * s)[0];      // my troop furthest up the field
     const pr = eTw.filter(o => o.key === 'princess');

@@ -3,7 +3,7 @@
    To add real logins later, keep this file's surface (all / get / save / remove / last / code / fromCode) and
    point `Accounts.remote` at a backend: save() already hands every change to remote.push(profile), and
    a login screen only needs remote.pull(name) -> profile, then Accounts.save(profile). Nothing else in the game touches storage. */
-import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, deckProblem } from './cards.js';
+import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, deckProblem } from './cards.js?v=1114n';
 
 const KEY = 'brawl-accounts-v2';
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, '').trim().slice(0, n);
@@ -16,7 +16,7 @@ function write(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); return tr
 export function fresh(name){
   const cards = {}; for (const c of STARTERS) cards[c] = 1;
   return {v:2, name:clean(name, 20) || 'Player', coins:1500, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, () => STARTERS.slice()), deck:0,
-    ladder:0, beaten:{}, stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0}, made:Date.now(), onboarded:false, friends:{}};   // cards: id -> level
+    ladder:0, beaten:{}, stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1}};   // cards: id -> level. flags: one-off announcements already seen
 }
 /* Anything loaded from disk or a pasted code goes through here, so a bad save can never break the game. */
 export function sanitize(p){
@@ -29,6 +29,7 @@ export function sanitize(p){
   for (const d of o.decks) for (const c of d) o.cards[c] = Math.max(1, o.cards[c] || 0);          // a deck slot that fell back to the starter deck brings its cards with it
   o.deck = int(p.deck, 0, DECK_SLOTS - 1, 0); o.onboarded = p.onboarded !== false;
   if (p.friends && typeof p.friends === 'object'){ let n = 0; for (const k in p.friends){ const nm = clean(k, 20); if (nm && n++ < 200) o.friends[nm] = int(p.friends[k], 0, 9e15, 0); } }
+  o.flags = {}; if (p.flags && typeof p.flags === 'object') for (const k in p.flags) if (/^[a-z0-9]{1,12}$/.test(k) && p.flags[k]) o.flags[k] = 1;
   if (p.beaten && typeof p.beaten === 'object') for (const k in p.beaten) if (/^[a-z0-9]{1,12}$/.test(k)) o.beaten[k] = int(p.beaten[k], 0, 99999, 0);
   if (p.stats && typeof p.stats === 'object') for (const k in o.stats) o.stats[k] = int(p.stats[k], 0, 9999999, 0);
   return o;

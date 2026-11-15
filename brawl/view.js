@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114j';
-import { UNITS, MAPS } from './cards.js';
-import { W, L, RIVER } from './sim.js';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114n';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1114n';
+import { W, L, RIVER, TRIG } from './sim.js?v=1114n';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -168,8 +168,9 @@ export function createView(el, opt = {}){
 
   /* ---------- flat ground effects ---------- */
   const ringG = new THREE.RingGeometry(.9, 1, 56), discG = new THREE.CircleGeometry(1, 48), flats = [];
+  const domeG = new THREE.SphereGeometry(1, 28, 10, 0, PI * 2, 0, PI / 2).rotateX(PI / 2);       // lies on its side so that, turned flat like the rings, it stands up as a dome
   function flat(x, z, o){             // o: {r0, r1, dur, color, fill, a, delay, pulse}
-    const m = new THREE.Mesh(o.fill ? discG : ringG, new THREE.MeshBasicMaterial({color:o.color, transparent:true, opacity:0, depthWrite:false, blending:o.add ? THREE.AdditiveBlending : THREE.NormalBlending}));
+    const m = new THREE.Mesh(o.geo || (o.fill ? discG : ringG), new THREE.MeshBasicMaterial({color:o.color, transparent:true, opacity:0, depthWrite:false, side:o.geo ? THREE.DoubleSide : THREE.FrontSide, blending:o.add ? THREE.AdditiveBlending : THREE.NormalBlending}));
     if (o.add) m.material.color.multiplyScalar(1 + (HDR - 1) * .6);
     m.rotation.x = -PI / 2; m.position.set(x, .05 + flats.length % 5 * .004, z); m.visible = false; root.add(m);
     flats.push({m, t:-(o.delay || 0), ...o}); return m;
@@ -562,11 +563,13 @@ export function createView(el, opt = {}){
         } else if (ev.k === 'freeze'){
           flat(ev.x, ev.z, {r0:ev.r, dur:ev.t, delay:ev.d, color:0xbfe9ff, fill:true, a:.26, hold:true});
         }
+        if (ev.aff === 'tox') flat(ev.x, ev.z, {r0:ev.r, dur:1.35, delay:ev.d, color:0x58d848, fill:true, a:.24, hold:true, pulse:true});      // the cloud that lands a second time
       } else if (ev.e === 'boom'){
         if (ev.k === 'rain'){ burst(ev.x, .3, ev.z, 16, 0xffb070, {spd:4, up:3, life:.5, spread:ev.r}); }
         else if (ev.k === 'bomb'){ burst(ev.x, .4, ev.z, 46, 0xb87a48, {spd:6, up:6, life:.8, spread:1}); burst(ev.x, .5, ev.z, 16, 0xf3ead6, {smoke:true, spd:1.6, up:3, life:1.3, grav:-1.2, spread:1.6}); flat(ev.x, ev.z, {r0:.5, r1:ev.r * 1.15, dur:.5, color:0xd9a066, add:true}); shake(.35); }
         else if (ev.k === 'freeze'){ burst(ev.x, .6, ev.z, 40, 0xdff5ff, {spd:5, up:3, life:.8, spread:1, grav:2}); flat(ev.x, ev.z, {r0:.5, r1:ev.r, dur:.5, color:0xbfe9ff, add:true}); }
         else if (ev.k === 'rage'){ burst(ev.x, .4, ev.z, 26, 0xff6fe0, {spd:4, up:4, life:.7, grav:1}); }
+        else if (ev.k === 'tox'){ burst(ev.x, .4, ev.z, 36, 0x7dff5a, {spd:5, up:4, life:.9, spread:ev.r * .5, grav:2}); flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.6, color:0x58d848, add:true}); }
         else { burst(ev.x, .6, ev.z, 54, 0xff8a2b, {spd:7, up:7, life:.8, spread:.8}); burst(ev.x, .6, ev.z, 14, 0x3a3f4d, {smoke:true, spd:2, up:3, life:1.2, grav:-1}); flat(ev.x, ev.z, {r0:.5, r1:ev.r, dur:.5, color:0xffb547, add:true}); shake(.45); }
       } else if (ev.e === 'fuse'){
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .05, color:0xff3a2a, a:.9, hold:true, pulse:true}); flat(ev.x, ev.z, {r0:.2, r1:ev.r, dur:ev.d + .05, color:0xff3a2a, fill:true, a:.3, hold:true});
@@ -578,9 +581,79 @@ export function createView(el, opt = {}){
         for (const c of [0xff5a4a, 0xffd23f, 0x4fb3ff, 0x4ade80, 0xff7ad0]) burst(ev.x, 2.6, ev.z, low ? 8 : 16, c, {spd:6, up:10, life:1.5, grav:9, spread:1.2});
         if (!opt.reduced){ punch.t = 1; punch.x = me === 0 ? ev.x : -ev.x; punch.z = me === 0 ? ev.z : -ev.z; }
       }
+      else if (ev.e === 'trap'){                                   // a trap flips face up: both sides see what it was
+        const col = TCOL[ev.k] || 0xffffff;
+        popProp(TRAP_ART[ev.k], ev.x, ev.z, CARDS[ev.id] ? CARDS[ev.id].aff : 'std');
+        flat(ev.x, ev.z, {r0:.3, r1:ev.r, dur:.45, color:col, add:true, a:.95}); flat(ev.x, ev.z, {r0:ev.r, dur:.6, color:col, fill:true, a:.3, hold:true, add:true});
+        if (ev.k === 'slip'){ burst(ev.x, .15, ev.z, 44, 0x9fe0ff, {spd:5.5, up:3.5, life:.8, spread:ev.r * .7, grav:8}); flat(ev.x, ev.z, {r0:.5, r1:ev.r * 1.1, dur:.8, delay:.1, color:0x59c8ff, a:.7}); }
+        else if (ev.k === 'snap'){ burst(ev.x, .6, ev.z, 50, 0xffd28a, {spd:7.5, up:6, life:.6, spread:.6}); burst(ev.x, .4, ev.z, 14, 0xe9e4d6, {smoke:true, spd:2.2, up:2.4, life:1, grav:-.8, spread:1}); shake(.5); }
+        else if (ev.k === 'mirror'){ burst(ev.x, 1, ev.z, 34, 0xbff6ff, {spd:4.5, up:5, life:.9, grav:2}); }
+        else if (ev.k === 'bounce'){ burst(ev.x, .6, ev.z, 30, 0xd9a8ff, {spd:3, up:7.5, life:.8, grav:3}); }
+        else { burst(ev.x, 1.3, ev.z, 38, 0xffe27a, {spd:5.5, up:5, life:.8}); shake(.3); }
+      }
+      else if (ev.e === 'negate'){                                 // the spell is waved off: a dome flashes over where it would have landed
+        flat(ev.x, ev.z, {geo:domeG, r0:ev.r * .92, r1:ev.r * 1.06, dur:.75, color:0xffe27a, add:true, a:.42}); flat(ev.x, ev.z, {r0:ev.r, r1:.3, dur:.45, color:0xffffff, add:true, a:.95});
+        burst(ev.x, 1.4, ev.z, 30, 0xffffff, {spd:6, up:2, life:.6, grav:1, spread:ev.r}); burst(ev.x, .5, ev.z, 12, 0xcfd5e2, {smoke:true, spd:1.6, up:2, life:1.1, grav:-.8, spread:ev.r});
+        for (let i = shots.length - 1; i >= 0; i--){ const sh = shots[i]; if (sh.quiet !== undefined && Math.hypot(sh.to.x - ev.x, sh.to.z - ev.z) <= ev.r + .2){ root.remove(sh.m); shots.splice(i, 1); } }      // what was in the air for it never lands
+      }
+      else if (ev.e === 'warp'){                                   // sent home: gone from here in a puff, dropped back in at their own king tower
+        const r = recs.get(ev.id);
+        if (r){ burst(r.x, r.m.h * .5, r.z, 28, 0xd9a8ff, {spd:3, up:8, life:.7, grav:2}); flat(r.x, r.z, {r0:1.4, r1:.1, dur:.4, color:0xc77dff, add:true});
+          r.x = ev.x; r.z = ev.z; r.g.position.set(ev.x, 6, ev.z); r.age = 0; r.landed = false; flat(ev.x, ev.z, {r0:.2, r1:1.8, dur:.55, delay:.25, color:0xc77dff, add:true}); }
+      }
+      else if (ev.e === 'reflect'){ const r = recs.get(ev.id); if (r){ burst(r.x, r.m.h * .6 + (r.m.fly || 0), r.z, 6, 0x9ff6ff, {spd:2.6, up:2, life:.35}); flat(r.x, r.z, {r0:.3, r1:r.e.U.r * 2.6, dur:.25, color:0x7df0ff, add:true, a:.75}); if (r.pop <= 0) r.pop = .1; } }
+      else if (ev.e === 'trapx'){ burst(ev.x, .3, ev.z, 12, 0xb9c0cf, {smoke:true, spd:1.6, up:2.2, life:.9, grav:-.6, spread:.6}); flat(ev.x, ev.z, {r0:.3, r1:1.5, dur:.4, color:0xcfd5e2, a:.7}); }
       else if (ev.e === 'king'){ const r = [...recs.values()].find(q => q.e.key === 'king' && q.e.team === ev.team); if (r){ flat(r.x, r.z, {r0:1, r1:4.5, dur:.6, color:0xffd95a, add:true}); burst(r.x, 3.4, r.z, 20, 0xffd95a, {spd:3, up:4, life:.7}); } }
     }
   }
+
+  /* ---------- traps ----------
+     Your own lie face down where only you can see them: the prop, a plate for where it triggers, a dashed ring for how far it reaches.
+     A sprung Instant Replay is a glowing zone that both sides see. */
+  const TCOL = {slip:0x59c8ff, snap:0xff5a4a, mirror:0x2fd2ff, bounce:0xc77dff, counter:0xffd95a};
+  const dashG = (() => { const N = 30, pos = [], idx = []; for (let i = 0; i < N; i++){ const a0 = i / N * PI * 2, a1 = a0 + PI * 2 / N * .55, b = pos.length / 3; for (const [a, q] of [[a0, .93], [a0, 1], [a1, .93], [a1, 1]]) pos.push(Math.cos(a) * q, Math.sin(a) * q, 0); idx.push(b, b + 1, b + 2, b + 2, b + 1, b + 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); return g; })();
+  const trapRecs = new Map(), seenT = new Set(), pops = [];
+  const flatMesh = (geo, color, a, add) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color, transparent:true, opacity:a, depthWrite:false, side:THREE.DoubleSide, blending:add ? THREE.AdditiveBlending : THREE.NormalBlending})); m.rotation.x = -PI / 2; return m; };
+  function makeTrap(t){
+    const c = CARDS[t.card], col = TCOL[t.kind] || 0xffffff, g = new THREE.Group(), hold = new THREE.Group(), m = makeModel(TRAP_ART[t.kind], 0, {aff:c ? c.aff : 'std'});
+    if (!low) outline(m.g);
+    hold.add(m.g); g.add(hold); g.position.set(t.x, 0, t.z); root.add(g);
+    const plate = flatMesh(discG, 0x06101f, .34), ring = flatMesh(dashG, col, .8), zone = flatMesh(discG, col, 0, true), edge = flatMesh(ringG, col, 0), wave = flatMesh(ringG, 0xd8f8ff, 0);
+    plate.scale.setScalar(TRIG); plate.position.y = .05; ring.scale.setScalar(t.r); ring.position.y = .058; zone.scale.setScalar(t.r); zone.position.y = .054; edge.scale.setScalar(t.r); edge.position.y = .062; wave.position.y = .066;
+    g.add(plate, ring, zone, edge, wave);
+    return {g, hold, m, plate, ring, zone, edge, wave, x:t.x, z:t.z, r:t.r, age:0, live:false, arm:c && c.trap ? c.trap.arm : 1, armed:false, mats:[plate, ring, zone, edge, wave].map(q => q.material)};
+  }
+  function dropTrap(id, r, puff){ if (puff) burst(r.x, .3, r.z, 5, 0xb9c0cf, {smoke:true, spd:1, up:1.2, life:.6, grav:-.5}); root.remove(r.g); for (const q of r.mats) q.dispose(); trapRecs.delete(id); }
+  function setTraps(list){
+    seenT.clear();
+    for (const t of list){ seenT.add(t.id); let r = trapRecs.get(t.id); if (!r){ r = makeTrap(t); trapRecs.set(t.id, r); } if (t.live && !r.live){ r.live = true; r.age = Math.max(r.age, 1); r.plate.visible = r.ring.visible = false; } }
+    for (const [id, r] of trapRecs) if (!seenT.has(id)) dropTrap(id, r, !r.live);
+  }
+  function stepTraps(dt){
+    if (!trapRecs.size && !pops.length) return;
+    tv.copy(camera.position); root.worldToLocal(tv); const cx = tv.x, cz = tv.z;
+    for (const r of trapRecs.values()){
+      r.age += dt; const k = Math.min(1, r.age / .32), pop = 1 - Math.pow(1 - k, 3);
+      if (r.live){                                             // hovering and spinning over a zone that throws their damage back
+        r.hold.position.y = 1.15 + Math.sin(time * 3) * .1; r.hold.rotation.y += dt * 2.6; r.hold.scale.setScalar(.8);
+        r.zone.material.opacity = .16 + Math.sin(time * 6) * .05; r.edge.material.opacity = .8 + Math.sin(time * 6) * .15;
+        const w = (time * .9) % 1; r.wave.scale.setScalar(r.r * (1 - w * .85)); r.wave.material.opacity = .45 * Math.sin(w * PI);      // ripples running inward: what goes in comes back
+      } else {                                                 // face down: drops in, blinks until it is armed, then sits there turning to face you
+        if (!r.armed && r.age >= r.arm){ r.armed = true; flat(r.x, r.z, {r0:.3, r1:r.r, dur:.4, color:0xffffff, add:true, a:.6}); }
+        r.hold.position.y = (1 - pop) * 1.4 + Math.abs(Math.sin(time * 2.2 + r.z)) * .04; r.hold.scale.setScalar(.74 * (.4 + .6 * pop));
+        r.hold.rotation.y = Math.atan2(cx - r.x, cz - r.z) + Math.sin(time * 1.5 + r.x) * .12;
+        r.ring.rotation.z += dt * .45; r.ring.material.opacity = r.armed ? .8 : .3 + Math.abs(Math.sin(time * 12)) * .5;
+      }
+    }
+    for (let i = pops.length - 1; i >= 0; i--){               // the prop of a trap that just sprang: snaps up big, hangs, shrinks away
+      const p = pops[i]; p.t += dt; const k = p.t / 1.15;
+      if (k >= 1){ root.remove(p.g); pops.splice(i, 1); continue; }
+      const up = Math.min(1, p.t / .16), sc = k < .82 ? 1.35 * (1 - Math.pow(1 - up, 3)) * (1 + Math.sin(up * PI) * .25) : 1.35 * (1 - (k - .82) / .18);
+      p.g.scale.setScalar(Math.max(.01, sc)); p.g.position.y = .25 + k * 1.2; p.g.rotation.y = Math.atan2(cx - p.g.position.x, cz - p.g.position.z) + (1 - up) * 3;
+    }
+  }
+  function popProp(key, x, z, aff){ const m = makeModel(key, 0, {aff}); if (!low) outline(m.g); const g = new THREE.Group(); g.add(m.g); g.position.set(x, .25, z); g.scale.setScalar(.01); root.add(g); pops.push({g, t:0}); }
 
   /* ---------- aiming a card ---------- */
   const ghost = new THREE.Group(); fxW.add(ghost); ghost.visible = false;
@@ -634,7 +707,7 @@ export function createView(el, opt = {}){
     time += dt;
     if (ents) sync(ents, dt);
     if (ghost.visible){ const p = 1 + Math.sin(time * 7) * .06; gRing.scale.setScalar(gRing.scale.x / (gRing.userData.p || 1) * p); gRing.userData.p = p; if (gM && gM.g.visible){ gM.g.position.y = (gM.fly || 0) + .5 + Math.sin(time * 5) * .14; gM.anim(time, {mv:false, ph:0, atk:99, sum:99, aim:0, active:true, chg:false}); } }
-    stepShots(dt); stepFlats(dt); stepBeams(dt); glow.step(dt); smoke.step(dt);
+    stepShots(dt); stepFlats(dt); stepBeams(dt); stepTraps(dt); glow.step(dt); smoke.step(dt);
     if (waterTex) waterTex.offset.x = time * .035;
     for (let i = 0; i < crowd.length; i++) crowd[i].position.y = Math.abs(Math.sin(time * 3 + i)) * .12;
     for (let i = dying.length - 1; i >= 0; i--){ const d = dying[i]; d.t += dt;
@@ -662,6 +735,7 @@ export function createView(el, opt = {}){
     for (const f of flats){ root.remove(f.m); f.m.material.dispose(); } flats.length = 0;
     for (const b of beams){ root.remove(b.m); b.m.material.dispose(); } beams.length = 0;
     for (const d of dying) root.remove(d.g); dying.length = 0; intro = opt.reduced ? 9 : 0; punch.t = 0;
+    for (const [id, r] of [...trapRecs]) dropTrap(id, r); for (const p of pops) root.remove(p.g); pops.length = 0;
     resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false);
     resize(); setMap(map);
   }
@@ -682,5 +756,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, setGhost, setNoGo, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; } };
+  return { loadProps, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; } };
 }

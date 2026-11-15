@@ -1,5 +1,5 @@
 /* Break Room Brawl: every card, unit, map and CPU opponent. Pure data, no DOM, shared by the rules, the CPU and the screens.
-   24 characters x 12 styles x 4 rarities = 1,152 cards, all generated from the tables below. */
+   29 cards (troops, buildings, spells and traps) x 12 styles x 4 rarities = 1,392 cards, all generated from the tables below. */
 
 export const RAR = {
   c:{name:'Common',    price:200,  w:60, col:'#9fb3d9', mul:1},
@@ -78,13 +78,33 @@ const BASE = {
   fast:    {name:'Fast Break',       cost:5, tier:'r', u:'fast', n:1,    desc:'Builds up to a sprint, and the first hit after a sprint lands double.'},
   dragon:  {name:'Arena Dragon',     cost:4, tier:'e', u:'dragon', n:1,  desc:'Flies over the river and breathes splash fire on ground and air.'},
   ghost:   {name:'Night Shift Ghost',cost:3, tier:'e', u:'ghost', n:1,   desc:'Floats over everything and hits hard. Still wearing the lanyard.'},
-  clockout:{name:'Clock Out',        cost:4, tier:'e', spell:{kind:'freeze', r:3, dmg:60, twr:.35, freeze:4, delay:.35}, desc:'Everything in the circle stops working for four seconds. Towers too.'},
-  overtime:{name:'Overtime',         cost:2, tier:'e', spell:{kind:'rage', r:4, rage:7, delay:.3}, desc:'Your troops in the circle move and hit a third faster for seven seconds.'},
+  clockout:{name:'Clock Out',        cost:4, tier:'e', spell:{kind:'freeze', r:3, dmg:60, twr:.35, freeze:4, delay:.35}, desc:'Everything in the circle stops working for a few seconds. Towers too.'},
+  overtime:{name:'Overtime',         cost:2, tier:'e', spell:{kind:'rage', r:4, rage:7, delay:.3}, desc:'Your troops in the circle move and hit a third faster for a few seconds.'},
   buzzer:  {name:'Buzzer Beater',    cost:6, tier:'e', u:'buzzer', n:1,  desc:'Carries a shot clock that goes off when he drops. Stand back.'},
   witch:   {name:'Graveyard Witch',  cost:5, tier:'e', u:'witch', n:1,   desc:'Splash magic from range, and three fresh skeletons every few seconds.'},
   fivestar:{name:'Five-Star BDB',    cost:7, tier:'l', u:'fivestar', n:1, desc:'The prospect himself. Huge health and a slam that hits everything around him.'},
-  jumbo:   {name:'The Jumbotron',    cost:6, tier:'l', u:'jumbo', n:1,   desc:'Charges up slowly, then one highlight reel blast wipes out a whole push.'}
+  jumbo:   {name:'The Jumbotron',    cost:6, tier:'l', u:'jumbo', n:1,   desc:'Charges up slowly, then one highlight reel blast wipes out a whole push.'},
+  /* traps: set face down on your own half, unseen by the other side, and sprung by the first enemy on foot to walk over them */
+  wetfloor:{name:'Wet Floor Sign',    cost:2, tier:'c', trap:{kind:'slip',    r:2.4, dmg:80, stun:2.6},  desc:'A hidden trap. The first enemy on foot to step on it sends everyone nearby sliding: stunned, with a little damage.'},
+  screen:  {name:'Hard Screen',       cost:3, tier:'r', trap:{kind:'snap',    r:1.8, dmg:420},           desc:'A hidden trap. The first enemy on foot to run into it gets flattened, along with everyone right beside them.'},
+  replay:  {name:'Instant Replay',    cost:3, tier:'e', trap:{kind:'mirror',  r:3, dur:6, refl:.6},       desc:'A hidden trap. Once it is sprung, enemies standing in the circle take back most of the damage they deal.'},
+  benched: {name:'Back to the Bench', cost:4, tier:'e', trap:{kind:'bounce',  r:1.2, dmg:100, stun:1.5}, desc:'A hidden trap. Whoever springs it is sent straight back to their own king tower, where they land hard and dazed.'},
+  techfoul:{name:'Technical Foul',    cost:2, tier:'r', trap:{kind:'counter', r:3.2, burn:2},            desc:'A hidden trap. It cancels the next enemy spell that lands near it, and whoever cast it loses Mana on top.'}
 };
+
+/* A style means something different on a spell or a trap than it does on a troop, so those say so. */
+const SPELL_NOTE = {
+  vet:'Veteran: costs 1 more, hits harder, and hits towers harder.', ice:'Frozen: also slows everything it hits.', fire:'Blazing: more damage.',
+  gold:'Golden: stronger and lands sooner. Costs 1 more.', quick:'Turbo: lands much sooner.', iron:'Iron: hits towers harder.',
+  vamp:'Vampire: also heals your troops in the circle.', tox:'Toxic: lingers, and hits a second time a moment later.', giant:'Giant: a much wider circle. Costs 2 more.'
+};
+const TRAP_NOTE = {
+  vet:'Veteran: costs 1 more, hits harder and stays set longer.', ice:'Frozen: everything it catches is slowed as well.', fire:'Blazing: hits harder.',
+  gold:'Golden: stronger, and armed sooner. Costs 1 more.', quick:'Turbo: armed almost at once.', iron:'Iron: stays set much longer.',
+  vamp:'Vampire: heals your weakest tower when it springs.', tox:'Toxic: bursts for extra damage when it springs.', giant:'Giant: a much wider trap. Costs 2 more.'
+};
+/* which prop stands for each kind of trap on the field */
+export const TRAP_ART = {slip:'wetfloor', snap:'screen', mirror:'replay', bounce:'benched', counter:'techfoul'};
 
 /* One stat block per character + style + rarity, built on first use. */
 const UV = new Map();
@@ -106,22 +126,28 @@ for (const b in BASE) for (const a of AFF_IDS) for (const r of RAR_IDS){
   const c = {id, base:b, aff:a, rar:r, tier:B.tier, name:(A.name ? A.name + ' ' : '') + B.name, baseName:B.name, cost:clamp(B.cost + A.cost, 1, 10), desc:B.desc, note:A.note, price:Math.round(RAR[r].price * TIER[B.tier] / 10) * 10};
   if (B.spell){
     const s = B.spell;
-    c.type = 'spell'; c.art = b;
-    c.spell = {kind:s.kind, r:+(s.r * (1 + (A.size - 1) * .8)).toFixed(2), dmg:Math.round((s.dmg || 0) * A.dmg * m), twr:(s.twr || 1) * (A.hp >= 1.3 ? 1.5 : 1), delay:+(s.delay * (A.spd > 1.2 ? .6 : 1)).toFixed(2),
-      freeze:s.freeze ? +(s.freeze * (a === 'ice' ? 1.35 : 1) * (.9 + m * .1)).toFixed(1) : 0, rage:s.rage ? +(s.rage * (.7 + m * .3) * A.hp).toFixed(1) : 0, chill:A.chill || 0, steal:A.steal || 0};
+    c.type = 'spell'; c.art = b; c.note = SPELL_NOTE[a] ?? A.note;
+    c.spell = {kind:s.kind, r:+(s.r * (1 + (A.size - 1) * .8)).toFixed(2), dmg:Math.round((s.dmg || 0) * A.dmg * m), twr:(s.twr || 1) * (A.hp >= 1.3 ? 1.5 : 1), delay:+(s.delay * (A.spd > 1.2 ? .6 : A.spd > 1.05 ? .8 : 1)).toFixed(2),
+      freeze:s.freeze ? +(s.freeze * (a === 'ice' ? 1.35 : 1) * (.6 + m * .4)).toFixed(1) : 0, rage:s.rage ? +(s.rage * (.7 + m * .3) * A.hp).toFixed(1) : 0, chill:A.chill || 0, steal:A.steal || 0, again:A.toxic ? .4 : 0};
+  } else if (B.trap){
+    const t = B.trap, pow = A.dmg * m, hold = .7 + .3 * A.hp;                   // pow: how hard it hits. hold: how long it keeps them.
+    c.type = 'trap'; c.art = b; c.note = TRAP_NOTE[a] ?? A.note;
+    c.trap = {kind:t.kind, r:+(t.r * (1 + (A.size - 1) * .8) * (t.kind === 'counter' ? .85 + .15 * pow : 1)).toFixed(2), dmg:Math.round((t.dmg || 0) * pow),
+      stun:t.stun ? +(t.stun * hold * (t.kind === 'bounce' ? .6 + .4 * pow : m)).toFixed(1) : 0, dur:t.dur ? +(t.dur * hold * m).toFixed(1) : 0, refl:t.refl ? Math.min(1, +(t.refl * Math.pow(m, 1.5) * A.dmg).toFixed(2)) : 0,
+      arm:a === 'quick' ? .35 : a === 'gold' ? .6 : 1, life:A.hp >= 1.3 ? 150 : 90, chill:A.chill ? 2.5 : 0, heal:A.steal ? Math.round(160 * m) : 0, burst:A.toxic ? Math.round(110 * m) : 0, burn:t.burn ? t.burn + (r === 'e' || r === 'l' ? 1 : 0) : 0};          // the rarer the card, the more it does
   } else { c.u = B.u; c.n = B.n; c.U = unitVar(B.u, a, r); c.art = B.u; c.type = c.U.bld ? 'build' : 'unit'; }
   CARDS[id] = c;
 }
 export const CARD_IDS = Object.keys(CARDS), BASE_IDS = Object.keys(BASE);
 export const baseName = b => BASE[b].name;
-export const STARTERS = ['skels', 'bench', 'shooters', 'gobs', 'bats', 'airball', 'slime', 'hoop', 'mascot', 'barista', 'ref', 'trainer', 'coffee', 'vending', 'dragon'].map(b => b + '-std-c');
+export const STARTERS = ['skels', 'bench', 'shooters', 'wetfloor', 'bats', 'airball', 'slime', 'hoop', 'mascot', 'barista', 'ref', 'trainer', 'coffee', 'vending', 'dragon'].map(b => b + '-std-c');
 export const DECK_SIZE = 15, HAND = 5, MAX_LEGEND = 3, DECK_SLOTS = 3;
 /* what a brand-new player chooses between */
 export const STARTER_DECKS = [
-  {id:'balanced', name:'The Starting Five', blurb:'A bit of everything. The easiest deck to learn with.',      bases:'skels bench shooters gobs bats airball slime hoop mascot barista ref trainer coffee vending dragon'},
-  {id:'swarm',    name:'Rush Hour',         blurb:'Cheap, fast and everywhere. Bury him in bodies.',          bases:'skels gobs bats shooters slime vending witch overtime airball bench trainer fast ghost hoop coffee'},
-  {id:'heavy',    name:'The Big Shift',     blurb:'Slow, huge and hard to stop. Build one giant push.',       bases:'golem mascot buzzer bench fast barista ref trainer shooters skels coffee airball hoop slime clockout'},
-  {id:'air',      name:'Night Flight',      blurb:'Flyers and spells. Go over his defence, then freeze it.',  bases:'dragon ghost bats witch barista ref shooters clockout coffee airball overtime bench skels gobs mascot'}
+  {id:'balanced', name:'The Starting Five', blurb:'A bit of everything, with a trap to learn on. The easiest deck to start with.', bases:'skels bench shooters wetfloor bats airball slime hoop mascot barista ref trainer coffee vending dragon'},
+  {id:'swarm',    name:'Rush Hour',         blurb:'Cheap, fast and everywhere. Bury him in bodies.',          bases:'skels gobs bats shooters slime vending witch overtime airball bench trainer fast ghost wetfloor coffee'},
+  {id:'heavy',    name:'The Big Shift',     blurb:'Slow, huge and hard to stop. Build one giant push.',      bases:'golem mascot buzzer bench fast barista ref trainer shooters skels coffee airball screen slime clockout'},
+  {id:'air',      name:'Night Flight',      blurb:'Flyers and spells. Go over his defence, then freeze it.',  bases:'dragon ghost bats witch barista ref shooters clockout coffee airball overtime bench skels replay mascot'}
 ].map(d => ({...d, deck:d.bases.split(' ').map(b => b + '-std-c')}));
 export const upgradeCost = (id, lvl) => Math.max(40, Math.round(CARDS[id].price * .15 * lvl / 10) * 10);
 
@@ -155,15 +181,15 @@ export const CPUS = [
   cpu('bench',   'Bench Warmer BDB', 'Best seat in the house, every single game.',             'court',   2, 170, {react:2.2, hold:8,   derp:.2,  smart:.45, el:1},
     'mascot bench shooters ref airball hoop gobs trainer golem barista fast skels coffee slime bats', ['iron', 'std', 'vet'], ['c', 'r']),
   cpu('night',   'Night Shift BDB',  'Wide awake at 4 a.m. and nothing to show for it.',       'casino',  3, 230, {react:1.9, hold:7.5, derp:.14, smart:.55, el:1},
-    'bats ghost dragon skels bench clockout shooters airball witch ref gobs barista fast overtime slime', ['vamp', 'std', 'quick'], ['r', 'c', 'r']),
+    'bats ghost dragon skels bench clockout shooters airball witch ref gobs barista fast wetfloor slime', ['vamp', 'std', 'quick'], ['r', 'c', 'r']),
   cpu('rec',     'Rec League BDB',   'Captain, coach and leading scorer. Two points a night.', 'lot',     4, 300, {react:1.7, hold:7,   derp:.1,  smart:.65, el:1},
-    'hoop vending coffee airball barista fast gobs ref mascot trainer dragon skels buzzer bench clockout', ['fire', 'std', 'gold'], ['r', 'r', 'e']),
+    'hoop vending coffee airball barista fast screen ref mascot trainer dragon skels buzzer bench clockout', ['fire', 'std', 'gold'], ['r', 'r', 'e']),
   cpu('varsity', 'Varsity BDB',      'Made the team photo. Mostly the back row.',              'breakrm', 5, 380, {react:1.5, hold:7,   derp:.07, smart:.75, el:1.05},
-    'golem witch barista skels coffee bats trainer overtime buzzer dragon ref bench hoop ghost airball', ['iron', 'ice', 'vet'], ['r', 'e']),
+    'golem witch barista skels coffee bats trainer replay buzzer dragon ref bench wetfloor ghost airball', ['iron', 'ice', 'vet'], ['r', 'e']),
   cpu('d1',      'D1 Dream BDB',     'Florida was a great idea on paper.',                     'casino',  7, 480, {react:1.3, hold:6.5, derp:.04, smart:.85, el:1.1},
-    'fast dragon jumbo buzzer ref clockout gobs airball witch golem ghost mascot coffee barista skels', ['quick', 'gold', 'fire', 'giant'], ['e', 'r', 'e', 'l']),
+    'fast dragon jumbo buzzer ref techfoul gobs airball witch golem ghost benched coffee barista skels', ['quick', 'gold', 'fire', 'giant'], ['e', 'r', 'e', 'l']),
   cpu('five',    'Five-Star BDB',    'The prospect. The legend. The 2.0 points per game.',     'court',   9, 650, {react:1.1, hold:6,   derp:.02, smart:1,   el:1.2},
-    'fivestar jumbo golem witch dragon coffee skels overtime buzzer fast ghost ref clockout barista mascot', ['gold', 'giant', 'vamp', 'ice'], ['e', 'e', 'l', 'e', 'e'])
+    'fivestar jumbo golem witch dragon coffee skels screen buzzer fast ghost ref clockout barista replay', ['gold', 'giant', 'vamp', 'ice'], ['e', 'e', 'l', 'e', 'e'])
 ];
 
 /* Weighted draw: rarer cards come up less often. Used for the card you win and for crates. rnd is a 0..1 function. */
@@ -188,10 +214,11 @@ const RAND_NAMES = ['Temp BDB', 'Intern BDB', 'Overtime BDB', 'Double Shift BDB'
 export function randomCpu(skill, myLvl = 1, rnd = Math.random){
   const S = SKILLS.find(s => s.id === skill) || SKILLS[1], pick = a => a[Math.floor(rnd() * a.length)];
   const pool = BASE_IDS.slice(); for (let i = pool.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  // any 15 characters, as long as there is something cheap, something big and at least one spell in there
-  const need = [b => BASE[b].cost <= 2, b => BASE[b].cost <= 3 && !BASE[b].spell, b => !!BASE[b].spell, b => BASE[b].u && (UNITS[BASE[b].u].only === 'b' || UNITS[BASE[b].u].hp >= 900)], bases = [];
+  // any 15 cards, as long as there is something cheap, something big and at least one spell in there, and no more than a few traps
+  const need = [b => BASE[b].cost <= 2 && !!BASE[b].u, b => BASE[b].cost <= 3 && !!BASE[b].u, b => !!BASE[b].spell, b => BASE[b].u && (UNITS[BASE[b].u].only === 'b' || UNITS[BASE[b].u].hp >= 900)], bases = [];
   for (const f of need){ const b = pool.find(x => f(x) && !bases.includes(x)); if (b) bases.push(b); }
-  for (const b of pool) if (bases.length < DECK_SIZE && !bases.includes(b)) bases.push(b);
+  let nTrap = 0; const maxTrap = S.id === 'easy' ? 1 : S.id === 'medium' ? 2 : 3;
+  for (const b of pool) if (bases.length < DECK_SIZE && !bases.includes(b) && !(BASE[b].trap && ++nTrap > maxTrap)) bases.push(b);
   let legends = 0;
   const deck = bases.map(b => { let r = pick(S.rar.split('')); if (r === 'l' && ++legends > MAX_LEGEND) r = 'e'; return `${b}-${rnd() < .5 ? 'std' : pick(AFF_IDS)}-${r}`; });
   return {id:'rand-' + S.id, rand:true, skill:S.id, name:pick(RAND_NAMES), tag:`${S.name}. A different deck every time.`, map:pick(MAP_IDS), lvl:clamp(Math.round(myLvl + S.dl), 1, MAX_LVL), coins:S.coins, ai:S.ai, deck};

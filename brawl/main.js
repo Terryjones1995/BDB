@@ -1,9 +1,9 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
-import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js';
-import { createSim, decodeEnts, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT } from './sim.js';
-import { createAI } from './ai.js';
-import { Accounts, fresh, sanitize } from './store.js';
-import { Cloud } from './cloud.js';
+import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js?v=1114n';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT, TRIG } from './sim.js?v=1114n';
+import { createAI } from './ai.js?v=1114n';
+import { Accounts, fresh, sanitize } from './store.js?v=1114n';
+import { Cloud } from './cloud.js?v=1114n';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -27,6 +27,11 @@ const TALK = {
   legend:["Here comes a Legendary. Avert your eyes.", "Roll out the big card. Put my highlights on. Both of them.", "Legendary on the floor. Just like my scouting report said."],
   win:["Good game. I'm telling everyone the tablet was lagging.", "You beat me. The scouts weren't watching, right?", "I'm not mad. I'm just clocking out early.", "Enjoy it. My comeback tour starts Tuesday.", "That deck was a prototype. The real one is in my locker.", "You're taking my card? That one had sentimental value."],
   lose:["And that's why they called me a five-star prospect. Once.", "Ball game. Somebody get me a Jumbotron.", "I'd like to thank the break room for believing in me.", "Take notes. That's 2.0 points per game of pure heart.", "Undefeated since about four minutes ago."],
+  trapSet:["I left something on the floor for you. Watch your step.", "That's a trap. I'm not telling you where.", "One card, face down. Read my playbook, I dare you.", "Something's waiting for you out there. Could be anything."],
+  trapHit:["You activated my trap card. I've always wanted to say that.", "Walked right into it. Even I saw that coming.", "That's called coaching. Look it up.", "I've been holding that one since the first quarter."],
+  trapOnHim:["Who put that there? Ref!", "A trap? In MY arena?", "That one's on the floor crew, not me.", "I meant to step on that. I was scouting it."],
+  foulOnHim:["A technical? On ME? I didn't even say anything.", "You can't wave that off. I practised that shot."],
+  foulOnYou:["Whistle! No basket. Read the rulebook.", "Denied. Put that one on the highlight reel."],
   emo:["Emojis won't save your towers.", "Cute. I'm still a five-star prospect.", "Less typing, more defending.", "I'd reply but I'm on my break."],
   pvpUp:["Crown for you. BDB could never.", "Tower down. BDB is taking notes he won't read."], pvpDown:["Your tower just got benched.", "That's a tower gone. BDB felt that from the break room."]
 };
@@ -43,6 +48,7 @@ function tone(f, d, type = 'sine', v = .05, slide = 0, at = 0){
     g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .02); } catch(e){}
 }
 const SND = {drop:() => tone(190, .14, 'triangle', .09, -90), spell:() => tone(520, .3, 'sine', .06, 400), boom:() => tone(95, .4, 'sawtooth', .08, -55), horn:() => { tone(233, .5, 'square', .04); tone(311, .5, 'square', .03); },
+  trapSet:() => tone(150, .1, 'triangle', .07, -50), trap:() => { tone(880, .07, 'square', .045); tone(1320, .16, 'square', .045, 0, .07); tone(110, .3, 'sawtooth', .06, -40, .05); }, negate:() => { tone(1700, .09, 'sine', .07); tone(1500, .32, 'sine', .07, -700, .1); },
   legend:() => { [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, .5, 'triangle', .07, 0, i * .09)); tone(98, .9, 'sawtooth', .06, -30); }};
 
 /* ---------- the 3D view and card art (menus still work without it) ---------- */
@@ -51,7 +57,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114k'), import('./models.js?v=1114j')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1114n'), import('./models.js?v=1114n')]);
     await md.preload();
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true});
     ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
@@ -98,10 +104,20 @@ function confirmBox(title, text, yes, fn){ const b = dlg(`<h3>${esc(title)}</h3>
 function msgBox(title, text){ const b = dlg(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="k-row"><button type="button" class="k-btn primary" id="nf">OK</button></div>`); b.querySelector('#nf').onclick = dlgClose; }
 
 /* ---------- card sheet: stats, buy, upgrade, put in deck ---------- */
+const TYPE = {unit:'troop', build:'building', spell:'spell', trap:'trap'};
 const SPD = s => s <= 0 ? 'None' : s < 1 ? 'Slow' : s < 1.5 ? 'Medium' : s < 2 ? 'Fast' : 'Very fast';
 function statRows(id, L){
   const c = CARDS[id], m = lvlMul(L), r = [];
   if (c.spell){ const s = c.spell; r.push(['Radius', s.r]); if (s.dmg) r.push(['Damage', Math.round(s.dmg * m)], ['Tower damage', Math.round(s.dmg * m * s.twr)]); if (s.freeze) r.push(['Freeze', s.freeze + 's']); if (s.rage) r.push(['Boost', '+35%'], ['Lasts', s.rage + 's']); return r; }
+  if (c.trap){ const t = c.trap;
+    r.push([t.kind === 'counter' ? 'Covers' : 'Reach', t.r], ['Arms in', t.arm + 's'], ['Stays set', t.life + 's']);
+    if (t.dmg) r.push([t.kind === 'bounce' ? 'Damage' : 'Area damage', Math.round(t.dmg * m)]);
+    if (t.stun) r.push([t.kind === 'bounce' ? 'Dazed for' : 'Stun', t.stun + 's']);
+    if (t.refl) r.push(['Thrown back', Math.round(t.refl * 100) + '%'], ['Lasts', t.dur + 's']);
+    if (t.burn) r.push(['Mana burned', t.burn]);
+    if (t.burst) r.push(['Toxic burst', Math.round(t.burst * m)]); if (t.heal) r.push(['Tower heal', Math.round(t.heal * m)]); if (t.chill) r.push(['Slow', t.chill + 's']);
+    r.push(['Catches', t.kind === 'counter' ? 'Spells' : 'Ground troops']);
+    return r; }
   const U = c.U;
   r.push(['Health', Math.round(U.hp * m)]);
   if (U.dmg) r.push([U.splash ? 'Area damage' : 'Damage', Math.round(U.dmg * m)], ['Hit speed', U.hit + 's'], ['Range', U.rng <= 1.5 ? 'Melee' : U.rng]);
@@ -118,9 +134,9 @@ function statRows(id, L){
 function sheet(id){
   const c = CARDS[id], L = lvl(id), R = RAR[c.rar], price = priceOf(id), up = upgradeCost(id, L), box = $('sheetBox');
   box.className = 'k-box r-' + c.rar;
-  box.innerHTML = `<div class="sheet-top"><div></div><div><div class="rar">${R.name} ${c.type === 'spell' ? 'spell' : c.type === 'build' ? 'building' : 'troop'} · ${c.cost} Mana</div><h3>${esc(c.name)}</h3><p class="note" style="margin:0">${esc(c.desc)}${c.note ? ' <b style="color:var(--gold)">' + esc(c.note) + '</b>' : ''}</p></div></div>
+  box.innerHTML = `<div class="sheet-top"><div></div><div><div class="rar">${R.name} ${TYPE[c.type]} · ${c.cost} Mana</div><h3>${esc(c.name)}</h3><p class="note" style="margin:0">${esc(c.desc)}${c.note ? ' <b style="color:var(--gold)">' + esc(c.note) + '</b>' : ''}</p></div></div>
     <div class="stats">${statRows(id, Math.max(1, L)).map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>
-    <div style="width:100%"><div class="note" style="margin-bottom:6px">${L ? `Level ${L} of ${MAX_LVL}${L < MAX_LVL ? ' · next level adds 8% health and damage' : ' · maxed out'}` : 'You do not own this card yet.'}</div><div class="prog"><i style="width:${L / MAX_LVL * 100}%"></i></div></div>
+    <div style="width:100%"><div class="note" style="margin-bottom:6px">${L ? `Level ${L} of ${MAX_LVL}${L < MAX_LVL ? (c.trap ? (c.trap.dmg || c.trap.burst || c.trap.heal ? ' · next level adds 8% to what it does' : ' · levels do not change this trap') : c.spell && !c.spell.dmg ? ' · levels do not change this spell' : ' · next level adds 8% health and damage') : ' · maxed out'}` : 'You do not own this card yet.'}</div><div class="prog"><i style="width:${L / MAX_LVL * 100}%"></i></div></div>
     <div class="k-row" id="shAct"></div><div class="note" id="shNote"></div>`;
   box.querySelector('.sheet-top > div').replaceWith(cardEl(id, {div:true, lvl:L, now:true}));
   const act = box.querySelector('#shAct'), coin = '<span class="coin" style="margin-left:6px"></span>';
@@ -136,18 +152,19 @@ function sheet(id){
   $('sheet').hidden = false;
 }
 
-/* ---------- a filterable, paged list of cards (1,152 of them, so never all at once) ---------- */
+/* ---------- a filterable, paged list of cards (well over a thousand of them, so never all at once) ---------- */
 const lists = {};
 function listUI(key, source, label){
-  const st = lists[key] = {q:'', rar:'', base:'', aff:'', sort:'cost', n:PAGE}, box = $(key + 'F');
+  const st = lists[key] = {q:'', type:'', rar:'', base:'', aff:'', sort:'cost', n:PAGE}, box = $(key + 'F');
   box.innerHTML = `<input class="field" type="search" placeholder="Search cards" autocomplete="off" spellcheck="false">
+    <select class="field" data-k="type"><option value="">Any type</option><option value="unit">Troops</option><option value="build">Buildings</option><option value="spell">Spells</option><option value="trap">Traps</option></select>
     <select class="field" data-k="rar"><option value="">Any rarity</option>${RAR_IDS.map(r => `<option value="${r}">${RAR[r].name}</option>`).join('')}</select>
     <select class="field" data-k="base"><option value="">Any character</option>${BASE_IDS.map(b => `<option value="${b}">${esc(baseName(b))}</option>`).join('')}</select>
     <select class="field" data-k="aff"><option value="">Any style</option>${AFF_IDS.map(a => `<option value="${a}">${AFF[a].name || 'Standard'}</option>`).join('')}</select>
     <select class="field" data-k="sort"><option value="cost">Sort by Mana</option><option value="price">Sort by price</option><option value="name">Sort by name</option><option value="lvl">Sort by level</option></select>`;
   const draw = () => {
     const q = st.q.toLowerCase(), ro = {c:0, r:1, e:2, l:3};
-    let ids = source().filter(id => { const c = CARDS[id]; return (!st.rar || c.rar === st.rar) && (!st.base || c.base === st.base) && (!st.aff || c.aff === st.aff) && (!q || c.name.toLowerCase().includes(q)); });
+    let ids = source().filter(id => { const c = CARDS[id]; return (!st.type || c.type === st.type) && (!st.rar || c.rar === st.rar) && (!st.base || c.base === st.base) && (!st.aff || c.aff === st.aff) && (!q || c.name.toLowerCase().includes(q)); });
     ids.sort(st.sort === 'price' ? (a, b) => CARDS[a].price - CARDS[b].price : st.sort === 'name' ? (a, b) => CARDS[a].name.localeCompare(CARDS[b].name) : st.sort === 'lvl' ? (a, b) => lvl(b) - lvl(a) || CARDS[a].cost - CARDS[b].cost : (a, b) => CARDS[a].cost - CARDS[b].cost || ro[CARDS[a].rar] - ro[CARDS[b].rar] || CARDS[a].name.localeCompare(CARDS[b].name));
     const g = $(key + 'Grid'), dl = key === 'shop' ? deals() : [], dk = curDeck(); g.innerHTML = '';
     for (const id of ids.slice(0, st.n)){ const c = cardEl(id, key === 'shop' ? {tag:lvl(id) ? 'Owned' : fmt(priceOf(id)), sale:dl.includes(id) && !lvl(id), lvl:lvl(id), cls:lvl(id) ? 'dim' : ''} : {lvl:lvl(id), cls:dk.includes(id) ? 'inuse' : ''}); c.onclick = () => sheet(id); g.appendChild(c); }
@@ -251,7 +268,15 @@ function loginScreen(){
   for (const p of Accounts.all()){ const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span>${esc(p.name)}</span><small>${fmt(p.coins)} coins · ${Object.keys(p.cards).length} cards</small>`; b.onclick = () => signIn(p); w.appendChild(b); }
   $('loginErr').textContent = '';
 }
-function signIn(p){ P = p; Accounts.save(P); if (!P.onboarded && !Q.get('skip')) return onboard(); P.onboarded = true; show('scrHub'); tab('Battle'); hallStart(); const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } }
+function signIn(p){ P = p; Accounts.save(P); if (!P.onboarded && !Q.get('skip')) return onboard(); P.onboarded = true; show('scrHub'); tab('Battle'); hallStart(); const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else whatsNew(); }
+/* anyone who was playing before trap cards existed gets one to try, once */
+function whatsNew(){
+  if (P.flags.traps) return;
+  P.flags.traps = 1;
+  if (Object.keys(P.cards).some(id => CARDS[id].type === 'trap')){ save(); return; }
+  const id = 'wetfloor-std-c'; grant(id); save();
+  reveal('New: trap cards', id, 'Here is one on the house. Set it face down on your half and it springs on the first enemy to walk in. There are more in the Market under Traps.', () => { dlgClose(); hub(); });
+}
 $('newGo').onclick = () => {
   const n = Accounts.cleanName($('newName').value);
   if (n.length < 2){ $('loginErr').textContent = 'Pick a name with at least two letters.'; return; }
@@ -293,7 +318,8 @@ function onboard(){
     box.innerHTML = `<div class="k-eyebrow">Welcome, ${esc(P.name)}</div><h2>How a brawl works</h2>
       <div class="tips"><div><b>1</b><h4>Drop cards on your half</h4><p>Drag a card onto the field, or tap the card and then the spot. Each one costs Mana.</p></div>
       <div><b>2</b><h4>Mind your Mana</h4><p>It refills on its own, and 30% faster once you hold off summoning for three seconds.</p></div>
-      <div><b>3</b><h4>Take his towers</h4><p>Knock down more towers than he does in ten minutes. Take the king tower and it ends on the spot.</p></div></div>
+      <div><b>3</b><h4>Take his towers</h4><p>Knock down more towers than he does in ten minutes. Take the king tower and it ends on the spot.</p></div>
+      <div><b>4</b><h4>Set traps</h4><p>Trap cards go face down on your half. Only you can see them, and they spring on the first enemy to walk in. Flyers pass over, and a damage spell clears one.</p></div></div>
       <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Pick my deck</button></div>`;
     $('onNext').onclick = step2;
   };
@@ -337,7 +363,7 @@ function preCpu(i){
 /* ---------- the match ---------- */
 let B = null, raf = 0, lastT = 0, ticker = null;
 function begin(o){
-  B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false]};
+  B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false]};
   show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false;
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
@@ -376,10 +402,13 @@ function loop(now){
     if (B.mode === 'cpu'){ B.acc += dt; let n = 0; while (B.acc >= DT && n++ < 6 && !B.sim.over){ B.ai.tick(); B.sim.step(); B.acc -= DT; pump(); } if (n >= 6) B.acc = 0; }
     else if (B.mode === 'host') hostPump();
   }
-  if (V) V.frame(B.pz || (B.mode === 'cpu' && !B.run) ? 0 : dt, B.mode === 'guest' ? B.ents : B.sim.ents);
+  if (V){ V.setTraps(myTraps()); V.frame(B.pz || (B.mode === 'cpu' && !B.run) ? 0 : dt, B.mode === 'guest' ? B.ents : B.sim.ents); }
   hud();
   raf = requestAnimationFrame(loop);
 }
+/* the traps this player is allowed to see: their own team's, and any Instant Replay that has already been sprung */
+const myTraps = () => !B ? [] : B.mode === 'guest' ? B.traps : B.sim.traps.filter(t => t.team === B.team || t.live > 0);
+function note(text){ const d = document.createElement('div'); d.className = 'bnote'; d.textContent = text; for (const o of document.querySelectorAll('.bnote')) o.remove(); $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2200); }
 function stamp(text, bad){ const d = document.createElement('div'); d.className = 'stamp' + (bad ? ' bad' : ''); d.textContent = text; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 1600); }
 function onEvents(ev){
   for (const e of ev){
@@ -392,6 +421,12 @@ function onEvents(ev){
       if (e.rar === 'l' && CARDS[e.id]){ SND.legend(); const d = document.createElement('div'); d.className = 'legend-banner'; d.innerHTML = `<small>Legendary</small><b>${esc(CARDS[e.id].name)}</b>`; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2000); if (e.team !== B.team && B.mode === 'cpu') talk(TALK.legend); }
       else e.e === 'drop' ? SND.drop() : SND.spell();
     } else if (e.e === 'boom' && e.k !== 'rage') SND.boom();
+    else if (e.e === 'trapset'){ if (e.team === B.team) SND.trapSet(); else { note(B.mode === 'cpu' ? 'He set a trap' : 'They set a trap'); if (B.mode === 'cpu') talk(TALK.trapSet); } }
+    else if (e.e === 'trap'){
+      const mine = e.team === B.team, c = CARDS[e.id]; SND.trap();
+      if (e.k !== 'counter'){ stamp(mine ? 'Trap!' : "It's a trap!", !mine); note(c ? c.name : 'Trap'); if (B.mode === 'cpu') talk(mine ? TALK.trapOnHim : TALK.trapHit, true); }
+    } else if (e.e === 'negate'){ const mine = e.team !== B.team; SND.negate(); stamp(mine ? 'Waved off!' : 'No basket!', !mine); if (e.burn && e.pid === B.me) note(`You lose ${e.burn} Mana`); if (B.mode === 'cpu') talk(mine ? TALK.foulOnHim : TALK.foulOnYou, true); }
+    else if (e.e === 'trapx'){ note(e.team === B.team ? 'Your trap was cleared' : 'You cleared a trap'); }
     else if (e.e === 'over' && !B.over){ B.over = true; if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
   }
 }
@@ -407,7 +442,8 @@ function hud(force){
   const cs = $('hand').children; for (let i = 0; i < cs.length; i++) cs[i].classList.toggle('poor', CARDS[I.hand[i].id].cost > I.el);
   $('coffeeFill').style.width = (I.el / MAX_EL * 100) + '%'; $('coffeeN').textContent = Math.floor(I.el);
   const dbl = I.phase === 'ot' || I.left <= DOUBLE_AT, bonus = I.bonus && I.el < MAX_EL;
-  $('coffee').classList.toggle('dbl', dbl); $('coffee').classList.toggle('bonus', !!bonus); $('coffeeLbl').textContent = (dbl ? 'Mana x2' : 'Mana') + (bonus ? ' · charging +30%' : '');
+  $('coffee').classList.toggle('dbl', dbl); $('coffee').classList.toggle('bonus', !!bonus); const nt = B.run ? myTraps().filter(t => !t.live && t.team === B.team).length : 0;
+  $('coffeeLbl').textContent = (dbl ? 'Mana x2' : 'Mana') + (bonus ? ' · charging +30%' : '') + (nt ? ` · ${nt} trap${nt > 1 ? 's' : ''} set` : '');
   if (dbl && !B.said.dbl && I.phase === 'play' && B.run){ B.said.dbl = true; stamp('Double Mana'); if (B.mode === 'cpu') talk(TALK.late, true); }
   const t = Math.ceil(I.left); $('clockT').textContent = mmss(t);
   $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
@@ -426,7 +462,7 @@ function ghostAt(cx, cy){
   const p = V.pick(cx, cy), c = CARDS[I.hand[B.sel].id];
   if (!p){ V.setGhost(false); return null; }
   const ok = canPlace(MAPS[B.map], B.team, c, p.x, p.z, I.pocket) && I.el >= c.cost;
-  V.setGhost(true, p.x, p.z, c.spell ? c.spell.r : Math.max(.7, c.U.r * (c.n > 1 ? 2 : 1.2)), ok, c.spell ? null : c.U.key, c.aff);
+  V.setGhost(true, p.x, p.z, c.spell ? c.spell.r : c.trap ? c.trap.r : Math.max(.7, c.U.r * (c.n > 1 ? 2 : 1.2)), ok, c.spell ? null : c.trap ? c.art : c.U.key, c.aff);
   return p;
 }
 function tryPlay(slot, p){
@@ -494,7 +530,14 @@ $('btView').onclick = () => { if (V) V.resetCam(); };
 let inspT = 0;
 function inspect(cx, cy){
   const box = $('insp'), e = V && V.entityAt(cx, cy);
-  if (!e){ box.hidden = true; return; }
+  if (!e){
+    const p = V && V.pick(cx, cy), t = p && myTraps().find(q => Math.hypot(q.x - p.x, q.z - p.z) <= TRIG), c = t && CARDS[t.card];
+    if (!c){ box.hidden = true; return; }
+    const mine = t.team === B.team;
+    box.className = 'insp ' + (mine ? 'mine' : 'theirs') + ' r-' + c.rar;
+    box.innerHTML = `<div class="ih"><b>${esc(c.name)}</b><span>${mine ? 'Your trap' : 'Enemy trap'} · ${t.live ? 'sprung' : 'face down'} · ${RAR[c.rar].name}</span></div><p>${esc(c.desc + (c.note ? ' ' + c.note : ''))}</p><div class="ig">${statRows(c.id, 1).slice(0, 6).map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
+    box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; }, 7000); return;
+  }
   const U = e.U, id = KEYCARD[U.key + '|' + U.aff + '|' + U.rar], c = id && CARDS[id], mine = e.team === B.team, m = lvlMul(e.lvl || 1);
   const rows = [['Health', `${Math.max(0, Math.ceil(e.hp))} / ${e.max}`]];
   if (U.dmg) rows.push([U.splash ? 'Area damage' : 'Damage', Math.round(U.dmg * m)], ['Hit speed', U.hit + 's'], ['Range', U.rng <= 1.5 ? 'Melee' : U.rng]);
@@ -673,7 +716,7 @@ function enterMatch(code, host, keepBox, coop){
 function snap(d){
   const s = d.s; if (!s || !Array.isArray(s.e) || !Array.isArray(s.h) || !B || B.done) return;
   const ok = id => CARDS[id] ? id : CARD_IDS[0];
-  B.ents = decodeEnts(s.e, B.prev); B.prev = new Map(B.ents.map(e => [e.id, e]));
+  B.ents = decodeEnts(s.e, B.prev); B.prev = new Map(B.ents.map(e => [e.id, e])); B.traps = decodeTraps(s.tr);
   B.info = {el:+s.el || 0, hand:s.h.slice(0, HAND).map((id, i) => ({id:ok(id), lvl:(s.hl && s.hl[i]) || 1})), next:{id:ok(s.n)}, left:+s.l || 0, phase:s.ph === 'ot' ? 'ot' : s.ph === 'over' ? 'over' : 'play', crowns:Array.isArray(s.cr) ? s.cr : [0, 0], pocket:Array.isArray(s.pk) ? s.pk : [false, false], bonus:!!s.bo};
   if (Array.isArray(d.ev) && d.ev.length){ if (V) V.events(d.ev); onEvents(d.ev); }
 }

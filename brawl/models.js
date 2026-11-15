@@ -2,8 +2,8 @@
    makeModel(key, team, opts) -> {g, h, fly, turret, anim(t, s)}.  Models face +z.
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
-import { AFF } from './cards.js';
-import { loadRigs, hasRig, makeRig, useRim } from './rigs.js?v=1114j';
+import { AFF } from './cards.js?v=1114n';
+import { loadRigs, hasRig, makeRig, useRim } from './rigs.js?v=1114n';
 
 const PI = Math.PI;
 export const TEAM = [0x3d8bff, 0xff4b47];
@@ -17,6 +17,7 @@ const CAP = (r, l) => geo(`k${r}|${l}`, () => new THREE.CapsuleGeometry(r, l, 4,
 const CONE = (r, h, n = 14) => geo(`n${r}|${h}|${n}`, () => new THREE.ConeGeometry(r, h, n));
 const TOR = (r, t, arc = PI * 2) => geo(`t${r}|${t}|${arc}`, () => new THREE.TorusGeometry(r, t, 8, 28, arc));
 const ROCK = r => geo(`d${r}`, () => new THREE.DodecahedronGeometry(r, 0));
+const PLN = (w, h) => geo(`p${w}|${h}`, () => new THREE.PlaneGeometry(w, h));
 
 const GRAD = (() => { const t = new THREE.DataTexture(new Uint8Array([105, 105, 105, 255, 180, 180, 180, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
 /* a soft edge light, so characters and buildings lift off whatever is behind them */
@@ -75,12 +76,30 @@ export const TX = {
   clock: () => ctex('clock', 128, 128, (x, w) => { const c = w / 2; x.fillStyle = '#fbf8f2'; x.beginPath(); x.arc(c, c, c, 0, 7); x.fill(); x.strokeStyle = '#151a26'; x.lineWidth = 5; x.lineCap = 'round';
     for (let i = 0; i < 12; i++){ const a = i / 12 * 6.283; x.beginPath(); x.moveTo(c + Math.cos(a) * 50, c + Math.sin(a) * 50); x.lineTo(c + Math.cos(a) * 58, c + Math.sin(a) * 58); x.stroke(); }
     x.lineWidth = 7; x.beginPath(); x.moveTo(c, c); x.lineTo(c, c - 40); x.stroke(); x.beginPath(); x.moveTo(c, c); x.lineTo(c + 26, c + 12); x.stroke(); }),
+  wet: () => ctex('wet', 128, 224, (x, w, h) => {                      // the face of a wet floor sign: warning triangle, a figure going over, two bars of small print
+    x.fillStyle = '#ffd21f'; x.fillRect(0, 0, w, h); x.fillStyle = '#15171c'; x.lineJoin = 'round';
+    x.beginPath(); x.moveTo(64, 14); x.lineTo(116, 100); x.lineTo(12, 100); x.closePath(); x.fill();
+    x.fillStyle = '#ffd21f'; x.beginPath(); x.moveTo(64, 34); x.lineTo(98, 90); x.lineTo(30, 90); x.closePath(); x.fill();
+    x.fillStyle = '#15171c'; x.beginPath(); x.roundRect(58, 48, 12, 26, 5); x.fill(); x.beginPath(); x.arc(64, 82, 6, 0, 7); x.fill();
+    x.strokeStyle = '#15171c'; x.lineWidth = 9; x.lineCap = 'round'; x.beginPath(); x.arc(40, 128, 9, 0, 7); x.fill();
+    x.beginPath(); x.moveTo(50, 140); x.lineTo(72, 158); x.lineTo(100, 150); x.stroke(); x.beginPath(); x.moveTo(72, 158); x.lineTo(58, 180); x.lineTo(34, 176); x.stroke(); x.beginPath(); x.moveTo(60, 148); x.lineTo(84, 132); x.stroke();
+    x.beginPath(); x.roundRect(18, 194, 92, 9, 4); x.fill(); x.beginPath(); x.roundRect(30, 208, 68, 7, 3); x.fill(); }),
+  replay: () => ctex('replay', 256, 160, (x, w, h) => {                // a screen mid-rewind
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0a2f55'); g.addColorStop(1, '#0e7fc0'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.fillStyle = 'rgba(255,255,255,.07)'; for (let y = 0; y < h; y += 6) x.fillRect(0, y, w, 2);
+    x.strokeStyle = '#fff'; x.fillStyle = '#fff'; x.lineWidth = 13; x.lineCap = 'round'; x.beginPath(); x.arc(128, 82, 44, -1.1, 3.9); x.stroke();
+    x.beginPath(); x.moveTo(74, 30); x.lineTo(116, 34); x.lineTo(88, 66); x.closePath(); x.fill();
+    x.beginPath(); x.moveTo(146, 82); x.lineTo(124, 66); x.lineTo(124, 98); x.closePath(); x.fill(); x.beginPath(); x.moveTo(124, 82); x.lineTo(102, 66); x.lineTo(102, 98); x.closePath(); x.fill();
+    x.fillStyle = '#ff4b47'; x.beginPath(); x.arc(226, 26, 9, 0, 7); x.fill(); }),
   crest: () => ctex('crest', 128, 128, (x, w) => { x.fillStyle = '#12306b'; x.fillRect(0, 0, w, w); x.fillStyle = '#f2c14e'; x.beginPath();
     for (let i = 0; i < 10; i++){ const a = i / 10 * 6.283 - PI / 2, r = i % 2 ? 22 : 50; x.lineTo(64 + Math.cos(a) * r, 66 + Math.sin(a) * r); } x.fill(); })
 };
 const ballMat = () => M(0xffffff, {map:TX.ball(), r:.8});
 export const basketball = r => { const b = new THREE.Mesh(SPH(r, 16, 12), ballMat()); b.castShadow = true; return b; };
 function starGeo(){ return geo('star', () => { const s = new THREE.Shape(); for (let i = 0; i < 10; i++){ const a = i / 10 * PI * 2 + PI / 2, r = i % 2 ? .05 : .12; s[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } return new THREE.ExtrudeGeometry(s, {depth:.04, bevelEnabled:false}); }); }
+function uturnGeo(){ return geo('uturn', () => { const s = new THREE.Shape(), R = .46, r = .26;            // a fat "go back" arrow
+  s.moveTo(R, -.3); s.lineTo(R, 0); s.absarc(0, 0, R, 0, PI, false); s.lineTo(-R - .17, 0); s.lineTo(-(R + r) / 2, -.38); s.lineTo(-r + .17, 0); s.lineTo(-r, 0); s.absarc(0, 0, r, PI, 0, true); s.lineTo(r, -.3); s.closePath();
+  return new THREE.ExtrudeGeometry(s, {depth:.14, bevelEnabled:false}).translate(0, 0, -.07); }); }
 function wingGeo(k, sc){ return geo('wing' + k, () => { const s = new THREE.Shape(); s.moveTo(0, 0); s.lineTo(sc, .35 * sc); s.lineTo(.95 * sc, -.05 * sc); s.lineTo(.72 * sc, -.2 * sc); s.lineTo(.62 * sc, -.02 * sc); s.lineTo(.42 * sc, -.24 * sc); s.lineTo(.3 * sc, -.04 * sc); s.lineTo(.12 * sc, -.22 * sc); s.closePath(); return new THREE.ShapeGeometry(s); }); }
 
 /* ---------- the little people ---------- */
@@ -359,7 +378,32 @@ const MK = {
   clockout(){ const g = new THREE.Group(); P(g, CYL(.62, .62, .12, 28), M(0x8fd8ff, {m:.3, r:.3}), [0, .8, 0], [PI / 2, 0, 0]); P(g, new THREE.CircleGeometry(.54, 28), M(0xffffff, {map:TX.clock(), r:.5}), [0, .8, .065]);
     for (let i = 0; i < 5; i++) P(g, CONE(.07, .3, 5), M(0xcfefff, {o:.85, r:.1}), [-.5 + i * .25, .12, .1], [PI, 0, 0]); return {g, h:1.5, anim(){}}; },
   overtime(){ const g = new THREE.Group(), gold = M(0xf2c14e, {m:.8, r:.25}); P(g, SPH(.36, 18, 12), gold, [0, .7, 0]); P(g, BOX(.5, .22, .3), gold, [.42, .82, 0]); P(g, TOR(.14, .04), M(0xcfd5e2, {m:.8, r:.3}), [-.36, 1.0, 0]); P(g, BOX(.2, .06, .31), M(0x15171c), [.56, .9, 0]);
-    for (let i = 0; i < 3; i++) P(g, BOX(.04, .2, .04), M(0xff8a2b, {e:0xff7a00, ei:1.4}), [.8 + i * .12, .9 + (i - 1) * .16, 0], [0, 0, -1.2 + (i - 1) * .5]); return {g, h:1.4, anim(){}}; }
+    for (let i = 0; i < 3; i++) P(g, BOX(.04, .2, .04), M(0xff8a2b, {e:0xff7a00, ei:1.4}), [.8 + i * .12, .9 + (i - 1) * .16, 0], [0, 0, -1.2 + (i - 1) * .5]); return {g, h:1.4, anim(){}}; },
+
+  /* props used for trap cards, and for your own traps lying on the field */
+  wetfloor(){ const g = new THREE.Group(), y = M(0xffd21f, {r:.45});
+    P(g, CYL(.8, .8, .03, 28), M(0x59c8ff, {o:.7, r:.1}), [.06, .02, 0], null, [1, 1, .74]);                  // the puddle
+    for (const s of [-1, 1]){ const leaf = Gp(g, [0, 0, s * .3], [-s * .27, 0, 0]); P(leaf, BOX(.62, 1.12, .05), y, [0, .56, 0]); P(leaf, PLN(.54, .94), M(0xffffff, {map:TX.wet(), r:.5}), [0, .56, s * .028], [0, s > 0 ? 0 : PI, 0]); }
+    P(g, BOX(.66, .07, .16), M(0x15171c), [0, 1.09, 0]); return {g, h:1.3, anim(){}}; },
+  screen(){ const g = new THREE.Group(), dk = M(0x1c2333, {r:.7}), wt = M(0xfbf8f2, {r:.6});                  // a blocking pad on a sprung base: run into it and find out
+    P(g, CYL(.5, .58, .14, 20), dk, [0, .07, 0]); P(g, CYL(.1, .1, .34, 10), M(0xcfd5e2, {m:.8, r:.3}), [0, .28, 0]);
+    P(g, CAP(.36, .62), M(0xe23b3b, {r:.6}), [0, 1.04, 0]); for (const yy of [.86, 1.22]) P(g, CYL(.368, .368, .1, 20), wt, [0, yy, 0]);
+    for (const [x, yy, k] of [[-.66, 1.5, 1.5], [.64, 1.22, 1.1], [.5, 1.74, .8]]) P(g, starGeo(), M(0xffd95a, {e:0xffb300, ei:1.1, keep:true}), [x, yy, .16], [0, 0, x], k * 1.7);
+    return {g, h:1.8, anim(){}}; },
+  replay(){ const g = new THREE.Group(), dk = M(0x1c2333, {r:.5}), sil = M(0xcfd5e2, {m:.8, r:.3});            // a monitor stuck on rewind
+    P(g, BOX(1.24, .84, .16), dk, [0, 1.02, 0]); for (const k of [1, -1]) P(g, PLN(1.08, .68), M(0xffffff, {map:TX.replay(), e:0xffffff, emap:TX.replay(), ei:.85, keep:true}), [0, 1.02, k * .085], [0, k > 0 ? 0 : PI, 0]);      // a screen on both faces: it spins once it is live
+    P(g, CYL(.05, .05, .6, 8), sil, [0, .32, 0]); P(g, CYL(.34, .42, .06, 16), dk, [0, .03, 0]);
+    for (const s of [-1, 1]) P(g, CYL(.016, .016, .52, 6), sil, [s * .2, 1.64, 0], [0, 0, -s * .5]);
+    return {g, h:1.9, anim(){}}; },
+  benched(){ const g = new THREE.Group(), wood = M(0xb9814a, {r:.7}), leg = M(0x4a5266, {m:.5, r:.4});          // the bench, and the arrow pointing you back to it
+    P(g, BOX(1.3, .1, .42), wood, [0, .5, 0]); P(g, BOX(1.3, .3, .08), wood, [0, .88, -.2], [-.12, 0, 0]);
+    for (const s of [-1, 1]){ P(g, BOX(.08, .5, .4), leg, [s * .52, .25, 0]); P(g, BOX(.07, .5, .07), leg, [s * .52, .74, -.2]); }
+    P(g, uturnGeo(), M(0xff5a4a, {e:0xff2a1a, ei:.45, keep:true}), [0, 1.62, 0]); return {g, h:2.1, anim(){}}; },
+  techfoul(){ const g = new THREE.Group(), red = M(0xe23b3b, {e:0xff2a1a, ei:.3, keep:true}), sil = M(0xcfd5e2, {m:.8, r:.25});   // a big red T on a podium in referee stripes, whistle at the ready
+    P(g, CYL(.5, .5, .5, 24), M(0xffffff, {map:TX.stripes(), r:.6}), [0, .25, 0]); P(g, CYL(.55, .55, .06, 24), M(0x15171c), [0, .52, 0]);
+    P(g, BOX(.2, .8, .2), red, [0, .95, 0]); P(g, BOX(.8, .22, .2), red, [0, 1.42, 0]);
+    P(g, SPH(.17, 14, 10), sil, [.5, .74, .3]); P(g, BOX(.26, .1, .14), sil, [.69, .82, .3]); P(g, TOR(.07, .02), sil, [.38, .9, .3]);
+    return {g, h:1.6, anim(){}}; }
 };
 
 /* the cardboard big-head for Five-Star BDB, worn on the rigged model's head */

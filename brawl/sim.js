@@ -1,12 +1,13 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, RAR_IDS } from './cards.js';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, RAR_IDS } from './cards.js?v=1114n';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 18, RIVER = 1;      // a longer field: more ground to cover, more time to react
 export const MATCH = 600, OVERTIME = 60, DOUBLE_AT = 120, MAX_EL = 10, SIGHT = 5.5;   // a 10 minute match, double Coffee for the last two
 export const TOWER_AT = [['king', 0, L - 3], ['princess', -5.5, L - 6.5], ['princess', 5.5, L - 6.5]];
 const DEPLOY = TPS, PROJ_SPD = 11;
 export const PATIENT = 3 * TPS;
+export const MAX_TRAPS = 3, TRIG = 1.1;            // traps each player can have face down at once, and how close a troop has to step to spring one
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const T = s => Math.max(1, Math.round(s * TPS));
 export const KEYS = Object.keys(UNITS);
@@ -27,7 +28,7 @@ export function canPlace(map, team, card, x, z, pocket){
 export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1]}){
   const map = MAPS[mapId], rnd = mulberry(seed);
   let tick = 0, nid = 0, phase = 'play', over = false, winner = -1;
-  const ents = [], byId = new Map(), projs = [], zones = [];
+  const ents = [], byId = new Map(), projs = [], zones = [], traps = [];
   let events = [];
   const crowns = [0, 0];
   const emit = o => events.push(o);
@@ -106,6 +107,27 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (Math.hypot(o.x - x, o.z - z) <= r + o.U.r * .5){ if (chill && !o.U.twr) o.slow = T(chill); hurt(o, dmg * (o.U.twr ? twr : 1)); }
     }
   }
+  /* ---------- traps ---------- */
+  const foot = (o, team) => o.team !== team && o.hp > 0 && o.dep <= 0 && !o.U.bld && !o.U.twr && !o.U.fly;      // who a trap can catch: enemy troops on the ground
+  function spring(tr, hit){
+    emit({e:'trap', k:tr.kind, x:tr.x, z:tr.z, r:tr.r, team:tr.team, id:tr.card, t:tr.dur || 0});
+    const all = ents.filter(o => foot(o, tr.team) && Math.hypot(o.x - tr.x, o.z - tr.z) <= tr.r + o.U.r * .5);
+    if (hit && !all.includes(hit)) all.push(hit);
+    if (tr.kind === 'mirror') tr.live = T(tr.dur); else traps.splice(traps.indexOf(tr), 1);        // Instant Replay stays up as a zone that throws damage back
+    if (tr.chill) for (const o of all) o.slow = Math.max(o.slow, T(tr.chill + tr.stun));
+    if (tr.kind === 'slip'){ for (const o of all){ o.frz = Math.max(o.frz, T(tr.stun)); hurt(o, tr.dmg); } }
+    else if (tr.kind === 'snap'){ for (const o of all) hurt(o, tr.dmg); }
+    else if (tr.kind === 'bounce' && hit.hp > 0){                                                 // back to in front of their own king tower
+      hit.x = clamp(hit.x * .45, -2.6, 2.6); hit.z = (hit.team === 0 ? 1 : -1) * (L - 5.6); hit.frz = Math.max(hit.frz, T(tr.stun)); hit.tgt = 0; hit.lock = false; hit.run = 0; hit.chg = false;
+      emit({e:'warp', id:hit.id, x:hit.x, z:hit.z});
+      hurt(hit, tr.dmg);
+    }
+    if (tr.burst){ for (const o of all) hurt(o, tr.burst); emit({e:'boom', k:'tox', x:tr.x, z:tr.z, r:tr.r, team:tr.team}); }
+    if (tr.heal){
+      let w = null; for (const o of ents) if (o.U.twr && o.team === tr.team && o.hp > 0 && o.hp < o.max && (!w || o.hp / o.max < w.hp / w.max)) w = o;
+      if (w){ w.hp = Math.min(w.max, w.hp + tr.heal); emit({e:'heal', id:w.id, r:2.4}); }
+    }
+  }
   function finish(w){ if (over) return; over = true; winner = w; phase = 'over'; emit({e:'over', w, cr:crowns.slice()}); }
 
   /* ---------- targeting ---------- */
@@ -135,9 +157,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     emit({e:'atk', id:e.id, t:t.id});
     if (U.shot && U.rng > 1.5){
       const d = clamp((gap(e, t) + e.U.r) / PROJ_SPD, .14, .9);
-      projs.push({tgt:t.id, x:t.x, z:t.z, t:T(d), dmg, splash:U.splash || 0, team:e.team, air:!!U.air, chill:U.chill});
+      projs.push({tgt:t.id, x:t.x, z:t.z, t:T(d), dmg, splash:U.splash || 0, team:e.team, air:!!U.air, chill:U.chill, src:e.id});
       emit({e:'shot', id:e.id, t:t.id, d, k:U.shot});
-    } else projs.push({tgt:t.id, x:t.x, z:t.z, t:T(U.wind ?? .24), dmg, splash:U.splash || 0, team:e.team, air:!!U.air, chill:U.chill, src:e.id});     // a melee hit lands when the swing does, and not at all if the attacker drops first
+    } else projs.push({tgt:t.id, x:t.x, z:t.z, t:T(U.wind ?? .24), dmg, splash:U.splash || 0, team:e.team, air:!!U.air, chill:U.chill, src:e.id, melee:1});     // a melee hit lands when the swing does, and not at all if the attacker drops first
   }
 
   /* ---------- one tick ---------- */
@@ -151,6 +173,12 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       const zn = zones[i];
       if (--zn.t > 0) continue;
       zones.splice(i, 1);
+      if (zn.spell){                                           // a Technical Foul near where it lands cancels it
+        const tr = traps.find(q => q.kind === 'counter' && q.team !== zn.team && q.arm <= 0 && Math.hypot(q.x - zn.x, q.z - zn.z) <= q.r + zn.r * .5);
+        if (tr){ const pl = players[zn.pid]; if (pl && tr.burn) pl.el = Math.max(0, pl.el - tr.burn); spring(tr, null); emit({e:'negate', x:zn.x, z:zn.z, r:zn.r, team:zn.team, pid:zn.pid, burn:tr.burn}); continue; }
+        if (zn.dmg > 0) for (let j = traps.length - 1; j >= 0; j--){ const q = traps[j];               // a spell that does damage clears any hidden trap it lands on
+          if (q.team !== zn.team && !q.live && Math.hypot(q.x - zn.x, q.z - zn.z) <= zn.r){ traps.splice(j, 1); emit({e:'trapx', x:q.x, z:q.z, team:q.team, id:q.card}); } }
+      }
       if (zn.kind === 'rage'){ for (const o of ents) if (o.team === zn.team && o.hp > 0 && !o.U.twr && Math.hypot(o.x - zn.x, o.z - zn.z) <= zn.r + o.U.r * .5) o.rage = T(zn.rage); }
       else {
         if (zn.kind === 'freeze'){ for (const o of ents) if (o.team !== zn.team && o.hp > 0 && o.dep <= 0 && Math.hypot(o.x - zn.x, o.z - zn.z) <= zn.r + o.U.r * .5) o.frz = T(zn.freeze); }
@@ -164,11 +192,22 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (t && t.hp > 0){ p.x = t.x; p.z = t.z; }
       if (--p.t > 0) continue;
       projs.splice(i, 1);
-      if (p.src && !byId.has(p.src)) continue;
+      if (p.melee && !byId.has(p.src)) continue;
+      const src = p.src ? byId.get(p.src) : null;            // an attacker standing in the other side's Instant Replay takes its own hit back
+      if (src && src.hp > 0 && !src.U.twr) for (const tr of traps) if (tr.live > 0 && tr.team !== src.team && Math.hypot(src.x - tr.x, src.z - tr.z) <= tr.r){ emit({e:'reflect', id:src.id}); hurt(src, p.dmg * tr.refl); break; }
       if (p.splash) area(p.x, p.z, p.splash, p.dmg, p.team, p.air, 1, p.chill);
       else if (t && t.hp > 0){ if (p.chill && !t.U.twr) t.slow = T(p.chill); hurt(t, p.dmg); }
     }
 
+    // traps: armed a moment after they are set, then sprung by the first enemy on foot to walk over them
+    for (let i = traps.length - 1; i >= 0; i--){
+      const tr = traps[i];
+      if (tr.arm > 0){ tr.arm--; continue; }
+      if (tr.live > 0){ if (--tr.live <= 0) traps.splice(i, 1); continue; }
+      if (--tr.life <= 0){ traps.splice(i, 1); continue; }
+      if (tr.kind === 'counter') continue;                     // that one waits for a spell, not for feet
+      for (const o of ents) if (foot(o, tr.team) && Math.hypot(o.x - tr.x, o.z - tr.z) <= TRIG + o.U.r * .5){ spring(tr, o); break; }
+    }
     const n = ents.length;
     for (let i = 0; i < n; i++){
       const e = ents[i], U = e.U;
@@ -229,7 +268,13 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
         const dx = a.x - b.x, dz = a.z - b.z, min = a.U.r + b.U.r, d2 = dx * dx + dz * dz;
         if (d2 >= min * min) continue;
         const d = Math.sqrt(d2) || .01, push = (min - d) * (b.U.bld ? 1 : b.U.r * b.U.r / (a.U.r * a.U.r + b.U.r * b.U.r)) * .6;
-        a.x += (d2 ? dx / d : (a.id % 2 ? .7 : -.7)) * push; a.z += (d2 ? dz / d : .7) * push;
+        const nx = d2 ? dx / d : (a.id % 2 ? .7 : -.7), nz = d2 ? dz / d : .7;
+        a.x += nx * push; a.z += nz * push;
+        if (b.U.bld && a.mv){                                  // walking into something that will not move: slide round it rather than lean on it forever
+          let tx = -nz, tz = nx; const k = tx * a.fx + tz * a.fz, tg = byId.get(a.tgt), want = tg ? (tg.x - a.x) * tx + (tg.z - a.z) * tz : 0;
+          if (Math.abs(k) > .15 ? k < 0 : Math.abs(want) > .3 ? want < 0 : a.id % 2){ tx = -tx; tz = -tz; }
+          a.x += tx * push * .9; a.z += tz * push * .9;
+        }
       }
       constrain(a, px, pz);
     }
@@ -258,9 +303,17 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (card.type === 'build') for (const o of ents) if (o.U.bld && Math.hypot(o.x - x, o.z - z) < o.U.r + card.U.r + .1) return false;
     p.el -= card.cost; p.played++; p.idle = 0;
     p.hand[slot] = p.next; p.queue.push(c); p.next = p.queue.shift();
-    if (card.type === 'spell'){
+    if (card.type === 'trap'){
+      const t = card.trap, own = traps.filter(q => q.pid === pid && !q.live);
+      if (own.length >= MAX_TRAPS) traps.splice(traps.indexOf(own[0]), 1);            // three face down each; a fourth replaces your oldest
+      traps.push({id:++nid, kind:t.kind, team, pid, x, z, r:t.r, dmg:t.dmg * lvlMul(c.lvl), stun:t.stun, dur:t.dur, refl:t.refl, chill:t.chill, heal:t.heal * lvlMul(c.lvl), burst:t.burst * lvlMul(c.lvl), burn:t.burn,
+        arm:T(t.arm), life:T(t.life), live:0, card:c.id});
+      emit({e:'trapset', team, pid});                          // the other side learns a trap went down, not where
+    } else if (card.type === 'spell'){
       const s = card.spell, m = lvlMul(c.lvl);
-      zones.push({kind:s.kind, team, x, z, r:s.r, dmg:(s.dmg || 0) * m, twr:s.twr || 1, freeze:s.freeze, rage:s.rage, chill:s.chill, steal:s.steal, t:T(s.delay)});
+      const zn = {kind:s.kind, team, x, z, r:s.r, dmg:(s.dmg || 0) * m, twr:s.twr || 1, freeze:s.freeze, rage:s.rage, chill:s.chill, steal:s.steal, t:T(s.delay), spell:true, pid};
+      zones.push(zn);
+      if (s.again) zones.push({...zn, dmg:zn.dmg * s.again, t:T(s.delay + 1.3), spell:false});     // Toxic: it lingers and lands again
       emit({e:'spell', k:s.kind, id:c.id, x, z, r:s.r, d:s.delay, team, t:s.rage || s.freeze || 0, rar:card.rar, aff:card.aff});
     } else {
       const n = card.n, rad = n > 1 ? .3 + .13 * n : 0;
@@ -275,11 +328,12 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   function encode(pid){
     const p = players[pid], team = tm(pid);
     return {k:tick, l:Math.max(0, Math.ceil(timeLeft())), ph:phase, cr:crowns, el:Math.round(p.el * 100) / 100, h:p.hand.map(c => c.id), hl:p.hand.map(c => c.lvl), n:p.next.id, pk:pocket(team),
+      tr:traps.filter(t => t.team === team || t.live > 0).map(t => [t.id, t.card, Math.round(t.x * 100), Math.round(t.z * 100), t.live > 0 ? 1 : 0, t.team]),      // your own traps, and any sprung Instant Replay
       e:ents.map(e => [e.id, KEYS.indexOf(e.key), e.team, Math.round(e.x * 100), Math.round(e.z * 100), Math.ceil(e.hp), e.max, FL(e), e.tgt, e.lvl, AFF_IDS.indexOf(e.U.aff), RAR_IDS.indexOf(e.U.rar)]), bo:p.idle > PATIENT};
   }
 
   return {
-    map, mapId, ents, byId, players, crowns, towers, step, play, encode, pocket,
+    map, mapId, ents, byId, players, crowns, towers, traps, step, play, encode, pocket,
     canPlace:(team, card, x, z) => canPlace(map, team, card, x, z, pocket(team)),
     drain(){ const ev = events; events = []; return ev; },
     get tick(){ return tick; }, get phase(){ return phase; }, get over(){ return over; }, get winner(){ return winner; },
@@ -296,6 +350,16 @@ export function decodeEnts(arr, prev){
     const o = prev.get(a[0]) || {id:a[0], key, U:unitVar(key, AFF_IDS[a[10]] || 'std', RAR_IDS[a[11]] || 'c'), team:a[2], fx:0, fz:a[2] === 0 ? -1 : 1};
     o.x = a[3] / 100; o.z = a[4] / 100; o.hp = a[5]; o.max = a[6]; o.dep = f & 1; o.frz = f & 2; o.rage = f & 4; o.active = !!(f & 8); o.mv = !!(f & 16); o.chg = !!(f & 32); o.slow = f & 64; o.tgt = a[8]; o.lvl = a[9];
     out.push(o);
+  }
+  return out;
+}
+/* The traps in a snapshot from the host: checked field by field, since they arrive over the network. */
+export function decodeTraps(arr){
+  const out = [];
+  if (Array.isArray(arr)) for (const a of arr.slice(0, 16)){
+    const c = Array.isArray(a) && typeof a[1] === 'string' && Object.hasOwn(CARDS, a[1]) ? CARDS[a[1]] : null;
+    if (!c || !c.trap || !Number.isFinite(a[0]) || !Number.isFinite(a[2]) || !Number.isFinite(a[3])) continue;
+    out.push({id:a[0], card:c.id, kind:c.trap.kind, r:c.trap.r, x:clamp(a[2] / 100, -W, W), z:clamp(a[3] / 100, -L, L), live:a[4] ? 1 : 0, team:a[5] ? 1 : 0});
   }
   return out;
 }
