@@ -114,7 +114,7 @@ export function createAI(sim, team, prof, rnd = Math.random){
     if (!hasTank && !tanks.length && saving && p.el < 9.6 && rnd() < prof.smart) return;      // a big card is in hand: wait for it
     if (tanks.length && !hasTank){
       const h = tanks[Math.floor(rnd() * tanks.length)];
-      return put(h, laneX, p.el >= 9 && rnd() < prof.smart ? 13.5 : edge + .4);     // patient: start him behind the king so support can build up
+      return put(h, laneX, p.el >= 9 && rnd() < prof.smart ? L - 2.5 : edge + .4);     // patient: start him behind the king so support can build up
     }
     if (front && troops.length){
       const sup = troops.filter(h => h.U.rng > 2 || h.U.splash || h.card.n >= 3);

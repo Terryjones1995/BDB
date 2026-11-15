@@ -2,9 +2,9 @@
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
 import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, RAR_IDS } from './cards.js';
 
-export const TPS = 20, DT = 1 / TPS, W = 9, L = 16, RIVER = 1;
+export const TPS = 20, DT = 1 / TPS, W = 9, L = 18, RIVER = 1;      // a longer field: more ground to cover, more time to react
 export const MATCH = 600, OVERTIME = 60, DOUBLE_AT = 120, MAX_EL = 10, SIGHT = 5.5;   // a 10 minute match, double Coffee for the last two
-export const TOWER_AT = [['king', 0, 13], ['princess', -5.5, 9.5], ['princess', 5.5, 9.5]];
+export const TOWER_AT = [['king', 0, L - 3], ['princess', -5.5, L - 6.5], ['princess', 5.5, L - 6.5]];
 const DEPLOY = TPS, PROJ_SPD = 11;
 export const PATIENT = 3 * TPS;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -21,7 +21,7 @@ export function canPlace(map, team, card, x, z, pocket){
   if (zz >= edge) return true;
   // an enemy hoop tower is down: that side of their half opens up
   const side = (team === 0 ? x : -x) < 0 ? 0 : 1;
-  return !!(pocket && pocket[side]) && zz >= -7.5 && zz <= -edge;
+  return !!(pocket && pocket[side]) && zz >= -(L - 8.5) && zz <= -edge;
 }
 
 export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1]}){

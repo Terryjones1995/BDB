@@ -108,6 +108,8 @@ function walker(R, o = {}){
     R.armL.rotation.x = aL; R.armR.rotation.x = aR;
     R.body.position.y = s.mv ? Math.abs(w) * .05 : Math.sin(t * 2.2 + R.seed) * .012;
     R.body.rotation.x = (s.mv ? .1 : 0) + (o.lean || 0) * (s.chg ? 2 : 1) + (a >= 0 && sw === 'slam' ? Math.sin(a * PI) * .35 : 0);
+    R.head.rotation.y = s.mv ? Math.sin(s.ph * .5) * .1 : Math.sin(t * .9 + R.seed) * .45; R.head.rotation.z = s.mv ? Math.sin(s.ph) * .08 : 0;      // looks around when idle, bobs when running
+    R.torso.rotation.y = s.mv ? Math.sin(s.ph) * .18 : 0;
     if (o.extra) o.extra(t, s, a);
   };
 }
