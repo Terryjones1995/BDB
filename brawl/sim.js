@@ -38,6 +38,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     return {el:5, hand:q.splice(0, HAND), next:q.shift(), queue:q, played:0, idle:0};
   });
 
+  const tm = pid => players.length > 2 ? (pid < 2 ? 0 : 1) : pid;
   function add(key, team, x, z, lvl, dep = DEPLOY, aff = 'std', rar = 'c'){
     const U = unitVar(key, aff, rar), m = lvlMul(lvl);
     const e = {id:++nid, key, U, team, x, z, lvl, hp:Math.round(U.hp * m), max:Math.round(U.hp * m), dmg:Math.round(U.dmg * m),
@@ -145,7 +146,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (over) return;
     tick++;
     const left = timeLeft(), dbl = phase === 'ot' || left <= DOUBLE_AT;
-    for (let i = 0; i < 2; i++){ const p = players[i]; p.idle++; p.el = Math.min(MAX_EL, p.el + DT / 2.8 * (dbl ? 2 : 1) * (p.idle > PATIENT ? 1.3 : 1) * elMul[i]); }   // holding off on summoning charges Mana faster
+    for (let i = 0; i < players.length; i++){ const p = players[i]; p.idle++; p.el = Math.min(MAX_EL, p.el + DT / 2.8 * (dbl ? 2 : 1) * (p.idle > PATIENT ? 1.3 : 1) * (elMul[i] ?? 1)); }   // holding off on summoning charges Mana faster
 
     for (let i = zones.length - 1; i >= 0; i--){
       const zn = zones[i];
@@ -248,8 +249,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   const timeLeft = () => phase === 'ot' ? MATCH + OVERTIME - tick / TPS : phase === 'over' ? 0 : MATCH - tick / TPS;
 
   /* ---------- playing a card ---------- */
-  function play(team, slot, x, z){
-    const p = players[team], c = p.hand[slot];
+  /* pid is the player. With four decks it is 2v2: players 0 and 1 share team 0, players 2 and 3 share team 1. */
+  function play(pid, slot, x, z){
+    const p = players[pid], team = tm(pid), c = p && p.hand[slot];
     if (over || !c) return false;
     const card = CARDS[c.id];
     if (p.el < card.cost || !canPlace(map, team, card, x, z, pocket(team))) return false;
@@ -270,8 +272,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
 
   /* ---------- for the screens and the wire ---------- */
   const FL = e => (e.dep > 0 ? 1 : 0) | (e.frz > 0 ? 2 : 0) | (e.rage > 0 ? 4 : 0) | (e.active ? 8 : 0) | (e.mv ? 16 : 0) | (e.chg ? 32 : 0) | (e.slow > 0 ? 64 : 0);
-  function encode(team){
-    const p = players[team];
+  function encode(pid){
+    const p = players[pid], team = tm(pid);
     return {k:tick, l:Math.max(0, Math.ceil(timeLeft())), ph:phase, cr:crowns, el:Math.round(p.el * 100) / 100, h:p.hand.map(c => c.id), hl:p.hand.map(c => c.lvl), n:p.next.id, pk:pocket(team),
       e:ents.map(e => [e.id, KEYS.indexOf(e.key), e.team, Math.round(e.x * 100), Math.round(e.z * 100), Math.ceil(e.hp), e.max, FL(e), e.tgt, e.lvl, AFF_IDS.indexOf(e.U.aff), RAR_IDS.indexOf(e.U.rar)]), bo:p.idle > PATIENT};
   }

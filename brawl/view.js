@@ -2,7 +2,7 @@
    and turns sim events into effects. It never decides anything about the game. */
 import * as THREE from 'three';
 import { RoomEnvironment } from '../chess/vendor/RoomEnvironment.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114c';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1114e';
 import { UNITS, MAPS } from './cards.js';
 import { W, L, RIVER } from './sim.js';
 
@@ -237,7 +237,7 @@ export function createView(el, opt = {}){
 
   /* ---------- entities ---------- */
   const recs = new Map(), barG = new THREE.PlaneGeometry(1, 1), iceG = new THREE.IcosahedronGeometry(1, 1);
-  const barBg = new THREE.MeshBasicMaterial({color:0x08101f, transparent:true, opacity:.85, depthTest:false}), barCol = [new THREE.MeshBasicMaterial({color:0x4fb3ff, depthTest:false}), new THREE.MeshBasicMaterial({color:0xff5a4a, depthTest:false})];
+  const barBg = new THREE.MeshBasicMaterial({color:0x08101f, transparent:true, opacity:.85, depthTest:false}), barCol = [new THREE.MeshBasicMaterial({color:0x3fa0ff, depthTest:false, transparent:true}), new THREE.MeshBasicMaterial({color:0xff3b30, depthTest:false, transparent:true})];   // transparent so they draw after the dark backing
   const shadowMat = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:.3, depthWrite:false});
   const ringMat = [0, 1].map(i => new THREE.MeshBasicMaterial({color:TEAM[i], transparent:true, opacity:.9, depthWrite:false}));
   const rageMat = new THREE.MeshBasicMaterial({color:0xff4fd8, transparent:true, opacity:.9, depthWrite:false});
@@ -314,9 +314,9 @@ export function createView(el, opt = {}){
       }
       r.g.position.set(r.x, y, r.z);
       if (r.lunge > 0) r.lunge -= dt; if (r.hit > 0) r.hit -= dt;
-      const hop = e.mv && !m.fly && !U.bld && !frozen ? Math.abs(Math.sin(r.ph)) * (U.spd >= 1.9 ? .32 : U.r > .8 ? .05 : .12) : 0;
+      const hop = e.mv && !m.fly && !U.bld && !frozen && !m.rig ? Math.abs(Math.sin(r.ph)) * (U.spd >= 1.9 ? .32 : U.r > .8 ? .05 : .12) : 0;
       m.g.position.set(0, (m.fly || 0) + hop, r.lunge > 0 ? Math.sin(r.lunge / .22 * PI) * (.35 + U.r * .5) : 0);
-      if (!U.bld){ m.g.rotation.x = r.hit > 0 ? -Math.sin(r.hit / .18 * PI) * .32 : m.fly && e.mv ? .22 : 0; m.g.rotation.z = e.mv && !frozen ? Math.sin(r.ph) * (m.fly ? .14 : .07) : 0; }
+      if (!U.bld){ m.g.rotation.x = r.hit > 0 ? -Math.sin(r.hit / .18 * PI) * .32 : m.fly && e.mv ? .22 : 0; m.g.rotation.z = e.mv && !frozen && !m.rig ? Math.sin(r.ph) * (m.fly ? .14 : .07) : 0; }
       if (e.mv && !m.fly && !low && !frozen && (r.step = (r.step || 0) + dt) > .26){ r.step = 0; burst(r.x, .1, r.z, 1, 0xe6dcc4, {smoke:true, spd:.35, up:.45, life:.45, grav:-.3}); }
       if (r.pop > 0) r.pop -= dt;
       const sq = r.pop > 0 ? Math.sin(r.pop / .22 * PI) * .16 : 0;
@@ -325,7 +325,7 @@ export function createView(el, opt = {}){
       if (e.hp < r.hp - .5 && r.landed){ if (e.hp < r.hp - 12 || Math.random() < .3) burst(r.x, m.h * .55 + (m.fly || 0), r.z, U.twr ? 5 : 3, 0xffe3a0, {spd:2, up:1.6, life:.3}); if (r.pop <= 0) r.pop = .1; r.hit = .18; }
       else if (e.hp > r.hp + 5) burst(r.x, m.h * .6 + (m.fly || 0), r.z, 4, 0x6dff9a, {spd:.8, up:2.2, life:.6, grav:-1});
       r.hp = e.hp;
-      if (!frozen) m.anim(time, {mv:e.mv, ph:r.ph, atk:r.atk, chg:e.chg, aim, sum:r.sum, active:e.active});
+      if (!frozen) m.anim(time, {mv:e.mv, ph:r.ph, atk:r.atk, chg:e.chg, aim, sum:r.sum, active:e.active, spd:U.spd * (e.rage ? 1.35 : 1) * (e.slow ? .62 : 1)});
       if (frozen && !r.ice){ r.ice = new THREE.Mesh(iceG, iceMat); r.ice.scale.set(U.r * 1.25, m.h * .58, U.r * 1.25); r.ice.position.y = m.h * .5 + (m.fly || 0); r.g.add(r.ice); }
       else if (!frozen && r.ice){ r.g.remove(r.ice); r.ice = null; burst(r.x, m.h * .5, r.z, 8, 0xbfe9ff, {spd:2.5, up:2, life:.4}); }
       if (r.ring){ r.ring.material = e.rage ? rageMat : ringMat[r.rel]; r.ring.scale.setScalar(U.r * (e.rage ? 1.3 + Math.sin(time * 12) * .1 : e.dep ? .7 + (time * 2 % 1) * .5 : 1.12)); }
@@ -446,11 +446,15 @@ export function createView(el, opt = {}){
   const nogo = new THREE.Group(); fxW.add(nogo); nogo.visible = false;
   const ngMat = new THREE.MeshBasicMaterial({color:0xff3a2a, transparent:true, opacity:.2, depthWrite:false}), ng = [];
   for (let i = 0; i < 4; i++){ const m = new THREE.Mesh(barG, ngMat); m.rotation.x = -PI / 2; m.position.y = .06; nogo.add(m); ng.push(m); }
-  function setGhost(on, x, z, r, ok){
+  let gM = null, gKey = '';
+  function setGhost(on, x, z, r, ok, key, aff){
     ghost.visible = !!on; if (!on) return;
     const wx = me === 0 ? x : -x, wz = me === 0 ? z : -z;
-    ghost.position.set(wx, 0, wz); gRing.scale.setScalar(r); gDisc.scale.setScalar(r);
+    ghost.position.set(wx, 0, wz); gRing.scale.setScalar(r); gRing.userData.p = 1; gDisc.scale.setScalar(r);
     gRing.material.color.set(ok ? 0x4ade80 : 0xff3a2a); gDisc.material.color.set(ok ? 0x4ade80 : 0xff3a2a);
+    const k = key ? key + '|' + aff : '';                       // the troop itself hovers over the spot you are about to drop it on
+    if (k !== gKey){ if (gM) ghost.remove(gM.g); gM = null; gKey = k; if (key){ gM = makeModel(key, 0, {aff}); gM.g.scale.setScalar((gM.s || 1) * 1.2); gM.g.rotation.y = PI; ghost.add(gM.g); } }
+    if (gM) gM.g.visible = !!ok;
   }
   function setNoGo(on, pocket){
     nogo.visible = !!on; if (!on) return;
@@ -472,6 +476,7 @@ export function createView(el, opt = {}){
   function frame(dt, ents){
     time += dt;
     if (ents) sync(ents, dt);
+    if (ghost.visible){ const p = 1 + Math.sin(time * 7) * .06; gRing.scale.setScalar(gRing.scale.x / (gRing.userData.p || 1) * p); gRing.userData.p = p; if (gM && gM.g.visible){ gM.g.position.y = (gM.fly || 0) + .5 + Math.sin(time * 5) * .14; gM.anim(time, {mv:false, ph:0, atk:99, sum:99, aim:0, active:true, chg:false}); } }
     stepShots(dt); stepFlats(dt); stepBeams(dt); glow.step(dt); smoke.step(dt);
     if (waterTex) waterTex.offset.x = time * .035;
     for (let i = 0; i < crowd.length; i++) crowd[i].position.y = Math.abs(Math.sin(time * 3 + i)) * .12;

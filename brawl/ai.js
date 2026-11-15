@@ -5,17 +5,17 @@ import { TPS, W, L, RIVER } from './sim.js';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
-export function createAI(sim, team, prof, rnd = Math.random){
+export function createAI(sim, team, prof, rnd = Math.random, pid = team){
   const s = team === 0 ? 1 : -1;                 // f = z * s is "how deep on my own side"
   const edge = (sim.map.river ? RIVER : 0) + .8;
   let wait = Math.round((2.5 + prof.react) * TPS);
-  const P = () => sim.players[team];
+  const P = () => sim.players[pid];
 
   function put(h, x, f){
     x = clamp(x, -W + 1, W - 1); f = clamp(f, -L + 1, L - 1);
     if (h.card.type !== 'spell' && !sim.canPlace(team, h.card, x, f * s)) f = Math.max(f, edge);
     for (let k = 0; k < 6; k++){
-      if (sim.play(team, h.i, x, f * s)) return true;
+      if (sim.play(pid, h.i, x, f * s)) return true;
       x = clamp(x + (rnd() - .5) * 3, -W + 1, W - 1); f = clamp(f + rnd() * 1.5, edge, L - 1);   // blocked (a building in the way): nudge
     }
     return false;

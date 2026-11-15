@@ -330,6 +330,10 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .wait{font-family:var(--f-game);font-weight:400;font-size:20px;color:#fff;text-shadow:var(--stroke);background:rgba(6,14,36,.72)}
 .wait b{font-family:var(--f-game);font-size:84px;color:#ffd23f;text-shadow:-3px 0 var(--ink2),3px 0 var(--ink2),0 -3px var(--ink2),0 3px var(--ink2),0 8px 0 var(--ink2)}
 .wait .note{font-family:var(--f-body);text-shadow:none}
+.dragcard{position:fixed;left:0;top:0;z-index:60;width:88px;pointer-events:none;transition:opacity .14s;will-change:transform;filter:drop-shadow(0 16px 12px rgba(0,0,0,.5))}
+.dragcard.over{opacity:.55}
+.dragcard.gone{opacity:0;transition:opacity .15s}
+.hand .card.lifting{opacity:.3;transform:translateY(6px) scale(.94)}
 :root{--hand-h:168px}
 @media (max-width:759px){ .grid.deck,.grid.eight{gap:14px 8px} .grid.deck .card .nm,.grid.eight .card .nm{display:none} .grid.deck .card img,.grid.eight .card img{top:8%;height:84%} .grid.deck .card .lv,.grid.eight .card .lv{top:auto;bottom:4px;right:50%;transform:translateX(50%);white-space:nowrap} }
 @media (max-width:759px){ .hand .card .nm{display:none} .hand .card img{top:6%;height:82%} }
@@ -391,7 +395,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
           </div>
           <div class="panel">
             <span class="k-label">Online 1v1</span>
-            <p class="note" style="margin:0 0 10px">Play a real person with your current deck. Winner gets coins and trophies.</p>
+            <p class="note" style="margin:0 0 10px">Play a real person with your current deck, or team up with a friend for 2v2 against two BDBs.</p>
             <div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn primary" id="olQuick">Quick match</button><button type="button" class="k-btn" id="olFriend">Play a friend</button></div>
           </div>
         </div>
@@ -474,6 +478,6 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1114c"></script>
+<script type="module" src="main.js?v=1114f"></script>
 </body>
 </html>

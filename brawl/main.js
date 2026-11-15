@@ -50,7 +50,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114c'), import('./models.js?v=1114c')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1114e'), import('./models.js?v=1114e')]);
     await md.preload();
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced});
     ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
@@ -124,7 +124,8 @@ function sheet(id){
   const act = box.querySelector('#shAct'), coin = '<span class="coin" style="margin-left:6px"></span>';
   const btn = (t, cls, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn ' + cls; b.innerHTML = t; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); return b; };
   const close = () => { $('sheet').hidden = true; }, short = n => { box.querySelector('#shNote').textContent = `You need ${fmt(n - P.coins)} more coins.`; };
-  if (!L){ btn(`Buy ${coin}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); BDB.sfx.good(); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
+  if (B && !B.done){ /* mid-match: just the facts */ }
+  else if (!L){ btn(`Buy ${coin}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); BDB.sfx.good(); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
   else {
     if (L < MAX_LVL){ btn(`Upgrade ${coin}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; save(); BDB.sfx.big(); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
     if (!curDeck().includes(id)) btn('Put in deck', L < MAX_LVL ? '' : 'primary', () => { swap = id; close(); tab('Deck'); });
@@ -278,19 +279,23 @@ function preCpu(i){
 /* ---------- the match ---------- */
 let B = null, raf = 0, lastT = 0, ticker = null;
 function begin(o){
-  B = {...o, team:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false]};
+  B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false]};
   show('scrBattle'); $('emoPanel').hidden = true; $('btPause').disabled = false;
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
   if (V) V.reset(B.team, o.map);
-  if (o.mode !== 'guest'){
+  if (o.coop && o.mode === 'host'){                       // 2v2: you and a friend against two BDBs
+    const [a, b] = o.cpus, dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
+    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, dk(a), dk(b)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, a.ai.el * .85, b.ai.el * .85], towerLvl:[myTower(), a.lvl]});
+    B.ais = [createAI(B.sim, 1, a.ai, Math.random, 2), createAI(B.sim, 1, b.ai, Math.random, 3)];
+  } else if (o.mode !== 'guest'){
     const oppDeck = o.mode === 'cpu' ? o.cpu.deck.map(id => ({id, lvl:o.cpu.lvl})) : o.oppDeck;
     B.sim = createSim({map:o.map, decks:[myDeck(), oppDeck], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, o.mode === 'cpu' ? o.cpu.ai.el : 1], towerLvl:[myTower(), o.mode === 'cpu' ? o.cpu.lvl : o.oppTower]});
     if (o.mode === 'cpu') B.ai = createAI(B.sim, 1, o.cpu.ai);
   }
   hud(true);
   const w = $('wait'); w.hidden = false; let n = 3;
-  const cd = () => { if (!B) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? TALK.start : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  const cd = () => { if (!B) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? TALK.start : o.coop ? [`Two of you? Fine. There are two of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
   cd();
   cancelAnimationFrame(raf); lastT = performance.now(); raf = requestAnimationFrame(loop);
 }
@@ -299,6 +304,7 @@ function hostPump(){
   if (!B || B.mode !== 'host' || !B.run) return;
   const target = Math.floor((performance.now() - B.t0) / 50); let n = 0;
   while (B.sim.tick < target && n++ < 60 && !B.simDone){
+    if (B.ais) for (const a of B.ais) a.tick();
     B.sim.step(); pump();
     if (B.sim.tick % 2 === 0 || B.sim.over){ room && room.send('s', {s:B.sim.encode(1), ev:B.netEv}, OL && OL.opp); B.netEv = []; }
     if (B.sim.over) B.simDone = true;
@@ -362,7 +368,7 @@ function ghostAt(cx, cy){
   const p = V.pick(cx, cy), c = CARDS[I.hand[B.sel].id];
   if (!p){ V.setGhost(false); return null; }
   const ok = canPlace(MAPS[B.map], B.team, c, p.x, p.z, I.pocket) && I.el >= c.cost;
-  V.setGhost(true, p.x, p.z, c.spell ? c.spell.r : Math.max(.7, c.U.r * (c.n > 1 ? 2 : 1.2)), ok);
+  V.setGhost(true, p.x, p.z, c.spell ? c.spell.r : Math.max(.7, c.U.r * (c.n > 1 ? 2 : 1.2)), ok, c.spell ? null : c.U.key, c.aff);
   return p;
 }
 function tryPlay(slot, p){
@@ -376,15 +382,26 @@ function tryPlay(slot, p){
 }
 const overArena = (x, y) => { const r = $('arena').getBoundingClientRect(); return y < r.bottom && y > r.top && x > r.left && x < r.right; };
 $('hand').addEventListener('pointerdown', e => {
-  const c = e.target.closest('.card'); if (!c || !B || B.over) return;
+  const c = e.target.closest('.card'); if (!c || !B || B.over || e.button === 2) return;
   const i = +c.dataset.slot; e.preventDefault();
   if (B.sel === i && !aim){ select(-1); return; }
   select(i); BDB.sfx.tick();
-  aim = {pid:e.pointerId, x:e.clientX, y:e.clientY, moved:false};
+  aim = {pid:e.pointerId, x:e.clientX, y:e.clientY, moved:false, card:c, id:c.dataset.id, lx:e.clientX, tilt:0};
   try { c.setPointerCapture(e.pointerId); } catch(er){}
 });
-addEventListener('pointermove', e => { if (!aim || e.pointerId !== aim.pid || !B) return; if (!aim.moved && Math.hypot(e.clientX - aim.x, e.clientY - aim.y) > 12) aim.moved = true; if (aim.moved){ if (overArena(e.clientX, e.clientY)) aim.p = ghostAt(e.clientX, e.clientY); else { aim.p = null; if (V) V.setGhost(false); } } });
-const endAim = e => { if (!aim || e.pointerId !== aim.pid) return; const a = aim; aim = null; if (!B) return; if (a.moved){ if (a.p && overArena(e.clientX, e.clientY) && e.type === 'pointerup') tryPlay(B.sel, a.p); else if (V) V.setGhost(false); } };
+addEventListener('pointermove', e => {
+  if (!aim || e.pointerId !== aim.pid || !B) return;
+  if (!aim.moved && Math.hypot(e.clientX - aim.x, e.clientY - aim.y) > 12){              // the card lifts out of the tray and follows your finger
+    aim.moved = true; aim.el = cardEl(aim.id, {div:true, now:true}); aim.el.classList.add('dragcard'); document.body.appendChild(aim.el); aim.card.classList.add('lifting');
+  }
+  if (!aim.moved) return;
+  const over = overArena(e.clientX, e.clientY);
+  aim.tilt += (Math.max(-16, Math.min(16, (e.clientX - aim.lx) * 1.6)) - aim.tilt) * .35; aim.lx = e.clientX;
+  aim.el.style.transform = `translate(${e.clientX - 44}px, ${e.clientY - (over ? 150 : 128)}px) rotate(${aim.tilt.toFixed(1)}deg) scale(${over ? .55 : 1.12})`;
+  aim.el.classList.toggle('over', over);
+  if (over) aim.p = ghostAt(e.clientX, e.clientY); else { aim.p = null; if (V) V.setGhost(false); }
+});
+const endAim = e => { if (!aim || e.pointerId !== aim.pid) return; const a = aim; aim = null; if (a.el){ a.el.classList.add('gone'); setTimeout(() => a.el.remove(), 160); } a.card.classList.remove('lifting'); if (!B) return; if (a.moved){ if (a.p && overArena(e.clientX, e.clientY) && e.type === 'pointerup') tryPlay(B.sel, a.p); else if (V) V.setGhost(false); } };
 addEventListener('pointerup', endAim); addEventListener('pointercancel', endAim);
 let floorAim = false;
 $('arena').addEventListener('pointerdown', e => { if (!B || B.sel < 0 || aim) return; floorAim = true; ghostAt(e.clientX, e.clientY); });
@@ -434,14 +451,14 @@ function pzSend(){ if (room) room.send('pz', B.pz ? {on:1, by:B.pz.by, left:B.pz
 function pzAct(a){ if (B.mode === 'host') pzDo(a, 0); else if (room) room.send('pq', {a}, OL.opp); }
 function pzUI(){
   const w = $('wait'), z = B && B.pz;
-  if (!z){ if (B && B.run) w.hidden = true; $('btPause').disabled = !!(B && B.mode !== 'cpu' && B.pzUsed[B.team]); return; }
-  const mine = z.by === B.team; w.hidden = false;
+  if (!z){ if (B && B.run) w.hidden = true; $('btPause').disabled = !!(B && B.mode !== 'cpu' && B.pzUsed[B.me]); return; }
+  const mine = z.by === B.me; w.hidden = false;
   if (z.solo){ w.innerHTML = `<div><b>Paused</b><div class="k-row" style="margin-top:14px"><button type="button" class="k-btn primary" id="pzR">Resume</button></div></div>`; w.querySelector('#pzR').onclick = () => { B.pz = null; B.run = true; w.hidden = true; }; return; }
   w.innerHTML = `<div>${mine ? 'You paused the match' : esc(B.oppName) + ' paused the match'}<b>${mmss(z.left)}</b>
     ${mine ? `<div class="k-row" style="margin-top:14px"><button type="button" class="k-btn primary" data-a="resume">Resume</button><button type="button" class="k-btn" data-a="ext" ${z.ask ? 'disabled' : ''}>${z.ask === 1 ? 'Asked for 5 more' : z.ask === 2 ? 'They said no' : 'Ask for 5 more minutes'}</button></div>`
       : z.ask === 1 ? `<div style="margin-top:10px">They are asking for 5 more minutes.</div><div class="k-row" style="margin-top:10px"><button type="button" class="k-btn primary" data-a="yes">Give 5 more</button><button type="button" class="k-btn" data-a="no">No</button></div>` : '<div class="note" style="margin-top:10px">The match picks up where it stopped. Each player gets one pause.</div>'}</div>`;
   for (const b of w.querySelectorAll('button')) b.onclick = () => pzAct(b.dataset.a);
-  if (mine) B.pzUsed[B.team] = true;
+  if (mine) B.pzUsed[B.me] = true;
 }
 
 /* ---------- after the match ---------- */
@@ -458,7 +475,8 @@ function finish(w, cr, note){
       prize = B.prize; P.stats.won++; lines.push(`You took his ${CARDS[prize].name}. ${grant(prize)}.`);
     } else if (draw){ coins = 30 + mine * 10; P.stats.d++; } else { coins = 15 + mine * 10; P.stats.l++; lines.push('You keep all your cards.'); }
   } else {
-    if (win){ coins = 150; P.trophies += 30; P.stats.ow++; lines.push('+30 trophies'); } else if (draw){ coins = 50; } else { coins = 25; P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies'); }
+    if (B.coop){ coins = win ? 120 : draw ? 50 : 30; lines.push(win ? 'You and your friend beat two BDBs.' : draw ? 'Nobody blinked.' : 'Two BDBs were too many this time.'); }
+    else if (win){ coins = 150; P.trophies += 30; P.stats.ow++; lines.push('+30 trophies'); } else if (draw){ coins = 50; } else { coins = 25; P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies'); }
     endOnline();
   }
   if (note) lines.unshift(note);
@@ -499,18 +517,19 @@ $('olQuick').onclick = async () => {
   });
 };
 $('olFriend').onclick = () => {
-  const b = dlg(`<div class="k-eyebrow">Online 1v1</div><h3>Play a friend</h3><p>Start a match and send your friend the code, or type in the code they sent you.</p>
-    <div class="k-row"><button type="button" class="k-btn primary" id="frNew">Start a match</button></div>
+  const b = dlg(`<div class="k-eyebrow">Online 1v1</div><h3>Play a friend</h3><p>Start a match and send your friend the code, or type in the code they sent you. In 2v2 you share a side and take on two BDBs together.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" id="frNew">Start 1v1</button><button type="button" class="k-btn primary" id="frCo">Start 2v2 vs BDBs</button></div>
     <div class="rowx" style="width:100%"><input class="field" id="frCode" maxlength="12" placeholder="Friend's code" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="k-btn" id="frJoin">Join</button></div><div class="err" id="frErr"></div>
     <div class="k-row"><button type="button" class="k-btn" id="frX">Close</button></div>`);
   b.querySelector('#frX').onclick = dlgClose;
-  b.querySelector('#frNew').onclick = async () => {
+  const startFr = async coop => {
     const code = rid(5), url = location.origin + location.pathname + '?join=' + code;
     const w = waitBox('Waiting for your friend', 'Send them this code, or the link.', `<div class="codebox">${code.toUpperCase()}</div><div class="k-row"><button type="button" class="k-btn" id="frCopy">Copy link</button></div>`);
     w.querySelector('#frCopy').onclick = async () => { try { await navigator.clipboard.writeText(url); w.querySelector('#frCopy').textContent = 'Copied'; } catch(e){ prompt('Copy this link', url); } };
     try { await netUp(); } catch(e){ return netFail(); }
-    if (!$('dlg').hidden) enterMatch(code, true, true);
+    if (!$('dlg').hidden) enterMatch(code, true, true, coop);
   };
+  b.querySelector('#frNew').onclick = () => startFr(false); b.querySelector('#frCo').onclick = () => startFr(true);
   b.querySelector('#frJoin').onclick = () => { const c = b.querySelector('#frCode').value.trim().toLowerCase(); if (!okCode(c)){ b.querySelector('#frErr').textContent = 'That code does not look right.'; return; } joinFriend(c); };
 };
 async function joinFriend(code){
@@ -521,10 +540,10 @@ async function joinFriend(code){
   OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('Nobody there', 'No match was found with that code. Ask your friend to start a new one.'); } }, 30000);
 }
 function okDeck(d){ return Array.isArray(d) && d.every(c => c && typeof c.id === 'string') && !deckProblem(d.map(c => c.id)) && d.every(c => Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL); }
-function enterMatch(code, host, keepBox){
+function enterMatch(code, host, keepBox, coop){
   if (lobby){ clearInterval(OL && OL.iv); const l = lobby; lobby = null; setTimeout(() => { try { l.leave(); } catch(e){} }, 300); }
   if (OL) clearTimeout(OL.pt);
-  OL = {state:'wait', code, host, opp:null};
+  OL = {state:'wait', code, host, opp:null, coop:!!coop};
   room = net.join('brawl-m-' + code);
   if (!keepBox){ const t = $('olText'); if (t) t.textContent = 'Found someone. Setting up the match.'; }
   const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower()}, to);
@@ -536,12 +555,13 @@ function enterMatch(code, host, keepBox){
       if (!OL.host || OL.opp || !okDeck(d.d)) return;
       OL.opp = from; clearInterval(OL.hiIv);
       const map = pick(MAP_IDS), name = clean(d.n, 20) || 'Player';
-      room.send('go', {map, n:P.name}, from); dlgClose();
-      begin({mode:'host', map, oppName:name, oppDeck:d.d.map(c => ({id:c.id, lvl:c.lvl})), oppTower:Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1});
+      room.send('go', {map, n:P.name, co:OL.coop ? 1 : 0}, from); dlgClose();
+      const ci = Math.min(P.ladder, CPUS.length - 1);
+      begin({mode:'host', map, coop:OL.coop, cpus:[CPUS[ci], CPUS[Math.max(0, ci - 1)]], mate:name, oppName:OL.coop ? 'Two BDBs' : name, oppDeck:d.d.map(c => ({id:c.id, lvl:c.lvl})), oppTower:Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1});
     } else if (t === 'go'){
       if (OL.host || OL.opp || !MAPS[d.map]) return;
       OL.opp = from; clearInterval(OL.hiIv); clearTimeout(OL.to); dlgClose();
-      begin({mode:'guest', map:d.map, oppName:clean(d.n, 20) || 'Player'});
+      begin({mode:'guest', map:d.map, coop:!!d.co, mate:clean(d.n, 20) || 'Player', oppName:d.co ? 'Two BDBs' : clean(d.n, 20) || 'Player'});
     } else if (from !== OL.opp || !B) return;
     else if (t === 's' && B.mode === 'guest') snap(d);
     else if (t === 'p' && B.mode === 'host'){ const s = d.slot, h = B.sim.players[1].hand; if (B.run && Number.isInteger(s) && s >= 0 && s < HAND && h[s] && h[s].id === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.play(1, s, d.x, d.z); }
@@ -558,7 +578,10 @@ function snap(d){
   B.info = {el:+s.el || 0, hand:s.h.slice(0, HAND).map((id, i) => ({id:ok(id), lvl:(s.hl && s.hl[i]) || 1})), next:{id:ok(s.n)}, left:+s.l || 0, phase:s.ph === 'ot' ? 'ot' : s.ph === 'over' ? 'over' : 'play', crowns:Array.isArray(s.cr) ? s.cr : [0, 0], pocket:Array.isArray(s.pk) ? s.pk : [false, false], bonus:!!s.bo};
   if (Array.isArray(d.ev) && d.ev.length){ if (V) V.events(d.ev); onEvents(d.ev); }
 }
-function oppLeft(){ if (!B || B.done) return; B.over = true; finish(B.team, null, 'Your opponent left the match.'); }
+function oppLeft(){ if (!B || B.done) return; B.over = true; if (B.coop) finish(-1, null, 'Your teammate left the match.'); else finish(B.team, null, 'Your opponent left the match.'); }
+
+/* right-click (or long-press on Android) any card for what it does and its stats */
+addEventListener('contextmenu', e => { const c = e.target.closest && e.target.closest('.card[data-id]'); if (!c) return; e.preventDefault(); sheet(c.dataset.id); });
 
 /* ---------- start ---------- */
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) $('sheet').hidden = true; });

@@ -3,6 +3,7 @@
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
 import { AFF } from './cards.js';
+import { loadRigs, hasRig, makeRig } from './rigs.js?v=1114e';
 
 const PI = Math.PI;
 export const TEAM = [0x3d8bff, 0xff4b47];
@@ -49,7 +50,7 @@ function ctex(k, w, h, draw, rep){
 }
 let faceDone = null;
 /* resolves once his photo is in memory, so the first thumbnails are not blank */
-export const preload = () => new Promise(res => { faceDone = res; TX.face(); setTimeout(res, 4000); });
+export const preload = () => Promise.all([new Promise(res => { faceDone = res; TX.face(); setTimeout(res, 4000); }), Promise.race([loadRigs(), new Promise(res => setTimeout(res, 25000))])]);
 export const TX = {
   face(){ if (!TC.face){ TC.face = new THREE.TextureLoader().load('../assets/face.jpg', () => { faceDone && faceDone(); }, undefined, () => { faceDone && faceDone(); }); TC.face.colorSpace = THREE.SRGBColorSpace; TC.face.anisotropy = 4; } return TC.face; },
   ball: () => ctex('ball', 256, 128, (x, w, h) => { x.fillStyle = '#e8792a'; x.fillRect(0, 0, w, h); x.strokeStyle = '#3a1a06'; x.lineWidth = 5;
@@ -350,7 +351,19 @@ const MK = {
     for (let i = 0; i < 3; i++) P(g, BOX(.04, .2, .04), M(0xff8a2b, {e:0xff7a00, ei:1.4}), [.8 + i * .12, .9 + (i - 1) * .16, 0], [0, 0, -1.2 + (i - 1) * .5]); return {g, h:1.4, anim(){}}; }
 };
 
+/* the cardboard big-head for Five-Star BDB, worn on the rigged model's head */
+function bigHead(){
+  const hd = new THREE.Group();
+  P(hd, CYL(.62, .62, .06, 40), [M(0xffffff, {keep:true}), M(0xffffff, {map:TX.face(), keep:true}), M(0xf2c14e, {keep:true})], null, [PI / 2, PI / 2, 0]);
+  P(hd, TOR(.62, .04), M(0xf2c14e, {keep:true}));
+  for (let i = 0; i < 5; i++){ const a = (i - 2) * .42; P(hd, starGeo(), M(0xffd95a, {e:0xffb300, ei:1.1, keep:true}), [Math.sin(a) * .95, Math.cos(a) * .95, 0], [0, 0, -a], 1.3); }
+  return hd;
+}
 export function makeModel(key, team = 0, o){
+  if (hasRig(key)){
+    const A = o && o.aff && AFF[o.aff], m = makeRig(key, {tint:A && A.tint != null ? A.tint : null}, GRAD, {bighead:bigHead});
+    m.s = A ? A.size : 1; m.h *= m.s; return m;
+  }
   const f = MK[key];
   if (!f){ const g = new THREE.Group(); P(g, BOX(.5, .8, .5), M(0xff00ff), [0, .4, 0]); return {g, h:1, anim(){}}; }
   const A = o && o.aff && AFF[o.aff];
@@ -364,6 +377,6 @@ export const hasModel = k => !!MK[k];
 const INK = new THREE.MeshBasicMaterial({color:0x160d07, side:THREE.BackSide});
 export function outline(g, k = 1.085){
   const ms = [];
-  g.traverse(o => { if (o.isMesh && !Array.isArray(o.material) && !o.material.transparent && o.material.side !== THREE.DoubleSide && o.geometry.type !== 'PlaneGeometry' && o.geometry.type !== 'ShapeGeometry' && o.geometry.type !== 'TorusGeometry') ms.push(o); });
+  g.traverse(o => { if (o.isMesh && !o.isSkinnedMesh && !Array.isArray(o.material) && !o.material.transparent && o.material.side !== THREE.DoubleSide && o.geometry.type !== 'PlaneGeometry' && o.geometry.type !== 'ShapeGeometry' && o.geometry.type !== 'TorusGeometry') ms.push(o); });
   for (const o of ms){ const h = new THREE.Mesh(o.geometry, INK); h.scale.setScalar(k); o.add(h); }
 }
