@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115a';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115a';
-import { createAI } from './ai.js?v=1115a';
-import { Accounts, fresh, sanitize } from './store.js?v=1115a';
-import { Cloud } from './cloud.js?v=1115a';
-import { sayFor, sayWhen } from './talk.js?v=1115a';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115b';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115b';
+import { createAI } from './ai.js?v=1115b';
+import { Accounts, fresh, sanitize } from './store.js?v=1115b';
+import { Cloud } from './cloud.js?v=1115b';
+import { sayFor, sayWhen } from './talk.js?v=1115b';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -64,7 +64,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115a'), import('./models.js?v=1115a')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115b'), import('./models.js?v=1115b')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
     ready3d = true;
@@ -120,7 +120,7 @@ function abil(U, m = 1){
   if (U.only) a.push('Ignores troops and goes straight for buildings and towers.');
   if (U.any) a.push('Can be dropped anywhere on the field, their side included. Does a third of its damage to towers.');
   if (U.land){ const l = U.land, b = [];
-    if (l.dmg) b.push(d(l.dmg) + ' damage'); if (l.stun) b.push(`a ${sec(l.stun)} stun`); if (l.slow) b.push(`a ${sec(l.slow)} slow`); if (l.push) b.push('a shove back'); if (l.burn) b.push('fire');
+    if (l.dmg) b.push(d(l.dmg) + ' damage'); if (l.stun) b.push(`a ${sec(l.stun)} stun`); if (l.slow) b.push(`a ${sec(l.slow)} slow`); if (l.weak) b.push(`a roar that makes them hit 30% softer for ${sec(l.weak)}`); if (l.push) b.push('a shove back'); if (l.burn) b.push('fire');
     if (b.length) a.push(`Lands with ${b.join(', ')} for every enemy within ${l.r}.`);
     if (l.shield) a.push(`Lands and hands every teammate within ${l.r} a ${d(l.shield)} shield.`);
     if (l.summon) a.push(`Arrives with ${l.summon.n} ${uName(l.summon.u, l.summon.n)}.`); }
@@ -131,13 +131,19 @@ function abil(U, m = 1){
   if (U.armor) a.push(`Armour knocks ${d(U.armor)} off every hit it takes.`);
   if (U.dodge) a.push(`${pc(U.dodge)} of attacks miss it.`);
   if (U.regen) a.push(`Heals ${x10(U.regen * 100)}% of its health every second.`);
-  if (U.revive) a.push(`Gets back up once, at ${pc(U.revive)} health.`);
+  if (U.revive) a.push(`Gets back up once, at ${pc(U.revive)} health${U.rise ? `, in a blast of ${d(U.rise.dmg)} damage to every enemy within ${U.rise.r}` : ''}.`);
   if (U.thorns) a.push(`Sends ${pc(U.thorns)} of every melee hit back at the attacker.`);
   if (U.numb) a.push(`Whatever hits it up close is slowed for ${sec(U.numb)}.`);
   if (U.taunt) a.push(`Enemies within ${U.taunt} have to go for it first.`);
   if (U.stun) a.push(`Every ${ORD[U.stun.every] || 'few'} hit stuns for ${sec(U.stun.t)}.`);
   if (U.crit) a.push(`Every ${ORD[U.crit.every] || 'few'} hit lands for ${x10(U.crit.mul)}x.`);
   if (U.exec) a.push(`${x10(U.exec.mul)}x damage to anything under ${pc(U.exec.at)} health.`);
+  if (U.first) a.push(`The first hit on every new target lands for ${x10(U.first.mul)}x. Not on towers.`);
+  if (U.brittle) a.push(`${x10(U.brittle)}x damage to anything slowed or frozen.`);
+  if (U.pierce) a.push('Its attacks ignore shields and armour.');
+  if (U.riposte) a.push(`Every melee attack it dodges is answered at once for ${x10(U.riposte)}x.`);
+  if (U.curse) a.push(`Whatever hits it up close is cursed for ${sec(U.curse)} and takes 30% more damage from everyone.`);
+  if (U.loot) a.push(`Every kill pays you ${x10(U.loot)} Mana.`);
   if (U.ramp) a.push(`Hits harder the longer it stays on one target, up to ${x10(1 + U.ramp.max)}x.`);
   if (U.pack) a.push(`${pc(U.pack.per)} more damage for each of its own kind close by, up to ${pc(U.pack.per * U.pack.max)}.`);
   if (U.berserk) a.push('Attacks faster the more hurt it is, up to nearly double.');
@@ -151,7 +157,7 @@ function abil(U, m = 1){
   if (U.steal) a.push(`Heals itself for ${pc(U.steal)} of the damage it deals.`);
   if (U.leech) a.push('Every hit on a tower steals Mana for you.');
   if (U.heal) a.push(`Heals ${U.heal.bld ? 'your towers and buildings' : 'teammates'} within ${U.heal.r} for ${d(U.heal.amt / (U.heal.every || 1))} a second.`);
-  if (U.aura) a.push(U.aura.haste ? `Your troops within ${U.aura.r} move and hit a third faster.` : U.aura.burn ? `Burns every enemy within ${U.aura.r} for ${d(U.aura.burn)} a second.` : `Poisons every enemy within ${U.aura.r} for ${d(U.aura.psn)} a second.`);
+  if (U.aura) a.push(U.aura.haste ? `Your troops within ${U.aura.r} move and hit a third faster.` : U.aura.burn ? `Burns every enemy within ${U.aura.r} for ${d(U.aura.burn)} a second.` : U.aura.weak ? `Enemy troops within ${U.aura.r} hit 30% softer.` : U.aura.slow ? `Enemy troops within ${U.aura.r} move and hit slower.` : `Poisons every enemy within ${U.aura.r} for ${d(U.aura.psn)} a second.`);
   if (U.spawn) a.push(`Sends out ${U.spawn.n} ${uName(U.spawn.u, U.spawn.n)} every ${sec(U.spawn.every)}.`);
   if (U.raise) a.push(`Anything that dies within ${U.raise.r} gets back up as its ${uName(U.raise.u, 1)}, up to ${U.raise.max} times.`);
   if (U.split) a.push(`Breaks into ${U.split.n} ${uName(U.split.u, U.split.n)} when it is defeated.`);
@@ -1123,6 +1129,8 @@ window.__game = {
   get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? (P.onboarded ? 'hub' : 'onboard') : 'login'; }, get score(){ return P ? P.coins : 0; },
   get P(){ return P; }, get B(){ return B; }, get TR(){ return TR; }, get hall(){ return HALL; }, cloud:Cloud, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get bubbles(){ return bubbles.length; },
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
+  ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ B.ai.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
+  deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
   end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS
 };
 const last = Accounts.last(), sess0 = Cloud.session();

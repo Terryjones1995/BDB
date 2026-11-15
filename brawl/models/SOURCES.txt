@@ -10,5 +10,8 @@ Ultimate Monsters by Quaternius (quaternius.com), CC0 1.0 Universal:
 
 Made for this game with Hyper3D Rodin (generated, rigged and animated):
   Bellkeeper, Dragon, RedDragon, Troll, Orc, Ogre, Assassin, Golem, Wizard, Lich, Minotaur, Treant, Clockwork, Janitor.
+  Goblin, Kobold, WolfWarrior, Bear, FrostKnight, IceMage, Dwarf, Samurai, Mummy, Scarecrow, DragonKnight, IceDragon,
+  HorseKnight, King, Valkyrie, Phoenix, Hellhound, Ifrit, OwlWizard, CrystalGolem, Faun, Panda, Mech, Guard, Vending,
+  PlagueDoctor, Pirate, Rhino.
 
 Every file was cut down for the web: fewer triangles, small WebP textures, thinned keyframes, meshopt compression.

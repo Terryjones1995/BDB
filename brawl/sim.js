@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115a';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115b';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const MATCH = 600, OVERTIME = 60, DOUBLE_AT = 120, TRIPLE_AT = 60, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match: double Mana for the last two, triple for the last one
@@ -47,7 +47,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const U = unitVar(key, aff), m = lvlMul(lvl) * bm, hp = Math.round(U.hp * m);
     const e = {id:++nid, key, U, team, pid, bm, x, z, lvl, hp, max:hp, dmg:Math.round(U.dmg * m), d0:Math.round(U.dmg * m),
       cd:0, tgt:0, dep, frz:0, rage:0, slow:0, lock:false, fx:0, fz:team === 0 ? -1 : 1, mv:false, run:0, chg:false, active:key !== 'king',
-      sh:U.shield ? Math.round(U.shield * m) : 0, wd:0, bt:0, bd:0, pt:0, pd:0, mk:0, hid:!!U.stealth, ht:0, hits:0, rs:0, rt:0, gs:0, rev:0, lp:0, jmp:false, rn:0, rc:0, by:0};
+      sh:U.shield ? Math.round(U.shield * m) : 0, wd:0, bt:0, bd:0, pt:0, pd:0, mk:0, hid:!!U.stealth, ht:0, hits:0, rs:0, rt:0, gs:0, rev:0, lp:0, jmp:false, rn:0, rc:0, by:0, wk:0, ft:0};
     if (U.spawn) e.sp = T(U.spawn.first ?? U.spawn.every);
     if (U.heal) e.hl = T(U.heal.every);
     if (U.mana) e.mn = T(U.mana.every);
@@ -101,8 +101,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   function hurt(o, dmg, src, how = 'hit'){
     if (o.hp <= 0 || dmg <= 0) return;
     if (o.mk > 0) dmg *= 1.3;                                                 // marked: everything hurts more
-    if (o.U.armor && how !== 'dot') dmg = Math.max(dmg * .3, dmg - o.U.armor * lvlMul(o.lvl));     // armour takes a flat bite out of every hit: hordes bounce off
-    if (o.sh > 0){ const a = Math.min(o.sh, dmg); o.sh -= a; dmg -= a; if (o.sh <= 0){ o.sh = 0; o.wd = 0; emit({e:'shbreak', id:o.id}); } if (dmg <= 0) return; }
+    const thru = how === 'hit' && src && src.U.pierce;                        // some attacks go straight through armour and shields
+    if (o.U.armor && how !== 'dot' && !thru) dmg = Math.max(dmg * .3, dmg - o.U.armor * lvlMul(o.lvl));     // armour takes a flat bite out of every hit: hordes bounce off
+    if (o.sh > 0 && !thru){ const a = Math.min(o.sh, dmg); o.sh -= a; dmg -= a; if (o.sh <= 0){ o.sh = 0; o.wd = 0; emit({e:'shbreak', id:o.id}); } if (dmg <= 0) return; }
     o.hp -= dmg;
     if (o.key === 'king' && !o.active){ o.active = true; emit({e:'king', team:o.team}); }
     if (o.hp <= 0){ kill(o, src); return; }
@@ -119,12 +120,15 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
   function kill(o, killer){
     const U = o.U;
-    if (U.revive && !o.rev && !o.gone){ o.rev = 1; o.hp = Math.max(1, Math.round(o.max * U.revive)); o.frz = T(1.4); o.bt = o.pt = o.mk = 0; emit({e:'revive', id:o.id}); return; }
+    if (U.revive && !o.rev && !o.gone){ o.rev = 1; o.hp = Math.max(1, Math.round(o.max * U.revive)); o.frz = T(1.4); o.bt = o.pt = o.mk = o.wk = 0; emit({e:'revive', id:o.id});
+      if (U.rise){ zones.push({kind:'blast', team:o.team, pid:o.pid, x:o.x, z:o.z, r:U.rise.r, dmg:U.rise.dmg * lvlMul(o.lvl) * o.bm, twr:.4, t:T(.35), frz:0, pool:null, lvl:o.lvl, air:1, burn:U.rise.burn ? U.rise.burn * lvlMul(o.lvl) : 0}); emit({e:'fuse', x:o.x, z:o.z, r:U.rise.r, d:.35, k:o.key}); }   // it goes up in flames, and comes back out of them
+      return; }
     o.hp = 0;
     if (o.by){ const r = byId.get(o.by); if (r) r.rn = Math.max(0, r.rn - 1); }
     if (U.split) for (let i = 0; i < U.split.n; i++){ const a = i / U.split.n * 6.283 + .6; constrain(add(U.split.u, o.team, o.x + Math.cos(a) * .5, o.z + Math.sin(a) * .5, o.lvl, 6, U.aff, o.pid, o.bm), o.x, o.z); }
     if (U.death){ const d = U.death.delay || .1; zones.push({kind:'blast', team:o.team, pid:o.pid, x:o.x, z:o.z, r:U.death.r, dmg:U.death.dmg * lvlMul(o.lvl) * o.bm, twr:.5, t:T(d), frz:U.death.frz || 0, pool:U.death.pool || null, lvl:o.lvl}); emit({e:'fuse', x:o.x, z:o.z, r:U.death.r, d, k:o.key}); }
     if (killer && killer.hp > 0 && killer.U.grow && killer.gs < killer.U.grow.max && !U.twr){ killer.gs++; killer.dmg = Math.round(killer.d0 * (1 + killer.U.grow.per * killer.gs)); emit({e:'grow', id:killer.id, n:killer.gs}); }
+    if (killer && killer.hp > 0 && killer.U.loot && !U.twr){ const pl = players[killer.pid]; if (pl){ pl.el = Math.min(MAX_EL, pl.el + killer.U.loot); emit({e:'mana', id:killer.id, amt:killer.U.loot, pid:killer.pid}); } }   // plunder
     if (!U.bld){                                                               // the dead do not stay down near a necromancer
       for (const e of ents) if (e.U.raise && e.hp > 0 && e.dep <= 0 && e !== o && e.rn < e.U.raise.max && e.rc <= tick && Math.hypot(e.x - o.x, e.z - o.z) <= e.U.raise.r){
         const n = add(e.U.raise.u, e.team, o.x, o.z, e.lvl, 12, e.U.aff, e.pid, e.bm); n.by = e.id; e.rn++; e.rc = tick + T(e.U.raise.cd); constrain(n, o.x, o.z);
@@ -215,6 +219,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (U.crit && e.hits % U.crit.every === 0){ dmg *= U.crit.mul; big = true; }
     if (U.stun && e.hits % U.stun.every === 0) st = U.stun.t;
     if (U.exec && t.hp < t.max * U.exec.at && !t.U.twr){ dmg *= U.exec.mul; big = true; }
+    if (U.first && e.ft !== t.id){ e.ft = t.id; if (!t.U.twr){ dmg *= U.first.mul; big = true; } }      // the opening cut on every new opponent
+    if (U.brittle && !t.U.twr && (t.slow > 0 || t.frz > 0)){ dmg *= U.brittle; big = true; }      // cold things shatter
+    if (e.wk > 0) dmg *= .7;                                                  // rattled: standing near something that frightens it
     if (t.U.twr && (U.any || U.stealth)) dmg *= U.any ? .35 : .5;              // whoever sneaks up on a tower is there for the troops, not the masonry
     if (U.pack){ let n = 0; for (const o of ents) if (o !== e && o.team === e.team && o.key === e.key && o.hp > 0 && Math.hypot(o.x - e.x, o.z - e.z) <= U.pack.r) n++; dmg *= 1 + U.pack.per * Math.min(U.pack.max, n); }
     if (U.ramp){ if (e.rt === t.id) e.rs = Math.min(U.ramp.max, e.rs + U.ramp.step); else { e.rs = 0; e.rt = t.id; } dmg *= 1 + e.rs; }
@@ -223,7 +230,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     emit(big ? {e:'atk', id:e.id, t:t.id, big:1} : {e:'atk', id:e.id, t:t.id});
     const p = {tgt:t.id, x:t.x, z:t.z, dmg, splash:U.splash || 0, team:e.team, air:!!U.air, src:e.id, u:U, lv:lvlMul(e.lvl), st};
     if (U.shot && U.rng > 1.5){
-      const d = clamp((gap(e, t) + e.U.r) / PROJ_SPD, .14, .9);
+      const d = U.shot === 'shell' ? 1.3 : clamp((gap(e, t) + e.U.r) / PROJ_SPD, .14, .9);      // a mortar shell goes up before it comes down
       p.t = T(U.shot === 'beam' || U.shot === 'zap' ? .08 : d);
       emit({e:'shot', id:e.id, t:t.id, d:U.shot === 'beam' || U.shot === 'zap' ? .08 : d, k:U.shot});
     } else { p.t = T(U.wind ?? .24); p.melee = 1; }       // a melee hit lands when the swing does, and not at all if the attacker drops first
@@ -236,11 +243,16 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (src && src.hp > 0 && !src.U.twr) for (const tr of traps) if (tr.live > 0 && tr.team !== src.team && Math.hypot(src.x - tr.x, src.z - tr.z) <= tr.r){ emit({e:'reflect', id:src.id}); hurt(src, p.dmg * tr.refl, null, 'dot'); break; }   // standing in the other side's Instant Replay
     if (p.splash){ area(p.x, p.z, p.splash, p.dmg, p.team, {air:p.air, src, how:'hit', each:o => afflict(o, u, p.lv, src, p.st)}); return; }
     if (!t || t.hp <= 0) return;
-    if (t.U.dodge && rnd() < t.U.dodge){ emit({e:'dodge', id:t.id}); return; }
+    if (t.U.dodge && rnd() < t.U.dodge){
+      emit({e:'dodge', id:t.id});
+      if (t.U.riposte && p.melee && src && src.hp > 0 && t.frz <= 0){ emit({e:'atk', id:t.id, t:src.id, big:1}); hurt(src, t.dmg * t.U.riposte, t); }      // slips the punch and answers it
+      return;
+    }
     hurt(t, p.dmg, src); afflict(t, u, p.lv, src, p.st);
     if (src && src.hp > 0){
       if (p.melee && t.U.thorns) hurt(src, p.dmg * t.U.thorns, null, 'dot');
       if (p.melee && t.U.numb) src.slow = Math.max(src.slow, T(t.U.numb));
+      if (p.melee && t.U.curse && !src.U.twr) src.mk = Math.max(src.mk, T(t.U.curse));
       if (u.leech && t.U.twr){ const pl = players[src.pid]; if (pl){ pl.el = Math.min(MAX_EL, pl.el + u.leech); emit({e:'mana', id:src.id, amt:u.leech, pid:src.pid, steal:1}); } }
     }
     if (u.chain){                                                           // the bolt jumps on to whoever is nearest, a little weaker each time
@@ -259,16 +271,17 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const U = e.U, a = U.land, lv = lvlMul(e.lvl) * e.bm;
     if (U.charge && U.charge.dash){ e.chg = true; emit({e:'charge', id:e.id}); }
     if (!a) return;
-    if (a.dmg || a.stun || a.slow || a.push) area(e.x, e.z, a.r, (a.dmg || 0) * lv, e.team, {air:true, twr:.4, src:e, each:o => {
+    if (a.dmg || a.stun || a.slow || a.push || a.weak) area(e.x, e.z, a.r, (a.dmg || 0) * lv, e.team, {air:true, twr:.4, src:e, each:o => {
       if (o.U.twr) return;
       if (a.stun) o.frz = Math.max(o.frz, T(a.stun));
       if (a.slow) o.slow = Math.max(o.slow, T(a.slow));
+      if (a.weak && !o.U.bld) o.wk = Math.max(o.wk, T(a.weak));
       if (a.burn && U.burn){ o.bt = Math.max(o.bt, T(U.burn.t)); o.bd = Math.max(o.bd, U.burn.dps * lv); }
       if (a.push && !o.U.bld && o.U.r < .9){ const dx = o.x - e.x, dz = o.z - e.z, d = Math.hypot(dx, dz) || 1; o.x += dx / d * a.push; o.z += dz / d * a.push; ashore(o, e.z); }
     }});
     if (a.shield) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.twr && near(o, e.x, e.z, a.r)) o.sh = Math.max(o.sh, Math.round(a.shield * lv));
     if (a.summon) for (let i = 0; i < a.summon.n; i++){ const an = i / a.summon.n * 6.283 + .4, n = add(a.summon.u, e.team, e.x + Math.cos(an) * 1.3, e.z + Math.sin(an) * 1.3, e.lvl, 8, U.aff, e.pid, e.bm); n.by = e.id; e.rn++; constrain(n, e.x, e.z); }
-    emit({e:'land', id:e.id, x:e.x, z:e.z, r:a.r, k:a.stun ? 'stun' : a.burn ? 'fire' : a.slow ? 'frost' : a.shield ? 'shield' : a.summon ? 'summon' : 'slam'});
+    emit({e:'land', id:e.id, x:e.x, z:e.z, r:a.r, k:a.stun ? 'stun' : a.burn ? 'fire' : a.slow ? 'frost' : a.weak ? 'roar' : a.shield ? 'shield' : a.summon ? 'summon' : 'slam'});
   }
 
   /* ---------- spells and the things they leave on the ground ---------- */
@@ -359,6 +372,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (e.pt > 0){ e.pt--; if (beat) hurt(e, e.pd * .5, null, 'dot'); if (e.pt <= 0) e.pd = 0; }
       if (e.hp <= 0) continue;
       if (e.mk > 0) e.mk--;
+      if (e.wk > 0) e.wk--;
       if (e.wd > 0 && --e.wd <= 0){ e.sh = 0; emit({e:'shbreak', id:e.id}); }      // a Tower Shield runs out
       if (beat){
         if (U.regen && e.hp < e.max) e.hp = Math.min(e.max, e.hp + e.max * U.regen * .5);
@@ -366,7 +380,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
           for (const o of ents){
             if (o.hp <= 0 || o.dep > 0 || o.U.twr || !near(o, e.x, e.z, a.r)) continue;
             if (o.team === e.team){ if (a.haste && !o.U.bld) o.rage = Math.max(o.rage, 14); }
-            else if (o !== e){ if (a.burn){ o.bt = Math.max(o.bt, 20); o.bd = Math.max(o.bd, a.burn * lv); } if (a.psn){ o.pt = Math.max(o.pt, 20); o.pd = Math.max(o.pd, a.psn * lv); } }
+            else if (o !== e){ if (a.burn){ o.bt = Math.max(o.bt, 20); o.bd = Math.max(o.bd, a.burn * lv); } if (a.psn){ o.pt = Math.max(o.pt, 20); o.pd = Math.max(o.pd, a.psn * lv); }
+              if (a.weak && !o.U.bld) o.wk = Math.max(o.wk, 14); if (a.slow && !o.U.bld) o.slow = Math.max(o.slow, 14); }
           }
         }
       }
@@ -491,7 +506,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
 
   /* ---------- for the screens and the wire ---------- */
-  const FL = e => (e.dep > 0 ? 1 : 0) | (e.frz > 0 ? 2 : 0) | (e.rage > 0 ? 4 : 0) | (e.active ? 8 : 0) | (e.mv ? 16 : 0) | (e.chg ? 32 : 0) | (e.slow > 0 ? 64 : 0) | (e.bt > 0 ? 128 : 0) | (e.pt > 0 ? 256 : 0) | (e.hid ? 512 : 0) | (e.mk > 0 ? 1024 : 0) | (e.lp > 0 ? 2048 : 0);
+  const FL = e => (e.dep > 0 ? 1 : 0) | (e.frz > 0 ? 2 : 0) | (e.rage > 0 ? 4 : 0) | (e.active ? 8 : 0) | (e.mv ? 16 : 0) | (e.chg ? 32 : 0) | (e.slow > 0 ? 64 : 0) | (e.bt > 0 ? 128 : 0) | (e.pt > 0 ? 256 : 0) | (e.hid ? 512 : 0) | (e.mk > 0 ? 1024 : 0) | (e.lp > 0 ? 2048 : 0) | (e.wk > 0 ? 4096 : 0);
   function encode(pid){
     const p = players[pid], team = tm(pid);
     return {k:tick, l:Math.max(0, Math.ceil(timeLeft())), ph:phase, cr:crowns, el:Math.round(p.el * 100) / 100, h:p.hand.map(c => c.id), hl:p.hand.map(c => c.lvl), n:p.next.id, pk:pocket(team),
@@ -516,7 +531,7 @@ export function decodeEnts(arr, prev){
     if (!UNITS[key]) continue;
     const o = prev.get(a[0]) || {id:a[0], key, U:unitVar(key, AFF_IDS[a[10]] || 'std'), team:a[2], fx:0, fz:a[2] === 0 ? -1 : 1};
     o.x = a[3] / 100; o.z = a[4] / 100; o.hp = a[5]; o.max = a[6]; o.dep = f & 1; o.frz = f & 2; o.rage = f & 4; o.active = !!(f & 8); o.mv = !!(f & 16); o.chg = !!(f & 32); o.slow = f & 64;
-    o.bt = f & 128; o.pt = f & 256; o.hid = !!(f & 512); o.mk = f & 1024; o.lp = f & 2048; o.tgt = a[8]; o.lvl = a[9]; o.sh = a[11] || 0; o.gs = a[12] || 0;
+    o.bt = f & 128; o.pt = f & 256; o.hid = !!(f & 512); o.mk = f & 1024; o.lp = f & 2048; o.wk = f & 4096; o.tgt = a[8]; o.lvl = a[9]; o.sh = a[11] || 0; o.gs = a[12] || 0;
     out.push(o);
   }
   return out;

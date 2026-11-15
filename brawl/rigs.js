@@ -1,6 +1,6 @@
 /* Break Room Brawl: character models loaded from files, only when a match needs them.
    KayKit Adventurers, Skeletons and Mystery Monthly characters by Kay Lousberg (CC0): mesh and skeleton per file, sharing one clip library (am.glb / al.glb) and one weapon rack (wp.glb).
-   Ultimate Monsters by Quaternius (CC0): each file carries its own clips. Bellkeeper, Jadefang, Glacius, Gorak, Vesper, Magmaw, Zephyr, Mortis, Gorehorn, Elderbark, Brassbolt, the Night Janitor, Infernus and Gronk were made for this game.
+   Ultimate Monsters by Quaternius (CC0): each file carries its own clips. The forty-odd heroes (Bellkeeper, Jadefang, Glacius, King Bellow, Solaris and the rest: every file a rig marked R below loads) were made for this game.
    If a file fails to load, makeModel falls back to a stand-in built from shapes, so the game still runs. */
 import * as THREE from 'three';
 import { GLTFLoader } from './vendor/loaders/GLTFLoader.js';
@@ -32,7 +32,7 @@ export const RIGS = {
   thornweaver:K('Druid', 1.55, 'Cast', {rh:'dstaff'}), mushking:Q('Big_MushroomKing', 2.0, {atk:'Weapon'}), mushnub:Q('Blob_Mushnub', .6), sporecap:Q('Blob_Mushnub_Evolved', 1.1), cactoro:Q('Big_Cactoro', 1.6), prickles:Q('Blob_Cactoro', .68),
   dartfrog:Q('Big_Frog', 1.25, {walk:'Run'}), slime:Q('Blob_GreenBlob', 1.0), slimelet:Q('Blob_GreenBlob', .6), spikeslime:Q('Blob_GreenSpikyBlob', 1.25), bee:Q('Flying_Armabee', .55),
   queen:Q('Flying_Armabee_Evolved', 1.2), cluckers:Q('Blob_Chicken', .58), pigeons:Q('Flying_Pigeon', .55),
-  gorak:R('Orc', 1.9, {lift:.3}), gronk:R('Ogre', 2.3, {lift:.3, at:.8}), gorehorn:R('Minotaur', 2.0, {lift:.3}), elderbark:R('Treant', 2.4, {lift:.35, at:.8}), brassbolt:R('Clockwork', 1.9, {lift:.4}), janitor:R('Janitor', 1.6, {lift:.3}), infernus:R('RedDragon', 2.3, {lift:.3, at:.6}), raider:K('OrcRaider', 1.5, 'Chop1', {rh:'orcAxe'}), skullcrusher:Q('Big_Orc_Skull', 1.65, {atk:'Weapon'}), mauler:Q('Big_Orc', 1.65, {atk:'Weapon'}), orclings:Q('Blob_Orc', .62),
+  gorak:R('Orc', 1.9, {lift:.3}), gronk:R('Ogre', 2.3, {lift:.3, at:.8}), gorehorn:R('Minotaur', 2.0, {lift:.3}), elderbark:R('Treant', 2.4, {lift:.35, at:.8}), brassbolt:R('Clockwork', 1.9, {lift:.4}), janitor:R('Janitor', 1.6, {lift:.3}), infernus:R('RedDragon', 2.3, {lift:.3, at:.6}), raider:K('OrcRaider', 1.5, 'Chop1', {rh:'orcAxe'}), skullcrusher:Q('Big_Orc_Skull', 1.65, {atk:'Weapon'}), mauler:Q('Big_Orc', 1.65, {atk:'Weapon'}), orclings:R('Goblin', .8, {ws:2.6, lift:.3, at:.5}),
   witchdoc:Q('Big_Tribal', 1.6), skytotem:Q('Flying_Tribal', 1.3), gremlins:Q('Flying_Goleling', .6), gremking:Q('Flying_Goleling_Evolved', 1.0), bloodaxe:K('Barbarian', 1.6, 'Chop2', {walk:'Run', rh:'axe2'}),
   goliath:KL('Barbarian_Large', 2.8, 'Chop2', {rh:'axe2L'}), ugg:K('Caveman', 1.35, 'Punch'),
   tinker:K('Engineer', 1.45, 'Chop1', {rh:'wrench'}), scrapbot:K('Robot_One', 1.45, 'Shoot1'), shockbot:K('Robot_Two', 1.6, 'Punch'), titan:K('CombatMech', 1.9, 'Shoot2', {rh:'minigun', at:.3}), clanker:KL('Clanker', 2.7, 'Punch'),
@@ -41,6 +41,14 @@ export const RIGS = {
   courier:K('Driver', 1.35, 'Punch', {walk:'Run'}), trailboss:K('Hiker', 1.6, 'Punch'), internA:K('Protagonist_A', 1.3, 'Punch', {walk:'Run'}), internB:K('Protagonist_B', 1.3, 'Kick', {walk:'Run'}),
   captain:K('Superhero', 1.55, 'Punch', {walk:'Idle'}), helpers:K('Helper_A', 1.15, 'Throw', {rh:'candy', at:.6}), giggles:K('Clown', 1.5, 'Throw', {rh:'clownBomb', at:.6}), mascot:K('MonsterCostume', 2.3, 'Punch', {at:.7}),
   bdb:K('Barbarian', 2.7, 'Spin2', {rh:'axe2', tint:0x2a5bd7, k:.35, at:.75, bighead:true}), 
+  /* the second and third waves of heroes made for this game */
+  whitemane:R('HorseKnight', 1.95, {walk:'Run', lift:.3, at:.6}), brynja:R('Valkyrie', 1.5, {walk:'Idle', lift:.3, at:.6}), kingbellow:R('King', 2.2, {lift:.3, at:.8}), kguard:K('Knight', 1.25, 'Chop1', {rh:'sword', lh:'shield'}),
+  akaoni:R('Samurai', 1.6, {lift:.3, at:.5}), redbeard:R('Pirate', 1.65, {lift:.3}), tatters:R('Mummy', 1.9, {lift:.3, at:.8}), jackhollow:R('Scarecrow', 1.65, {lift:.35, at:.5}), miasma:R('PlagueDoctor', 1.6, {lift:.45, at:.8}),
+  ashjaw:R('Hellhound', 1.45, {ws:2.6, lift:.5, at:.5}), azar:R('Ifrit', 1.85, {lift:.35}), phoenix:{f:'Phoenix', h:1.5, idle:'Fly', walk:'Fly', atk:'Hover', at:.5, lift:.4, fly:1.8},
+  rimeguard:R('FrostKnight', 1.6, {lift:.35}), neve:R('IceMage', 1.4, {lift:.3, at:.8}), hoot:R('OwlWizard', 1.45, {lift:.3, at:.8}), geode:R('CrystalGolem', 2.3, {lift:.5, at:.85}),
+  wolfpack:R('WolfWarrior', 1.15, {ws:2.6, lift:.35, at:.5}), ironhide:R('Bear', 2.0, {lift:.3, at:.8}), bao:R('Panda', 1.5, {lift:.3, at:.5}), siegehorn:R('Rhino', 2.3, {lift:.35, at:.9}), bramblehorn:R('Faun', 1.5, {lift:.3, at:.8}),
+  bjorn:R('Dwarf', 1.3, {lift:.3, at:.9}), redline:R('Mech', 2.4, {lift:.3, at:.8}), scraplet:K('Robot_One', 1.0, 'Shoot1'), hank:R('Guard', 1.75, {lift:.3}), vending:R('Vending', 2.0, {lift:.35, at:.8}),
+  kobolds:R('Kobold', .9, {ws:2.6, lift:.3, at:.5}), sirscorch:R('DragonKnight', 1.75, {lift:.3}), shiver:R('IceDragon', 1.7, {lift:.3, at:.8}),
   jade:R('Dragon', 1.7, {lift:.25, at:.6}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
 };
 const lib = {}, clips = {}, pending = {}, mats = new Map(), inks = new Map();

@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115a';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115a';
-import { W, L, RIVER, TRIG } from './sim.js?v=1115a';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115b';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115b';
+import { W, L, RIVER, TRIG } from './sim.js?v=1115b';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -581,6 +581,7 @@ export function createView(el, opt = {}){
       if (e.bt && Math.random() < dt * 9) burst(r.x, mid, r.z, 1, Math.random() < .5 ? 0xff8a2b : 0xffd23f, {spd:.6, up:1.6, life:.45, grav:-1.5, spread:U.r});
       if (e.pt && Math.random() < dt * 6) burst(r.x, mid, r.z, 1, 0x7dff5a, {spd:.4, up:.9, life:.6, grav:-.6, spread:U.r});
       if (e.mk && Math.random() < dt * 5) burst(r.x, m.h + (m.fly || 0), r.z, 1, 0xc77dff, {spd:.3, up:.5, life:.5, grav:-.3});
+      if (e.wk && Math.random() < dt * 4) burst(r.x, m.h + (m.fly || 0), r.z, 1, 0xff9d3c, {spd:.2, up:-.6, life:.5, grav:.6});      // rattled: its nerve is draining away
       if (e.sh > 0 && !r.shield){ r.shield = new THREE.Mesh(shG, shMat); r.shield.scale.set(U.r * 1.5 + .25, m.h * .62, U.r * 1.5 + .25); r.shield.position.y = mid; r.g.add(r.shield); }
       else if (!(e.sh > 0) && r.shield){ r.g.remove(r.shield); r.shield = null; }
       if (r.shield) r.shield.rotation.y = time * 1.5;
@@ -627,10 +628,13 @@ export function createView(el, opt = {}){
     candy: () => new THREE.Mesh(new THREE.BoxGeometry(.08, .08, .34), M(0xff4a5a)),
     bomb: () => new THREE.Mesh(new THREE.SphereGeometry(.17, 10, 8), M(0x22252e, {r:.4})),
     zap: () => new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), M(0xfff27a, {e:0xffd23f, ei:4})),
+    ice: () => { const a = new THREE.Mesh(new THREE.ConeGeometry(.08, .42, 5), M(0xdff5ff, {e:0x7fd4ff, ei:2.5})); a.rotation.x = PI / 2; const g = new THREE.Group(); g.add(a); return g; },
+    shell: () => new THREE.Mesh(new THREE.SphereGeometry(.24, 10, 8), M(0x2a2d36, {r:.35, m:.6})),
+    vial: () => new THREE.Mesh(new THREE.SphereGeometry(.14, 8, 6), M(0x8dff5a, {e:0x45c82a, ei:2})),
     fball: () => { const g = makeModel('fireball').g; g.scale.setScalar(.75); return g; },
     met: () => { const g = makeModel('meteor').g; g.scale.setScalar(1.3); return g; }
   };
-  const LOB = 'ball rock potion bomb candy spit leaf';
+  const LOB = 'ball rock potion bomb candy spit leaf shell vial';
   /* a bolt of light from one point to another: lightning, a laser, a beam that is already there the moment it fires */
   const zaps = [], zapG = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).rotateX(PI / 2);
   function zapLine(a, b, color, w = .07, life = .16){
@@ -642,8 +646,8 @@ export function createView(el, opt = {}){
   function stepZaps(dt){ for (let i = zaps.length - 1; i >= 0; i--){ const z = zaps[i]; z.t += dt; const k = z.t / z.life; if (k >= 1){ root.remove(z.m); z.m.material.dispose(); zaps.splice(i, 1); continue; } z.m.material.opacity = .95 * (1 - k); const w = z.w * (1 + Math.sin(time * 90) * .35); z.m.scale.x = z.m.scale.y = w; } }
   /* lightning out of the sky onto one spot */
   function strike(x, z, y = 0){ va.set(x + (Math.random() - .5) * 3, 16, z + (Math.random() - .5) * 3); vb.set(x, y + .2, z); const mid = va.clone().lerp(vb, .5); mid.x += (Math.random() - .5) * 1.6; mid.z += (Math.random() - .5) * 1.6; zapLine(va, mid, 0xfff7b0, .16, .3); zapLine(mid, vb, 0xfff7b0, .16, .3); flat(x, z, {r0:.3, r1:2, dur:.35, color:0xfff27a, add:true}); burst(x, .4, z, 22, 0xfff27a, {spd:6, up:4, life:.5}); shake(.4); }
-  const TRAIL = {fire:0xff8a2b, magic:0x6dff9a, beam:0xaad8ff, ball:0xffc27a, coffee:0xb07a4a, flag:0xffe27a, water:0x9fe0ff, laser:0xff5a8a, potion:0xff7ad0, leaf:0x7ccf4a, ink:0x5a3a8a, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f, bomb:0x8a8f9c},
-    HITC = {ball:0xffb070, coffee:0x8a5a34, flag:0xffe27a, water:0x8fd8ff, fire:0xff8a2b, magic:0x6dff9a, beam:0xdff2ff, arrow:0xe9d8b4, bolt:0xcfd5e2, laser:0xff5a8a, bullet:0xffe9a8, spit:0xd9f2c4, rock:0xa89a86, potion:0xff7ad0, leaf:0x7ccf4a, sting:0xffd23f, ink:0x5a3a8a, candy:0xff8a9a, bomb:0xff8a2b, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f};
+  const TRAIL = {fire:0xff8a2b, magic:0x6dff9a, beam:0xaad8ff, ball:0xffc27a, coffee:0xb07a4a, flag:0xffe27a, water:0x9fe0ff, laser:0xff5a8a, potion:0xff7ad0, leaf:0x7ccf4a, ink:0x5a3a8a, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f, bomb:0x8a8f9c, ice:0xbfe9ff, shell:0x8a8f9c, vial:0x8dff5a},
+    HITC = {ball:0xffb070, coffee:0x8a5a34, flag:0xffe27a, water:0x8fd8ff, fire:0xff8a2b, magic:0x6dff9a, beam:0xdff2ff, arrow:0xe9d8b4, bolt:0xcfd5e2, laser:0xff5a8a, bullet:0xffe9a8, spit:0xd9f2c4, rock:0xa89a86, potion:0xff7ad0, leaf:0x7ccf4a, sting:0xffd23f, ink:0x5a3a8a, candy:0xff8a9a, bomb:0xff8a2b, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f, ice:0xdff5ff, shell:0xff8a2b, vial:0x7dff5a};
   function shoot(kind, from, to, dur, o = {}){
     const m = (shotMesh[kind] || shotMesh.ball)(); m.position.copy(from); m.lookAt(to); root.add(m);
     shots.push({m, kind, from:from.clone(), to:to.clone(), tid:o.tid || 0, th:o.th || 0, t:-(o.delay || 0), d:dur, arc:o.arc ?? 0, splash:o.splash || 0, quiet:o.quiet});
@@ -658,7 +662,7 @@ export function createView(el, opt = {}){
       if (tr) s.to.set(tr.x, s.th, tr.z);
       const k = Math.min(1, s.t / s.d);
       s.m.position.lerpVectors(s.from, s.to, k); s.m.position.y += Math.sin(k * PI) * s.arc;
-      if (s.kind === 'ball' || s.kind === 'flag' || s.kind === 'rock' || s.kind === 'bomb' || s.kind === 'candy' || s.kind === 'met') s.m.rotation.x += dt * 9; else if (!s.arc) s.m.lookAt(s.to);
+      if (s.kind === 'ball' || s.kind === 'flag' || s.kind === 'rock' || s.kind === 'bomb' || s.kind === 'candy' || s.kind === 'met' || s.kind === 'shell') s.m.rotation.x += dt * 9; else if (!s.arc) s.m.lookAt(s.to);
       if (TRAIL[s.kind] && Math.random() < .8) burst(s.m.position.x, s.m.position.y, s.m.position.z, 1, TRAIL[s.kind], {spd:.4, up:.3, life:.3, grav:0});
       if (k >= 1){
         if (!s.quiet) burst(s.to.x, s.to.y, s.to.z, s.kind === 'beam' ? 26 : 5, HITC[s.kind], {spd:s.kind === 'beam' ? 5 : 2, up:2, life:.4});
@@ -706,7 +710,7 @@ export function createView(el, opt = {}){
         va.set(r.x, U.twr ? (r.e.key === 'king' ? 3.6 : 2.6) : r.m.h * .7 + (r.m.fly || 0), r.z); vb.set(t.x, th, t.z);
         burst(va.x, va.y, va.z, 4, 0xfff1c4, {spd:1.6, up:.6, life:.2, grav:0});
         if (ev.k === 'zap' || ev.k === 'beam'){ zapLine(va.clone(), vb.clone(), ev.k === 'zap' ? 0xbfe8ff : 0xff8a2b, ev.k === 'zap' ? .07 : .05 + Math.min(.12, (r.rampN = (r.rampT === ev.t ? (r.rampN || 0) + 1 : 0)) * .012), ev.k === 'zap' ? .18 : .42); r.rampT = ev.t; }
-        else shoot(ev.k, va, vb, ev.d, {tid:ev.t, th, arc:LOB.includes(ev.k) ? va.distanceTo(vb) * .16 : 0, splash:U.splash || 0});
+        else shoot(ev.k, va, vb, ev.d, {tid:ev.t, th, arc:LOB.includes(ev.k) ? va.distanceTo(vb) * (ev.k === 'shell' ? .45 : .16) : 0, splash:U.splash || 0});
       } else if (ev.e === 'spell'){
         const rel = ev.team === me ? 0 : 1, col = TEAM[rel];
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .15, color:col, a:.9, hold:true});
@@ -751,7 +755,7 @@ export function createView(el, opt = {}){
       else if (ev.e === 'summon'){ const r = recs.get(ev.id); if (r){ r.sum = 0; r.atk = 0; burst(r.x, .4, r.z + (r.e.team === 0 ? -1 : 1), 12, r.e.U.type === 'dark' ? 0xb18cff : 0xf2c14e, {spd:2, up:2.4, life:.5}); } }
       else if (ev.e === 'pool'){ linger(ev.x, ev.z, ev.r, ev.t, 0xff6a1f, 'fire'); }
       else if (ev.e === 'land'){
-        const c = {stun:0xffe27a, fire:0xff7a1f, frost:0x9fdcff, shield:0x6fc4ff, summon:0xa678ff, slam:0xe9d8b4}[ev.k] || 0xffffff;
+        const c = {stun:0xffe27a, fire:0xff7a1f, frost:0x9fdcff, shield:0x6fc4ff, summon:0xa678ff, slam:0xe9d8b4, roar:0xff9d3c}[ev.k] || 0xffffff;
         flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.5, color:c, add:true, a:.95}); flat(ev.x, ev.z, {r0:ev.r, dur:.5, color:c, fill:true, a:.28, hold:true, add:true});
         burst(ev.x, .3, ev.z, 40, c, {spd:6, up:ev.k === 'fire' ? 6 : 3.5, life:.7, spread:ev.r * .5}); if (ev.k !== 'shield' && ev.k !== 'summon'){ burst(ev.x, .2, ev.z, 14, 0xe9e4d6, {smoke:true, spd:2.6, up:1.4, life:.9, grav:-.4, spread:ev.r}); shake(.55); }
       }
