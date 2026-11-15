@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115h';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115h';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115h';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115k';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115k';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115k';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -129,7 +129,7 @@ export function createView(el, opt = {}){
   const fxOn = () => !!composer && !!GFX[gfx].fx, hdrMats = [];
   const root = new THREE.Group(), stage = new THREE.Group(), fxW = new THREE.Group(), bars = new THREE.Group();
   scene.add(stage, root, fxW, bars);
-  let me = 0, mapId = 'court', time = 0, shakeAmt = 0, lostGL = false;
+  let me = 0, mapId = 'court', time = 0, shakeAmt = 0, lostGL = false, skyT = 0, skyC = 1;
   renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); lostGL = true; });
   renderer.domElement.addEventListener('webglcontextrestored', () => { lostGL = false; });
 
@@ -779,13 +779,14 @@ export function createView(el, opt = {}){
   }
   /* a Legendary arrives: a column of light, two shockwaves and a shower of gold */
   const beams = [], beamG = new THREE.CylinderGeometry(.6, .85, 34, 24, 1, true);
-  function legend(x, z){
-    const b = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({color:0xffd95a, transparent:true, opacity:.5, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
-    b.material.color.multiplyScalar(HDR); b.position.set(x, 17, z); root.add(b); beams.push({m:b, t:0});
-    flat(x, z, {r0:.4, r1:5, dur:.7, color:0xffe9a8, add:true}); flat(x, z, {r0:.4, r1:7.5, dur:1.1, delay:.25, color:0xffd95a, add:true, a:.6});
-    flat(x, z, {r0:2.2, dur:1.5, color:0xffd95a, fill:true, a:.3, hold:true, add:true});
+  function legend(x, z, col = 0xffd95a, k = 1){                 // the beam a Legendary lands in. A God's is white, wider and shakes the camera harder
+    const b = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.5, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide}));
+    b.material.color.multiplyScalar(HDR); b.position.set(x, 17, z); b.scale.set(k, 1, k); root.add(b); beams.push({m:b, t:0});
+    flat(x, z, {r0:.4, r1:5 * k, dur:.7, color:k > 1 ? 0xffffff : 0xffe9a8, add:true}); flat(x, z, {r0:.4, r1:7.5 * k, dur:1.1, delay:.25, color:col, add:true, a:.6});
+    flat(x, z, {r0:2.2 * k, dur:1.5, color:col, fill:true, a:.3, hold:true, add:true});
+    if (k > 1) flat(x, z, {r0:.6, r1:16, dur:1.5, delay:.4, color:col, add:true, a:.45});
     for (let i = 0; i < 4; i++) setTimeout(() => burst(x, .4 + i * .8, z, 22, i % 2 ? 0xffffff : 0xffd95a, {spd:3.5 + i, up:5, life:1, grav:3, spread:.8}), i * 130);
-    shake(.5);
+    shake(.5 * k);
   }
   function stepBeams(dt){ for (let i = beams.length - 1; i >= 0; i--){ const b = beams[i]; b.t += dt; const k = b.t / 1.5; if (k >= 1){ root.remove(b.m); b.m.material.dispose(); beams.splice(i, 1); continue; } b.m.material.opacity = .5 * (1 - k) * (.7 + Math.sin(time * 30) * .3); b.m.scale.set(1 - k * .7, 1, 1 - k * .7); b.m.rotation.y += dt * 2; } }
   function shake(a){ if (!opt.reduced) shakeAmt = Math.max(shakeAmt, a); }
@@ -800,9 +801,16 @@ export function createView(el, opt = {}){
   const va = new THREE.Vector3(), vb = new THREE.Vector3();
   function events(list){
     for (const ev of list){
-      if (ev.e === 'drop'){ if (ev.rar === 'l') legend(ev.x, ev.z); }
+      if (ev.e === 'drop'){ if (ev.rar === 'l') legend(ev.x, ev.z); else if (ev.rar === 'g') legend(ev.x, ev.z, 0xdff4ff, 1.7); }
       else if (ev.e === 'chain'){ for (let i = 1; i < ev.pts.length; i++){ const a = ev.pts[i - 1], b = ev.pts[i]; va.set(a[0], a[2] ? 2.2 : .9, a[1]); vb.set(b[0], b[2] ? 2.2 : .9, b[1]); zapLine(va.clone(), vb.clone(), 0xbfe8ff, .06, .2); } }
       else if (ev.e === 'bolt'){ for (const p of ev.pts) strike(p[0], p[1]); }
+      else if (ev.e === 'godfall'){                                // a god has arrived: every enemy on the field is hit at once
+        shake(1.1); skyT = .45; skyC = ev.k === 'smite' ? 1.5 : .7;
+        ev.pts.forEach((p, i) => setTimeout(() => {
+          if (ev.k === 'smite') strike(p[0], p[1]);
+          else { flat(p[0], p[1], {r0:.3, r1:2, dur:.7, color:0x9a6bff, add:true}); burst(p[0], .5, p[1], 14, i % 2 ? 0xb48cff : 0x3a1f6a, {spd:2.4, up:5.5, life:.8, grav:-1.2}); }
+        }, 40 + Math.min(i, 24) * 38));
+      }
       else if (ev.e === 'atk'){
         const r = recs.get(ev.id); if (!r) continue; r.atk = 0;
         const U = r.e.U, t = recs.get(ev.t);
@@ -1030,6 +1038,7 @@ export function createView(el, opt = {}){
     if (punch.t > 0){ punch.t -= dt; camera.position.lerp(tv.set(punch.x, 0, punch.z).addScaledVector(camDir, 15), Math.sin(Math.min(1, punch.t) * PI) * .22); }
     if (shakeAmt > .002){ camera.position.x += (Math.random() - .5) * shakeAmt; camera.position.y += (Math.random() - .5) * shakeAmt; shakeAmt *= Math.exp(-dt * 7); }
     camera.lookAt(look);
+    if (skyT > 0){ skyT -= dt; renderer.toneMappingExposure = .86 + Math.max(0, skyT) / .45 * skyC; } else if (renderer.toneMappingExposure !== .86) renderer.toneMappingExposure = .86;      // the sky flashes when a god lands
     if (!lostGL){ if (fxOn()) composer.render(dt); else renderer.render(scene, camera); }
     pace();
   }

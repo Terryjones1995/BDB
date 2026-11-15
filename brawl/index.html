@@ -72,7 +72,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .card.pickme{animation:pickme .7s ease-in-out infinite alternate}
 @keyframes pickme{to{box-shadow:0 0 0 3px var(--gold),0 0 18px rgba(242,193,78,.6)}}
 .card.empty{border-style:dashed;border-color:var(--dim);background:rgba(3,8,20,.5);cursor:default}
-.r-c{--rc:#9fb3d9}.r-r{--rc:#ff9d3c}.r-e{--rc:#c77dff}.r-l{--rc:#ffd95a}
+.r-c{--rc:#9fb3d9}.r-r{--rc:#ff9d3c}.r-e{--rc:#c77dff}.r-l{--rc:#ffd95a}.r-g{--rc:#dff4ff}
 .deckbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 
 /* ladder */
@@ -214,6 +214,32 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .tabbar button{font:400 13px/1 var(--f-game);letter-spacing:.03em;text-transform:none;color:#a9c4f5;border:3px solid transparent;border-radius:14px}
 .tabbar button svg{stroke-width:2.4}
 .tabbar button[aria-selected="true"]{color:#fff;text-shadow:var(--stroke);background:linear-gradient(180deg,#ffe066,#f59a1c);border-color:var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.5),0 3px 0 var(--ink2);transform:translateY(-4px)}
+/* the sections sit in the header, beside the name. On a narrow screen they drop to a row of their own under it: still at the top, never a bar along the bottom */
+/* deck builder: on a wide screen the deck stays put on the left while your cards scroll beside it */
+.dkb{display:grid;grid-template-columns:minmax(0,1fr)}
+@media (min-width:1100px){ .dkb{grid-template-columns:minmax(440px,5fr) minmax(0,7fr);gap:16px;align-items:start} .dk-deck{position:sticky;top:0} .dkb .panel{margin-bottom:0} }
+.dkb .grid.deck{max-width:none}
+.slot{aspect-ratio:3/4;margin-top:8px;border-radius:15px;border:3px dashed rgba(255,255,255,.34);background:rgba(6,18,58,.34);display:grid;place-items:center;color:rgba(255,255,255,.42);font:400 26px/1 var(--f-game)}
+.dk-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.dk-tools .k-btn{flex:1 1 150px}
+.k-seg button small{font:inherit;font-size:11px;opacity:.8}
+.card .inf{position:absolute;right:-7px;bottom:25%;z-index:6;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;border:2.5px solid var(--ink2);background:linear-gradient(180deg,#7cc8ff,#2a73d8);color:#fff;font:400 14px/1 var(--f-game);text-shadow:var(--stroke);box-shadow:0 2px 0 var(--ink2);opacity:0;transition:opacity .12s}
+.card:hover .inf,.card:focus-visible .inf{opacity:1}
+@media (hover:none){ .card .inf{opacity:1} }
+.card.pend{outline:4px solid #fff;outline-offset:3px}
+#deckHint .err{color:#ffd0c8;font-weight:800}
+.tabs{display:flex;gap:6px;margin-left:20px;min-width:0}
+.tabs button{display:inline-flex;align-items:center;gap:8px;font:400 16px/1 var(--f-game);letter-spacing:.02em;color:#cfe1ff;background:none;border:3px solid transparent;border-radius:13px;padding:8px 16px 10px;cursor:pointer;white-space:nowrap}
+.tabs button svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tabs button:hover{background:rgba(255,255,255,.1);color:#fff}
+.tabs button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.tabs button[aria-selected="true"]{color:#fff;text-shadow:var(--stroke);background:linear-gradient(180deg,#ffe066,#f59a1c);border-color:var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.5),0 3px 0 var(--ink2)}
+@media (max-width:860px){
+  #scrHub .k-top{flex-wrap:wrap;row-gap:8px}
+  .tabs{order:9;flex:1 0 100%;margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+  .tabs button{justify-content:center;gap:6px;padding:8px 2px 9px;font-size:14px}
+}
+@media (max-width:380px){ .tabs button svg{display:none} }
 .login{background:linear-gradient(180deg,#2f79e6,#1d50b4);border:4px solid var(--ink2);box-shadow:inset 0 4px 0 rgba(255,255,255,.3),0 8px 0 var(--ink2),0 30px 60px rgba(0,0,0,.4)}
 .login h1{font-family:var(--f-game);font-size:44px;color:#fff;text-shadow:var(--stroke)}
 .login h1 span{color:#ffd23f}
@@ -309,6 +335,8 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .bnote{position:absolute;left:50%;top:calc(34% + clamp(26px,6vw,46px));z-index:7;transform:translateX(-50%);padding:6px 14px 7px;border-radius:999px;border:3px solid var(--ink2);background:linear-gradient(180deg,#2a3f78,#16244e);box-shadow:0 4px 0 var(--ink2);font:400 clamp(13px,2.6vw,17px)/1 var(--f-game);color:#fff;text-shadow:var(--stroke);white-space:nowrap;pointer-events:none;animation:bnote 2.2s ease-out forwards}
 @keyframes bnote{0%{opacity:0;transform:translate(-50%,8px) scale(.9)}10%{opacity:1;transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-6px)}}
 .legend-banner b{font-family:var(--f-game);text-shadow:var(--stroke),0 0 24px rgba(255,217,90,.9)}
+.legend-banner.god{background:linear-gradient(90deg,transparent,rgba(190,235,255,.38) 25%,rgba(190,235,255,.38) 75%,transparent)}
+.legend-banner.god b{color:#fff;font-size:clamp(26px,7vw,56px);text-shadow:var(--stroke),0 0 30px rgba(170,225,255,1)}
 .legend-banner small{font-family:var(--f-game);letter-spacing:.3em;font-size:14px;text-shadow:var(--stroke)}
 .handbar{border-top:0;padding:14px 10px calc(8px + env(safe-area-inset-bottom));gap:9px;
   background:repeating-linear-gradient(90deg,rgba(0,0,0,.08) 0 2px,transparent 2px 46px),linear-gradient(180deg,#6b4a2c 0,#4a3220 30%,#2e1e12 100%);box-shadow:inset 0 5px 0 #a87a4a,inset 0 8px 0 #2a1a0e,0 -4px 0 var(--ink2)}
@@ -409,9 +437,17 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .card::before{inset:0;border-radius:11px;z-index:0;background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.26) 0 10deg,rgba(255,255,255,0) 10deg 20deg);
   -webkit-mask:radial-gradient(circle at 50% 34%,#000 10%,transparent 74%);mask:radial-gradient(circle at 50% 34%,#000 10%,transparent 74%)}
 .card.r-l{animation:none}
+/* God: a white-hot centre in a night sky, and a rim that runs through every colour */
+.r-g{--rc:#eaf8ff;--c0:#ffffff;--c1:#8fd6ff;--c2:#2b1a7a;--rim0:#ffffff;--rim1:#bfe9ff;--rim2:#7a5cff}
+.card.r-g{background:linear-gradient(156deg,rgba(255,255,255,.6) 0,rgba(255,255,255,0) 30%) padding-box,
+    radial-gradient(ellipse 100% 66% at 50% 30%,#fff 0,#a8e2ff 34%,#5a48d8 64%,#1b0f52) padding-box,
+    conic-gradient(from 210deg,#ff8ad8,#ffd95a,#8dffb8,#63c8ff,#c77dff,#ff8ad8) border-box;
+  box-shadow:0 0 0 2.5px var(--ink2),0 6px 0 2.5px var(--ink2),0 0 16px 2px rgba(190,235,255,.7),0 11px 10px rgba(0,0,0,.32)}
+.card.r-g::before{background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.7) 0 8deg,rgba(255,255,255,0) 8deg 20deg)}
+.card.r-g .nm{color:#fff6c8}
 .card.r-l::before{background:repeating-conic-gradient(from var(--ray) at 50% 34%,rgba(255,255,255,.5) 0 10deg,rgba(255,255,255,0) 10deg 20deg)}
 /* the rays only turn on the one card being looked at (its sheet, or a pack being opened). Turning them on every Epic and Legendary in a list kept the whole screen repainting. */
-:is(.sheet-top,.pull.on) .card:is(.r-e,.r-l)::before{animation:rays 18s linear infinite}
+:is(.sheet-top,.pull.on) .card:is(.r-e,.r-l,.r-g)::before{animation:rays 18s linear infinite}
 @keyframes rays{to{--ray:368deg}}
 .card img{left:-7%;top:-14%;width:114%;height:90%;object-fit:contain;object-position:50% 100%;z-index:1;filter:drop-shadow(0 3px 0 rgba(8,18,46,.6))}
 .card .ph{z-index:1;inset:8% 10% 30%;font-size:26px}
@@ -534,6 +570,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .pz.tokz{background:linear-gradient(180deg,#58e0d0,#1a8f86)}
 .pz.r-e{background:linear-gradient(180deg,#d68cff,#7a2fc0)}
 .pz.r-l{background:linear-gradient(180deg,#ffe066,#f08a12)}
+.pz.r-g{background:linear-gradient(180deg,#ffffff,#8fd6ff 55%,#7a5cff)}
 @media (max-width:520px){ .hero .pzrow{justify-content:center} }
 
 /* the ladder: the levels right around you, then the ten tiers */
@@ -562,7 +599,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 
 /* ----- the market ----- */
 .shelf{background:radial-gradient(ellipse 90% 80% at 50% 0,#4a8ff2 0,#2a66d2 46%,#17409c 100%)}
-.packs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:start}
+.packs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;align-items:start}
 .pack{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;min-width:0}
 .pack h4{margin:8px 0 0;font:400 19px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .pack p{margin:0;font:600 11.5px/1.35 var(--f-body);color:#e4efff;min-height:47px}
@@ -602,7 +639,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .tdeck .pr{display:inline-flex;align-items:center;font:400 18px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
 .tdeck.own .pr{color:#8dff7a}
 .tdeck:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ink2)}
-.oddsx{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%}
+.oddsx{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:6px;width:100%}
 .oddsx div{padding:9px 4px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--rc)}
 .oddsx b{display:block;font:400 21px/1 var(--f-game);color:var(--rc);margin-bottom:4px}
 .oddsx span{font:800 10px/1 var(--f-body);color:#cfe1ff}
@@ -620,7 +657,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .pull .bk{transform:rotateY(180deg);border-radius:14px;background:radial-gradient(circle at 50% 50%,#ffd23f 0 13%,transparent 14%),repeating-linear-gradient(45deg,#1b3a82 0 8px,#12306b 8px 16px);box-shadow:inset 0 0 0 4px #ffd23f,0 0 0 2.5px var(--ink2),0 6px 0 2.5px var(--ink2)}
 .pull small{min-height:14px;font:400 14px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);opacity:0;transition:opacity .2s .28s}
 .pull.on small{opacity:1}
-.pull.on:is(.r-e,.r-l)::before{content:"";position:absolute;left:50%;top:42%;width:170%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;z-index:-1;background:radial-gradient(circle,var(--rc) 0,transparent 64%);animation:glow 1.4s ease-in-out infinite alternate}
+.pull.on:is(.r-e,.r-l,.r-g)::before{content:"";position:absolute;left:50%;top:42%;width:170%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;z-index:-1;background:radial-gradient(circle,var(--rc) 0,transparent 64%);animation:glow 1.4s ease-in-out infinite alternate}
 @keyframes glow{from{opacity:.3}to{opacity:.75}}
 .burst{position:absolute;left:50%;top:46%;width:22px;height:22px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#fff,color-mix(in srgb,var(--pc) 60%,#fff) 42%,transparent 70%);animation:burst .62s ease-out forwards}
 @keyframes burst{from{transform:translate(-50%,-50%) scale(1);opacity:1}to{transform:translate(-50%,-50%) scale(28);opacity:0}}
@@ -662,6 +699,39 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .card.empty{box-shadow:none;border:3px dashed #5f84d6;background:rgba(6,14,40,.35)}
 
 /* ----- what a match paid ----- */
+/* the result of a match: a banner that says who won, BDB's verdict, and the winnings in one even row */
+#dlgBox:has(.res){width:min(540px,100%);max-width:min(540px,100%);padding:0;overflow:hidden auto;gap:0;display:block;text-align:center}
+.res-top{position:relative;padding:26px 20px 18px;overflow:hidden;isolation:isolate;background:linear-gradient(180deg,#ffd75e,#f39a1f 62%,#d9720f);border-bottom:4px solid var(--ink2)}
+.res.loss .res-top{background:linear-gradient(180deg,#7d8db3,#4a587f 62%,#343f61)}
+.res.draw .res-top{background:linear-gradient(180deg,#6fc3ff,#2f7fe0 62%,#1f5cb8)}
+.res.win .res-top::before{content:"";position:absolute;left:50%;top:58%;width:900px;height:900px;z-index:-1;transform:translate(-50%,-50%);background:repeating-conic-gradient(from 6deg,rgba(255,255,255,.3) 0 9deg,rgba(255,255,255,0) 9deg 18deg);-webkit-mask:radial-gradient(circle,#000 0,transparent 62%);mask:radial-gradient(circle,#000 0,transparent 62%)}
+.res-top h3{margin:8px 0 10px;font:400 clamp(40px,11vw,58px)/1 var(--f-game);color:#fff;letter-spacing:.02em;text-shadow:-3px 0 var(--ink2),3px 0 var(--ink2),0 -3px var(--ink2),0 3px var(--ink2),-2px -2px var(--ink2),2px -2px var(--ink2),-2px 2px var(--ink2),2px 2px var(--ink2),0 7px 0 var(--ink2)}
+.res-crowns{display:flex;justify-content:center;gap:10px}
+.res-crowns i{width:44px;height:32px;background:#1b2550;opacity:.55;clip-path:polygon(0 100%,0 16%,25% 60%,50% 0,75% 60%,100% 16%,100% 100%)}
+.res-crowns i.on{opacity:1;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);filter:drop-shadow(0 3px 0 var(--ink2))}
+.res-crowns i:nth-child(2){transform:translateY(-7px) scale(1.18)}
+.res.loss .res-crowns i.on{background:linear-gradient(180deg,#eef3ff,#b8c4e0 45%,#8493b8)}
+.res-score{display:inline-flex;align-items:center;gap:10px;padding:6px 14px 7px;border-radius:999px;background:rgba(10,20,56,.72);border:3px solid var(--ink2);font:400 15px/1 var(--f-game);color:#fff}
+.res-score span{display:inline-flex;align-items:center;gap:8px;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res-score b{font:400 24px/1 var(--f-game);color:#ffd23f}
+.res-score em{font:800 10px/1 var(--f-body);font-style:normal;letter-spacing:.14em;text-transform:uppercase;color:#a9c4f5}
+.res-say{display:flex;align-items:center;gap:12px;margin:18px 20px 0;text-align:left}
+.res-say .av{flex:none;width:46px;height:46px;border-radius:50%;background:url(../assets/face.jpg) center 32%/cover;box-shadow:0 0 0 3px var(--ink2)}
+.res-say p{position:relative;margin:0;padding:10px 14px 11px;border-radius:14px;background:#fff;color:#0a1430;font:700 14px/1.35 var(--f-body);box-shadow:0 3px 0 var(--ink2)}
+.res-say p::before{content:"";position:absolute;left:-7px;top:50%;width:14px;height:14px;background:#fff;transform:translateY(-50%) rotate(45deg);border-radius:2px}
+.res-loot{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:20px 16px 0}
+.rw{flex:1 1 0;min-width:86px;max-width:124px;display:flex;flex-direction:column;align-items:center;padding:10px 4px 11px;border-radius:16px;background:#0a1e52;border:3px solid var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.1)}
+.rw-pic{width:100%;height:118px;display:grid;place-items:center}
+.rw-pic .coin{width:62px;height:62px;margin:0;box-shadow:0 0 0 3px var(--ink2),inset 0 -6px 0 rgba(120,80,0,.35)}
+.rw-pic .tokbig{width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#c8fff6,#2fc9b9 55%,#0d6f67);box-shadow:0 0 0 3px var(--ink2)}
+.rw-pic .card{width:min(80px,100%);margin:6px 0 0}
+.rw-pic .card .nm{display:none}
+.rw-pic .foil{width:min(78px,100%);cursor:default}
+.rw > b{margin-top:8px;max-width:100%;font:400 15px/1.12 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.rw > small{margin-top:4px;font:800 10px/1.2 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#a9c4f5}
+.res > .note{margin:16px 22px 0;color:#dbe8ff}
+.res-btns{display:flex;flex-direction:column;gap:10px;padding:18px 22px 22px}
+.res-btns .k-btn{width:100%}
 .loot{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:flex-end;width:100%}
 .lt{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:76px}
 .lt > b{font:400 30px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
@@ -717,6 +787,12 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
   <header class="k-top">
     <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
     <div class="k-brand"><span class="pre">Break Room </span><span>Brawl</span></div>
+    <nav class="tabs" id="tabbar" role="tablist" aria-label="Sections">
+      <button type="button" data-tab="Battle" role="tab"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M14 5h5v5M5 5l5 5M14 14l5 5M5 14v5h5"/></svg>Battle</button>
+      <button type="button" data-tab="Deck" role="tab"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="11" height="15" rx="2"/><path d="M9 5V3h9a2 2 0 0 1 2 2v12h-2"/></svg>Deck</button>
+      <button type="button" data-tab="Market" role="tab"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5zM8 9V7a4 4 0 0 1 8 0v2"/></svg>Market</button>
+      <button type="button" data-tab="Profile" role="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</button>
+    </nav>
     <div class="k-spacer"></div>
     <span class="k-pill" title="Coins"><span class="coin"></span><span class="k-led" id="hCoins">0</span></span>
     <span class="k-pill" title="Trophies">🏆 <span class="k-led" id="hTro">0</span></span>
@@ -757,13 +833,16 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
     </div>
 
     <div id="tabDeck" hidden>
-      <div class="panel">
-        <div class="deckbar"><div class="k-seg" id="deckSeg"></div><span class="note" id="deckAvg"></span></div>
-        <div class="grid deck" id="deckGrid"></div>
-        <div class="sets" id="deckSets" style="margin-top:12px"></div>
-        <p class="note" id="deckHint" style="margin:10px 0 0"></p>
+      <div class="dkb">
+        <div class="panel dk-deck">
+          <div class="deckbar"><div class="k-seg" id="deckSeg"></div><span class="note" id="deckAvg"></span></div>
+          <div class="grid deck" id="deckGrid"></div>
+          <div class="dk-tools"><button type="button" class="k-btn" id="deckFill">Fill the rest for me</button><button type="button" class="k-btn" id="deckClear">Clear this deck</button></div>
+          <div class="sets" id="deckSets" style="margin-top:12px"></div>
+          <p class="note" id="deckHint" style="margin:10px 0 0" role="status"></p>
+        </div>
+        <div class="panel dk-own"><span class="k-label" id="ownLbl">Your cards</span><div class="filters" id="ownF"></div><div class="grid" id="ownGrid"></div><div class="more-row"><button type="button" class="k-btn" id="ownMore">Show more</button></div></div>
       </div>
-      <div class="panel"><span class="k-label" id="ownLbl">Your cards</span><div class="filters" id="ownF"></div><div class="grid" id="ownGrid"></div><div class="more-row"><button type="button" class="k-btn" id="ownMore">Show more</button></div></div>
     </div>
 
     <div id="tabMarket" hidden>
@@ -823,12 +902,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
     </div>
 
   </div></div>
-  <nav class="tabbar" id="tabbar" role="tablist">
-    <button type="button" data-tab="Battle" role="tab"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M14 5h5v5M5 5l5 5M14 14l5 5M5 14v5h5"/></svg>Battle</button>
-    <button type="button" data-tab="Deck" role="tab"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="11" height="15" rx="2"/><path d="M9 5V3h9a2 2 0 0 1 2 2v12h-2"/></svg>Deck</button>
-    <button type="button" data-tab="Market" role="tab"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5zM8 9V7a4 4 0 0 1 8 0v2"/></svg>Market</button>
-    <button type="button" data-tab="Profile" role="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</button>
-  </nav>
 </section>
 
 <!-- battle -->
@@ -858,6 +931,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115h"></script>
+<script type="module" src="main.js?v=1115k"></script>
 </body>
 </html>

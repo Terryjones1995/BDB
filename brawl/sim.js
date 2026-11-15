@@ -1,10 +1,10 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115h';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115k';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
-export const MATCH = 600, OVERTIME = 60, DOUBLE_AT = 120, TRIPLE_AT = 60, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match: double Mana for the last two, triple for the last one
+export const MATCH = 600, OVERTIME = 60, MANA_STEP = 120, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match. Mana comes in faster every two minutes: x1, x1.5, x2, x2.5, then x3 for the last two
 export const TOWER_AT = [['king', 0, L - 3], ['princess', -5.5, L - 6.5], ['princess', 5.5, L - 6.5]];
 const DEPLOY = TPS, PROJ_SPD = 11;
 export const PATIENT = 3 * TPS;
@@ -12,7 +12,7 @@ export const MAX_TRAPS = 3, TRIG = 1.1;            // traps each player can have
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const T = s => Math.max(1, Math.round(s * TPS));
 export const KEYS = Object.keys(UNITS);
-export const manaRate = (left, ot) => ot || left <= TRIPLE_AT ? 3 : left <= DOUBLE_AT ? 2 : 1;
+export const manaRate = (left, ot) => ot ? 3.5 : 1 + .5 * Math.min(4, Math.max(0, Math.floor((MATCH - left) / MANA_STEP)));      // and x3.5 in overtime
 
 function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
@@ -54,6 +54,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (U.mana) e.mn = T(U.mana.every);
     if (U.bless) e.wish = U.bless.n;
     if (U.recharge) e.rg = T(U.recharge.every);
+    if (U.wrath) e.wr = T(U.wrath.first ?? U.wrath.every);
     ents.push(e); byId.set(e.id, e);
     return e;
   }
@@ -323,6 +324,15 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   function arrive(e){
     const U = e.U, a = U.land, lv = lvlMul(e.lvl) * e.bm;
     if (U.charge && U.charge.dash){ e.chg = true; emit({e:'charge', id:e.id}); }
+    if (U.smite || U.reap){                                  // a god arrives, and the whole field feels it: every enemy, wherever it stands
+      const pts = [];
+      for (const o of ents.slice()){
+        if (o.team === e.team || o.hp <= 0 || o.dep > 0) continue;
+        if (U.smite){ hurt(o, U.smite.dmg * lv * (o.U.twr ? U.smite.twr ?? .3 : 1), e, 'area'); if (U.smite.stun && !o.U.twr && o.hp > 0) o.frz = Math.max(o.frz, T(U.smite.stun)); pts.push([o.x, o.z]); }
+        else if (!o.U.twr){ hurt(o, o.max * U.reap, e, 'area'); pts.push([o.x, o.z]); }      // the reaping takes a share of what each one started with. Towers are not his to take
+      }
+      emit({e:'godfall', id:e.id, x:e.x, z:e.z, team:e.team, k:U.smite ? 'smite' : 'reap', pts});
+    }
     if (!a) return;
     if (a.dmg || a.stun || a.slow || a.push || a.weak) area(e.x, e.z, a.r, (a.dmg || 0) * lv, e.team, {air:!!U.air, twr:.4, src:e, each:o => {      // a troop that cannot reach the sky does not shake it by landing either
       if (o.U.twr) return;
@@ -334,7 +344,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     }});
     if (a.shield) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.twr && near(o, e.x, e.z, a.r)) o.sh = Math.max(o.sh, Math.round(a.shield * lv));
     if (a.rage) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.bld && near(o, e.x, e.z, a.r)) o.rage = Math.max(o.rage, T(a.rage));
-    if (a.summon) for (let i = 0; i < a.summon.n; i++){ const an = i / a.summon.n * 6.283 + .4, n = add(a.summon.u, e.team, e.x + Math.cos(an) * 1.3, e.z + Math.sin(an) * 1.3, e.lvl, 8, U.aff, e.pid, e.bm); n.by = e.id; e.rn++; constrain(n, e.x, e.z); }
+    if (a.summon) for (let i = 0; i < a.summon.n; i++){ const ring = Math.floor(i / 10), per = Math.min(10, a.summon.n - ring * 10), q = 1.3 + ring * .85, an = (i % 10) / per * 6.283 + .4 + ring * .31;      // ten to a ring, each ring further out
+      const n = add(a.summon.u, e.team, clamp(e.x + Math.cos(an) * q, -W + .4, W - .4), clamp(e.z + Math.sin(an) * q, -L + .4, L - .4), e.lvl, 8 + ring * 3, U.aff, e.pid, e.bm); n.by = e.id; e.rn++; ashore(n, e.z); }
     emit({e:'land', id:e.id, x:e.x, z:e.z, r:a.r, k:a.stun ? 'stun' : a.burn ? 'fire' : a.slow ? 'frost' : a.weak || a.rage ? 'roar' : a.shield ? 'shield' : a.summon ? 'summon' : 'slam'});
   }
 
@@ -462,6 +473,11 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
         if (U.heal.cure) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.bld && Math.hypot(o.x - e.x, o.z - e.z) <= U.heal.r + o.U.r * .5){ o.bt = o.pt = o.bd = o.pd = 0; o.slow = 0; o.mk = 0; o.wk = 0; }      // and whatever ails them is gone
         if (any) emit({e:'heal', id:e.id, r:U.heal.r});
       }
+      if (U.wrath && (e.wr -= 1) <= 0){                                       // a bolt out of a clear sky, on whichever enemy troop has the most health left, anywhere at all
+        e.wr = T(U.wrath.every); let w = null;
+        for (const o of ents) if (o.team !== e.team && o.hp > 0 && o.dep <= 0 && !o.U.twr && !o.hid && (!w || o.hp > w.hp)) w = o;
+        if (w){ emit({e:'bolt', pts:[[w.x, w.z]]}); area(w.x, w.z, U.wrath.r, U.wrath.dmg * lvlMul(e.lvl) * e.bm, e.team, {air:true, twr:0, src:e}); }
+      }
       if (e.cd > 0) e.cd -= fast;
       if (!e.active || !U.dmg){ e.mv = false; continue; }
       const old = e.tgt;
@@ -557,7 +573,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       emit({e:'spell', k:s.kind, id:c.id, x, z, r:s.r, d:s.delay, team, t:s.rage || s.freeze || s.dur || 0, rar:card.rar, aff:card.aff});
     } else {
       const n = card.n, rad = n > 1 ? .3 + .13 * n : 0; let first = 0;
-      for (let i = 0; i < n; i++){ const a = i / n * 6.283 + .5; const e = add(card.us ? card.us[i % card.us.length] : card.u, team, x + Math.cos(a) * rad, z + Math.sin(a) * rad, c.lvl, card.rar === 'l' ? DEPLOY + 14 : DEPLOY, card.aff, pid, bm); if (card.U.any) ashore(e, z); else constrain(e, x, z); first = first || e.id; }
+      for (let i = 0; i < n; i++){ const a = i / n * 6.283 + .5; const e = add(card.us ? card.us[i % card.us.length] : card.u, team, x + Math.cos(a) * rad, z + Math.sin(a) * rad, c.lvl, card.rar === 'g' ? DEPLOY + 24 : card.rar === 'l' ? DEPLOY + 14 : DEPLOY, card.aff, pid, bm); if (card.U.any) ashore(e, z); else constrain(e, x, z); first = first || e.id; }
       emit({e:'drop', id:c.id, x, z, team, rar:card.rar, u:first, pid});
     }
     return true;

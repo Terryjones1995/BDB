@@ -1,7 +1,7 @@
 /* Break Room Brawl: player accounts.
    A player is a named save on this device (localStorage), with a save code to carry it to another device, and an online copy when they have an account (cloud.js).
    Everything that reads a save goes through sanitize(), so a bad or old save can never break the game: it is repaired or brought up to date instead. */
-import { CARDS, STARTERS, DECK_SLOTS, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF, deckProblem } from './cards.js?v=1115h';
+import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, MAX_LEGEND, MAX_GOD, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115k';
 
 const KEY = 'brawl-accounts-v2';
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029<>]/g, '').trim().slice(0, n);
@@ -13,9 +13,10 @@ function write(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); return tr
 
 export function fresh(name){
   const cards = {}; for (const c of STARTERS) cards[c] = 1;
-  return {v:3, name:clean(name, 20) || 'Player', coins:START_COINS, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, () => STARTERS.slice()), deck:0,
-    ladder:0, tokens:0, perks:Object.fromEntries(PERK_IDS.map(k => [k, 0])), stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0, packs:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1}};
-  // cards: id -> level. ladder: the highest level beaten. tokens: unspent player upgrades. flags: one-off announcements already seen
+  return {v:3, name:clean(name, 20) || 'Player', coins:START_COINS, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, (_, i) => i ? [] : STARTERS.slice()), deck:0,
+    ladder:0, tokens:0, perks:Object.fromEntries(PERK_IDS.map(k => [k, 0])), stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0, packs:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1, dk:1}};
+  // cards: id -> level. decks: the first holds the starter deck, the others start empty; a deck may be part-built (it only has to be whole to play a match).
+  // ladder: the highest level beaten. tokens: unspent player upgrades. flags: one-off announcements already seen (dk: saved since decks could be part-built)
 }
 /* a card id from any version of the game, as today's id (or null if that character is gone) */
 export function cardId(k){
@@ -38,15 +39,25 @@ export function sanitize(p){
     if (Object.keys(mine).length >= 1) o.cards = mine;                                    // only what they actually own
   }
   if (old && lost) o.coins += lost * 150;                 // a card whose character has left the game is paid for
+  const partOK = !!(p.flags && p.flags.dk);              // saved by a version that lets a deck stand part-built, or empty
   if (Array.isArray(p.decks)) for (let i = 0; i < DECK_SLOTS; i++){
     const src = p.decks[i]; if (!Array.isArray(src)) continue;
-    const d = src.map(cardId), seen = new Set(), ok = d.length === STARTERS.length && d.every(c => { if (!c || seen.has(CARDS[c].base)) return false; seen.add(CARDS[c].base); return true; });
-    if (ok && !deckProblem(d) && d.every(c => o.cards[c] > 0)) o.decks[i] = d;
+    // keep every card that is real, owned and within the deck rules, in the order it was in
+    const d = [], seen = new Set(); let leg = 0, god = 0;
+    for (const k of src){
+      const c = cardId(k); if (!c || d.length >= DECK_SIZE || !(o.cards[c] > 0)) continue;
+      const C = CARDS[c]; if (seen.has(C.base) || (C.rar === 'l' && leg >= MAX_LEGEND) || (C.rar === 'g' && god >= MAX_GOD)) continue;
+      seen.add(C.base); if (C.rar === 'l') leg++; else if (C.rar === 'g') god++; d.push(c);
+    }
+    if (partOK) o.decks[i] = d;
+    else if (i > 0 && d.join() === STARTERS.join()) o.decks[i] = [];        // an older save filled every spare slot with the starter deck: hand those back empty
+    else if (d.length === DECK_SIZE || i > 0) o.decks[i] = d;               // (an older save with a broken first deck keeps the starter deck)
   }
   for (const d of o.decks) for (const c of d) o.cards[c] = Math.max(1, o.cards[c] || 0);          // a deck slot that fell back to the starter deck brings its cards with it
   o.deck = int(p.deck, 0, DECK_SLOTS - 1, 0); o.onboarded = p.onboarded !== false;
   if (p.friends && typeof p.friends === 'object'){ let n = 0; for (const k in p.friends){ const nm = clean(k, 20); if (nm && n++ < 200) o.friends[nm] = int(p.friends[k], 0, 9e15, 0); } }
   o.flags = {}; if (p.flags && typeof p.flags === 'object') for (const k in p.flags) if (/^[a-z0-9]{1,12}$/.test(k) && p.flags[k]) o.flags[k] = 1;
+  o.flags.dk = 1;
   if (old) o.flags.moved = 1;                             // tell them once what changed
   if (p.stats && typeof p.stats === 'object') for (const k in o.stats) o.stats[k] = int(p.stats[k], 0, 9999999, 0);
   return o;

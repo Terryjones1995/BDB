@@ -1,7 +1,7 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul } from './cards.js?v=1115h';
-import { TPS, W, L, riverOf } from './sim.js?v=1115h';
+import { CARDS, lvlMul } from './cards.js?v=1115k';
+import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1115k';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -108,6 +108,18 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     const wardH = kind('ward'), weakT = myTw.filter(o => o.hp < o.max * .38).sort((a, b) => a.hp - b.hp)[0];
     if (wardH && weakT && !(weakT.sh > 0) && (seen.size || foes.some(o => dist(o, weakT) < 6)) && rnd() < prof.smart) return put(wardH, weakT.x, weakT.z * s);
 
+    // a God in hand is played on purpose, not just when the Mana is there. Thor and Death land when the other side has a crowd out (their arrival
+    // hits every one of them, wherever they are); Zeus lands when his own side does, since his arrival shields and enrages all of it.
+    const gh = p.hand.map((c, i) => ({i, c, card:CARDS[c.id], U:CARDS[c.id].U || null})).find(h => h.card.rar === 'g' && h.U);
+    if (gh && rnd() < .35 + prof.smart * .65){
+      const U = gh.U, out = foes.filter(o => o.dep <= 0), bulk = out.reduce((a, o) => a + o.hp, 0), army = mine.filter(o => !o.U.bld).length;
+      const now = U.smite ? out.length >= 4 || bulk >= 1700 : U.reap ? bulk >= 2000 || out.length >= 5 : army >= 3 || (army >= 2 && out.length >= 3);
+      if (now || p.el >= 9.7){
+        if (p.el >= gh.card.cost){ const fr = mine.filter(o => !o.U.bld).sort((a, b) => a.z * s - b.z * s)[0]; return put(gh, fr ? fr.x * .6 : (hot ?? 0) * .5, U.rng > 2 ? Math.max(edge + 3, fr ? fr.z * s + 4 : 8) : Math.max(edge + .6, fr ? fr.z * s + 1.5 : edge + 2)); }
+        if (!foes.some(o => o.z * s > 5)) return;                                  // nearly enough Mana and nothing at the gate: wait for him
+      }
+    }
+
     // 2. defend: something is on my half
     const threats = foes.filter(o => o.z * s > -1.5 && o.dep <= 0);
     if (threats.length){
@@ -182,7 +194,7 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     }
 
     // 4. attack when there is Mana to spend (sooner once Mana is coming in double and triple)
-    const rate = sim.left <= 60 ? 3 : sim.left <= 120 ? 2 : 1, hold = Math.max(4, prof.hold - (rate - 1) * 1.2);
+    const rate = manaRate(sim.left, sim.phase === 'ot'), hold = Math.max(4, prof.hold - (rate - 1) * 1.2);
     if (p.el < hold && p.el < 9.6) return;
     const front = mine.filter(o => !o.U.bld).sort((a, b) => a.z * s - b.z * s)[0];      // my troop furthest up the field
     const pr = eTw.filter(o => o.key === 'princess');

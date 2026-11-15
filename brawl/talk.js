@@ -215,6 +215,9 @@ const S = {
   auditor:"I have some questions.|Your Mana. It is not adding up.|This will take a while.|Per section four. You lose.|Receipts. Now.|Everything slows down for an audit.",
   /* ----- Dragon ----- */
   infernus:"Kneel before the flame.|I land. Everything burns.|You brought an army. I brought fire.|Roast everyone.|The sky was mine. Now the ground is too.|Ash is all you will be.",
+  thor:"Thunder first. Questions never.|Everybody on the field just got a letter from me.|Hands up if you felt that. Good, all of you.|I do not knock. I strike.|Storm is here. So am I.|Stand still. It hurts the same either way.",
+  deathgod:"Everyone comes to me in the end. You are early.|Twenty friends, and room for more.|A quarter of you is already mine.|Do not run. You will only die tired.|Whatever falls today works for me tomorrow.|It is not personal. It never is.",
+  zeus:"Kneel, or be found. The bolt does not miss.|Olympus sends its regards, all at once.|My side is blessed. Yours is being watched.|I was old when your towers were sand.|Biggest one first. That is you.|A king does not visit. He reigns.",
   jade:"Look up. Last thing you will do.|Green means go. Go burn.|I do not land. I arrive.|Everything under me is toast.|Bow or bake. Your call.|Rawr. That was the warning.",
   emberwing:"Fire from above.|Splash zone is everywhere.|Wings up, towers down.|Smells like a win. And smoke.|Fly over. Burn through.|Well done. Extra crispy.",
   elder:"I am the biggest thing in the sky.|Burn, little things.|Look up and despair.|Wide breath. Wider damage.|Ancient and annoyed.|The sky has teeth.",

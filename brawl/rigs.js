@@ -71,6 +71,7 @@ export const RIGS = {
   scald:T('Salamander', 1.7, {idle:'IdleB'}), razorback:T('LizardPunk', 1.5, {idle:'IdleB'}), kai:T('DragonKid', 1.35, {atk:'Kick', idle:'IdleB', at:.45}), spikeback:T('SpikeTurtle', 1.6), plum:F('PurpleDragon', 1.2, {atk:'Throw', at:.7, fly:1.3}),
   noir:S('CoatDuelist', 1.45, {atk:'Throw', idle:'IdleB', lift:.4}), onyx:S('HornNinja', 1.4, {atk:'Kick', idle:'IdleB', lift:.35}), midnight:T('HatRogue', 1.7, {idle:'IdleB', lift:.5}), prior:T('RedCultist', 1.9, {idle:'IdleB', lift:.4}),
   malgrave:F('PurpleWraith', 1.8, {atk:'Throw', at:.8, fly:1.2, lift:.4}), turnkey:F('KeyWraith', 1.9, {atk:'Throw', at:.9, fly:1.3, lift:.5}), auditor:T('HaloMan', 2.1, {lift:.55}), slagmaw:T('LavaDemon', 2.1, {idle:'IdleB', lift:.55}),
+  thor:T('Thor', 2.0, {idle:'IdleB', at:.55}), deathgod:T('Death', 2.5, {idle:'IdleB', lift:.6, at:.7}), zeus:C('Zeus', 2.1, {at:.8, lift:.3}),
   nightmare:R('BlackHorse', 1.7, {walk:'Run', lift:.55, at:.6}), horseman:{f:'T_Horseman', h:2.5, gallop:true, lift:.4},
   jade:R('Dragon', 2.2, {lift:.25, at:.6, walk:'Idle', fly:1.6, flap:1}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
 };
