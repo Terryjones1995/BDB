@@ -31,6 +31,7 @@ Each lives in its own folder and saves a top 5 on the device.
 - `blocks/` Break Room Blocks: falling-blocks puzzle
 - `tycoon/` BDB Tycoon: property-trading board game for 2–6 (bots, pass-and-play, online tables; host-authoritative, bots cover dropped seats)
 - `fleet/` Sink BDB: hide your fleet and hunt his, vs BDB at 3 levels or online 1v1 with a fair-play check
+- `brawl/` Break Room Brawl: 3D lane battles in three.js. 1,152 generated cards (24 characters x 12 styles x 4 rarities), 15-card decks, coin upgrades, 8 CPU BDBs, 5 maps, device saves with a save code (`store.js` is the one place to plug in real accounts), online 1v1 with emotes and pause (host-authoritative over the chess transport)
 
 New games start from `assets/TEMPLATE.html`, which uses the shared `assets/kit.css` and `assets/kit.js`.
 
