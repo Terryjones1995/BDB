@@ -1,163 +1,334 @@
-/* Break Room Brawl: every card, unit, map and CPU opponent. Pure data, no DOM, shared by the rules, the CPU and the screens.
-   29 cards (troops, buildings, spells and traps) x 12 styles x 4 rarities = 1,392 cards, all generated from the tables below. */
+/* Break Room Brawl: every card, unit, map, pack, deck and CPU opponent. Pure data, no DOM, shared by the rules, the CPU and the screens.
+   130 characters, spells, buildings and traps, each in 10 builds = 1,300 cards. Every character has one fixed rarity and one type. */
 
 export const RAR = {
-  c:{name:'Common',    price:200,  w:60, col:'#9fb3d9', mul:1},
-  r:{name:'Rare',      price:800,  w:28, col:'#ff9d3c', mul:1.1},
-  e:{name:'Epic',      price:2500, w:10, col:'#c77dff', mul:1.2},
-  l:{name:'Legendary', price:8000, w:2,  col:'#ffd95a', mul:1.32}
+  c:{name:'Common',    w:60, col:'#9fb3d9', base:50,   per:15},
+  r:{name:'Rare',      w:28, col:'#ff9d3c', base:260,  per:30},
+  e:{name:'Epic',      w:10, col:'#c77dff', base:900,  per:100},
+  l:{name:'Legendary', w:2,  col:'#ffd95a', base:3600, per:200}
 };
 export const RAR_IDS = ['c', 'r', 'e', 'l'];
-const TIER = {c:1, r:1.5, e:2.2, l:4};                  // how prized the character itself is
 export const MAX_LVL = 10;
 export const lvlMul = l => 1 + .08 * (Math.max(1, l) - 1);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
-/* Styles: the same character with a different build. chill slows what it hits, steal heals it on every hit. */
+/* Types. Four or more cards of one type in a deck and that type fights harder (see typeBonus). */
+export const TYPES = {
+  dragon:{name:'Dragon',     col:'#35c46a'}, fire:{name:'Fire',     col:'#ff6a2b'}, frost:{name:'Frost',  col:'#63c8ff'}, arcane:{name:'Wizard', col:'#a678ff'},
+  dark:  {name:'Dark Arts',  col:'#8d6bd1'}, shadow:{name:'Shadow', col:'#7c8aa8'}, beast:{name:'Beast',  col:'#c98a4b'}, nature:{name:'Nature', col:'#7ccf4a'},
+  horde: {name:'Horde',      col:'#d6583a'}, order:{name:'Order',   col:'#f2c14e'}, tech:{name:'Machine', col:'#5fd6d0'}, crew:{name:'Break Room', col:'#ff7aa8'}
+};
+export const TYPE_IDS = Object.keys(TYPES);
+export const SET_AT = [4, 7, 10], SET_MUL = [1.06, 1.12, 1.18];
+export function typeBonus(ids){
+  const n = {}, out = {}; for (const id of ids || []){ const c = CARDS[id]; if (c) n[c.type] = (n[c.type] || 0) + 1; }
+  for (const t in n){ let m = 1; for (let i = 0; i < SET_AT.length; i++) if (n[t] >= SET_AT[i]) m = SET_MUL[i]; if (m > 1) out[t] = m; }
+  return out;
+}
+export const typeCount = ids => { const n = {}; for (const id of ids || []){ const c = CARDS[id]; if (c) n[c.type] = (n[c.type] || 0) + 1; } return n; };
+
+/* Builds: the same character with a different build. w: how often a pack turns one up. pm: price. */
 export const AFF = {
-  std:  {name:'',        tint:null,     cost:0,  hp:1,    dmg:1,    spd:1,    size:1,    note:''},
-  rook: {name:'Rookie',  tint:0xb6e39a, cost:-1, hp:.74,  dmg:.78,  spd:1.05, size:.86,  note:'Rookie: costs 1 less Mana and is a little weaker.'},
-  vet:  {name:'Veteran', tint:0x8a6a4a, cost:1,  hp:1.32, dmg:1.28, spd:1,    size:1.08, note:'Veteran: costs 1 more, hits harder and lasts longer.'},
-  ice:  {name:'Frozen',  tint:0x7fd4ff, cost:0,  hp:1,    dmg:.9,   spd:.95,  size:1,    note:'Frozen: every hit slows the target.', chill:1.8},
-  fire: {name:'Blazing', tint:0xff5a1f, cost:0,  hp:.85,  dmg:1.3,  spd:1.05, size:1,    note:'Blazing: more damage, less health.'},
-  gold: {name:'Golden',  tint:0xffcf3a, cost:1,  hp:1.2,  dmg:1.2,  spd:1.1,  size:1.04, note:'Golden: stronger and quicker. Costs 1 more.'},
-  quick:{name:'Turbo',   tint:0xc8f53a, cost:0,  hp:.82,  dmg:.95,  spd:1.4,  size:.94,  note:'Turbo: much faster on its feet and on the attack, but fragile.', haste:.85},
-  iron: {name:'Iron',    tint:0x8f99ad, cost:0,  hp:1.5,  dmg:.9,   spd:.8,   size:1.05, note:'Iron: far more health, but slower.'},
-  vamp: {name:'Vampire', tint:0x8a4fd8, cost:0,  hp:.92,  dmg:1,    spd:1,    size:1,    note:'Vampire: heals itself with every hit.', steal:.35},
-  elite:{name:'Elite',   tint:0xd8263c, cost:1,  hp:1.12, dmg:1.42, spd:1,    size:1.03, note:'Elite: hits much harder. Costs 1 more.'},
-  tox:  {name:'Toxic',   tint:0x58d848, cost:0,  hp:.95,  dmg:.95,  spd:1,    size:1,    note:'Toxic: bursts and hurts everything nearby when it is defeated.', toxic:1},
-  giant:{name:'Giant',   tint:0xff7aa8, cost:2,  hp:1.8,  dmg:1.35, spd:.85,  size:1.32, note:'Giant: huge, tough and slow. Costs 2 more.'}
+  std:  {name:'',        tint:null,     cost:0,  hp:1,    dmg:1,    spd:1,    size:1,    w:50, pm:1,   note:''},
+  rook: {name:'Rookie',  tint:0xb6e39a, cost:-1, hp:.74,  dmg:.78,  spd:1.05, size:.86,  w:8,  pm:.9,  note:'Rookie: costs 1 less Mana and is a little weaker.'},
+  ice:  {name:'Frozen',  tint:0x7fd4ff, cost:0,  hp:1,    dmg:.9,   spd:.95,  size:1,    w:7,  pm:1.4, note:'Frozen: every hit slows the target.', chill:1.8},
+  fire: {name:'Blazing', tint:0xff5a1f, cost:0,  hp:.88,  dmg:1.05, spd:1.05, size:1,    w:7,  pm:1.4, note:'Blazing: every hit sets the target on fire.', burn:.3},
+  quick:{name:'Turbo',   tint:0xc8f53a, cost:0,  hp:.82,  dmg:.95,  spd:1.4,  size:.94,  w:7,  pm:1.4, note:'Turbo: much faster on its feet and on the attack, but fragile.', haste:.85},
+  iron: {name:'Iron',    tint:0x8f99ad, cost:0,  hp:1.5,  dmg:.9,   spd:.8,   size:1.05, w:7,  pm:1.3, note:'Iron: far more health, but slower.'},
+  tox:  {name:'Toxic',   tint:0x58d848, cost:0,  hp:.95,  dmg:.95,  spd:1,    size:1,    w:5,  pm:1.5, note:'Toxic: bursts and hurts everything nearby when it is defeated.', toxic:1},
+  vamp: {name:'Vampire', tint:0x8a4fd8, cost:0,  hp:.92,  dmg:1,    spd:1,    size:1,    w:4,  pm:1.6, note:'Vampire: heals itself with every hit.', steal:.35},
+  gold: {name:'Golden',  tint:0xffcf3a, cost:1,  hp:1.25, dmg:1.28, spd:1.08, size:1.05, w:3,  pm:2,   note:'Golden: stronger and quicker. Costs 1 more Mana.'},
+  giant:{name:'Giant',   tint:0xff7aa8, cost:2,  hp:1.8,  dmg:1.35, spd:.85,  size:1.32, w:2,  pm:2.2, note:'Giant: huge, tough and slow. Costs 2 more Mana.'}
 };
 export const AFF_IDS = Object.keys(AFF);
 
+/* What each job gets per Mana spent. A horde splits a little health between a lot of bodies; a giant is one enormous health bar.
+   [health, damage per second, seconds per hit, reach, speed, body radius] */
+const ROLE = {
+  swarm:  [100, 85, 1.0, .5,  1.9,  .28], runner: [150, 70, .9,  .5,  2.3,  .32], brawler:[300, 27, 1.2, .7,  1.3,  .5],  bruiser:[225, 36, 1.4, .8,  1.3,  .55],
+  tank:   [400, 18, 1.5, .8,  1.05, .75], giant:  [460, 14, 2.0, .8,  .85,  .95], archer: [110, 36, 1.1, 5,   1.3,  .34], sniper: [105, 30, 1.2, 6.2, 1.25, .4],
+  caster: [85,  22, 1.5, 5,   1.25, .4],  support:[150, 14, 1.3, 3.5, 1.3,  .4],  flyer:  [185, 32, 1.3, .7,  1.9,  .45], flock:  [95,  75, 1.2, .6,  2.3,  .3],
+  killer: [140, 42, 1.0, .7,  1.8,  .4],  build:  [190, 28, .9,  5.5, 0,    .8]
+};
+export const ROLE_NAME = {swarm:'Horde', runner:'Runner', brawler:'Brawler', bruiser:'Heavy hitter', tank:'Tank', giant:'Giant', archer:'Ranged', sniper:'Sniper', caster:'Caster', support:'Support',
+  flyer:'Flyer', flock:'Flying horde', killer:'Assassin', build:'Building'};
+
+/* The roster: [key, name, type, rarity, job, Mana, how many, extras, description]. Mana 0 is a unit that only ever arrives through another card.
+   Extras: hm / dm scale health and damage; the rest are abilities the rules know (see sim.js). */
+const ROSTER = [
+  /* ----- Order ----- */
+  ['ironclad', 'Ironclad', 'order', 'c', 'brawler', 3, 1, {shield:220}, 'Sword, shield and no days off. His shield soaks up the first few hits for free.'],
+  ['longshots', 'Longshots', 'order', 'c', 'archer', 3, 2, {shot:'arrow'}, 'Two archers who hit ground and air from way back. Keep something big in front of them.'],
+  ['dawnhammer', 'Dawnhammer', 'order', 'r', 'tank', 5, 1, {heal:{amt:55, r:3, every:1}, splash:1, dm:.9}, 'A walking wall with a war hammer. Everyone standing near her keeps getting patched up.'],
+  ['oathkeeper', 'Oathkeeper', 'order', 'e', 'brawler', 5, 1, {land:{r:3.2, shield:350}, taunt:3.2, hm:1.1}, 'Lands and hands every teammate nearby a shield, then dares the other side to hit him first.'],
+  ['bell', 'Bellkeeper', 'order', 'r', 'bruiser', 5, 1, {splash:1.15, dm:.62, land:{r:2.6, dmg:90, stun:1.6}, stun:{every:4, t:.8}}, 'Rings the bell when he lands: everything close is stunned. Every fourth swing rings it again.'],
+  /* ----- Shadow ----- */
+  ['cutpurse', 'Cutpurse', 'shadow', 'r', 'killer', 3, 1, {hm:1.25, spd:2.2, leech:.35}, 'Quick hands. Every hit he lands on a tower lifts a little Mana for you.'],
+  ['nightbolt', 'Nightbolt', 'shadow', 'c', 'sniper', 4, 1, {shot:'bolt'}, 'One crossbow, one target, a very long way off.'],
+  ['vesper', 'Vesper', 'shadow', 'r', 'killer', 4, 1, {stealth:{mul:3, re:3.5}}, 'Nobody sees her coming. Her first strike from the dark lands triple, then she slips away again.'],
+  ['kage', 'Kage', 'shadow', 'e', 'killer', 4, 1, {any:1, dodge:.3, crit:{every:3, mul:2}}, 'Drops in anywhere on the field, their side included. Dodges, and every third cut lands double.'],
+  ['shinobi', 'Shinobi Brute', 'shadow', 'r', 'bruiser', 4, 1, {crit:{every:3, mul:2.2}}, 'Two blades and a short fuse. Every third swing is a monster.'],
+  /* ----- Dark Arts ----- */
+  ['bonecrew', 'Bone Crew', 'dark', 'c', 'swarm', 2, 4, {u:'skel'}, 'Four skeletons on the night shift. Cheap, fast, and gone in one hit.'],
+  ['boneknight', 'Bone Knight', 'dark', 'c', 'brawler', 3, 1, {revive:.35, hm:.85}, 'Knock him down and he gets back up. Once.'],
+  ['bonearchers', 'Bone Archers', 'dark', 'c', 'archer', 3, 2, {shot:'bolt'}, 'Two dead-eyed crossbows. No lungs, so they never breathe before the shot.'],
+  ['gravewitch', 'Grave Witch', 'dark', 'e', 'caster', 5, 1, {splash:.8, dm:.75, spawn:{u:'skel', every:6.5, n:3, first:1}, shot:'magic'}, 'Splash magic from range, and three fresh skeletons every few seconds.'],
+  ['mort', 'Mort the Necromancer', 'dark', 'r', 'support', 5, 1, {rng:5, dm:1.3, raise:{u:'skel', r:4.5, max:6, cd:1}, mark:{t:4}, shot:'magic'}, 'Anything that dies near him gets back up as his skeleton. His curse makes targets take extra damage.'],
+  ['colossus', 'Bone Colossus', 'dark', 'e', 'giant', 7, 1, {revive:.4}, 'A giant that only wants towers. Break it and it pulls itself back together for another go.'],
+  ['sanguine', 'Count Sanguine', 'dark', 'e', 'bruiser', 5, 1, {steal:.5, grow:{per:.12, max:6}}, 'Drinks back half of every hit, and every kill makes him hit harder for the rest of the match.'],
+  ['lostsoul', 'Lost Soul', 'dark', 'c', 'flyer', 3, 1, {}, 'Floats over everything and hits hard. Still looking for whoever owes it money.'],
+  ['wraith', 'Skullwraith', 'dark', 'r', 'flyer', 4, 1, {chill:2, steal:.3, rng:2.5, shot:'magic'}, 'Flies, chills what it hits and feeds on it.'],
+  ['gloombats', 'Gloom Bats', 'dark', 'c', 'flock', 2, 4, {u:'gbat'}, 'Four flying pests. Ground troops without range cannot touch them.'],
+  ['terror', 'Night Terror', 'dark', 'r', 'flyer', 4, 1, {split:{u:'gbat', n:3}, hm:.9}, 'One big bat. Kill it and three smaller problems fall out.'],
+  ['nightfall', 'Nightfall', 'dark', 'e', 'tank', 6, 1, {armor:45, splash:1.4, dm:1.1}, 'The Black Knight. Small hits barely scratch the armour, and the sword clears a whole crowd.'],
+  ['lich', 'Mortis, the Lich King', 'dark', 'l', 'caster', 7, 1, {hm:1.9, dm:1.25, splash:1.2, raise:{u:'skel', r:5.5, max:10, cd:.6}, land:{r:3, summon:{u:'skel', n:4}}, shot:'magic'}, 'Arrives with four skeletons and raises another from everything that dies near him. The longer the fight, the bigger his army.'],
+  /* ----- Fire ----- */
+  ['hellion', 'Hellion', 'fire', 'r', 'bruiser', 5, 1, {land:{r:2.4, dmg:160, burn:1}, burn:{dps:38, t:3}}, 'Lands in a burst of fire that burns everything close, then keeps setting things alight with a pitchfork.'],
+  ['imps', 'Fire Imps', 'fire', 'c', 'flock', 3, 3, {burn:{dps:18, t:3}, hm:1.2}, 'Three flying imps. Whatever they touch keeps burning after they leave.'],
+  ['cinder', 'Cinder', 'fire', 'r', 'killer', 4, 1, {burn:{dps:30, t:3}, berserk:1}, 'A flaming sword and a temper. The more hurt she is, the faster she swings.'],
+  ['magmaw', 'Magmaw', 'fire', 'e', 'giant', 7, 1, {aura:{r:2.2, burn:45}, death:{dmg:260, r:2.6, delay:.5, pool:{dps:70, t:5}}}, 'A lava giant that walks at towers and burns everything beside it. It leaves a pool of fire where it falls.'],
+  /* ----- Frost ----- */
+  ['glacius', 'Glacius', 'frost', 'r', 'tank', 5, 1, {regen:.025, chill:2, dm:1.15, land:{r:2.8, dmg:70, slow:3.5}}, 'Lands with a blast of cold that slows everything near. Heals himself the whole time he is standing.'],
+  ['permafrost', 'Permafrost', 'frost', 'e', 'giant', 6, 1, {numb:2, death:{dmg:120, r:2.8, delay:.3, frz:1.6}}, 'An ice giant bound for towers. Anything that hits it slows down, and it freezes the area solid when it shatters.'],
+  ['yeti', 'Yeti', 'frost', 'c', 'brawler', 4, 1, {chill:1.6}, 'Big, furry and cold to the touch. Every hit slows the target.'],
+  ['frostbeak', 'Frostbeak', 'frost', 'c', 'bruiser', 3, 1, {leap:{min:2, max:4.5, mul:1.6}}, 'Pounces on whatever it is hunting. The landing hits extra hard.'],
+  ['tundra', 'Tundra Ogre', 'frost', 'r', 'tank', 5, 1, {knock:1.3, dm:1.3, hit:1.7}, 'Swings a bat like he means it. Every hit knocks the target back.'],
+  /* ----- Wizard ----- */
+  ['zephyr', 'Zephyr, Stormcaller', 'arcane', 'e', 'caster', 5, 1, {splash:0, chain:{n:3, r:3, fall:.75}, stun:{every:3, t:.5}, dm:1.1, hit:1.4, shot:'zap'}, 'His lightning jumps from the target to three more. Every third bolt stuns.'],
+  ['hexa', 'Hexa', 'arcane', 'c', 'caster', 4, 1, {shot:'magic'}, 'Throws spells that splash everything near the target, ground or air.'],
+  ['tonic', 'Tonic', 'arcane', 'r', 'support', 4, 1, {heal:{amt:48, r:3, every:1}, shot:'potion'}, 'A witch with a potion for everything. Keeps everyone around her topped up.'],
+  ['wizlings', 'Wizlings', 'arcane', 'c', 'archer', 3, 2, {shot:'magic', hm:.9}, 'Two apprentice wizards. Small hats, real spells.'],
+  ['stalker', 'Void Stalker', 'arcane', 'r', 'bruiser', 4, 1, {mark:{t:4}}, 'Whatever it hits is marked, and marked targets take extra damage from everyone.'],
+  ['hexsprite', 'Hex Sprite', 'arcane', 'c', 'flyer', 3, 1, {rng:3.5, shot:'magic', mark:{t:3}, dm:.8, hm:.8}, 'Flies and throws hexes. Whatever it tags takes extra damage.'],
+  ['mindsquid', 'Mind Squid', 'arcane', 'r', 'flyer', 4, 1, {rng:3.5, splash:1.2, chill:2.2, dm:.6, shot:'ink'}, 'Sprays ink from above. Everything it splashes slows right down.'],
+  ['sentinel', 'Star Sentinel', 'arcane', 'c', 'flyer', 3, 1, {shield:160, hm:.85}, 'A flyer with a shield. The first hits are on the house.'],
+  ['archon', 'Astral Archon', 'arcane', 'e', 'flyer', 5, 1, {rng:3, chain:{n:2, r:2.6, fall:.7}, shield:260, shot:'zap', dm:.85}, 'Shielded, airborne, and its bolts jump to two more targets.'],
+  /* ----- Beast ----- */
+  ['gorehorn', 'Gorehorn', 'beast', 'e', 'bruiser', 5, 1, {charge:{after:2, spd:2, dmg:2.4, dash:1}, knock:1.4, hm:1.25, r:.7}, 'A minotaur who is already charging when he arrives. The first hit lands for more than double and flattens whoever is in the way.'],
+  ['lycan', 'Lycan', 'beast', 'e', 'bruiser', 5, 1, {leap:{min:2, max:5, mul:1.8}, steal:.3, spd:1.7}, 'Leaps onto its target and heals with every bite.'],
+  ['woodsman', 'Woodsman', 'beast', 'r', 'brawler', 4, 1, {morph:{u:'lycan', at:.5}, hm:.8}, 'A man with an axe, until you get him down to half health. Then he is a werewolf.'],
+  ['thumper', 'Thumper', 'beast', 'c', 'bruiser', 3, 1, {leap:{min:2, max:4.5, mul:1.5}}, 'A very large rabbit. Jumps on things. Hits them with a carrot.'],
+  ['monkroose', 'Monkroose', 'beast', 'c', 'caster', 4, 1, {rng:4.5, splash:1.1, hm:1.6, shot:'rock'}, 'Lobs rocks that splash. Tougher than most things that fight from range.'],
+  ['landshark', 'Landshark', 'beast', 'r', 'bruiser', 4, 1, {exec:{at:.4, mul:2}}, 'Smells blood. Hits anything below 40 percent health for double.'],
+  ['piranhas', 'Piranha Pack', 'beast', 'c', 'swarm', 2, 4, {exec:{at:.5, mul:1.6}}, 'Four of them. They go faster through anything already half finished.'],
+  /* ----- Nature ----- */
+  ['thornweaver', 'Thornweaver', 'nature', 'r', 'support', 4, 1, {heal:{amt:40, r:3, every:1}, chill:2, rng:4.5, dm:1.3, shot:'leaf'}, 'A druid who heals everyone near him and tangles whatever he hits in roots.'],
+  ['elderbark', 'Elderbark', 'nature', 'e', 'tank', 6, 1, {regen:.02, heal:{amt:45, r:3.2, every:1}, land:{r:3, slow:3.5, dmg:60}, hm:1.05}, 'A walking tree. Roots burst out where he lands and slow everything near, he mends himself, and he heals everyone beside him.'],
+  ['mushking', 'Mushroom King', 'nature', 'e', 'tank', 6, 1, {spawn:{u:'mushnub', every:6, n:2, first:2}, hm:.85}, 'Wide, slow and never alone. Two more Mushnubs pop up beside him every few seconds.'],
+  ['mushnubs', 'Mushnubs', 'nature', 'c', 'swarm', 2, 4, {u:'mushnub'}, 'Four little mushrooms with a poisonous bite.'],
+  ['sporecap', 'Sporecap', 'nature', 'r', 'brawler', 3, 1, {aura:{r:2, psn:22}}, 'Walks in a cloud of spores. Standing next to it is the mistake.'],
+  ['cactoro', 'Cactoro', 'nature', 'r', 'brawler', 4, 1, {thorns:.45}, 'Punch a cactus and see what happens. Nearly half of every hit comes straight back.'],
+  ['prickles', 'Prickles', 'nature', 'c', 'swarm', 2, 3, {thorns:.3, hm:1.2}, 'Three small cacti in big hats. They hurt to hit.'],
+  ['dartfrog', 'Dart Frog', 'nature', 'c', 'bruiser', 3, 1, {psn:{dps:28, t:4}, leap:{min:2, max:4, mul:1.3}, dm:.8}, 'Hops onto its target and leaves it poisoned.'],
+  ['slime', 'Slime', 'nature', 'c', 'brawler', 3, 1, {split:{u:'slimelet', n:2}, hm:.6, r:.6, spd:1.1}, 'Pop it and it splits into two smaller ones.'],
+  ['spikeslime', 'Spike Slime', 'nature', 'r', 'tank', 4, 1, {thorns:.35, split:{u:'slimelet', n:3}, hm:.7}, 'Hurts to hit, and breaks into three Slimelets when it finally goes.'],
+  ['bees', 'Bee Swarm', 'nature', 'c', 'flock', 2, 4, {u:'bee'}, 'Four bees. The sting keeps hurting after they are gone.'],
+  ['queen', 'Hive Queen', 'nature', 'e', 'flyer', 5, 1, {spawn:{u:'bee', every:5.5, n:2, first:1.5}, rng:2.5, shot:'sting', psn:{dps:20, t:3}, hm:1.1, dm:.7}, 'Flies, stings from range, and sends out two more bees every few seconds.'],
+  ['cluckers', 'Cluckers', 'nature', 'c', 'swarm', 2, 5, {hm:.9}, 'Five angry chickens. Nobody knows who let them in.'],
+  ['pigeons', 'Pigeon Flock', 'nature', 'c', 'flock', 2, 4, {dodge:.25}, 'Four pigeons with a grudge. They fly, and a quarter of everything aimed at them misses.'],
+  /* ----- Horde ----- */
+  ['gorak', 'Gorak, Warchief', 'horde', 'r', 'bruiser', 5, 1, {aura:{r:3.6, haste:1}, hm:1.15, splash:.9, dm:.8}, 'Everyone fighting near him moves and hits a third faster. He hits a few of them at once himself.'],
+  ['raider', 'Orc Raider', 'horde', 'c', 'brawler', 3, 1, {dm:1.15, hm:.92}, 'An axe and an attitude. Good at the front of anything.'],
+  ['skullcrusher', 'Skullcrusher', 'horde', 'r', 'bruiser', 4, 1, {stun:{every:3, t:1}}, 'Every third hit leaves the target seeing stars.'],
+  ['mauler', 'Orc Mauler', 'horde', 'c', 'bruiser', 4, 1, {splash:1, dm:.7}, 'Swings a spiked club wide enough to catch everything around him.'],
+  ['orclings', 'Orclings', 'horde', 'c', 'swarm', 2, 4, {pack:{r:3, per:.1, max:3}}, 'Four small orcs who raid towers the way BDB raids the vending machine. They hit harder when the mob stays together.'],
+  ['witchdoc', 'Witch Doctor', 'horde', 'r', 'caster', 4, 1, {mark:{t:5}, splash:.9, shot:'magic'}, 'His hexes splash, and everything they touch takes extra damage for a while.'],
+  ['skytotem', 'Sky Totem', 'horde', 'r', 'flyer', 4, 1, {aura:{r:3.2, haste:1}, hm:1.1, dm:.6}, 'A flying mask that drums. Your troops beneath it move and hit a third faster.'],
+  ['gremlins', 'Gremlins', 'horde', 'c', 'flock', 2, 3, {hm:1.3, dm:1.1}, 'Three flying gremlins. A little tougher than the usual pests.'],
+  ['gremking', 'Gremlin King', 'horde', 'r', 'flyer', 4, 1, {leech:.4, hm:1.05}, 'Flies straight for towers, and every hit on one steals Mana for you.'],
+  ['bloodaxe', 'Bloodaxe', 'horde', 'c', 'bruiser', 4, 1, {berserk:1}, 'The closer he is to dropping, the faster the axe comes round.'],
+  ['goliath', 'Goliath', 'horde', 'e', 'giant', 7, 1, {land:{r:2.6, dmg:180, stun:1.2}}, 'Lands hard enough to stun and hurt everything close, then walks at the nearest tower and ignores everything else.'],
+  ['gronk', 'Gronk', 'horde', 'e', 'tank', 6, 1, {steal:.25, knock:1.2, hm:1.05, dm:1.2}, 'An ogre who eats what he hits. Every swing heals him and knocks the target back.'],
+  ['ugg', 'Ugg', 'horde', 'c', 'brawler', 2, 1, {knock:.7}, 'Two Mana of caveman. Hits things. Things go backwards.'],
+  /* ----- Machine ----- */
+  ['tinker', 'Tinker', 'tech', 'r', 'support', 4, 1, {heal:{amt:70, r:3.5, every:1, bld:1}, rng:1, dm:1.4, hit:1.2}, 'Repairs your towers and buildings while he stands near them. Swings a wrench at anything that objects.'],
+  ['brassbolt', 'Brassbolt', 'tech', 'e', 'brawler', 5, 1, {armor:35, berserk:1, hm:1.15}, 'A brass diving suit with something angry inside. Small hits bounce off the plating, and the more damage he takes the faster he swings.'],
+  ['scrapbot', 'Scrap Bot', 'tech', 'c', 'archer', 3, 1, {hm:1.5, hit:1.3, r:.45, shot:'laser'}, 'One sturdy robot with an arm cannon. Hits ground and air.'],
+  ['shockbot', 'Shock Bot', 'tech', 'r', 'brawler', 4, 1, {stun:{every:3, t:.9}}, 'Every third punch carries enough current to stun.'],
+  ['titan', 'Titan Mech', 'tech', 'e', 'sniper', 6, 1, {hm:1.8, hit:.35, rng:5.5, ramp:{step:.12, max:1.8}, dm:.8, r:.6, shot:'bullet'}, 'A minigun that spins up. The longer it stays on one target, the harder every round hits.'],
+  ['clanker', 'Clanker', 'tech', 'e', 'giant', 7, 1, {armor:40, hm:.9, death:{dmg:240, r:2.4, delay:.6}}, 'A boiler on legs that only wants towers. Small hits bounce off, and it blows up when it breaks.'],
+  ['starranger', 'Star Ranger', 'tech', 'c', 'archer', 3, 1, {hm:1.4, dm:1.05, rng:5.5, shot:'laser'}, 'One rifle, long range, ground or air.'],
+  ['jetace', 'Jetpack Ace', 'tech', 'r', 'flyer', 4, 1, {rng:4.5, shot:'laser', dm:.9, hm:.8}, 'Flies and shoots from range, which is two things most troops cannot answer.'],
+  ['sarge', 'Sarge', 'tech', 'c', 'archer', 3, 1, {hit:.45, hm:1.5, rng:4.5, shot:'bullet'}, 'Fires fast and does not stop. Chews through hordes.'],
+  ['prepper', 'Prepper', 'tech', 'c', 'bruiser', 4, 1, {rng:2.2, splash:1, shield:260, dm:.75, shot:'bullet'}, 'A riot shield in front and a shotgun that hits everything in a short spread.'],
+  ['funbear', 'Funhouse Bear', 'tech', 'c', 'brawler', 3, 1, {hm:1.05}, 'Used to play guitar at birthday parties. Now uses the guitar differently.'],
+  ['afterhours', 'After Hours', 'tech', 'r', 'killer', 4, 1, {land:{r:2.8, stun:1.8}, hm:1.3}, 'The bear nobody switched off. It appears, everything near it freezes in fright, and then it gets to work.'],
+  /* ----- Break Room ----- */
+  ['janitor', 'The Night Janitor', 'crew', 'r', 'brawler', 4, 1, {chill:2, land:{r:2.4, stun:1.4, dmg:40}}, 'Mops the floor on his way in: everything near slips and is stunned. Whatever he hits after that slows right down.'],
+  ['courier', 'Courier', 'crew', 'c', 'bruiser', 3, 1, {only:'b', hm:1.35, r:.42, spd:2.2, charge:{after:2.5, spd:1.5, dmg:1.8, dash:1}}, 'Arrives at a sprint and runs straight at the nearest building, ignoring everybody on the way. The first hit lands nearly double.'],
+  ['trailboss', 'Trail Boss', 'crew', 'c', 'tank', 3, 1, {}, 'Carries everything he owns on his back. A cheap, patient wall.'],
+  ['interns', 'The Interns', 'crew', 'c', 'swarm', 2, 2, {us:['internA', 'internB'], hm:1.5, dm:1.2}, 'Two interns. Unpaid, underprepared and somehow still more productive than BDB.'],
+  ['captain', 'Captain Overtime', 'crew', 'e', 'flyer', 5, 1, {land:{r:2.4, dmg:220, push:1.2}, hm:1.15}, 'Lands like a meteor: heavy damage and everything thrown back. Then he flies around punching things.'],
+  ['helpers', 'Seasonal Help', 'crew', 'c', 'archer', 2, 2, {hm:.9, dm:.8, rng:4, shot:'candy'}, 'Two temps who throw candy canes from range. Cheap, cheerful, gone by January.'],
+  ['giggles', 'Giggles', 'crew', 'r', 'caster', 4, 1, {rng:4.2, splash:1.5, hm:1.3, death:{dmg:150, r:2, delay:1}, shot:'bomb'}, 'Throws bombs that splash wide. Drops one last bomb when he goes down.'],
+  ['mascot', 'The Mascot', 'crew', 'r', 'giant', 5, 1, {}, 'Huge, slow and only interested in buildings. Protect him and towers fall.'],
+  ['bdb', 'Five-Star BDB', 'crew', 'l', 'tank', 7, 1, {splash:1.7, dm:1.55, hm:1.08, rng:1, spd:1.2, r:.9, land:{r:2.6, dmg:140, push:1}}, 'The prospect himself. Huge health, a landing that clears space, and a slam that hits everything around him.'],
+  /* ----- Dragon ----- */
+  ['infernus', 'Infernus', 'dragon', 'l', 'caster', 7, 1, {hm:3.2, rng:3.4, splash:1.6, burn:{dps:45, t:3}, dm:1.15, r:.75, land:{r:2.8, dmg:200, burn:1}, shot:'fire'}, 'The red dragon. Lands in a ring of fire, then breathes across everything in front of him, ground or air, and leaves it all burning.'],
+  ['jade', 'Jadefang', 'dragon', 'r', 'caster', 5, 1, {hm:2.2, rng:3.2, splash:1.4, burn:{dps:30, t:3}, dm:.95, r:.6, shot:'fire'}, 'Breathes fire across everything in front of her, ground or air, and leaves it burning.'],
+  ['emberwing', 'Emberwing', 'dragon', 'c', 'flyer', 4, 1, {rng:3, splash:1.3, dm:.55, r:.6, spd:1.6, shot:'fire'}, 'Flies over the river and breathes splash fire on ground and air.'],
+  ['elder', 'Elder Wyrm', 'dragon', 'e', 'flyer', 6, 1, {rng:3.5, splash:1.5, burn:{dps:35, t:3}, dm:.6, hm:1.15, r:.8, spd:1.4, shot:'fire'}, 'The biggest thing in the sky. A wide breath of fire, and everything it catches keeps burning.'],
+  ['raptor', 'Raptor', 'dragon', 'c', 'bruiser', 3, 1, {spd:1.9, leap:{min:2.2, max:4.5, mul:1.5}, hm:.9}, 'Fast on its feet and faster in the air. Pounces from a long way out.'],
+  ['kaiju', 'Kaiju Kid', 'dragon', 'r', 'bruiser', 4, 1, {splash:1.1, dm:.8, grow:{per:.1, max:8}}, 'Hits everything around it, and gets stronger with every kill. Leave it alone and it becomes a problem.'],
+  /* ----- buildings ----- */
+  ['cannon', 'Cannon', 'order', 'c', 'build', 3, 1, {dm:1.15, life:30, air:0, shot:'ball'}, 'A defence you can put down anywhere on your side. Fires at ground troops and pulls giants toward it.'],
+  ['watchtower', 'Watchtower', 'order', 'r', 'build', 4, 1, {rng:6.5, hm:1.15, dm:.8, life:34, air:1, shot:'arrow'}, 'A guard tower with a long reach. Shoots ground and air.'],
+  ['manawell', 'Mana Well', 'arcane', 'r', 'build', 5, 1, {nodmg:1, life:56, mana:{every:7, amt:1}}, 'A Mana farm. One extra Mana every seven seconds until it runs dry. They will come for it.'],
+  ['crypt', 'Crypt', 'dark', 'r', 'build', 5, 1, {nodmg:1, hm:.85, life:36, spawn:{u:'skel', every:4, n:2, first:1}}, 'A building that keeps sending out skeletons, two at a time.'],
+  ['flamespire', 'Flame Spire', 'fire', 'e', 'build', 5, 1, {rng:5, air:1, ramp:{step:.35, max:6}, hit:.4, dm:.35, life:32, shot:'beam'}, 'A beam that starts as a tickle and ends as a blowtorch. The answer to anything huge.'],
+  ['stormcoil', 'Storm Coil', 'arcane', 'e', 'build', 4, 1, {rng:4.5, air:1, chain:{n:3, r:2.8, fall:.7}, stun:{every:3, t:.5}, life:30, hit:1.6, dm:1.1, shot:'zap'}, 'Zaps one target and the bolt jumps to three more. Every third zap stuns.'],
+  ['barricade', 'Barricade', 'order', 'c', 'build', 2, 1, {nodmg:1, hm:3.2, life:40}, 'Two Mana of wall. It does nothing except stand in the way, and giants cannot walk past it.'],
+  ['shrine', 'Healing Shrine', 'nature', 'r', 'build', 4, 1, {nodmg:1, hm:.9, life:36, heal:{amt:45, r:3.5, every:1}}, 'Heals every teammate standing near it. Park a fight on top of it.'],
+  ['wardrum', 'War Drum', 'horde', 'r', 'build', 4, 1, {nodmg:1, hm:.9, life:36, aura:{r:4, haste:1}}, 'While it beats, your troops near it move and hit a third faster.'],
+  ['nest', 'Dragon Nest', 'dragon', 'e', 'build', 6, 1, {nodmg:1, hm:1.2, life:40, spawn:{u:'whelp', every:6.5, n:1, first:1.5}}, 'Hatches a flying Whelp every few seconds.'],
+  /* ----- units that only arrive through another card ----- */
+  ['skel', 'Skeleton', 'dark', 'c', 'swarm', 0, 1, {as:.5}, ''],
+  ['gbat', 'Gloom Bat', 'dark', 'c', 'flock', 0, 1, {as:.5}, ''],
+  ['slimelet', 'Slimelet', 'nature', 'c', 'brawler', 0, 1, {as:.6, r:.38, spd:1.5, hit:1.1, dm:1.4}, ''],
+  ['mushnub', 'Mushnub', 'nature', 'c', 'swarm', 0, 1, {as:.5, psn:{dps:10, t:3}}, ''],
+  ['bee', 'Bee', 'nature', 'c', 'flock', 0, 1, {as:.5, psn:{dps:8, t:3}}, ''],
+  ['whelp', 'Whelp', 'dragon', 'c', 'flyer', 0, 1, {as:1.4, rng:2.5, splash:.9, dm:.6, r:.4, shot:'fire'}, ''],
+  ['internA', 'Intern', 'crew', 'c', 'swarm', 0, 1, {as:1, hm:1.4}, ''],
+  ['internB', 'Intern', 'crew', 'c', 'swarm', 0, 1, {as:1, hm:1.4}, '']
+];
+const ABIL = ['shield', 'heal', 'land', 'taunt', 'stun', 'charge', 'knock', 'pack', 'leech', 'stealth', 'any', 'dodge', 'crit', 'revive', 'spawn', 'raise', 'mark', 'steal', 'grow', 'chill', 'split', 'armor', 'burn', 'psn', 'berserk', 'aura',
+  'death', 'regen', 'numb', 'leap', 'thorns', 'chain', 'morph', 'exec', 'mana', 'ramp', 'only', 'life', 'shot', 'splash'];
+
 /* Units. Speeds are arena units per second, hit is seconds between attacks, rng is reach beyond the bodies.
    air: can hit flyers. only:'b': walks past troops and only hits buildings. splash: hit radius. */
-export const UNITS = {
-  skel:     {name:'Skeleton',        hp:45,   dmg:45,  hit:1.0, rng:.5,  spd:1.9,  r:.28},
-  bench:    {name:'Benchwarmer',     hp:900,  dmg:100, hit:1.2, rng:.7,  spd:1.3,  r:.5},
-  shooter:  {name:'Shooter',         hp:170,  dmg:60,  hit:1.1, rng:5,   spd:1.3,  r:.34, air:1, shot:'ball'},
-  gob:      {name:'Snack Goblin',    hp:110,  dmg:65,  hit:1.0, rng:.5,  spd:2.3,  r:.3},
-  bat:      {name:'Night Bat',       hp:50,   dmg:45,  hit:1.2, rng:.6,  spd:2.3,  r:.3,  fly:1, air:1},
-  slime:    {name:'Mop Slime',       hp:520,  dmg:70,  hit:1.3, rng:.6,  spd:1.1,  r:.6,  split:{u:'slimelet', n:2}},
-  slimelet: {name:'Slimelet',        hp:180,  dmg:40,  hit:1.1, rng:.5,  spd:1.5,  r:.38},
-  hoop:     {name:'Hoop Cannon',     hp:560,  dmg:80,  hit:.9,  rng:5.5, spd:0,    r:.8,  bld:1, life:30, shot:'ball'},
-  mascot:   {name:'The Mascot',      hp:2200, dmg:150, hit:1.5, rng:.8,  spd:.95,  r:.85, only:'b'},
-  barista:  {name:'Barista Wizard',  hp:400,  dmg:150, hit:1.5, rng:5,   spd:1.3,  r:.4,  air:1, splash:1.4, shot:'coffee'},
-  golem:    {name:'Stone Golem',     hp:3200, dmg:190, hit:2.2, rng:.8,  spd:.8,   r:1.0, only:'b', death:{dmg:200, r:2.2}},
-  ref:      {name:'Sniper Ref',      hp:420,  dmg:130, hit:1.1, rng:6,   spd:1.3,  r:.4,  air:1, shot:'flag'},
-  vending:  {name:'Vending Machine', hp:800,  dmg:0,   hit:1,   rng:0,   spd:0,    r:.8,  bld:1, life:36, spawn:{u:'gob', every:4.2, n:1, first:1}},
-  trainer:  {name:'The Trainer',     hp:620,  dmg:55,  hit:1.3, rng:3.5, spd:1.3,  r:.4,  air:1, shot:'water', heal:{amt:45, r:3, every:1}},
-  fast:     {name:'Fast Break',      hp:1050, dmg:190, hit:1.4, rng:.8,  spd:1.35, r:.55, charge:{after:2.5, spd:2, dmg:2}},
-  dragon:   {name:'Arena Dragon',    hp:720,  dmg:95,  hit:1.5, rng:3,   spd:1.6,  r:.7,  fly:1, air:1, splash:1.3, shot:'fire'},
-  ghost:    {name:'Night Shift Ghost', hp:560, dmg:150, hit:1.4, rng:.7, spd:1.9,  r:.45, fly:1, air:1},
-  buzzer:   {name:'Buzzer Beater',   hp:1900, dmg:130, hit:1.4, rng:.8,  spd:1.3,  r:.75, death:{dmg:520, r:3, delay:1.4}},
-  witch:    {name:'Graveyard Witch', hp:520,  dmg:80,  hit:1.0, rng:5,   spd:1.3,  r:.4,  air:1, splash:.8, shot:'magic', spawn:{u:'skel', every:6.5, n:3, first:1}},
-  fivestar: {name:'Five-Star BDB',   hp:3000, dmg:260, hit:1.6, rng:1.0, spd:1.2,  r:.9,  splash:1.7},
-  jumbo:    {name:'The Jumbotron',   hp:1200, dmg:900, hit:4.5, rng:4.5, spd:.95,  r:.8,  splash:1.8, shot:'beam', load:3},
-  princess: {name:'Hoop Tower',      hp:1500, dmg:55,  hit:.8,  rng:7.5, spd:0,    r:1.15, bld:1, air:1, shot:'ball', twr:1},
-  king:     {name:'King Tower',      hp:2600, dmg:60,  hit:1.0, rng:7,   spd:0,    r:1.5,  bld:1, air:1, shot:'ball', twr:1},
-  bell:     {name:'Bellkeeper',      hp:1050, dmg:115, hit:1.25, rng:.8, spd:1.25, r:.55, splash:1.15}
-};
+export const UNITS = {};
+const BASE = {};
+for (const [key, name, type, rar, role, cost, n, x, desc] of ROSTER){
+  const R = ROLE[role], k = cost || x.as, cnt = n || 1, hit = x.hit || R[2];
+  const U = {name, role, type, hp:Math.max(5, Math.round(R[0] * k / cnt * (x.hm || 1) / 5) * 5), dmg:x.nodmg ? 0 : Math.max(1, Math.round(R[1] * k / cnt * hit * (x.dm || 1))), hit, rng:x.rng ?? R[3], spd:x.spd ?? R[4], r:x.r ?? R[5]};
+  if (role === 'flyer' || role === 'flock') U.fly = 1;
+  if (U.fly || U.rng > 1.5) U.air = 1;
+  if (x.air != null){ if (x.air) U.air = 1; else delete U.air; }
+  if (role === 'caster' && x.splash == null) U.splash = 1.3;
+  if (role === 'giant') U.only = 'b';
+  if (role === 'build') U.bld = 1;
+  if (U.rng > 1.5 && !x.shot) U.shot = 'ball';
+  for (const a of ABIL) if (x[a] != null && x[a] !== 0) U[a] = x[a];
+  UNITS[key] = U;
+  if (cost) BASE[key] = {name, cost, tier:rar, type, u:x.u || key, us:x.us || null, n:cnt, desc};
+}
+for (const k of ['bonecrew', 'gloombats', 'mushnubs', 'bees']) delete UNITS[k];          // those cards drop the shared small unit, not one of their own
+delete UNITS.interns;
+UNITS.princess = {name:'Guard Tower', role:'build', type:'order', hp:1500, dmg:55, hit:.8, rng:7.5, spd:0, r:1.15, bld:1, air:1, shot:'ball', twr:1};
+UNITS.king     = {name:'King Tower',  role:'build', type:'order', hp:2600, dmg:60, hit:1.0, rng:7,  spd:0, r:1.5,  bld:1, air:1, shot:'ball', twr:1};
 
-/* The 24 characters. tier is how prized the character is; u = unit key, n = how many drop. */
-const BASE = {
-  skels:   {name:'Skeleton Crew',    cost:2, tier:'c', u:'skel', n:4,    desc:'Four skeletons on the night shift. Cheap, fast, and gone in one hit.'},
-  bench:   {name:'Benchwarmer',      cost:3, tier:'c', u:'bench', n:1,   desc:'Sturdy all-rounder who finally got off the bench. Swings a folding chair.'},
-  shooters:{name:'Three-Point Shooters', cost:3, tier:'c', u:'shooter', n:2, desc:'Two shooters who hit from range, ground or air. Better percentage than BDB.'},
-  gobs:    {name:'Snack Goblins',    cost:2, tier:'c', u:'gob', n:3,     desc:'Three quick goblins who raid towers the way BDB raids the vending machine.'},
-  bats:    {name:'Night Bats',       cost:2, tier:'c', u:'bat', n:4,     desc:'Four flying pests. Ground troops without range cannot touch them.'},
-  airball: {name:'Airball Barrage',  cost:3, tier:'c', spell:{kind:'rain', r:3.6, dmg:150, twr:.35, delay:.9}, desc:'A wide shower of missed shots. Clears swarms anywhere on the map.'},
-  slime:   {name:'Mop Slime',        cost:3, tier:'c', u:'slime', n:1,   desc:'A walking mop bucket spill. Pop it and it splits into two smaller ones.'},
-  hoop:    {name:'Hoop Cannon',      cost:3, tier:'c', u:'hoop', n:1,    desc:'A building that fires basketballs at ground troops and pulls tanks toward it.'},
-  mascot:  {name:'The Mascot',       cost:5, tier:'r', u:'mascot', n:1,  desc:'Huge, slow and only interested in buildings. Protect him and towers fall.'},
-  barista: {name:'Barista Wizard',   cost:5, tier:'r', u:'barista', n:1, desc:'Throws scalding coffee that splashes everything near the target.'},
-  golem:   {name:'Stone Golem',      cost:7, tier:'r', u:'golem', n:1,   desc:'A mountain of health that walks at towers and bursts when it breaks.'},
-  ref:     {name:'Sniper Ref',       cost:4, tier:'r', u:'ref', n:1,     desc:'Long range, hard hits, one target at a time. Throws flags at everything.'},
-  coffee:  {name:'Hot Coffee',       cost:4, tier:'r', spell:{kind:'bomb', r:2.4, dmg:380, twr:.35, delay:1.0}, desc:'One giant cup lobbed across the map. Big damage in a small circle.'},
-  vending: {name:'Vending Machine',  cost:5, tier:'r', u:'vending', n:1, desc:'A building that keeps dropping Snack Goblins until it runs out.'},
-  trainer: {name:'The Trainer',      cost:4, tier:'r', u:'trainer', n:1, desc:'Keeps nearby teammates topped up with water. Heals everyone around her.'},
-  fast:    {name:'Fast Break',       cost:5, tier:'r', u:'fast', n:1,    desc:'Builds up to a sprint, and the first hit after a sprint lands double.'},
-  dragon:  {name:'Arena Dragon',     cost:4, tier:'e', u:'dragon', n:1,  desc:'Flies over the river and breathes splash fire on ground and air.'},
-  ghost:   {name:'Night Shift Ghost',cost:3, tier:'e', u:'ghost', n:1,   desc:'Floats over everything and hits hard. Still wearing the lanyard.'},
-  clockout:{name:'Clock Out',        cost:4, tier:'e', spell:{kind:'freeze', r:3, dmg:60, twr:.35, freeze:4, delay:.35}, desc:'Everything in the circle stops working for a few seconds. Towers too.'},
-  overtime:{name:'Overtime',         cost:2, tier:'e', spell:{kind:'rage', r:4, rage:7, delay:.3}, desc:'Your troops in the circle move and hit a third faster for a few seconds.'},
-  buzzer:  {name:'Buzzer Beater',    cost:6, tier:'e', u:'buzzer', n:1,  desc:'Carries a shot clock that goes off when he drops. Stand back.'},
-  witch:   {name:'Graveyard Witch',  cost:5, tier:'e', u:'witch', n:1,   desc:'Splash magic from range, and three fresh skeletons every few seconds.'},
-  fivestar:{name:'Five-Star BDB',    cost:7, tier:'l', u:'fivestar', n:1, desc:'The prospect himself. Huge health and a slam that hits everything around him.'},
-  jumbo:   {name:'The Jumbotron',    cost:6, tier:'l', u:'jumbo', n:1,   desc:'Charges up slowly, then one highlight reel blast wipes out a whole push.'},
-  bell:    {name:'Bellkeeper',       cost:4, tier:'r', u:'bell', n:1,    desc:'A stout little keeper in a bell-topped helm. Every swing of his fists catches everything around him.'},
+/* Spells and traps: [key, name, type, rarity, Mana, spell or trap, description] */
+const MAGIC = [
+  ['arrows',    'Arrow Storm',     'order',  'c', 3, {spell:{kind:'rain',   r:3.6, dmg:150, twr:.35, delay:.9}}, 'A wide shower of arrows. Clears hordes anywhere on the map.'],
+  ['zap',       'Zap',             'arcane', 'c', 2, {spell:{kind:'zap',    r:2.4, dmg:110, twr:.35, delay:.15, stun:.6}}, 'Instant. A little damage and a short stun for everything in the circle.'],
+  ['quake',     'Earthquake',      'nature', 'c', 3, {spell:{kind:'quake',  r:3.6, dmg:95, twr:1.5, bld:3.2, slow:3, delay:.5, ground:1}}, 'Shakes the ground. Light damage to troops on foot, heavy damage to buildings and towers, and everything slows.'],
+  ['fireball',  'Fireball',        'fire',   'r', 4, {spell:{kind:'bomb',   r:2.4, dmg:380, twr:.35, delay:1, knock:.8}}, 'Big damage in a small circle, and whatever survives is knocked back.'],
+  ['rage',      'War Cry',         'horde',  'r', 2, {spell:{kind:'rage',   r:4, rage:7, delay:.3}}, 'Your troops in the circle move and hit a third faster for a few seconds.'],
+  ['poison',    'Plague Cloud',    'dark',   'r', 4, {spell:{kind:'poison', r:3.4, dmg:75, twr:.35, delay:.5, dur:8, slow:1}}, 'A cloud that hangs around. Everything standing in it is slowed and keeps taking damage.'],
+  ['heal',      'Second Wind',     'nature', 'r', 3, {spell:{kind:'heal',   r:3.4, heal:110, delay:.3, dur:5}}, 'Heals your troops in the circle every second for five seconds.'],
+  ['ward',      'Tower Shield',    'order',  'r', 3, {spell:{kind:'ward',   r:3.4, shield:700, delay:.2, dur:12}}, 'Puts a shield over your towers, buildings and troops in the circle. It soaks up a fireball and then some.'],
+  ['freeze',    'Deep Freeze',     'frost',  'e', 4, {spell:{kind:'freeze', r:3, dmg:60, twr:.35, freeze:4, delay:.35}}, 'Everything in the circle stops for a few seconds. Towers too.'],
+  ['lightning', 'Lightning Storm', 'arcane', 'e', 5, {spell:{kind:'bolt',   r:3.4, dmg:520, twr:.35, delay:.5, n:3, stun:.5}}, 'Three bolts strike the three toughest things in the circle. Huge damage and a short stun.'],
+  ['tornado',   'Twister',         'arcane', 'e', 3, {spell:{kind:'tornado', r:4, dmg:45, twr:0, delay:.3, dur:3}}, 'Drags every enemy troop in the circle into the middle and holds them there. Line them up for something worse.'],
+  ['meteor',    'Meteor',          'fire',   'e', 6, {spell:{kind:'meteor', r:3.2, dmg:640, twr:.5, delay:2.2, knock:1.2, pool:{dps:60, t:4}}}, 'Slow to arrive and impossible to ignore. Massive damage in a wide circle, and the ground keeps burning.'],
+  ['graveyard', 'Graveyard',       'dark',   'l', 5, {spell:{kind:'grave',  r:3.6, delay:.6, dur:9, every:.6, u:'skel'}}, 'Skeletons climb out of the ground anywhere on the map, one after another, for nine seconds.'],
   /* traps: set face down on your own half, unseen by the other side, and sprung by the first enemy on foot to walk over them */
-  wetfloor:{name:'Wet Floor Sign',    cost:2, tier:'c', trap:{kind:'slip',    r:2.4, dmg:80, stun:2.6},  desc:'A hidden trap. The first enemy on foot to step on it sends everyone nearby sliding: stunned, with a little damage.'},
-  screen:  {name:'Hard Screen',       cost:3, tier:'r', trap:{kind:'snap',    r:1.8, dmg:420},           desc:'A hidden trap. The first enemy on foot to run into it gets flattened, along with everyone right beside them.'},
-  replay:  {name:'Instant Replay',    cost:3, tier:'e', trap:{kind:'mirror',  r:3, dur:6, refl:.6},       desc:'A hidden trap. Once it is sprung, enemies standing in the circle take back most of the damage they deal.'},
-  benched: {name:'Back to the Bench', cost:4, tier:'e', trap:{kind:'bounce',  r:1.2, dmg:100, stun:1.5}, desc:'A hidden trap. Whoever springs it is sent straight back to their own king tower, where they land hard and dazed.'},
-  techfoul:{name:'Technical Foul',    cost:2, tier:'r', trap:{kind:'counter', r:3.2, burn:2},            desc:'A hidden trap. It cancels the next enemy spell that lands near it, and whoever cast it loses Mana on top.'}
-};
+  ['wetfloor',  'Wet Floor Sign',    'shadow', 'c', 2, {trap:{kind:'slip',    r:2.4, dmg:80, stun:2.6}},  'A hidden trap. The first enemy on foot to step on it sends everyone nearby sliding: stunned, with a little damage.'],
+  ['screen',    'Hard Screen',       'shadow', 'r', 3, {trap:{kind:'snap',    r:1.8, dmg:420}},           'A hidden trap. The first enemy on foot to run into it gets flattened, along with everyone right beside them.'],
+  ['techfoul',  'Technical Foul',    'shadow', 'r', 2, {trap:{kind:'counter', r:3.2, burn:2}},            'A hidden trap. It cancels the next enemy spell that lands near it, and whoever cast it loses Mana on top.'],
+  ['replay',    'Instant Replay',    'shadow', 'e', 3, {trap:{kind:'mirror',  r:3, dur:6, refl:.6}},       'A hidden trap. Once it is sprung, enemies standing in the circle take back most of the damage they deal.'],
+  ['benched',   'Back to the Bench', 'shadow', 'e', 4, {trap:{kind:'bounce',  r:1.2, dmg:100, stun:1.5}}, 'A hidden trap. Whoever springs it is sent straight back to their own king tower, where they land hard and dazed.']
+];
+for (const [key, name, type, rar, cost, x, desc] of MAGIC) BASE[key] = {name, cost, tier:rar, type, desc, ...x};
 
-/* A style means something different on a spell or a trap than it does on a troop, so those say so. */
+/* A build means something different on a spell or a trap than it does on a troop, so those say so. */
 const SPELL_NOTE = {
-  vet:'Veteran: costs 1 more, hits harder, and hits towers harder.', ice:'Frozen: also slows everything it hits.', fire:'Blazing: more damage.',
-  gold:'Golden: stronger and lands sooner. Costs 1 more.', quick:'Turbo: lands much sooner.', iron:'Iron: hits towers harder.',
-  vamp:'Vampire: also heals your troops in the circle.', tox:'Toxic: lingers, and hits a second time a moment later.', giant:'Giant: a much wider circle. Costs 2 more.'
+  ice:'Frozen: also slows everything it hits.', fire:'Blazing: also sets what it hits on fire.', gold:'Golden: stronger and lands sooner. Costs 1 more Mana.', quick:'Turbo: lands much sooner.',
+  iron:'Iron: hits towers and buildings harder, or lasts longer.', vamp:'Vampire: also heals your troops in the circle.', tox:'Toxic: lingers, and hits a second time a moment later.', giant:'Giant: a much wider circle. Costs 2 more Mana.'
 };
 const TRAP_NOTE = {
-  vet:'Veteran: costs 1 more, hits harder and stays set longer.', ice:'Frozen: everything it catches is slowed as well.', fire:'Blazing: hits harder.',
-  gold:'Golden: stronger, and armed sooner. Costs 1 more.', quick:'Turbo: armed almost at once.', iron:'Iron: stays set much longer.',
-  vamp:'Vampire: heals your weakest tower when it springs.', tox:'Toxic: bursts for extra damage when it springs.', giant:'Giant: a much wider trap. Costs 2 more.'
+  ice:'Frozen: everything it catches is slowed as well.', fire:'Blazing: hits harder.', gold:'Golden: stronger, and armed sooner. Costs 1 more Mana.', quick:'Turbo: armed almost at once.',
+  iron:'Iron: stays set much longer.', vamp:'Vampire: heals your weakest tower when it springs.', tox:'Toxic: bursts for extra damage when it springs.', giant:'Giant: a much wider trap. Costs 2 more Mana.'
 };
 /* which prop stands for each kind of trap on the field */
 export const TRAP_ART = {slip:'wetfloor', snap:'screen', mirror:'replay', bounce:'benched', counter:'techfoul'};
 
-/* One stat block per character + style + rarity, built on first use. */
+/* One stat block per character + build, made on first use. */
 const UV = new Map();
-export function unitVar(key, aff = 'std', rar = 'c'){
-  const k = key + '|' + aff + '|' + rar; let U = UV.get(k);
+const scale = (o, f, keys) => { const c = {...o}; for (const k of keys) if (c[k]) c[k] = Math.round(c[k] * f); return c; };
+export function unitVar(key, aff = 'std'){
+  const k = key + '|' + aff; let U = UV.get(k);
   if (U) return U;
-  const b = UNITS[key], a = AFF[aff] || AFF.std, m = (RAR[rar] || RAR.c).mul;
-  U = {...b, key, aff:AFF[aff] ? aff : 'std', rar:RAR[rar] ? rar : 'c', hp:Math.round(b.hp * a.hp * m), dmg:Math.round(b.dmg * a.dmg * m), spd:b.spd * a.spd, hit:+(b.hit * (a.haste || 1)).toFixed(2),
-    r:b.r * (1 + (a.size - 1) * .6), size:a.size, chill:a.chill || 0, steal:a.steal || 0};
-  if (b.death) U.death = {...b.death, dmg:Math.round(b.death.dmg * a.dmg * m)};
+  const b = UNITS[key], a = AFF[aff] || AFF.std;
+  U = {...b, key, aff:AFF[aff] ? aff : 'std', hp:Math.round(b.hp * a.hp), dmg:Math.round(b.dmg * a.dmg), spd:b.spd * a.spd, hit:+(b.hit * (a.haste || 1)).toFixed(2),
+    r:b.r * (1 + (a.size - 1) * .6), size:a.size, chill:Math.max(b.chill || 0, a.chill || 0), steal:Math.max(b.steal || 0, a.steal || 0)};
+  if (b.death) U.death = scale(b.death, a.dmg, ['dmg']);
   else if (a.toxic && !b.twr) U.death = {dmg:Math.round(U.dmg * .9) + 40, r:1.5 + b.r * .5};
-  if (b.heal) U.heal = {...b.heal, amt:Math.round(b.heal.amt * m)};
+  if (b.land) U.land = scale(b.land, a.dmg, ['dmg']);
+  if (b.burn) U.burn = scale(b.burn, a.dmg, ['dps']);
+  else if (a.burn && b.dmg && !b.twr) U.burn = {dps:Math.max(6, Math.round(b.dmg / b.hit * a.burn)), t:3};
+  if (b.psn) U.psn = scale(b.psn, a.dmg, ['dps']);
+  if (b.shield) U.shield = Math.round(b.shield * a.hp);
   UV.set(k, U); return U;
 }
 
+export const priceOf = (rar, cost, aff = 'std') => Math.round((RAR[rar].base + RAR[rar].per * cost) * (AFF[aff] || AFF.std).pm / 5) * 5;
 export const CARDS = {};
-for (const b in BASE) for (const a of AFF_IDS) for (const r of RAR_IDS){
-  const B = BASE[b], A = AFF[a], m = RAR[r].mul, id = `${b}-${a}-${r}`;
-  const c = {id, base:b, aff:a, rar:r, tier:B.tier, name:(A.name ? A.name + ' ' : '') + B.name, baseName:B.name, cost:clamp(B.cost + A.cost, 1, 10), desc:B.desc, note:A.note, price:Math.round(RAR[r].price * TIER[B.tier] / 10) * 10};
+for (const b in BASE) for (const a of AFF_IDS){
+  const B = BASE[b], A = AFF[a], id = `${b}-${a}`;
+  const c = {id, base:b, aff:a, rar:B.tier, type:B.type, name:(A.name ? A.name + ' ' : '') + B.name, baseName:B.name, cost:clamp(B.cost + A.cost, 1, 10), desc:B.desc, note:A.note, price:priceOf(B.tier, B.cost, a)};
   if (B.spell){
-    const s = B.spell;
-    c.type = 'spell'; c.art = b; c.note = SPELL_NOTE[a] ?? A.note;
-    c.spell = {kind:s.kind, r:+(s.r * (1 + (A.size - 1) * .8)).toFixed(2), dmg:Math.round((s.dmg || 0) * A.dmg * m), twr:(s.twr || 1) * (A.hp >= 1.3 ? 1.5 : 1), delay:+(s.delay * (A.spd > 1.2 ? .6 : A.spd > 1.05 ? .8 : 1)).toFixed(2),
-      freeze:s.freeze ? +(s.freeze * (a === 'ice' ? 1.35 : 1) * (.6 + m * .4)).toFixed(1) : 0, rage:s.rage ? +(s.rage * (.7 + m * .3) * A.hp).toFixed(1) : 0, chill:A.chill || 0, steal:A.steal || 0, again:A.toxic ? .4 : 0};
+    const s = B.spell, big = 1 + (A.size - 1) * .8, long = A.hp >= 1.3 ? 1.4 : 1;
+    c.kind = 'spell'; c.art = b; c.note = SPELL_NOTE[a] ?? A.note;
+    c.spell = {...s, r:+(s.r * big).toFixed(2), dmg:Math.round((s.dmg || 0) * A.dmg), twr:(s.twr ?? 1) * (A.hp >= 1.3 && !s.dur ? 1.5 : 1), delay:+(s.delay * (A.spd > 1.2 ? .6 : A.spd > 1.05 ? .8 : 1)).toFixed(2),
+      freeze:s.freeze ? +(s.freeze * (a === 'ice' ? 1.35 : 1)).toFixed(1) : 0, rage:s.rage ? +(s.rage * A.hp).toFixed(1) : 0, dur:s.dur ? +(s.dur * long).toFixed(1) : 0, heal:s.heal ? Math.round(s.heal * A.dmg) : 0, shield:s.shield ? Math.round(s.shield * A.hp) : 0,
+      chill:A.chill || 0, steal:A.steal || 0, again:A.toxic && s.dmg && !s.dur ? .4 : 0, burn:A.burn && s.dmg ? Math.round(s.dmg * .08) : 0};
   } else if (B.trap){
-    const t = B.trap, pow = A.dmg * m, hold = .7 + .3 * A.hp;                   // pow: how hard it hits. hold: how long it keeps them.
-    c.type = 'trap'; c.art = b; c.note = TRAP_NOTE[a] ?? A.note;
+    const t = B.trap, pow = A.dmg, hold = .7 + .3 * A.hp;                   // pow: how hard it hits. hold: how long it keeps them.
+    c.kind = 'trap'; c.art = b; c.note = TRAP_NOTE[a] ?? A.note;
     c.trap = {kind:t.kind, r:+(t.r * (1 + (A.size - 1) * .8) * (t.kind === 'counter' ? .85 + .15 * pow : 1)).toFixed(2), dmg:Math.round((t.dmg || 0) * pow),
-      stun:t.stun ? +(t.stun * hold * (t.kind === 'bounce' ? .6 + .4 * pow : m)).toFixed(1) : 0, dur:t.dur ? +(t.dur * hold * m).toFixed(1) : 0, refl:t.refl ? Math.min(1, +(t.refl * Math.pow(m, 1.5) * A.dmg).toFixed(2)) : 0,
-      arm:a === 'quick' ? .35 : a === 'gold' ? .6 : 1, life:A.hp >= 1.3 ? 150 : 90, chill:A.chill ? 2.5 : 0, heal:A.steal ? Math.round(160 * m) : 0, burst:A.toxic ? Math.round(110 * m) : 0, burn:t.burn ? t.burn + (r === 'e' || r === 'l' ? 1 : 0) : 0};          // the rarer the card, the more it does
-  } else { c.u = B.u; c.n = B.n; c.U = unitVar(B.u, a, r); c.art = B.u; c.type = c.U.bld ? 'build' : 'unit'; }
+      stun:t.stun ? +(t.stun * hold * (t.kind === 'bounce' ? .6 + .4 * pow : 1)).toFixed(1) : 0, dur:t.dur ? +(t.dur * hold).toFixed(1) : 0, refl:t.refl ? Math.min(1, +(t.refl * A.dmg).toFixed(2)) : 0,
+      arm:a === 'quick' ? .35 : a === 'gold' ? .6 : 1, life:A.hp >= 1.3 ? 150 : 90, chill:A.chill ? 2.5 : 0, heal:A.steal ? 160 : 0, burst:A.toxic ? 110 : 0, burn:t.burn ? t.burn + (a === 'gold' || a === 'giant' ? 1 : 0) : 0};
+  } else { c.u = B.u; c.us = B.us; c.n = B.n; c.U = unitVar(B.us ? B.us[0] : B.u, a); c.art = B.us ? B.us[0] : B.u; c.kind = c.U.bld ? 'build' : 'unit'; }
   CARDS[id] = c;
 }
 export const CARD_IDS = Object.keys(CARDS), BASE_IDS = Object.keys(BASE);
 export const baseName = b => BASE[b].name;
-export const STARTERS = ['skels', 'bench', 'shooters', 'wetfloor', 'bats', 'airball', 'slime', 'hoop', 'mascot', 'barista', 'ref', 'trainer', 'coffee', 'vending', 'dragon'].map(b => b + '-std-c');
-export const DECK_SIZE = 15, HAND = 5, MAX_LEGEND = 3, DECK_SLOTS = 3;
-/* what a brand-new player chooses between */
+export const baseOf = b => BASE[b];
+/* every unit a set of cards can put on the field, including what those units spawn, split into, raise or turn into */
+export function unitsOf(ids){
+  const out = new Set(['princess', 'king']), add = k => { if (!k || out.has(k) || !UNITS[k]) return; out.add(k); const U = UNITS[k]; add(U.spawn && U.spawn.u); add(U.split && U.split.u); add(U.raise && U.raise.u); add(U.morph && U.morph.u); add(U.land && U.land.summon && U.land.summon.u); };
+  for (const id of ids){ const c = CARDS[id]; if (!c) continue; if (c.us) c.us.forEach(add); else if (c.u) add(c.u); else if (c.spell && c.spell.u) add(c.spell.u); }
+  return [...out];
+}
+
+export const DECK_SIZE = 15, HAND = 5, MAX_LEGEND = 3, DECK_SLOTS = 3, START_COINS = 1500;
+/* the Rares a new player picks one of for free: the characters made for this game */
+export const FREE_RARES = ['bell', 'jade', 'glacius', 'gorak', 'vesper', 'janitor'];
+/* what a brand-new account holds before they have built a deck of their own, and the quick picks in the deck builder */
 export const STARTER_DECKS = [
-  {id:'balanced', name:'The Starting Five', blurb:'A bit of everything, with a trap to learn on. The easiest deck to start with.', bases:'skels bench shooters wetfloor bats airball slime hoop mascot barista ref trainer coffee vending dragon'},
-  {id:'swarm',    name:'Rush Hour',         blurb:'Cheap, fast and everywhere. Bury him in bodies.',          bases:'skels gobs bats shooters slime vending witch overtime airball bench trainer fast ghost wetfloor coffee'},
-  {id:'heavy',    name:'The Big Shift',     blurb:'Slow, huge and hard to stop. Build one giant push.',      bases:'golem mascot buzzer bench fast barista ref trainer shooters skels coffee airball screen slime clockout'},
-  {id:'air',      name:'Night Flight',      blurb:'Flyers and spells. Go over his defence, then freeze it.',  bases:'dragon ghost bats witch barista ref shooters clockout coffee airball overtime bench skels replay mascot'}
-].map(d => ({...d, deck:d.bases.split(' ').map(b => b + '-std-c')}));
-export const upgradeCost = (id, lvl) => Math.max(40, Math.round(CARDS[id].price * .15 * lvl / 10) * 10);
+  {id:'balanced', name:'A bit of everything', blurb:'Solid troops, two spells, a cannon and a trap. The easiest deck to learn on.', hero:'bell',
+    bases:'bonecrew ironclad longshots orclings gloombats arrows slime cannon raider hexa nightbolt yeti wetfloor emberwing'},
+  {id:'swarm', name:'Bury them in bodies', blurb:'Cheap, fast and everywhere. Never stop summoning.', hero:'gorak',
+    bases:'bonecrew orclings gloombats mushnubs piranhas cluckers prickles pigeons raider longshots zap arrows ugg bees'},
+  {id:'heavy', name:'One giant push', blurb:'Slow, huge and hard to stop. Save up, then send everything at once.', hero:'glacius',
+    bases:'trailboss ironclad yeti boneknight mauler bloodaxe longshots hexa bonecrew arrows quake cannon barricade monkroose'},
+  {id:'air', name:'Over their heads', blurb:'Flyers and spells. Go over the defence, then shut it down.', hero:'jade',
+    bases:'emberwing lostsoul gloombats imps pigeons sentinel hexsprite gremlins longshots wizlings arrows zap ironclad bonecrew'},
+  {id:'sneak', name:'Tricks and traps', blurb:'A hidden trap, fast hitters and a hero nobody sees coming.', hero:'vesper',
+    bases:'nightbolt wetfloor piranhas courier bonecrew raider scrapbot sarge starranger zap arrows cannon thumper frostbeak'},
+  {id:'crew', name:'The night shift', blurb:'The break room regulars, and a janitor who makes everyone slip.', hero:'janitor',
+    bases:'interns helpers courier trailboss funbear ironclad longshots bonecrew cluckers arrows zap cannon wetfloor hexa'}
+].map(d => ({...d, deck:d.bases.split(' ').concat(d.hero).map(b => b + '-std')}));
+export const STARTERS = STARTER_DECKS[0].deck;
+export const upgradeCost = (id, lvl) => Math.max(30, Math.round(CARDS[id].price * .22 * lvl / 10) * 10);
 
 export function deckProblem(ids, strict = true){
   if (!Array.isArray(ids) || ids.length !== DECK_SIZE || ids.some(i => !i)) return `A deck needs ${DECK_SIZE} cards.`;
   if (ids.some(i => !CARDS[i])) return 'Unknown card.';
   if (new Set(ids.map(i => CARDS[i].base)).size !== ids.length) return 'Only one version of each character per deck.';
   if (strict && ids.filter(i => CARDS[i].rar === 'l').length > MAX_LEGEND) return `No more than ${MAX_LEGEND} Legendary cards per deck.`;
+  if (strict && !ids.some(i => CARDS[i].kind === 'unit')) return 'A deck needs at least one troop.';
   return null;
 }
 
@@ -171,57 +342,174 @@ export const MAPS = {
 };
 export const MAP_IDS = Object.keys(MAPS);
 
-/* CPU ladder. react: seconds between decisions. hold: Mana he likes to sit on before attacking.
-   derp: chance of a random play. smart: 0 to 1, how well he counters. el: Mana speed multiplier.
-   His 15 cards are his characters crossed with his favourite styles and rarities. */
-const cpu = (id, name, tag, map, lvl, coins, ai, bases, affs, rars) => ({id, name, tag, map, lvl, coins, ai, deck:bases.split(' ').map((b, i) => `${b}-${affs[i % affs.length]}-${rars[i % rars.length]}`)});
-export const CPUS = [
-  cpu('trainee', 'Trainee BDB',      'First week. Still looking for the time clock.',          'field',   1, 80,  {react:3.2, hold:9,   derp:.45, smart:.15, el:.85},
-    'skels bench shooters gobs bats airball slime hoop mascot barista ref trainer coffee vending dragon', ['std'], ['c']),
-  cpu('breakrm', 'Break Room BDB',   'Defends the microwave line with his whole career.',      'breakrm', 1, 120, {react:2.6, hold:8,   derp:.3,  smart:.3,  el:.92},
-    'skels gobs bats slime vending airball shooters bench hoop ref trainer barista mascot coffee ghost', ['std', 'rook', 'std'], ['c', 'c', 'r']),
-  cpu('bench',   'Bench Warmer BDB', 'Best seat in the house, every single game.',             'court',   2, 170, {react:2.2, hold:8,   derp:.2,  smart:.45, el:1},
-    'mascot bench shooters ref airball hoop gobs trainer golem barista fast skels coffee slime bats', ['iron', 'std', 'vet'], ['c', 'r']),
-  cpu('night',   'Night Shift BDB',  'Wide awake at 4 a.m. and nothing to show for it.',       'casino',  3, 230, {react:1.9, hold:7.5, derp:.14, smart:.55, el:1},
-    'bats ghost dragon skels bench clockout shooters airball witch ref gobs barista fast wetfloor slime', ['vamp', 'std', 'quick'], ['r', 'c', 'r']),
-  cpu('rec',     'Rec League BDB',   'Captain, coach and leading scorer. Two points a night.', 'lot',     4, 300, {react:1.7, hold:7,   derp:.1,  smart:.65, el:1},
-    'hoop vending coffee airball barista fast screen ref mascot trainer dragon skels buzzer bench clockout', ['fire', 'std', 'gold'], ['r', 'r', 'e']),
-  cpu('varsity', 'Varsity BDB',      'Made the team photo. Mostly the back row.',              'breakrm', 5, 380, {react:1.5, hold:7,   derp:.07, smart:.75, el:1.05},
-    'golem witch barista skels coffee bats trainer replay buzzer dragon ref bench wetfloor ghost airball', ['iron', 'ice', 'vet'], ['r', 'e']),
-  cpu('d1',      'D1 Dream BDB',     'Florida was a great idea on paper.',                     'casino',  7, 480, {react:1.3, hold:6.5, derp:.04, smart:.85, el:1.1},
-    'fast dragon jumbo buzzer ref techfoul gobs airball witch golem ghost benched coffee barista skels', ['quick', 'gold', 'fire', 'giant'], ['e', 'r', 'e', 'l']),
-  cpu('five',    'Five-Star BDB',    'The prospect. The legend. The 2.0 points per game.',     'court',   9, 650, {react:1.1, hold:6,   derp:.02, smart:1,   el:1.2},
-    'fivestar jumbo golem witch dragon coffee skels screen buzzer fast ghost ref clockout barista replay', ['gold', 'giant', 'vamp', 'ice'], ['e', 'e', 'l', 'e', 'e'])
-];
-
-/* Weighted draw: rarer cards come up less often. Used for the card you win and for crates. rnd is a 0..1 function. */
-export const DRAW_W = {c:50, r:30, e:15, l:5};
+/* ---------- drawing cards: packs, crates and CPU decks ---------- */
 export function weightedPick(ids, weightOf, rnd = Math.random){
   let sum = 0; for (const i of ids) sum += weightOf(i);
   let k = rnd() * sum;
   for (const i of ids){ k -= weightOf(i); if (k <= 0) return i; }
   return ids[ids.length - 1];
 }
-const BY_RAR = {}; for (const id of CARD_IDS) (BY_RAR[CARDS[id].rar] = BY_RAR[CARDS[id].rar] || []).push(id);
-export function crateRoll(rnd = Math.random){ const pool = BY_RAR[weightedPick(RAR_IDS, r => RAR[r].w, rnd)]; return pool[Math.floor(rnd() * pool.length)]; }
-
-/* A CPU with a deck dealt at random, at one of four skill levels. dl: his card level relative to yours. */
-export const SKILLS = [
-  {id:'easy',   name:'Easy',   coins:60,  dl:-1, ai:{react:3,    hold:9,   derp:.4,  smart:.2,  el:.85}, rar:'cccr'},
-  {id:'medium', name:'Medium', coins:110, dl:0,  ai:{react:2.1,  hold:8,   derp:.18, smart:.5,  el:1},   rar:'ccrre'},
-  {id:'hard',   name:'Hard',   coins:170, dl:1,  ai:{react:1.5,  hold:7,   derp:.07, smart:.8,  el:1.05}, rar:'crreel'},
-  {id:'insane', name:'Insane', coins:260, dl:2,  ai:{react:1.05, hold:6,   derp:.02, smart:1,   el:1.2},  rar:'reeel'}
+const BY = {}; for (const b of BASE_IDS){ const B = BASE[b]; (BY[B.tier] = BY[B.tier] || []).push(b); (BY[B.tier + B.type] = BY[B.tier + B.type] || []).push(b); }
+export const rollBuild = (rnd = Math.random) => weightedPick(AFF_IDS, a => AFF[a].w, rnd);
+/* one card of this rarity (or the nearest rarity that type has), in a random build */
+export function rollCard(rar, type, rnd = Math.random){
+  let pool = null; const i0 = RAR_IDS.indexOf(rar);
+  for (const d of [0, -1, 1, -2, 2, -3, 3]){ const r = RAR_IDS[i0 + d]; if (r && (pool = type ? BY[r + type] : BY[r]) && pool.length) break; pool = null; }
+  if (!pool) pool = BASE_IDS;
+  return pool[Math.floor(rnd() * pool.length)] + '-' + rollBuild(rnd);
+}
+/* Packs: the dearer the pack, the more cards and the better the odds. min: the rarity the last card is guaranteed to reach. */
+export const PACKS = [
+  {id:'bronze',  name:'Bronze Pack',  price:150,  n:3, odds:{c:86, r:13, e:1,  l:0},   min:null, col:'#c98a4b', blurb:'Three cards. Mostly Commons, now and then a surprise.'},
+  {id:'silver',  name:'Silver Pack',  price:450,  n:4, odds:{c:68, r:27, e:4.5, l:.5}, min:'r',  col:'#c5cede', blurb:'Four cards. One Rare or better, guaranteed.'},
+  {id:'gold',    name:'Gold Pack',    price:1200, n:5, odds:{c:48, r:37, e:13, l:2},   min:'e',  col:'#ffd23f', blurb:'Five cards. One Epic or better, guaranteed.'},
+  {id:'diamond', name:'Diamond Pack', price:3000, n:6, odds:{c:26, r:42, e:25, l:7},   min:'e',  two:'e', col:'#7fe3ff', blurb:'Six cards. Two Epics or better, guaranteed.'},
+  {id:'mythic',  name:'Mythic Pack',  price:7500, n:8, odds:{c:8,  r:40, e:38, l:14},  min:'l',  two:'e', col:'#ff5fd2', blurb:'Eight cards. A Legendary, guaranteed, and an Epic to go with it.'}
 ];
-const RAND_NAMES = ['Temp BDB', 'Intern BDB', 'Overtime BDB', 'Double Shift BDB', 'Lunch Break BDB', 'Clipboard BDB', 'Substitute BDB', 'Pickup Game BDB', 'Day Off BDB', 'Sixth Man BDB', 'Garbage Time BDB', 'Preseason BDB', 'Walk-On BDB', 'Scout Team BDB'];
+export const TYPE_PACK = {price:700, n:4, odds:{c:55, r:33, e:10, l:2}, min:'r'};      // four cards, all one type, one Rare or better
+export function openPack(pack, type = null, rnd = Math.random){
+  const out = [], up = (r, m) => m && RAR_IDS.indexOf(r) < RAR_IDS.indexOf(m) ? m : r;
+  for (let i = 0; i < pack.n; i++){
+    let r = weightedPick(RAR_IDS, k => pack.odds[k], rnd);
+    if (i === pack.n - 1) r = up(r, pack.min); else if (i === pack.n - 2) r = up(r, pack.two);
+    let id = rollCard(r, type, rnd), tries = 0;
+    while (out.some(o => CARDS[o].base === CARDS[id].base) && tries++ < 8) id = rollCard(r, type, rnd);      // no two of one character in a pack
+    out.push(id);
+  }
+  return out.sort((a, b) => RAR_IDS.indexOf(CARDS[a].rar) - RAR_IDS.indexOf(CARDS[b].rar));
+}
+export function crateRoll(rnd = Math.random){ return rollCard(weightedPick(RAR_IDS, r => RAR[r].w, rnd), null, rnd); }
+export const DRAW_W = {c:50, r:30, e:15, l:5};
+
+/* ---------- ready-made decks to buy: 30 of them, by theme ---------- */
+const TD = (id, name, type, blurb, bases) => ({id, name, type, blurb, deck:bases.split(' ').map(b => b.includes('-') ? b : b + '-std')});
+export const THEME_DECKS = [
+  TD('dragon1', 'Dragon\u2019s Hoard', 'dragon', 'Every dragon in the game, the red one included, a nest to hatch more, and fire to back them up.', 'jade emberwing elder infernus raptor kaiju nest fireball imps hellion arrows ironclad longshots bonecrew zap'),
+  TD('dragon2', 'Wings and Teeth', 'dragon', 'Fast dragons up front, flyers overhead, nothing that waits around.', 'raptor emberwing kaiju jade gloombats lostsoul piranhas orclings courier zap arrows rage nest thumper sentinel'),
+  TD('fire1', 'Inferno', 'fire', 'Everything burns. Fireball, Meteor and a lava giant to finish.', 'hellion imps cinder magmaw fireball meteor flamespire emberwing jade bonecrew orclings raider zap arrows longshots'),
+  TD('fire2', 'Scorched Earth', 'fire', 'Blazing builds of the cheap stuff. Set the whole lane on fire and walk through it.', 'imps cinder hellion fireball bonecrew-fire orclings-fire mushnubs-fire raider-fire longshots-fire gloombats-fire flamespire zap ugg emberwing bloodaxe-fire'),
+  TD('frost1', 'Whiteout', 'frost', 'Slow everything, freeze what is left, then send the giant.', 'glacius permafrost yeti frostbeak tundra freeze mindsquid orclings-ice gloombats-ice raider-ice arrows longshots bonecrew zap cannon'),
+  TD('frost2', 'Cold Shoulder', 'frost', 'A defensive wall of ice that wins late.', 'glacius tundra yeti frostbeak freeze trailboss barricade cannon watchtower longshots nightbolt arrows ward permafrost ironclad-ice'),
+  TD('wizard1', 'Wizard Tower', 'arcane', 'Lightning that jumps, a Mana Well to pay for it, and a spell for every problem.', 'zephyr hexa tonic wizlings stalker mindsquid hexsprite manawell lightning zap tornado stormcoil sentinel ironclad arrows'),
+  TD('wizard2', 'Spellbook', 'arcane', 'More spells than troops. Control the field and let the storm do the work.', 'zephyr archon hexa wizlings lightning zap tornado freeze fireball arrows manawell stormcoil sentinel hexsprite mindsquid'),
+  TD('dark1', 'Dark Arts', 'dark', 'Raise the dead, curse the living. The longer the fight, the bigger your army.', 'mort gravewitch bonecrew boneknight bonearchers lostsoul gloombats crypt poison nightfall wraith terror sanguine zap arrows'),
+  TD('dark2', 'The Lich King', 'dark', 'Mortis himself, a Graveyard, and every skeleton you can fit in a deck.', 'lich graveyard mort gravewitch crypt bonecrew boneknight bonearchers colossus poison gloombats lostsoul zap arrows wraith'),
+  TD('dark3', 'Night Shift', 'dark', 'Flyers and bloodsuckers. Go over the top and drain them.', 'sanguine wraith terror lostsoul gloombats nightfall bonearchers bonecrew poison zap arrows boneknight imps hexsprite cannon'),
+  TD('shadow1', 'Tricks and Traps', 'shadow', 'Five traps, an assassin, and a ninja who starts behind their lines.', 'vesper kage shinobi lostsoul cutpurse nightbolt wetfloor screen techfoul replay benched bonecrew zap arrows courier'),
+  TD('shadow2', 'Smash and Grab', 'shadow', 'Quick hitters that steal Mana while they work.', 'cutpurse gremking vesper shinobi kage gremlins orclings piranhas courier wetfloor screen zap rage nightbolt bonecrew'),
+  TD('beast1', 'Full Moon', 'beast', 'A werewolf, the man who turns into one, and a minotaur to open the door.', 'lycan woodsman gorehorn landshark thumper monkroose piranhas raptor frostbeak orclings rage arrows zap bonecrew longshots'),
+  TD('beast2', 'Stampede', 'beast', 'Everything charges or pounces. Whatever is in the way goes backwards.', 'gorehorn courier raptor thumper frostbeak landshark monkroose lycan bloodaxe ugg rage quake arrows piranhas kaiju'),
+  TD('beast3', 'Feeding Time', 'nature', 'Cheap, quick and far too many of them.', 'piranhas cluckers pigeons bees mushnubs prickles orclings gremlins gloombats bonecrew thumper landshark zap arrows rage'),
+  TD('nature1', 'Mushroom Kingdom', 'nature', 'A king who never stops growing an army, a walking tree, and poison on everything.', 'mushking mushnubs sporecap dartfrog bees queen thornweaver heal shrine elderbark spikeslime poison quake arrows prickles'),
+  TD('nature2', 'Do Not Touch', 'nature', 'Thorns everywhere. Let them hurt themselves on the way in.', 'cactoro prickles spikeslime elderbark permafrost slime thornweaver heal shrine barricade cannon quake arrows longshots dartfrog'),
+  TD('horde1', 'Orc Raid', 'horde', 'A Warchief, a War Drum and a mob that fights faster the closer it stands.', 'gorak raider mauler skullcrusher orclings bloodaxe witchdoc wardrum rage gremlins skytotem ugg arrows zap goliath'),
+  TD('horde2', 'Goliath', 'horde', 'Two enormous problems, and a crowd to keep them busy while they walk.', 'goliath gorak skytotem orclings gremlins gremking ugg raider bloodaxe rage quake arrows wardrum gronk zap'),
+  TD('order1', 'Hold the Line', 'order', 'Shields, walls, towers and a Tower Shield for the fireballs. Then counterpunch.', 'ironclad longshots dawnhammer oathkeeper bell starranger cannon watchtower barricade ward arrows courier nightbolt zap tinker'),
+  TD('order2', 'Bell Tower', 'order', 'Stun them with the bell, heal behind the wall, and never let a tower drop.', 'bell dawnhammer oathkeeper ironclad longshots watchtower cannon barricade ward heal arrows zap tonic tinker nightbolt'),
+  TD('tech1', 'Machine Shop', 'tech', 'Robots, rifles and a mechanic who keeps your towers standing.', 'tinker scrapbot shockbot starranger sarge prepper funbear jetace titan cannon brassbolt stormcoil zap arrows clanker'),
+  TD('tech2', 'Heavy Metal', 'tech', 'Armour that shrugs off the small stuff and a minigun behind it.', 'clanker titan prepper shockbot scrapbot sarge afterhours brassbolt barricade cannon ward zap arrows starranger tinker'),
+  TD('crew1', 'Break Room Regulars', 'crew', 'The whole office, the janitor and the prospect himself.', 'bdb janitor courier trailboss interns captain helpers giggles mascot funbear manawell arrows zap rage cannon'),
+  TD('crew2', 'Clock In', 'crew', 'Cheap, quick and relentless. Farm Mana and never stop sending bodies.', 'janitor manawell mushnubs interns helpers courier trailboss funbear giggles cluckers orclings bonecrew zap arrows rage'),
+  TD('mix1', 'Mana Bank', 'arcane', 'A Mana Well and the biggest cards in the game to spend it on.', 'manawell gronk goliath colossus magmaw meteor lightning barricade cannon trailboss bonecrew zap arrows tonic ward'),
+  TD('mix2', 'Sky High', 'dragon', 'Fifteen cards and every one of them flies.', 'emberwing elder lostsoul wraith terror gloombats imps pigeons bees queen gremlins skytotem sentinel archon captain'),
+  TD('mix3', 'Giants Only', 'horde', 'Six giants that want towers and nothing else. Subtlety not included.', 'goliath colossus magmaw permafrost clanker mascot rage heal ward bonecrew orclings zap arrows barricade tinker'),
+  TD('mix4', 'The Full Legend', 'crew', 'Three Legendaries in one deck, with the best support money can buy.', 'lich infernus bdb zephyr oathkeeper mort tonic lightning manawell bonecrew ironclad longshots zap arrows gravewitch')
+];
+export const deckPrice = d => Math.round(d.deck.reduce((a, id) => a + CARDS[id].price, 0) * .8 / 10) * 10;
+
+/* ---------- CPU opponents ---------- */
+/* A deck dealt from the pool: something cheap, something big, something that hits air and a spell are always in there.
+   o: {types: favoured types, rare / epic / legend: how many of each he may hold, build: chance a card is a special build, traps: most traps} */
+export function dealDeck(rnd, o = {}){
+  const pick = a => a[Math.floor(rnd() * a.length)], pool = BASE_IDS.slice(), fav = o.types || [];
+  for (let i = pool.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  if (fav.length) pool.sort((a, b) => (fav.includes(BASE[b].type) ? 1 : 0) - (fav.includes(BASE[a].type) ? 1 : 0));        // his own kind first
+  const cap = {c:99, r:o.rare ?? 3, e:o.epic ?? 0, l:Math.min(MAX_LEGEND, o.legend ?? 0)}, have = {c:0, r:0, e:0, l:0}, bases = [];
+  const U = b => BASE[b].us ? UNITS[BASE[b].us[0]] : BASE[b].u ? UNITS[BASE[b].u] : null, troop = b => { const u = U(b); return u && !u.bld; };
+  const take = b => { const t = BASE[b].tier; if (bases.includes(b) || have[t] >= cap[t]) return false; have[t]++; bases.push(b); return true; };
+  const need = [b => troop(b) && BASE[b].cost <= 2, b => troop(b) && BASE[b].cost <= 3, b => troop(b) && BASE[b].cost <= 3, b => !!BASE[b].spell && BASE[b].spell.dmg > 0, b => troop(b) && (U(b).only === 'b' || U(b).hp >= 900),
+    b => troop(b) && U(b).air && BASE[b].cost <= 4, b => troop(b) && U(b).air, b => troop(b) && !!U(b).splash];
+  for (const f of need){ const b = pool.find(x => f(x) && !bases.includes(x) && have[BASE[x].tier] < cap[BASE[x].tier]); if (b) take(b); }
+  let traps = 0, blds = 0, spells = bases.filter(b => BASE[b].spell).length;
+  for (const b of pool){
+    if (bases.length >= DECK_SIZE) break;
+    const B = BASE[b];
+    if (B.trap && ++traps > (o.traps ?? 2)) continue;
+    if (B.spell && ++spells > 4) continue;
+    if (U(b) && U(b).bld && ++blds > 2) continue;
+    take(b);
+  }
+  for (const b of BASE_IDS) if (bases.length < DECK_SIZE && BASE[b].tier === 'c' && !bases.includes(b) && troop(b)) bases.push(b);
+  return bases.map(b => b + '-' + (rnd() < (o.build ?? 0) ? pick(AFF_IDS) : 'std'));
+}
+function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* The ladder: 1,000 levels in ten tiers of a hundred. Every level is a different deck; every hundredth is the tier boss.
+   ai: react = seconds between decisions, hold = Mana he sits on before attacking, derp = chance of a random play, smart = 0 to 1, el = Mana speed. */
+export const LEVELS = 1000;
+export const TIERS = [
+  {id:'trainee', name:'Trainee',      map:'field',   col:'#9fb3d9', tag:'First week. Still looking for the time clock.'},
+  {id:'breakrm', name:'Break Room',   map:'breakrm', col:'#7ccf4a', tag:'Defends the microwave line with his whole career.'},
+  {id:'bench',   name:'Bench Warmer', map:'court',   col:'#5fd6d0', tag:'Best seat in the house, every single game.'},
+  {id:'night',   name:'Night Shift',  map:'casino',  col:'#63c8ff', tag:'Wide awake at 4 a.m. and nothing to show for it.'},
+  {id:'rec',     name:'Rec League',   map:'lot',     col:'#a678ff', tag:'Captain, coach and leading scorer. Two points a night.'},
+  {id:'varsity', name:'Varsity',      map:'breakrm', col:'#ff7aa8', tag:'Made the team photo. Mostly the back row.'},
+  {id:'d1',      name:'D1 Dream',     map:'casino',  col:'#ff9d3c', tag:'Florida was a great idea on paper.'},
+  {id:'pro',     name:'Pro Day',      map:'field',   col:'#ff6a2b', tag:'Ran every drill. Nobody wrote anything down.'},
+  {id:'allstar', name:'All-Star',     map:'lot',     col:'#ffd23f', tag:'Voted in by one very loyal account.'},
+  {id:'five',    name:'Five-Star',    map:'court',   col:'#ffd95a', tag:'The prospect. The legend. The 2.0 points per game.'}
+];
+const MINIONS = ['Temp', 'Intern', 'Overtime', 'Double Shift', 'Lunch Break', 'Clipboard', 'Substitute', 'Pickup Game', 'Day Off', 'Sixth Man', 'Garbage Time', 'Preseason', 'Walk-On', 'Scout Team', 'Water Boy', 'Towel Guy',
+  'Layup Line', 'Shootaround', 'Film Room', 'Carpool', 'Coffee Run', 'Time Sheet', 'Reply All', 'Out of Office', 'Open Gym', 'Warm-Up', 'Fast Food', 'Late Shift', 'Stat Sheet', 'Fan Vote'];
+export const tierOf = n => TIERS[clamp(Math.floor((n - 1) / 100), 0, TIERS.length - 1)];
+/* what beating level n pays, and what the first win there adds on top */
+export function levelPrize(n){
+  const boss = n % 100 === 0, coins = Math.round((30 + n * 1.1) * (boss ? 4 : n % 10 === 0 ? 1.6 : 1) / 5) * 5, t = Math.floor((n - 1) / 100);
+  const first = {};
+  if (boss){ first.pack = t >= 6 ? 'mythic' : t >= 2 ? 'diamond' : 'gold'; first.token = 2; first.rar = t >= 4 ? 'l' : 'e'; }
+  else if (n % 25 === 0){ first.pack = t >= 5 ? 'diamond' : 'gold'; first.token = 1; }
+  else if (n % 10 === 0){ first.pack = t >= 6 ? 'gold' : t >= 2 ? 'silver' : 'bronze'; first.token = 1; }
+  else if (n % 5 === 0) first.pack = t >= 7 ? 'gold' : t >= 3 ? 'silver' : 'bronze';
+  if (n === 1) first.pack = 'silver';
+  return {coins, first, lose:Math.max(10, Math.round(coins * .18 / 5) * 5)};
+}
+export function ladderCpu(n){
+  n = clamp(Math.round(n), 1, LEVELS);
+  const rnd = mulberry(n * 7919 + 13), T = tierOf(n), t = TIERS.indexOf(T), boss = n % 100 === 0, g = (n - 1) / (LEVELS - 1), q = Math.min(1, g * 1.5);
+  const types = [TYPE_IDS[Math.floor(rnd() * TYPE_IDS.length)], TYPE_IDS[Math.floor(rnd() * TYPE_IDS.length)]];
+  const deck = dealDeck(rnd, {types, rare:1 + Math.round(g * 9) + (boss ? 1 : 0), epic:Math.floor(g * 7 + (boss ? 1.5 : n > 30 ? .5 : 0)), legend:Math.floor(g * 3.4 + (boss && t >= 2 ? 1 : 0)), build:.08 + g * .5, traps:n < 20 ? 0 : n < 150 ? 1 : 3});
+  const ai = {react:+lerp(3.2, .9, Math.pow(g, .6)).toFixed(2), hold:+lerp(9, 6, q).toFixed(1), derp:+lerp(.45, 0, Math.min(1, g * 2.2)).toFixed(2), smart:+lerp(.15, 1, Math.min(1, g * 1.8 + (boss ? .15 : 0))).toFixed(2), el:+lerp(.85, 1.3, g).toFixed(2) + (boss ? .05 : 0)};
+  const name = boss ? T.name + ' BDB' : MINIONS[Math.floor(rnd() * MINIONS.length)] + ' BDB';
+  return {id:'lv' + n, level:n, boss, tier:t, name, tag:boss ? T.tag : `${TYPES[types[0]].name}${types[1] !== types[0] ? ' and ' + TYPES[types[1]].name : ''} deck.`, map:boss ? T.map : MAP_IDS[Math.floor(rnd() * MAP_IDS.length)],
+    lvl:clamp(1 + Math.floor(g * 9.6) + (boss ? 1 : 0), 1, MAX_LVL), tower:clamp(1 + Math.floor(g * 11) + (boss ? 1 : 0), 1, 14), ai, deck, types, ...levelPrize(n)};
+}
+
+/* Quick battle: a deck dealt at random, at one of four skill levels. dl: his card level relative to yours. The harder he is, the more a win pays:
+   more coins, then one of his cards on top, then a pack as well. */
+export const SKILLS = [
+  {id:'easy',   name:'Easy',   coins:50,  lose:10, card:false, pack:null,     dl:-1, ai:{react:3,    hold:9,   derp:.4,  smart:.2,  el:.85}, deal:{rare:1, epic:0, legend:0, build:.05, traps:1}},
+  {id:'medium', name:'Medium', coins:110, lose:20, card:true,  pack:null,     dl:0,  ai:{react:2.1,  hold:8,   derp:.18, smart:.5,  el:1},   deal:{rare:3, epic:1, legend:0, build:.2,  traps:2}},
+  {id:'hard',   name:'Hard',   coins:220, lose:35, card:true,  pack:'bronze', dl:1,  ai:{react:1.5,  hold:7,   derp:.07, smart:.8,  el:1.05}, deal:{rare:5, epic:3, legend:1, build:.4, traps:3}},
+  {id:'insane', name:'Insane', coins:420, lose:60, card:true,  pack:'silver', dl:2,  ai:{react:1.0,  hold:6,   derp:.02, smart:1,   el:1.2},  deal:{rare:6, epic:5, legend:3, build:.6, traps:3}}
+];
 export function randomCpu(skill, myLvl = 1, rnd = Math.random){
   const S = SKILLS.find(s => s.id === skill) || SKILLS[1], pick = a => a[Math.floor(rnd() * a.length)];
-  const pool = BASE_IDS.slice(); for (let i = pool.length - 1; i > 0; i--){ const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-  // any 15 cards, as long as there is something cheap, something big and at least one spell in there, and no more than a few traps
-  const need = [b => BASE[b].cost <= 2 && !!BASE[b].u, b => BASE[b].cost <= 3 && !!BASE[b].u, b => !!BASE[b].spell, b => BASE[b].u && (UNITS[BASE[b].u].only === 'b' || UNITS[BASE[b].u].hp >= 900)], bases = [];
-  for (const f of need){ const b = pool.find(x => f(x) && !bases.includes(x)); if (b) bases.push(b); }
-  let nTrap = 0; const maxTrap = S.id === 'easy' ? 1 : S.id === 'medium' ? 2 : 3;
-  for (const b of pool) if (bases.length < DECK_SIZE && !bases.includes(b) && !(BASE[b].trap && ++nTrap > maxTrap)) bases.push(b);
-  let legends = 0;
-  const deck = bases.map(b => { let r = pick(S.rar.split('')); if (r === 'l' && ++legends > MAX_LEGEND) r = 'e'; return `${b}-${rnd() < .5 ? 'std' : pick(AFF_IDS)}-${r}`; });
-  return {id:'rand-' + S.id, rand:true, skill:S.id, name:pick(RAND_NAMES), tag:`${S.name}. A different deck every time.`, map:pick(MAP_IDS), lvl:clamp(Math.round(myLvl + S.dl), 1, MAX_LVL), coins:S.coins, ai:S.ai, deck};
+  return {id:'rand-' + S.id, rand:true, skill:S.id, name:pick(MINIONS) + ' BDB', tag:`${S.name}. A different deck every time.`, map:pick(MAP_IDS), lvl:clamp(Math.round(myLvl + S.dl), 1, MAX_LVL), tower:clamp(Math.round(myLvl + S.dl), 1, 14),
+    coins:S.coins, lose:S.lose, card:S.card, pack:S.pack, ai:S.ai, deck:dealDeck(rnd, S.deal)};
 }
+
+/* Player upgrades, bought with tokens won on the ladder. They count against the CPU only; online matches are always even. */
+export const PERKS = {
+  hp:   {name:'Thicker Walls',  max:10, per:.04, text:r => `Your towers have ${Math.round(r * 4)}% more health.`},
+  dmg:  {name:'Better Aim',     max:10, per:.05, text:r => `Your towers hit ${Math.round(r * 5)}% harder.`},
+  flow: {name:'Mana Flow',      max:5,  per:.03, text:r => `Mana fills ${Math.round(r * 3)}% faster.`},
+  start:{name:'Head Start',     max:4,  per:.75, text:r => `You start a match with ${(5 + r * .75).toFixed(2).replace(/\.?0+$/, '')} Mana.`},
+  coin: {name:'Signing Bonus',  max:10, per:.06, text:r => `Wins pay ${Math.round(r * 6)}% more coins.`}
+};
+export const PERK_IDS = Object.keys(PERKS);
+/* old saves held a card for every rarity of a character and used older names: where each of those went */
+export const OLD_BASE = {skels:'bonecrew', bench:'ironclad', shooters:'longshots', gobs:'orclings', bats:'gloombats', airball:'arrows', slime:'slime', hoop:'cannon', mascot:'mascot', barista:'hexa', golem:'clanker', ref:'nightbolt',
+  coffee:'fireball', vending:'crypt', trainer:'tonic', fast:'gorehorn', dragon:'emberwing', ghost:'lostsoul', clockout:'freeze', overtime:'rage', buzzer:'magmaw', witch:'gravewitch', fivestar:'bdb', jumbo:'lich', bell:'bell',
+  wetfloor:'wetfloor', screen:'screen', replay:'replay', benched:'benched', techfoul:'techfoul'};
+export const OLD_AFF = {vet:'gold', elite:'gold'};

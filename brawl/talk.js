@@ -1,0 +1,165 @@
+/* Break Room Brawl: what the characters say. Over a thousand lines: six for every character when it is summoned, three for every spell, building and trap,
+   a set for each type, and more for kills, towers and close calls. Lines are split on | to keep the file readable. */
+const S = {
+  /* ----- Order ----- */
+  ironclad:"Shield up. Feelings down.|Hit the shield. I dare you.|I block for a living.|Steel beats talent. Ask your towers.|Clocked in. Sword out.|You swing like you are asking permission.",
+  longshots:"From downtown.|Two arrows, one bad day.|We do not miss. We warn.|Stand still, this is art.|Range is a personality.|Count the feathers on your way down.",
+  dawnhammer:"Everybody behind me. Now.|I heal my friends and flatten yours.|This hammer has a name. You will not like it.|Hold the line or get out of it.|Bless you. You will need it.|I have carried worse teams than this.",
+  oathkeeper:"Shields for everyone. You are welcome.|Hit me first. I insist.|I swore an oath. You swore at the ref.|Look at me, not them.|Somebody has to be the adult here.|My team is covered. Is yours?",
+  bell:"Ding dong, your push is dead.|Ring the bell, ruin your day.|School is in. Sit down.|That ringing in your ears? Me.|For whom the bell tolls? You, obviously.|Last call. Nobody is going home happy.",
+  /* ----- Shadow ----- */
+  cutpurse:"Nice Mana. Mine now.|Check your pockets.|I take tips. All of them.|Finders keepers.|Your tower left its wallet out.|Robbing you is basically charity.",
+  nightbolt:"One shot. I only brought one.|Hold still. Or do not. Same result.|I can see your regrets from here.|Long range, short conversation.|You will hear it after it lands.|Distance is a kindness.",
+  vesper:"You never saw me. That is the point.|Boo.|First cut is free. It is also triple.|Behind you. Always behind you.|I was here the whole time.|Blink and you are a highlight.",
+  kage:"Surprise. I am already inside.|Your back line looked lonely.|Front door is for tourists.|Nothing personal. It is extremely personal.|Catch me? Cute.|Third cut is the charm.",
+  shinobi:"Two swords. Zero patience.|Count to three. It hurts on three.|I was told there would be a fight.|Sharp enough for you?|Every third swing is a problem.|Big ninja energy.",
+  /* ----- Dark Arts ----- */
+  bonecrew:"Night shift, reporting.|Four of us. One brain. Enough.|Rattle rattle, your tower is next.|We work for exposure.|No skin in the game.|Dead tired and still showing up.",
+  boneknight:"Knock me down. I get up. Once.|Death was a suggestion.|I have a bone to pick. Several.|Round two is on the house.|You hit like a living person.|Back from break.",
+  bonearchers:"No lungs. Never hold our breath.|Dead eye. Literally.|Two bolts with your name spelled wrong.|We aim with what is left.|Ribs out, bolts in.|Hollow inside. Steady hands.",
+  gravewitch:"Rise and whine, boys.|More bodies. Always more bodies.|I hex. They die. Then they work for me.|Three more where those came from.|Your funeral, my staff meeting.|The graveyard is hiring.",
+  mort:"Do not stay dead on my account.|Everything that falls, I keep.|Death is just a job change.|Cursed? You are welcome.|Up you get. You are mine now.|I recycle.",
+  colossus:"Tower. Smash. Repeat.|Break me. I dare you. Twice.|Many bones. One goal.|I do not see you. I see buildings.|Put me back together and try again.|Some assembly required.",
+  sanguine:"I only drink the losing team.|You look tired. And delicious.|Every kill is a refill.|Good evening. Bad night for you.|I get better with age. And with kills.|Thirsty work, this.",
+  lostsoul:"Booooring defence.|I float. You flail.|Still looking for who owes me money.|Is it cold in here or is it me?|Ground troops, wave from down there.|Haunting is a full-time job.",
+  wraith:"Slow down. No, really. You have to.|I feed on bad decisions.|Feel that chill? That is your odds.|Your health looks tasty.|Skull out, soul in.|Drain first. Questions never.",
+  gloombats:"Squeak squeak, your arrows are weak.|Up here, genius.|Four of us and none of us listen.|Swing all you like, shorty.|Night flight, no survivors.|We go for the eyes.",
+  terror:"Kill me and it gets worse.|I am three problems in a trench coat.|Big bat, bigger attitude.|Pop me. See what falls out.|Nightmares travel in packs.|Sleep tight.",
+  nightfall:"Tis but a scratch.|Your little hits tickle.|One swing. Whole crowd.|I have had worse. From my own team.|Armour first. Mercy never.|None shall pass. Most shall not even stand.",
+  lich:"Kneel. Or die and kneel anyway.|Everything that dies here works for me.|I brought friends. They were dying to come.|The dead do not clock out.|Your army is my army. Give it a minute.|Long live me.",
+  /* ----- Fire ----- */
+  hellion:"Time to f**k s**t up.|I landed. Things are on fire. You are welcome.|Hot enough for you?|Burn first, apologise never.|This pitchfork is not for hay.|Stop, drop and lose.",
+  imps:"Hee hee, hot hot hot.|Three little fires, coming up.|We bite and it keeps burning.|Catch us, tall stuff.|Burn, baby, burn.|Flame on, brains off.",
+  cinder:"Hurt me. I get faster.|Flaming sword. Short temper.|You are flammable. Good to know.|I fight angry. I am always angry.|Closer. I want you to feel the heat.|Burn notice delivered.",
+  magmaw:"Tower. Melt. Next.|Stand next to me. I dare you.|I leave a puddle. It is lava.|Slow walk. Hot finish.|Everything near me is cooking.|The floor is me.",
+  /* ----- Frost ----- */
+  glacius:"Chill. That was an order.|Cold landing, colder shoulder.|Hit me. I will heal while you try.|Everybody slow down.|Freeze, punks.|I am not mad. I am just cold.",
+  permafrost:"Touch me and slow down.|Tower. Ice. Shatter.|Break me and everyone freezes.|I am a walking winter.|Cold hands, colder everything.|Ice to meet you.",
+  yeti:"Big. Furry. Rude.|Every hit, you get slower.|Hugs? No. Punches.|Snow day. For your towers.|Cold fists, warm heart. Kidding.|I am the abominable part.",
+  frostbeak:"Pounce first. Ask never.|Death from slightly above.|I jump on problems.|Peck peck, you are wrecked.|Landing hurts. For you.|Coming in cold.",
+  tundra:"Batter up.|Going, going, gone.|Swing big. Send them back.|You are standing too close. Fixed it.|Home run. Wrong sport. Do not care.|Back you go.",
+  /* ----- Wizard ----- */
+  zephyr:"Thunder is just me clearing my throat.|It jumps. To your friends.|Shocking, I know.|Stand closer together. Please.|One bolt, four regrets.|I am the forecast.",
+  hexa:"Abra kadabra, sit down.|Splash zone. You are in it.|I cast first and ask later.|Magic is real and it hates you.|Bunch up. Go on.|Spell check: you lost.",
+  tonic:"Drink this. Trust me. Mostly.|Potions for my friends. Nothing for you.|Feeling better? Good. Now fight.|I brewed it myself. Do not ask.|Side effects may include winning.|Top up, tough guy.",
+  wizlings:"Small hats. Real spells.|We are still in school. You are still losing.|Pew pew. That is the spell.|Homework? Destroying you.|Two wizards, half the tuition.|Apprentice this.",
+  stalker:"Marked. Everyone hits you harder now.|I am not from here.|You have been tagged.|Run. The mark comes with you.|Your stats are showing.|Bad news travels with me.",
+  hexsprite:"Tag. You are it.|Hexed and vexed.|I fly. I curse. I leave.|That mark looks bad on you.|Little wings, big grudges.|Zip zap, take that.",
+  mindsquid:"Ink first. Think never.|Slow down and enjoy the mess.|It is raining ink. Hallelujah.|Splash. You are all sticky now.|Eight arms, zero mercy.|Brain freeze, squid style.",
+  sentinel:"Shield on. Come get it.|First hits are on the house.|I guard the sky.|Star power, baby.|You will have to do better than that.|Flying and insured.",
+  archon:"Shielded, airborne and smug.|My bolts make friends.|Two more targets? Sure.|Look up. Regret it.|The stars sent me. They are not fans.|Chain reaction incoming.",
+  /* ----- Beast ----- */
+  gorehorn:"Move or get moved.|I was charging before I got here.|Horns first. Questions never.|Red flag? Everything is a red flag.|You are in my way. You were.|Bullseye.",
+  lycan:"Full moon, full plate.|I jump. You scream.|Every bite heals. Keep feeding me.|Who let me out? Wrong question.|Bad dog. Very bad dog.|Awoooo, you are done.",
+  woodsman:"Just a man with an axe. For now.|Hurt me and meet the other guy.|Chop first. Howl later.|I have a condition.|Half health is where it gets fun.|Timber.",
+  thumper:"Hop. Bonk. Repeat.|This carrot is a weapon.|Bunny on the way down.|Cute? Say it again.|I jump on what I hate.|What is up, doc? You. In the air.",
+  monkroose:"Rocks. I brought rocks.|Catch.|Splash damage, monkey style.|I throw things. It is a whole career.|Heads up. Too late.|Tougher than I look. Uglier too.",
+  landshark:"I smell blood.|Under half health? Dinner.|Fins up.|You are bleeding. I am interested.|Finish what the others started.|Just keep swinging.",
+  piranhas:"Nom nom nom nom.|Four mouths. One menu.|Hurt already? Perfect.|We love leftovers.|Chomp squad.|School is in session.",
+  /* ----- Nature ----- */
+  thornweaver:"Roots for you. Heals for us.|The forest says hi. It is not friendly.|Tangled yet?|Slow down. Smell the thorns.|Everyone near me feels better. Except you.|Nature bats last.",
+  elderbark:"I was here before your towers.|Roots up. Speed down.|Take your time. You have to.|Lean on me. I heal.|Chop me? Good luck.|I am older than your excuses.",
+  mushking:"Bow. Or get more mushrooms.|Two more. Then two more.|Long live me. I reproduce.|My kingdom multiplies.|There is fungus among us.|You will run out of patience before I run out of sons.",
+  mushnubs:"Bite bite, poison.|Four tiny problems.|We are toxic. Literally.|Small. Spongy. Spiteful.|Chew on this.|Fun guys. Not for you.",
+  sporecap:"Breathe in. Worst idea you had today.|Standing next to me was the mistake.|Achoo. You are poisoned.|Personal space. Learn it.|Spores do the talking.|Cough it up.",
+  cactoro:"Hit me. See what happens.|Hugs hurt.|Half of that comes right back.|Do not touch. Do not even look.|I am prickly on purpose.|Punch a cactus. Go on.",
+  prickles:"Ole. Ouch.|Three hats, a thousand needles.|We sting when you swing.|Tiny, spiky, petty.|Touch us. We dare you.|Fiesta of pain.",
+  dartfrog:"Lick me and find out.|Hop in, poison out.|Bright colours mean back off.|Ribbit. You are sick now.|I leave a little something behind.|Jump scare.",
+  slime:"Pop me. I double.|Squish.|One of me, two of me.|I am mostly bounce.|You cannot kill a puddle.|Splits are my cardio.",
+  spikeslime:"Squish and stab.|Hit the spiky one. Smart.|Break me. Get three.|Ow. That was you, not me.|Pointy on the outside.|Soft centre. Sharp everything else.",
+  bees:"Bzzzz off.|Sting now, hurt later.|Four stingers, no chill.|Buzz kill, incoming.|Mind your own beeswax.|Float like us. Sting like us.",
+  queen:"Kneel before the hive.|My kids are out. Good luck.|More bees. Always more bees.|Long live the queen. Me.|Sting operation.|I do not chase. I send.",
+  cluckers:"Bawk bawk, tower down.|Five chickens. One plan. Bad plan.|Who let us in? Nobody.|Peck order: you last.|Cluck around and find out.|Wing night. You are the wings.",
+  pigeons:"Coo. Then pain.|Aim higher. And better.|We go on statues. You are next.|Quarter of your shots: air.|City birds, country manners.|Flock off.",
+  /* ----- Horde ----- */
+  gorak:"Horde. With me. Now.|Faster, you lazy lumps.|I lead. You bleed.|War is my love language.|Stand near me and learn something.|Tonight we dine on towers.",
+  raider:"Axe first.|I came to raid and chew gum. No gum.|Point me at something.|Loot later. Smash now.|Front of the line. Always.|Orc smash. It is in the name.",
+  skullcrusher:"Third hit, lights out.|See stars yet?|I crush. It is on the business card.|Stand still for this one.|Bonk. Bonk. BONK.|Your skull called. It is nervous.",
+  mauler:"Wide swing. Everybody gets some.|Share the pain.|My club has spikes. Your face has plans.|Bunch up. Please.|One swing, group discount.|Messy? That is the point.",
+  orclings:"Raid! Raid! Raid!|Four of us and a dream.|Small orcs. Big noise.|Stay together, hit harder.|We want the tower. And snacks.|Mob rules.",
+  witchdoc:"Hex on you. And you. And you.|Marked for a bad time.|The mask sees your mistakes.|Ooga booga, extra damage.|Curses are free today.|Shake shake, you ache.",
+  skytotem:"Drums in the sky.|Faster below. I am watching.|Feel the beat. Then the beating.|I float. They fight harder.|Tempo up.|Dance, puppets.",
+  gremlins:"Hehehe, up here.|Three of us. Zero rules.|We break things for fun.|Fly, bite, repeat.|Do not feed us. Too late.|Chaos has wings.",
+  gremking:"Your Mana. My Mana.|Crown on. Hands in your pockets.|Tower tax, due now.|Royalty takes what it wants.|Every hit pays me.|Long live the thief.",
+  bloodaxe:"Hurt me. I swing faster.|Blood for the axe guy.|I am just getting warmed up.|Closer to dead, closer to dangerous.|Chop chop.|Rage is a renewable resource.",
+  goliath:"Fee fi fo, your tower has to go.|I land. You fall over.|Small things do not interest me.|Building. Smash. Building.|Did the ground shake? Me.|Look up. Further.",
+  gronk:"Gronk hungry.|Hit you. Eat you. Feel better.|Back you go, snack.|Gronk heals when Gronk hits.|You look like lunch.|Tasty.",
+  ugg:"Ugg hit thing.|Two Mana. Big club.|Thing go backwards.|Ugg not think. Ugg bonk.|Fire good. You bad.|Ugg invent losing. For you.",
+  /* ----- Machine ----- */
+  tinker:"Have you tried hitting it?|I fix towers. I break faces.|Hold still, tower. This will not hurt.|Wrench time.|Duct tape and spite.|Under warranty. Barely.",
+  brassbolt:"Pressure is building.|Small hits? Did not notice.|Hurt me. I speed up.|Something in here is angry.|Brass on the outside. Rage on the inside.|Depth charge.",
+  scrapbot:"Target acquired. Target regretted.|Beep. Boom.|I was built from spare parts and spite.|Arm cannon says hello.|Processing. You lose.|Error: mercy not found.",
+  shockbot:"Third punch is electric.|Charging. Charged.|Shocking, is it not?|Stunned? Good.|Hands up. They are tasers.|Zap. Nap time.",
+  titan:"Spinning up.|The longer I shoot, the worse it gets.|Brrrrrrt.|Stay on target. I will.|You have about four seconds.|Minigun. Maxi problem.",
+  clanker:"Tower. Clank. Boom.|Your hits go ping.|I explode when I am done.|Boiler is hot.|Clank clank, get out of the way.|Built to break things. And then break.",
+  starranger:"Phasers set to rude.|One small step. One big hole.|Space is big. My rifle is bigger.|Pew. From orbit.|Roger that. Firing.|Houston, they have a problem.",
+  jetace:"Top gun, bottom of your list.|Look up, losers.|Fly by. Shoot by.|Jetpack. Rifle. Any questions?|Ground control is jealous.|Highway to your tower.",
+  sarge:"Drop and give me a tower.|Fire, fire, keep firing.|I do not reload. I do not stop.|Move it, maggots.|Hordes? Target practice.|That is an order.",
+  prepper:"I have been ready for years.|Shield up. Shotgun out.|Told you this would happen.|Close range. Wide spread.|I stockpiled for this.|Get off my lawn.",
+  funbear:"Who wants a song? Nobody? Guitar it is.|Party is over.|I used to do birthdays.|This guitar has one chord. Ouch.|Showtime.|Hugs are extra.",
+  afterhours:"Boo. Now hold still.|Nobody switched me off.|Scared? Good.|We are closed. You are trespassing.|The night shift bites.|Jump scare. You are welcome.",
+  /* ----- Break Room ----- */
+  janitor:"Wet floor. Watch it.|I just mopped that. Now you are on it.|Slipping? I am not surprised.|Clean up on aisle you.|Thirty years of mopping up worse.|Mind the bucket.",
+  courier:"Package for your tower.|Running late. Never.|Sign here. In pain.|Move. I am on the clock.|Straight to the door.|Delivery. No returns.",
+  trailboss:"I carry everything. Including this team.|Slow and steady and in your way.|Uphill both ways.|My backpack has seen things.|Take a hike.|I packed a lunch and a grudge.",
+  interns:"We are doing this for exposure.|Is this in the job description?|Two of us. No pay. All heart.|Coffee run. Then your tower.|Please rate us five stars.|We were told there would be pizza.",
+  captain:"Overtime? I live for it.|Incoming. Cover your towers.|I land like a deadline.|Up, up and you are done.|Capes are back.|Clocking in. Loudly.",
+  helpers:"Seasonal. Still better than you.|Candy cane to the face.|Ho ho, hold this.|Gone by January. You are gone sooner.|Temp work, permanent damage.|Naughty list. All of you.",
+  giggles:"Honk honk, you are done.|Bombs are funnier when they are yours.|Why so serious? Boom.|I have a last one for later.|Laugh. It is a blast.|Send in the clown.",
+  mascot:"I only see buildings.|Big suit. Bigger problem.|Go team. Me. I am the team.|Do not hug the mascot.|Halftime show: your tower falling.|Fuzzy on the outside.",
+  bdb:"Five-star prospect, coming through.|Scouts, are you seeing this?|2.0 points a game and every one of them mattered.|Clear out. I need room to work.|I am heating up. Give it a minute.|Put me in, coach. Oh wait, I am the coach.",
+  /* ----- Dragon ----- */
+  infernus:"Kneel before the flame.|I land. Everything burns.|You brought an army. I brought fire.|Roast everyone.|The sky was mine. Now the ground is too.|Ash is all you will be.",
+  jade:"Breathe in. Breathe fire.|Green means go. Go burn.|Small dragon, big breath.|Everything in front of me is toast.|Hot take incoming.|Rawr. That is the warning.",
+  emberwing:"Fire from above.|Splash zone is everywhere.|Wings up, towers down.|Smells like a win. And smoke.|Fly over. Burn through.|Well done. Extra crispy.",
+  elder:"I am the biggest thing in the sky.|Burn, little things.|Look up and despair.|Wide breath. Wider damage.|Ancient and annoyed.|The sky has teeth.",
+  raptor:"Clever girl.|Pounce.|Fast feet, sharp everything.|You did not see me. Then you did.|Run. It is more fun.|Dinner is served. It is you.",
+  kaiju:"Every kill makes me bigger.|Rawr means I win.|Leave me alone and regret it.|Tail whip for the whole class.|I am growing on you.|City is next.",
+  /* ----- buildings ----- */
+  cannon:"Boom. Next.|Aim. Fire. Laugh.|Walk past me. Try it.", watchtower:"I can see you from here.|Up here, down you go.|Nobody sneaks past the tower.",
+  manawell:"Drink up.|More Mana, more problems. For them.|Protect me. I pay for everything.", crypt:"Out you come, boys.|The door stays open.|Two more for the night shift.",
+  flamespire:"It starts as a tickle.|Stay in the beam. Please.|Big guy? Favourite.", stormcoil:"Zap. And your friends.|Third one stuns.|Stand closer together.",
+  barricade:"Nope.|Go around. Oh wait.|I am a wall. That is the whole job.", shrine:"Stand here. Feel better.|Healing, free of charge.|Fight on top of me.",
+  wardrum:"Boom. Boom. Faster.|March to this.|Feel the beat.", nest:"Crack. Rawr.|Fresh dragons, coming up.|Hatch day.",
+  /* ----- spells ----- */
+  arrows:"Incoming.|Look up.|Hope you packed an umbrella.", zap:"Zap.|Stunned. Next.|Short and shocking.", quake:"Hold on to something.|The floor says no.|Shaky ground. Shaky towers.",
+  fireball:"Catch.|Fire in the hole.|Hot delivery.", rage:"Faster. Angrier. Go.|Get loud.|Now we are talking.", poison:"Breathe deep.|Stay a while.|Cough cough.",
+  heal:"Walk it off.|Feeling better.|Back in the fight.", ward:"Shields up.|Not today.|Go ahead. Throw it.", freeze:"Freeze.|Chill out.|Ice ice, maybe.",
+  lightning:"Three bolts. Pick three.|Thunderstruck.|The sky picked favourites.", tornado:"Round and round you go.|Spin cycle.|Gather round.", meteor:"Heads up. Way up.|Incoming rock. Big one.|Make a wish.",
+  graveyard:"Up and at them.|The ground is hiring.|They just keep coming.",
+  /* ----- traps ----- */
+  wetfloor:"Caution: you.|Slip and slide.|Told you it was wet.", screen:"Screen. Legal one.|Run into it. Go on.|Set it and forget it.", techfoul:"Whistle. No spell.|Denied.|That one does not count.",
+  replay:"Roll the tape.|Let us see that again.|Upon review: your fault.", benched:"Back to the bench.|Sit down.|Go think about what you did."
+};
+/* what a type says when its own lines have just been used, or for anything that arrives through another card */
+const T = {
+  dragon:"Rawr.|Fire it up.|Wings and teeth.|Burn it down.|Scales out.|Dragons do not ask.|Hot and hungry.|Smoke them.|Tail up.|Breathe.",
+  fire:"Burn.|Hot hot hot.|Light it up.|Smell that? You.|Flame on.|Cook them.|Too hot to handle.|Ashes, ashes.|Turn up the heat.|Sizzle.",
+  frost:"Chill.|Ice cold.|Slow down.|Freeze up.|Cool it.|Winter is here.|Brrr.|Frostbite time.|Snow mercy.|Cold open.",
+  arcane:"Abracadabra.|Magic time.|Hex yeah.|Spell it out.|Sparks fly.|Mana well spent.|Poof.|Read the fine print.|Wand up.|Presto.",
+  dark:"Rise.|Dead serious.|Grave mistake.|Lights out.|From the crypt.|Bone to pick.|Rest in pieces.|Spooky season.|Doom, gloom, boom.|Darkness, ho.",
+  shadow:"Shh.|Did you see that? No.|In and out.|Quiet now.|From the dark.|Sneak attack.|Nothing to see here.|Gotcha.|Behind you.|Blink.",
+  beast:"Grrr.|Feeding time.|On the hunt.|Teeth out.|Claws up.|Run.|Fresh meat.|Wild thing.|Pounce.|Howl.",
+  nature:"Grow up.|Thorns out.|Bloom and doom.|Touch grass. It bites.|Roots down.|Green and mean.|Nature calls.|Pollen count: lethal.|Leaf me alone.|Wild card.",
+  horde:"Waaagh.|Smash.|For the horde.|Loot and scoot.|More. More.|Raid time.|Hit it.|Loud and proud.|Break stuff.|Charge.",
+  order:"Hold the line.|For the crown.|Stand firm.|Shields up.|In formation.|Duty calls.|By the book.|Steady.|Forward.|On my mark.",
+  tech:"Beep boop.|Systems online.|Locked and loaded.|Calculating. You lose.|Fire at will.|Reboot this.|Target locked.|Overclocked.|Initiating smackdown.|Loading pain.",
+  crew:"Clocking in.|Back from break.|Is this paid?|Per my last email.|Team meeting. On your tower.|Overtime approved.|Reply all.|Coffee first.|On it, boss.|Circle back never."
+};
+const SITU = {
+  kill:"Next.|Sit down.|That is one.|Who else?|Too easy.|Get up. Oh. You cannot.|Call your mother.|Stay down.|And stay out.|Was that your best?|Write that down.|Bye bye.|Thanks for coming.|You good? No.|Back of the line.|That had to hurt.|Clean up on that lane.|Do better.|See you never.|One down.|Not today.|Send another.|Boom.|Deleted.|Night night.|That was personal.|Told you.|Weak.|Tag them and bag them.|Put that on a poster.",
+  tower:"Tower down. Tell your friends.|That is a crown.|Knock knock. Nobody home.|One less tower to worry about.|Demolition complete.|Who built that? Fire them.|Timber.|And that is the door.|Property values just dropped.|Rubble looks good on you.|Next tower, please.|Structural issues detected.|Renovations by us.|Bring it down.|That one is ours.|Crown me.|Boom goes the tower.|Add it to the pile.|Easy work.|Open concept now.",
+  low:"Just a scratch.|I have had worse.|Not dead yet.|Is that all?|Medic. Kidding. Keep going.|Still standing.|Come on, finish it.|I am fine. This is fine.|Walk it off.|Pain is temporary.|You call that a hit?|Barely felt it.|One more. I dare you.|Running on spite.|Not like this.",
+  big:"Wham.|Critical.|Right in the stats.|Felt that?|Special delivery.|That is the good stuff.|Boom, baby.|Extra crispy.|Double trouble.|Max damage.|Clean hit.|Called it.|Lights out.|There it is.|Sweet spot.",
+  win:"Good game. For us.|Pack it up.|That is the match.|Easy.|Tell them who did it.|Winners write the highlights.|We run this court.|Flawless. Nearly.|Take notes.|Same time tomorrow?",
+  lose:"We will be back.|Lucky.|Ref.|This is not over.|Rematch.|I blame the deck.|Who planned this?|Call it a warm-up.|Nobody saw that.|Fine. You win. This time."
+};
+const split = o => { const r = {}; for (const k in o) r[k] = o[k].split('|'); return r; };
+export const SAY = split(S), TYPE_SAY = split(T), SITU_SAY = split(SITU);
+export const LINE_COUNT = [SAY, TYPE_SAY, SITU_SAY].reduce((a, o) => a + Object.values(o).reduce((b, l) => b + l.length, 0), 0);
+/* a line for this card (falling back to its type), picked by a number so that both players in a match hear the same one */
+export function sayFor(base, type, n = Math.floor(Math.random() * 1e6)){
+  const own = SAY[base], l = own && (!TYPE_SAY[type] || n % 7 !== 6) ? own : TYPE_SAY[type] || own;
+  return l ? l[n % l.length] : '';
+}
+export const sayWhen = (k, n = Math.floor(Math.random() * 1e6)) => { const l = SITU_SAY[k]; return l ? l[n % l.length] : ''; };
