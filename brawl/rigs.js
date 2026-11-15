@@ -13,6 +13,7 @@ let rimFn = null; export const useRim = f => { rimFn = f; };
 const NATIVE = {m:2.2, l:4.0};            // how tall the two KayKit rigs stand, in their own units. Any other family is measured file by file.
 /* f: file. h: height on the field. fam: 'm' or 'l' = a KayKit rig that takes its clips from the shared library; none = the file has its own.
    walk / atk / idle / death / cheer: clip names. at: seconds one attack swing takes. rh / lh: what is in each hand. tint: recolour. fly: how high it hovers.
+   hold: something built from shapes for a T_ character's right hand (PROPS). raise: no swing; every attack lifts that hand to the sky instead.
    lift: how much of its own painted colour a dark model gives off, so it does not go to black in the shade. */
 const K = (f, h, atk, o = {}) => ({f, h, fam:'m', walk:'Walk', atk, ...o}), KL = (f, h, atk, o = {}) => ({f, h, fam:'l', walk:'Walk', atk, at:.85, ...o});
 const Q = (f, h, o = {}) => ({f, h, walk:'Walk', atk:'Punch', ...o}), R = (f, h, o = {}) => ({f, h, walk:'Walk', atk:'Attack', death:'Death', at:.7, ...o});
@@ -71,7 +72,7 @@ export const RIGS = {
   scald:T('Salamander', 1.7, {idle:'IdleB'}), razorback:T('LizardPunk', 1.5, {idle:'IdleB'}), kai:T('DragonKid', 1.35, {atk:'Kick', idle:'IdleB', at:.45}), spikeback:T('SpikeTurtle', 1.6), plum:F('PurpleDragon', 1.2, {atk:'Throw', at:.7, fly:1.3}),
   noir:S('CoatDuelist', 1.45, {atk:'Throw', idle:'IdleB', lift:.4}), onyx:S('HornNinja', 1.4, {atk:'Kick', idle:'IdleB', lift:.35}), midnight:T('HatRogue', 1.7, {idle:'IdleB', lift:.5}), prior:T('RedCultist', 1.9, {idle:'IdleB', lift:.4}),
   malgrave:F('PurpleWraith', 1.8, {atk:'Throw', at:.8, fly:1.2, lift:.4}), turnkey:F('KeyWraith', 1.9, {atk:'Throw', at:.9, fly:1.3, lift:.5}), auditor:T('HaloMan', 2.1, {lift:.55}), slagmaw:T('LavaDemon', 2.1, {idle:'IdleB', lift:.55}),
-  thor:T('Thor', 2.0, {idle:'IdleB', at:.55}), deathgod:T('Death', 2.5, {idle:'IdleB', lift:.6, at:.7}), zeus:C('Zeus', 2.1, {at:.8, lift:.3}),
+  thor:T('Thor', 2.0, {atk:'IdleB', hold:'hammer', raise:1}), deathgod:T('Death', 2.5, {idle:'IdleB', lift:.6, at:.7}), zeus:C('Zeus', 2.1, {at:.8, lift:.3}),
   nightmare:R('BlackHorse', 1.7, {walk:'Run', lift:.55, at:.6}), horseman:{f:'T_Horseman', h:2.5, gallop:true, lift:.4},
   jade:R('Dragon', 2.2, {lift:.25, at:.6, walk:'Idle', fly:1.6, flap:1}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
 };
@@ -79,6 +80,27 @@ const lib = {}, clips = {}, pending = {}, mats = new Map(), inks = new Map();
 let rack = null;                          // wp.glb: one named node per weapon
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qc = new THREE.Quaternion(), va = new THREE.Vector3(), ZAX = new THREE.Vector3(0, 0, 1);
+/* Things a T_ character carries, built from shapes in the model's own units with the grip at the origin and the business end up +Y. top: how far up the head sits. */
+const pm = {}, pg = {};
+const PROPS = {
+  hammer(grad){                              // a war hammer: steel head with gold end caps and a strip of storm light, on a long wrapped handle
+    const mat = (k, c) => pm[k] || (pm[k] = k === 'glow' ? new THREE.MeshBasicMaterial({color:c}) : new THREE.MeshToonMaterial({color:c, gradientMap:grad}));
+    const geo = (k, f) => pg[k] || (pg[k] = f()), g = new THREE.Group();
+    const add = (gk, f, mk, c, y, z = 0, noInk) => { const m = new THREE.Mesh(geo(gk, f), mat(mk, c)); m.position.set(0, y, z); m.castShadow = true; m.frustumCulled = false; if (noInk) m.userData.noInk = true; g.add(m); return m; };
+    add('hShaft', () => new THREE.CylinderGeometry(.045, .052, .8, 10), 'wood', 0x6b4226, .17);
+    add('hWrap', () => new THREE.CylinderGeometry(.062, .062, .3, 10), 'wrap', 0x2e2a3a, -.03);
+    add('hPom', () => new THREE.SphereGeometry(.08, 10, 8), 'gold', 0xf2c14e, -.25);
+    add('hCol', () => new THREE.CylinderGeometry(.085, .085, .09, 10), 'gold', 0xf2c14e, .5);
+    add('hHead', () => new THREE.BoxGeometry(.32, .32, .58), 'steel', 0x8e9bb8, .68);
+    add('hCap', () => new THREE.BoxGeometry(.37, .37, .09), 'gold', 0xf2c14e, .68, .3); add('hCap', () => new THREE.BoxGeometry(.37, .37, .09), 'gold', 0xf2c14e, .68, -.3);
+    add('hGlow', () => new THREE.BoxGeometry(.335, .08, .4), 'glow', 0xbfeaff, .68, 0, true);
+    return {g, top:.68};
+  }
+};
+/* where a raised right arm points, in the body's own space (its right is -X, up is +Y, forward is +Z): out past a big head, then up */
+const ARM_UP = new THREE.Vector3(-.8, .58, .12).normalize(), FORE_UP = new THREE.Vector3(-.42, .9, .1).normalize(), vd = new THREE.Vector3();
+const UPR = new THREE.Quaternion().setFromAxisAngle(ZAX, .14).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2));      // upright, head side on to the lane, tipped a little away from the body
+const smooth = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
 /* how tall a model stands as loaded, and how far below (or above) its own origin its feet are: some files are built around their middle, not their feet.
    A skinned mesh is measured through its skeleton: its raw vertices can be in other units entirely. */
 const tb = new THREE.Box3(), tb2 = new THREE.Box3();
@@ -152,6 +174,8 @@ export function makeRig(key, o, grad, extras){
     const b = extras.bighead(); root.updateMatrixWorld(true);
     b.quaternion.copy(head.getWorldQuaternion(qa).invert()); b.position.copy(head.worldToLocal(head.getWorldPosition(va).add(new THREE.Vector3(0, .62 * sc, 0)))); b.scale.setScalar(1.1); b.userData.noInk = true; head.add(b);
   }
+  let prop = null, hand = null;
+  if (def.hold && PROPS[def.hold]){ root.traverse(n => { if (n.isBone && n.name === 'RightHand') hand = n; }); if (hand){ prop = PROPS[def.hold](grad); hand.add(prop.g); } }
   if (o && o.ink){
     const INK = inkFor(clamp(.021 / sc, .004, .2)), list = [];
     root.traverse(n => { if (!n.isMesh || !n.visible || Array.isArray(n.material)) return; for (let q = n; q && q !== root; q = q.parent) if (q.userData.noInk) return; list.push(n); });
@@ -194,15 +218,47 @@ export function makeRig(key, o, grad, extras){
   const ws = def.ws || (def.walk === 'Run' ? 1.9 : 1.05);        // the ground speed the walk clip was made for
   let cur = null, last = 0, lastAtk = 99;
   const go = (a, fade) => { if (cur === a) return; if (cur) cur.fadeOut(fade); a.reset().setEffectiveWeight(1).fadeIn(fade).play(); cur = a; };
-  idle.time = Math.random() * ic.duration; go(idle, 0);
-  return {g, h:H, fly, rig:true, die(){ if (death){ state = 'dead'; go(death, .08); } return !!death; }, cheer(){ if (cheer && state !== 'dead'){ state = 'cheer'; go(cheer, .15); } }, anim(t, s){
+  go(idle, 0);
+  /* Something held: stood upright in the hand as the idle clip has it, whatever way that bone's own axes point. With raise, an attack is not a swing:
+     the arm goes up and the thing in its hand is held to the sky. Bones are turned in the body's own space, so this works on any of these skeletons. */
+  const inBody = (b, out) => { out.identity(); for (let p = b; p && p !== root; p = p.parent) out.premultiply(p.quaternion); return out; };
+  let lift = null, tip = null;
+  if (prop){
+    mixer.update(0);                                                   // the idle pose, now
+    const fore = hand.parent, arm = fore.parent, pinv = new THREE.Quaternion();
+    prop.g.quaternion.copy(inBody(hand, qa).invert()).multiply(UPR); pinv.copy(prop.g.quaternion).invert();
+    prop.g.position.copy(vd.set(0, 1, 0).applyQuaternion(prop.g.quaternion)).multiplyScalar(-.04);      // the fist closes round the handle a little above its end
+    tip = v => { prop.g.updateWorldMatrix(true, false); return prop.g.localToWorld(v.set(0, prop.top, 0)); };
+    if (def.raise && fore.isBone && arm.isBone){
+      const chain = [arm, fore, hand].map(b => ({b, base:b.quaternion.clone(), out:b.quaternion.clone()})); let up = false;
+      const aim = (b, child, dir, k) => {                               // turn this bone so the next joint along lies in that direction
+        vd.copy(child.position).normalize().applyQuaternion(inBody(b, qa)); qb.setFromUnitVectors(vd, dir).multiply(qa);
+        b.quaternion.slerp(inBody(b.parent, qc).invert().multiply(qb), k); };
+      lift = a => {
+        const k = a < .16 ? smooth(a / .16) : a < .62 ? 1 : a < .95 ? 1 - smooth((a - .62) / .33) : 0;
+        if (k <= 0 && !up) return;
+        for (const j of chain){ if (!j.b.quaternion.equals(j.out)) j.base.copy(j.b.quaternion); j.b.quaternion.copy(j.base); }      // from where the clip has the arm, not from last frame's lift
+        if (k > 0){
+          aim(arm, fore, ARM_UP, k); aim(fore, hand, FORE_UP, k);
+          hand.quaternion.slerp(inBody(fore, qc).invert().multiply(qb.copy(UPR).multiply(pinv)), k);      // the hand: wherever it must be for the hammer to stand straight up
+        }
+        up = k > 0; for (const j of chain) j.out.copy(j.b.quaternion);
+      };
+    }
+  }
+  idle.time = Math.random() * ic.duration;
+  return {g, h:H, fly, rig:true, tip, die(){ if (death){ state = 'dead'; go(death, .08); } return !!death; }, cheer(){ if (cheer && state !== 'dead'){ state = 'cheer'; go(cheer, .15); } }, anim(t, s){
     const dt = Math.min(.1, Math.max(0, t - last)); last = t;
     if (state){ mixer.update(dt); return; }
-    if (s.atk < lastAtk){ if (cur === atk) atk.reset().play(); else go(atk, .06); }
-    lastAtk = s.atk;
-    if (s.atk >= at) go(s.mv && walk !== idle ? walk : idle, .14);
+    if (lift) go(s.mv && walk !== idle ? walk : idle, .14);            // he stands his ground: the arm does the work
+    else {
+      if (s.atk < lastAtk){ if (cur === atk) atk.reset().play(); else go(atk, .06); }
+      lastAtk = s.atk;
+      if (s.atk >= at) go(s.mv && walk !== idle ? walk : idle, .14);
+    }
     if (cur === walk) walk.timeScale = Math.max(.7, Math.min(2.4, (s.spd || 1.3) / ws)) * (s.chg ? 1.6 : 1);     // feet keep pace with the ground speed
     mixer.update(dt);
+    if (lift) lift(s.atk);
     if (wings.length){ flap(t, s.mv); root.position.y = y0 + Math.sin(t * 2.3 + idle.time) * .07; }
   }};
 }

@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115n';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115n';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115n';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115p';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115p';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115p';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -750,7 +750,7 @@ export function createView(el, opt = {}){
   }
   function stepZaps(dt){ for (let i = zaps.length - 1; i >= 0; i--){ const z = zaps[i]; z.t += dt; const k = z.t / z.life; if (k >= 1){ root.remove(z.m); z.m.material.dispose(); zaps.splice(i, 1); continue; } z.m.material.opacity = .95 * (1 - k); const w = z.w * (1 + Math.sin(time * 90) * .35); z.m.scale.x = z.m.scale.y = w; } }
   /* lightning out of the sky onto one spot */
-  function strike(x, z, y = 0){ va.set(x + (Math.random() - .5) * 3, 16, z + (Math.random() - .5) * 3); vb.set(x, y + .2, z); const mid = va.clone().lerp(vb, .5); mid.x += (Math.random() - .5) * 1.6; mid.z += (Math.random() - .5) * 1.6; zapLine(va, mid, 0xfff7b0, .16, .3); zapLine(mid, vb, 0xfff7b0, .16, .3); flat(x, z, {r0:.3, r1:2, dur:.35, color:0xfff27a, add:true}); burst(x, .4, z, 22, 0xfff27a, {spd:6, up:4, life:.5}); shake(.4); }
+  function strike(x, z, y = 0, k = 1){ va.set(x + (Math.random() - .5) * 3, 16, z + (Math.random() - .5) * 3); vb.set(x, y + .2, z); const mid = va.clone().lerp(vb, .5); mid.x += (Math.random() - .5) * 1.6; mid.z += (Math.random() - .5) * 1.6; zapLine(va, mid, 0xfff7b0, .16 * k, .3); zapLine(mid, vb, 0xfff7b0, .16 * k, .3); flat(x, z, {r0:.3, r1:2 * k, dur:.35, color:0xfff27a, add:true}); burst(x, y + .4, z, Math.round(22 * k), 0xfff27a, {spd:6 * k, up:4 * k, life:.5}); shake(.4 * k * k); }      // k: a smaller bolt for an everyday attack
   const TRAIL = {fire:0xff8a2b, magic:0x6dff9a, beam:0xaad8ff, ball:0xffc27a, coffee:0xb07a4a, flag:0xffe27a, water:0x9fe0ff, laser:0xff5a8a, potion:0xff7ad0, leaf:0x7ccf4a, ink:0x5a3a8a, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f, bomb:0x8a8f9c, ice:0xbfe9ff, shell:0x8a8f9c, vial:0x8dff5a},
     HITC = {ball:0xffb070, coffee:0x8a5a34, flag:0xffe27a, water:0x8fd8ff, fire:0xff8a2b, magic:0x6dff9a, beam:0xdff2ff, arrow:0xe9d8b4, bolt:0xcfd5e2, laser:0xff5a8a, bullet:0xffe9a8, spit:0xd9f2c4, rock:0xa89a86, potion:0xff7ad0, leaf:0x7ccf4a, sting:0xffd23f, ink:0x5a3a8a, candy:0xff8a9a, bomb:0xff8a2b, zap:0xfff27a, fball:0xff8a2b, met:0xff6a1f, ice:0xdff5ff, shell:0xff8a2b, vial:0x7dff5a};
   function shoot(kind, from, to, dur, o = {}){
@@ -803,7 +803,7 @@ export function createView(el, opt = {}){
     for (const ev of list){
       if (ev.e === 'drop'){ if (ev.rar === 'l') legend(ev.x, ev.z); else if (ev.rar === 'g') legend(ev.x, ev.z, 0xdff4ff, 1.7); }
       else if (ev.e === 'chain'){ for (let i = 1; i < ev.pts.length; i++){ const a = ev.pts[i - 1], b = ev.pts[i]; va.set(a[0], a[2] ? 2.2 : .9, a[1]); vb.set(b[0], b[2] ? 2.2 : .9, b[1]); zapLine(va.clone(), vb.clone(), 0xbfe8ff, .06, .2); } }
-      else if (ev.e === 'bolt'){ for (const p of ev.pts) strike(p[0], p[1]); }
+      else if (ev.e === 'bolt'){ ev.pts.forEach((p, i) => { if (ev.q) setTimeout(() => strike(p[0], p[1], p[2] ? 2 : 0, i ? .5 : .7), i * 70); else strike(p[0], p[1]); }); }      // q: a hammer's bolts, one after another down the line
       else if (ev.e === 'godfall'){                                // a god has arrived: every enemy on the field is hit at once
         shake(1.1); skyT = .45; skyC = ev.k === 'smite' ? 1.5 : .7;
         ev.pts.forEach((p, i) => setTimeout(() => {
@@ -819,6 +819,11 @@ export function createView(el, opt = {}){
         if (U.splash && U.rng <= 1.5 && t){ flat(t.x, t.z, {r0:.3, r1:U.splash, dur:.35, color:0xffd28a, add:true, a:.7}); burst(t.x, .2, t.z, 12, 0xffd28a, {spd:4, up:2, life:.4}); shake(.25); }
       } else if (ev.e === 'shot'){
         const r = recs.get(ev.id), t = recs.get(ev.t); if (!r || !t) continue;
+        if (ev.k === 'sky'){                                       // nothing flies: the hammer goes up, a thread of lightning finds it, and the bolts land with the hit
+          setTimeout(() => { if (recs.get(ev.id) !== r) return; const p = r.m.tip ? r.m.tip(new THREE.Vector3()) : new THREE.Vector3(r.x, r.m.h + .6, r.z);
+            zapLine(new THREE.Vector3(p.x + (Math.random() - .5) * 1.4, 15, p.z + (Math.random() - .5) * 1.4), p, 0xbfe8ff, .05, .24); burst(p.x, p.y, p.z, 10, 0xdff4ff, {spd:3, up:1.5, life:.35}); }, 190);
+          continue;
+        }
         const U = r.e.U, th = t.m.h * .5 + (t.m.fly || 0);
         va.set(r.x, U.twr ? (r.e.key === 'king' ? 3.6 : 2.6) : r.m.h * .7 + (r.m.fly || 0), r.z); vb.set(t.x, th, t.z);
         burst(va.x, va.y, va.z, 4, 0xfff1c4, {spd:1.6, up:.6, life:.2, grav:0});

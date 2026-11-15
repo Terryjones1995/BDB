@@ -1,12 +1,12 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115n';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115p';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
 export const MATCH = 600, OVERTIME = 60, MANA_STEP = 120, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match. Mana comes in faster every two minutes: x1, x1.5, x2, x2.5, then x3 for the last two
 export const TOWER_AT = [['king', 0, L - 3], ['princess', -5.5, L - 6.5], ['princess', 5.5, L - 6.5]];
-const DEPLOY = TPS, PROJ_SPD = 11;
+const DEPLOY = TPS, PROJ_SPD = 11, SKY_WIND = .45;      // SKY_WIND: how long a hammer is in the air before the sky answers it
 export const PATIENT = 3 * TPS;
 export const MAX_TRAPS = 3, TRIG = 1.1;            // traps each player can have face down at once, and how close a troop has to step to spring one
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -274,7 +274,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const p = {tgt:t.id, x:t.x, z:t.z, dmg, splash:U.splash || 0, team:e.team, air:!!U.air, src:e.id, u:U, lv:lvlMul(e.lvl), st};
     if (U.eject && e.hits % U.eject.every === 0 && !t.U.bld && t.U.r < .9) p.eject = 1;      // red card
     if (U.shot && U.rng > 1.5){
-      const d = U.shot === 'shell' ? 1.3 : clamp((gap(e, t) + e.U.r) / PROJ_SPD, .14, .9);      // a mortar shell goes up before it comes down
+      const d = U.shot === 'sky' ? SKY_WIND : U.shot === 'shell' ? 1.3 : clamp((gap(e, t) + e.U.r) / PROJ_SPD, .14, .9);      // nothing flies from a raised hammer: the bolt lands when it lands. A mortar shell goes up before it comes down
       p.t = T(U.shot === 'beam' || U.shot === 'zap' ? .08 : d);
       emit({e:'shot', id:e.id, t:t.id, d:U.shot === 'beam' || U.shot === 'zap' ? .08 : d, k:U.shot});
     } else { p.t = T(U.wind ?? .24); p.melee = 1; }       // a melee hit lands when the swing does, and not at all if the attacker drops first
@@ -309,15 +309,17 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (u.leech && t.U.twr){ const pl = players[src.pid]; if (pl){ pl.el = Math.min(MAX_EL, pl.el + u.leech); emit({e:'mana', id:src.id, amt:u.leech, pid:src.pid, steal:1}); } }
     }
     if (p.eject && t.hp > 0 && !t.U.twr){ t.x = clamp(t.x * .45, -2.6, 2.6); t.z = (t.team === 0 ? 1 : -1) * (L - 5.6); t.frz = Math.max(t.frz, T(1)); t.tgt = 0; t.lock = false; t.run = 0; t.chg = false; t.lp = 0; emit({e:'warp', id:t.id, x:t.x, z:t.z}); }      // sent off: back to its own king tower
-    if (u.chain){                                                           // the bolt jumps on to whoever is nearest, a little weaker each time
+    const sky = u.shot === 'sky';
+    if (u.chain || sky){                                                    // the bolt jumps on to whoever is nearest, a little weaker each time
       const done = new Set([t.id]), pts = [[t.x, t.z, t.U.fly ? 1 : 0]]; let from = t, d = p.dmg;
-      for (let i = 0; i < u.chain.n; i++){
+      for (let i = 0; i < (u.chain ? u.chain.n : 0); i++){
         let nx = null, nd = u.chain.r;
         for (const o of ents){ if (o.team === p.team || o.hp <= 0 || o.dep > 0 || o.hid || done.has(o.id) || (o.U.fly && !p.air)) continue; const q = Math.hypot(o.x - from.x, o.z - from.z); if (q <= nd){ nd = q; nx = o; } }
         if (!nx) break;
         d *= u.chain.fall; done.add(nx.id); pts.push([nx.x, nx.z, nx.U.fly ? 1 : 0]); hurt(nx, d, src); afflict(nx, u, p.lv, src, p.st); from = nx;
       }
-      if (pts.length > 1) emit({e:'chain', pts});
+      if (sky) emit({e:'bolt', pts, q:1});                                // called down from the sky: every one of them gets a bolt of its own
+      else if (pts.length > 1) emit({e:'chain', pts});
     }
   }
   /* a unit finishes dropping in: whatever it does on arrival happens now */

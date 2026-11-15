@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115n';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115n';
-import { createAI } from './ai.js?v=1115n';
-import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115n';
-import { Cloud, cloudWhy } from './cloud.js?v=1115n';
-import { sayFor, sayWhen } from './talk.js?v=1115n';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115p';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115p';
+import { createAI } from './ai.js?v=1115p';
+import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115p';
+import { Cloud, cloudWhy } from './cloud.js?v=1115p';
+import { sayFor, sayWhen } from './talk.js?v=1115p';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -57,6 +57,7 @@ const SND = {drop:() => tone(190, .14, 'triangle', .09, -90), spell:() => tone(5
   trapSet:() => tone(150, .1, 'triangle', .07, -50), trap:() => { tone(880, .07, 'square', .045); tone(1320, .16, 'square', .045, 0, .07); tone(110, .3, 'sawtooth', .06, -40, .05); }, negate:() => { tone(1700, .09, 'sine', .07); tone(1500, .32, 'sine', .07, -700, .1); },
   rip:() => { tone(900, .16, 'sawtooth', .05, -700); tone(140, .3, 'triangle', .08, -60, .08); [660, 880, 1175].forEach((f, i) => tone(f, .22, 'triangle', .05, 0, .16 + i * .07)); },
   legend:() => { [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, .5, 'triangle', .07, 0, i * .09)); tone(98, .9, 'sawtooth', .06, -30); },
+  crack:() => { tone(1500, .07, 'sawtooth', .035, -1200); tone(80, .22, 'sawtooth', .05, -35, .03); },
   god:() => { tone(55, 1.6, 'sawtooth', .1, -18); tone(82, 1.2, 'square', .05, -40, .05); [262, 392, 523, 784, 1046, 1568].forEach((f, i) => tone(f, .9, 'triangle', .07, 0, .1 + i * .11)); tone(1800, .25, 'sawtooth', .04, -1500, .02); }};
 
 /* ---------- the 3D view (menus work without it: card art is a set of pictures) ---------- */
@@ -65,7 +66,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115n'), import('./models.js?v=1115n')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115p'), import('./models.js?v=1115p')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -208,6 +209,7 @@ function abil(U, m = 1){
   if (U.burn) a.push(`Sets targets on fire: ${d(U.burn.dps)} a second for ${sec(U.burn.t)}.`);
   if (U.psn) a.push(`Poisons targets: ${d(U.psn.dps)} a second for ${sec(U.psn.t)}.`);
   if (U.mark) a.push(`Marks targets for ${sec(U.mark.t)}. Marked targets take 30% more damage from everyone.`);
+  if (U.shot === 'sky') a.push('Does not swing: the hammer goes up and a bolt drops out of the sky onto the target, flyers included.');
   if (U.chain) a.push(`Each attack jumps to ${U.chain.n} more ${U.chain.n === 1 ? 'target' : 'targets'}.`);
   if (U.steal) a.push(`Heals itself for ${pc(U.steal)} of the damage it deals.`);
   if (U.leech) a.push('Every hit on a tower steals Mana for you.');
@@ -835,6 +837,7 @@ function onEvents(ev){
       else e.e === 'drop' ? SND.drop() : SND.spell();
       if (c && e.e === 'drop' && e.u && c.kind === 'unit' && (c.rar !== 'c' || Math.random() < .6)){ const uid = e.u, line = sayFor(c.base, c.type), mine = e.team === B.team, big = c.rar === 'l' || c.rar === 'e' || c.rar === 'g'; setTimeout(() => { if (B && !B.over) bubble(uid, line, mine, big); }, 420); }
     } else if (e.e === 'boom' && e.k !== 'rage') SND.boom();
+    else if (e.e === 'bolt' && e.q) SND.crack();
     else if (e.e === 'grow'){ if (Math.random() < .45) bubble(e.id, sayWhen('kill'), true); }
     else if (e.e === 'revive'){ bubble(e.id, sayWhen('low'), true); }
     else if (e.e === 'trapset'){ if (e.team === B.team) SND.trapSet(); else { note(B.mode === 'cpu' ? 'He set a trap' : 'They set a trap'); if (B.mode === 'cpu') talk(TALK.trapSet); } }
