@@ -1,9 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
-import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js?v=1114p';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT, TRIG } from './sim.js?v=1114p';
-import { createAI } from './ai.js?v=1114p';
-import { Accounts, fresh, sanitize } from './store.js?v=1114p';
-import { Cloud } from './cloud.js?v=1114p';
+import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115a';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115a';
+import { createAI } from './ai.js?v=1115a';
+import { Accounts, fresh, sanitize } from './store.js?v=1115a';
+import { Cloud } from './cloud.js?v=1115a';
+import { sayFor, sayWhen } from './talk.js?v=1115a';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -13,7 +15,10 @@ const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f-\u009f\u20
 const rid = (n = 6) => Array.from(crypto.getRandomValues(new Uint8Array(n)), b => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
 const okCode = c => typeof c === 'string' && /^[a-z0-9]{4,12}$/.test(c);
 const mmss = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
-const CRATE = 600, DEAL = .7, PAGE = 40, PAUSE_S = 300, SMALL = matchMedia('(max-width: 760px)').matches || (navigator.deviceMemory || 8) <= 4;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const DEAL = .7, PAGE = 40, PAUSE_S = 300, SMALL = matchMedia('(max-width: 760px)').matches || (navigator.deviceMemory || 8) <= 4;
+const COIN = '<span class="coin"></span>';
 BDB.init({game:'brawl'});
 
 /* ---------- trash talk ---------- */
@@ -24,6 +29,7 @@ const TALK = {
   king:["You woke up the king. He was mid nap in the break room.", "Now the big tower's up. He hates extra work as much as I do."],
   ot:["Overtime? I don't do overtime. Check my timesheet.", "Sudden death. Next tower wins and my shift ends in five."],
   late:["Two minutes left and double Mana. This is where I usually clock out.", "Mana's flowing twice as fast. Finally, my kind of conditions."],
+  last:["Last minute. Triple Mana. Even I can afford something now.", "Triple Mana. Everybody panic. I already am.", "One minute left. Empty the bench."],
   legend:["Here comes a Legendary. Avert your eyes.", "Roll out the big card. Put my highlights on. Both of them.", "Legendary on the floor. Just like my scouting report said."],
   win:["Good game. I'm telling everyone the tablet was lagging.", "You beat me. The scouts weren't watching, right?", "I'm not mad. I'm just clocking out early.", "Enjoy it. My comeback tour starts Tuesday.", "That deck was a prototype. The real one is in my locker.", "You're taking my card? That one had sentimental value."],
   lose:["And that's why they called me a five-star prospect. Once.", "Ball game. Somebody get me a Jumbotron.", "I'd like to thank the break room for believing in me.", "Take notes. That's 2.0 points per game of pure heart.", "Undefeated since about four minutes ago."],
@@ -49,30 +55,21 @@ function tone(f, d, type = 'sine', v = .05, slide = 0, at = 0){
 }
 const SND = {drop:() => tone(190, .14, 'triangle', .09, -90), spell:() => tone(520, .3, 'sine', .06, 400), boom:() => tone(95, .4, 'sawtooth', .08, -55), horn:() => { tone(233, .5, 'square', .04); tone(311, .5, 'square', .03); },
   trapSet:() => tone(150, .1, 'triangle', .07, -50), trap:() => { tone(880, .07, 'square', .045); tone(1320, .16, 'square', .045, 0, .07); tone(110, .3, 'sawtooth', .06, -40, .05); }, negate:() => { tone(1700, .09, 'sine', .07); tone(1500, .32, 'sine', .07, -700, .1); },
+  rip:() => { tone(900, .16, 'sawtooth', .05, -700); tone(140, .3, 'triangle', .08, -60, .08); [660, 880, 1175].forEach((f, i) => tone(f, .22, 'triangle', .05, 0, .16 + i * .07)); },
   legend:() => { [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, .5, 'triangle', .07, 0, i * .09)); tone(98, .9, 'sawtooth', .06, -30); }};
 
-/* ---------- the 3D view and card art (menus still work without it) ---------- */
-let V = null, ready3d = false; const THUMB = {}, tq = [];
+/* ---------- the 3D view (menus work without it: card art is a set of pictures) ---------- */
+let V = null, MD = null, ready3d = false;
 const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114p'), import('./models.js?v=1114p')]);
-    await md.preload();
-    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true});
-    ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115a'), import('./models.js?v=1115a')]);
+    await md.preload(); MD = md;
+    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
+    ready3d = true;
     V.loadProps('field');
   } catch(e){ console.warn('3D view unavailable', e); V = null; }
-}
-const tkOf = c => c.art + '|' + c.aff;
-function drawThumb(tk){ if (THUMB[tk] || !V) return; const [art, aff] = tk.split('|'); try { THUMB[tk] = V.thumb(art, aff); } catch(e){ THUMB[tk] = ''; } }
-function want(tk){ if (THUMB[tk] != null || !V || tq.includes(tk)) return; tq.push(tk); if (tq.length === 1) setTimeout(pumpThumbs, 0); }
-function pumpThumbs(){
-  for (let k = 0; k < 3 && tq.length; k++){
-    const tk = tq[0]; drawThumb(tk); tq.shift();
-    if (THUMB[tk]) for (const ph of document.querySelectorAll(`.card[data-tk="${tk}"] .ph`)){ const im = new Image(); im.alt = ''; im.src = THUMB[tk]; ph.replaceWith(im); }
-  }
-  if (tq.length) setTimeout(pumpThumbs, 0);
 }
 
 /* ---------- profile ---------- */
@@ -84,14 +81,22 @@ const myDeck = () => curDeck().map(id => ({id, lvl:Math.max(1, lvl(id))}));
 const myTower = () => Math.round(curDeck().reduce((a, id) => a + Math.max(1, lvl(id)), 0) / DECK_SIZE);
 function top(){ $('hCoins').textContent = fmt(P.coins); $('hTro').textContent = fmt(P.trophies); }
 
+/* a card: the picture, what it costs, its type, its name. A build other than the standard one washes the picture in its colour. */
+const artOf = c => `art/${c.art}.webp`, hex = n => '#' + n.toString(16).padStart(6, '0');
 function cardEl(id, o = {}){
-  const c = CARDS[id], b = document.createElement(o.div ? 'div' : 'button'), tk = tkOf(c);
+  const c = CARDS[id], b = document.createElement(o.div ? 'div' : 'button'), A = AFF[c.aff], T = TYPES[c.type], src = artOf(c);
   if (!o.div) b.type = 'button';
-  if (o.now) drawThumb(tk); else want(tk);
-  b.className = `card r-${c.rar}` + (o.cls ? ' ' + o.cls : ''); b.dataset.id = id; b.dataset.tk = tk; b.setAttribute('aria-label', c.name);
-  b.innerHTML = `<span class="cost">${c.cost}</span>` + (THUMB[tk] ? `<img alt="" src="${THUMB[tk]}">` : `<span class="ph">${esc(c.baseName.split(' ').map(w => w[0]).join('').slice(0, 2))}</span>`) +
+  b.className = `card r-${c.rar}` + (o.cls ? ' ' + o.cls : ''); b.dataset.id = id; b.setAttribute('aria-label', c.name);
+  b.innerHTML = `<span class="cost">${c.cost}</span><img alt="" ${o.now ? '' : 'loading="lazy" '}decoding="async" src="${src}" onerror="this.style.visibility='hidden'">` + (A.tint != null ? `<i class="tint" style="--tc:${hex(A.tint)};-webkit-mask-image:url(${src});mask-image:url(${src})"></i>` : '') +
+    `<i class="ty" style="--ty:${T.col}"></i>` + (c.n > 1 ? `<span class="cnt">x${c.n}</span>` : '') +
     (o.lvl ? `<span class="lv">Lv ${o.lvl}</span>` : '') + (o.tag ? `<span class="tagc${o.sale ? ' sale' : ''}">${o.tag}</span>` : `<span class="nm">${esc(c.name)}</span>`) + '<span class="veil"></span>';
   return b;
+}
+const typeChip = t => `<span class="tchip" style="--ty:${TYPES[t].col}">${esc(TYPES[t].name)}</span>`;
+/* which types a deck has enough of to earn their bonus, and how close the others are */
+function setsHTML(deck){
+  const n = typeCount(deck), bon = typeBonus(deck);
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).map(t => { const nx = SET_AT.find(v => v > n[t]); return `<span class="set${bon[t] ? ' on' : ''}" style="--ty:${TYPES[t].col}"><b>${n[t]}</b>${esc(TYPES[t].name)}${bon[t] ? `<em>+${Math.round((bon[t] - 1) * 100)}%</em>` : nx ? `<small>${nx - n[t]} more for +${Math.round((SET_MUL[SET_AT.indexOf(nx)] - 1) * 100)}%</small>` : ''}</span>`; }).join('');
 }
 
 /* ---------- dialogs ---------- */
@@ -103,49 +108,116 @@ backdrop($('dlg'), () => { if (!dlg.lock) dlgClose(); });
 function confirmBox(title, text, yes, fn){ const b = dlg(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="k-row"><button type="button" class="k-btn primary" id="cy">${esc(yes)}</button><button type="button" class="k-btn" id="cn">Cancel</button></div>`); b.querySelector('#cy').onclick = () => { dlgClose(); fn(); }; b.querySelector('#cn').onclick = dlgClose; }
 function msgBox(title, text){ const b = dlg(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="k-row"><button type="button" class="k-btn primary" id="nf">OK</button></div>`); b.querySelector('#nf').onclick = dlgClose; }
 
-/* ---------- card sheet: stats, buy, upgrade, put in deck ---------- */
-const TYPE = {unit:'troop', build:'building', spell:'spell', trap:'trap'};
-const SPD = s => s <= 0 ? 'None' : s < 1 ? 'Slow' : s < 1.5 ? 'Medium' : s < 2 ? 'Fast' : 'Very fast';
+/* ---------- card sheet: what it is, what it does, buy, upgrade, put in deck ---------- */
+const KIND = {unit:'troop', build:'building', spell:'spell', trap:'trap'};
+const SPD = s => s <= 0 ? 'None' : s < 1.1 ? 'Slow' : s < 1.5 ? 'Medium' : s < 2 ? 'Fast' : 'Very fast';
+const ORD = ['', '', 'second', 'third', 'fourth', 'fifth', 'sixth'];
+const pc = v => Math.round(v * 100) + '%', x10 = v => +(+v).toFixed(1), sec = v => x10(v) + 's';
+const uName = (k, n) => { const s = UNITS[k] ? UNITS[k].name : 'unit'; return n === 1 ? s : s + 's'; };
+/* everything special a unit does, one short line each. m: what the card's level multiplies health and damage by */
+function abil(U, m = 1){
+  const a = [], d = v => Math.round(v * m);
+  if (U.only) a.push('Ignores troops and goes straight for buildings and towers.');
+  if (U.any) a.push('Can be dropped anywhere on the field, their side included. Does a third of its damage to towers.');
+  if (U.land){ const l = U.land, b = [];
+    if (l.dmg) b.push(d(l.dmg) + ' damage'); if (l.stun) b.push(`a ${sec(l.stun)} stun`); if (l.slow) b.push(`a ${sec(l.slow)} slow`); if (l.push) b.push('a shove back'); if (l.burn) b.push('fire');
+    if (b.length) a.push(`Lands with ${b.join(', ')} for every enemy within ${l.r}.`);
+    if (l.shield) a.push(`Lands and hands every teammate within ${l.r} a ${d(l.shield)} shield.`);
+    if (l.summon) a.push(`Arrives with ${l.summon.n} ${uName(l.summon.u, l.summon.n)}.`); }
+  if (U.charge) a.push(`${U.charge.dash ? 'Arrives already sprinting, and winds up again after a run-up' : 'Breaks into a sprint after a run-up'}. A sprint hit lands for ${x10(U.charge.dmg)}x.`);
+  if (U.leap) a.push(`Pounces on targets ${U.leap.min} to ${U.leap.max} away. The landing hits for ${x10(U.leap.mul)}x.`);
+  if (U.stealth) a.push(`Unseen until it strikes. The hit from the dark lands for ${x10(U.stealth.mul)}x, and it fades again ${sec(U.stealth.re)} later. Half damage to towers.`);
+  if (U.shield) a.push(`Starts with a ${d(U.shield)} shield.`);
+  if (U.armor) a.push(`Armour knocks ${d(U.armor)} off every hit it takes.`);
+  if (U.dodge) a.push(`${pc(U.dodge)} of attacks miss it.`);
+  if (U.regen) a.push(`Heals ${x10(U.regen * 100)}% of its health every second.`);
+  if (U.revive) a.push(`Gets back up once, at ${pc(U.revive)} health.`);
+  if (U.thorns) a.push(`Sends ${pc(U.thorns)} of every melee hit back at the attacker.`);
+  if (U.numb) a.push(`Whatever hits it up close is slowed for ${sec(U.numb)}.`);
+  if (U.taunt) a.push(`Enemies within ${U.taunt} have to go for it first.`);
+  if (U.stun) a.push(`Every ${ORD[U.stun.every] || 'few'} hit stuns for ${sec(U.stun.t)}.`);
+  if (U.crit) a.push(`Every ${ORD[U.crit.every] || 'few'} hit lands for ${x10(U.crit.mul)}x.`);
+  if (U.exec) a.push(`${x10(U.exec.mul)}x damage to anything under ${pc(U.exec.at)} health.`);
+  if (U.ramp) a.push(`Hits harder the longer it stays on one target, up to ${x10(1 + U.ramp.max)}x.`);
+  if (U.pack) a.push(`${pc(U.pack.per)} more damage for each of its own kind close by, up to ${pc(U.pack.per * U.pack.max)}.`);
+  if (U.berserk) a.push('Attacks faster the more hurt it is, up to nearly double.');
+  if (U.grow) a.push(`Every kill adds ${pc(U.grow.per)} damage, up to ${U.grow.max} times.`);
+  if (U.knock) a.push('Every hit knocks the target back.');
+  if (U.chill) a.push(`Every hit slows the target for ${sec(U.chill)}.`);
+  if (U.burn) a.push(`Sets targets on fire: ${d(U.burn.dps)} a second for ${sec(U.burn.t)}.`);
+  if (U.psn) a.push(`Poisons targets: ${d(U.psn.dps)} a second for ${sec(U.psn.t)}.`);
+  if (U.mark) a.push(`Marks targets for ${sec(U.mark.t)}. Marked targets take 30% more damage from everyone.`);
+  if (U.chain) a.push(`Each attack jumps to ${U.chain.n} more ${U.chain.n === 1 ? 'target' : 'targets'}.`);
+  if (U.steal) a.push(`Heals itself for ${pc(U.steal)} of the damage it deals.`);
+  if (U.leech) a.push('Every hit on a tower steals Mana for you.');
+  if (U.heal) a.push(`Heals ${U.heal.bld ? 'your towers and buildings' : 'teammates'} within ${U.heal.r} for ${d(U.heal.amt / (U.heal.every || 1))} a second.`);
+  if (U.aura) a.push(U.aura.haste ? `Your troops within ${U.aura.r} move and hit a third faster.` : U.aura.burn ? `Burns every enemy within ${U.aura.r} for ${d(U.aura.burn)} a second.` : `Poisons every enemy within ${U.aura.r} for ${d(U.aura.psn)} a second.`);
+  if (U.spawn) a.push(`Sends out ${U.spawn.n} ${uName(U.spawn.u, U.spawn.n)} every ${sec(U.spawn.every)}.`);
+  if (U.raise) a.push(`Anything that dies within ${U.raise.r} gets back up as its ${uName(U.raise.u, 1)}, up to ${U.raise.max} times.`);
+  if (U.split) a.push(`Breaks into ${U.split.n} ${uName(U.split.u, U.split.n)} when it is defeated.`);
+  if (U.morph) a.push(`Turns into ${uName(U.morph.u, 1)} at ${pc(U.morph.at)} health.`);
+  if (U.mana) a.push(`Makes ${U.mana.amt} Mana every ${sec(U.mana.every)}.`);
+  if (U.death){ const z = U.death; a.push(`When it falls: ${d(z.dmg)} damage within ${z.r}${z.frz ? `, and everything there freezes for ${sec(z.frz)}` : ''}${z.pool ? ', and the ground keeps burning' : ''}.`); }
+  return a;
+}
 function statRows(id, L){
-  const c = CARDS[id], m = lvlMul(L), r = [];
-  if (c.spell){ const s = c.spell; r.push(['Radius', s.r]); if (s.dmg) r.push(['Damage', Math.round(s.dmg * m)], ['Tower damage', Math.round(s.dmg * m * s.twr)]); if (s.freeze) r.push(['Freeze', s.freeze + 's']); if (s.rage) r.push(['Boost', '+35%'], ['Lasts', s.rage + 's']); return r; }
+  const c = CARDS[id], m = lvlMul(L), r = [], n = v => Math.round(v * m);
+  if (c.spell){ const s = c.spell;
+    r.push(['Radius', s.r]);
+    if (s.dmg) r.push([s.dur ? 'Damage a second' : s.n ? 'Each bolt' : 'Damage', n(s.dmg)]);
+    if (s.dmg && s.twr && s.twr !== 1) r.push(['To towers', n(s.dmg * s.twr)]);
+    if (s.dmg && s.bld) r.push(['To buildings', n(s.dmg * s.bld)]);
+    if (s.n) r.push(['Bolts', s.n]);
+    if (s.heal) r.push(['Heal a second', n(s.heal)]);
+    if (s.shield) r.push(['Shield', n(s.shield)]);
+    if (s.freeze) r.push(['Freeze', sec(s.freeze)]);
+    if (s.stun) r.push(['Stun', sec(s.stun)]);
+    if (s.slow && s.kind !== 'poison') r.push(['Slow', sec(s.slow)]);
+    if (s.rage) r.push(['Boost', '+35%'], ['Lasts', sec(s.rage)]);
+    if (s.dur) r.push(['Lasts', sec(s.dur)]);
+    if (s.pool) r.push(['Burning ground', `${n(s.pool.dps)} a second`]);
+    if (s.u) r.push(['Summons', uName(s.u, 2)]);
+    r.push(['Lands in', sec(s.delay)]);
+    return r; }
   if (c.trap){ const t = c.trap;
     r.push([t.kind === 'counter' ? 'Covers' : 'Reach', t.r], ['Arms in', t.arm + 's'], ['Stays set', t.life + 's']);
-    if (t.dmg) r.push([t.kind === 'bounce' ? 'Damage' : 'Area damage', Math.round(t.dmg * m)]);
+    if (t.dmg) r.push([t.kind === 'bounce' ? 'Damage' : 'Area damage', n(t.dmg)]);
     if (t.stun) r.push([t.kind === 'bounce' ? 'Dazed for' : 'Stun', t.stun + 's']);
     if (t.refl) r.push(['Thrown back', Math.round(t.refl * 100) + '%'], ['Lasts', t.dur + 's']);
     if (t.burn) r.push(['Mana burned', t.burn]);
-    if (t.burst) r.push(['Toxic burst', Math.round(t.burst * m)]); if (t.heal) r.push(['Tower heal', Math.round(t.heal * m)]); if (t.chill) r.push(['Slow', t.chill + 's']);
+    if (t.burst) r.push(['Toxic burst', n(t.burst)]); if (t.heal) r.push(['Tower heal', n(t.heal)]); if (t.chill) r.push(['Slow', t.chill + 's']);
     r.push(['Catches', t.kind === 'counter' ? 'Spells' : 'Ground troops']);
     return r; }
   const U = c.U;
-  r.push(['Health', Math.round(U.hp * m)]);
-  if (U.dmg) r.push([U.splash ? 'Area damage' : 'Damage', Math.round(U.dmg * m)], ['Hit speed', U.hit + 's'], ['Range', U.rng <= 1.5 ? 'Melee' : U.rng]);
+  r.push(['Health', n(U.hp)]);
+  if (U.dmg) r.push([U.splash ? 'Area damage' : 'Damage', n(U.dmg)], ['Hit speed', U.hit + 's'], ['Range', U.rng <= 1.5 ? 'Melee' : U.rng]);
   if (!U.bld) r.push(['Speed', SPD(U.spd)]); else r.push(['Lasts', U.life + 's']);
   r.push(['Targets', U.only ? 'Buildings' : !U.dmg ? 'None' : U.air ? 'Air and ground' : 'Ground']);
   if (c.n > 1) r.push(['Count', 'x' + c.n]);
   if (U.fly) r.push(['Moves', 'Flying']);
-  if (U.spawn) r.push(['Spawns', `${U.spawn.n} every ${U.spawn.every}s`]);
-  if (U.death) r.push(['On defeat', Math.round(U.death.dmg * m) + ' blast']);
-  if (U.heal) r.push(['Heals', Math.round(U.heal.amt * m) + '/s']);
-  if (U.charge) r.push(['Sprint hit', 'x2']);
   return r;
 }
+const statHTML = rows => rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('');
 function sheet(id){
-  const c = CARDS[id], L = lvl(id), R = RAR[c.rar], price = priceOf(id), up = upgradeCost(id, L), box = $('sheetBox');
-  box.className = 'k-box r-' + c.rar;
-  box.innerHTML = `<div class="sheet-top"><div></div><div><div class="rar">${R.name} ${TYPE[c.type]} · ${c.cost} Mana</div><h3>${esc(c.name)}</h3><p class="note" style="margin:0">${esc(c.desc)}${c.note ? ' <b style="color:var(--gold)">' + esc(c.note) + '</b>' : ''}</p></div></div>
-    <div class="stats">${statRows(id, Math.max(1, L)).map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>
-    <div style="width:100%"><div class="note" style="margin-bottom:6px">${L ? `Level ${L} of ${MAX_LVL}${L < MAX_LVL ? (c.trap ? (c.trap.dmg || c.trap.burst || c.trap.heal ? ' · next level adds 8% to what it does' : ' · levels do not change this trap') : c.spell && !c.spell.dmg ? ' · levels do not change this spell' : ' · next level adds 8% health and damage') : ' · maxed out'}` : 'You do not own this card yet.'}</div><div class="prog"><i style="width:${L / MAX_LVL * 100}%"></i></div></div>
+  const c = CARDS[id]; if (!c) return;
+  const L = lvl(id), R = RAR[c.rar], price = priceNow(id), up = upgradeCost(id, L), box = $('sheetBox'), U = c.U, lines = U ? abil(U, lvlMul(Math.max(1, L))) : [];
+  const lvNote = !L ? 'You do not own this card yet.' : `Level ${L} of ${MAX_LVL}. ` + (L >= MAX_LVL ? 'Maxed out.' : c.trap ? (c.trap.dmg || c.trap.burst || c.trap.heal ? 'The next level adds 8% to what it does.' : 'Levels do not change this trap.') : c.spell && !(c.spell.dmg || c.spell.heal || c.spell.shield) ? 'Levels do not change this spell.' : 'The next level adds 8% health and damage.');
+  box.className = 'k-box sheetx r-' + c.rar;
+  box.innerHTML = `<div class="sheet-top"><div></div><div><div class="rar">${R.name} ${KIND[c.kind]}, ${c.cost} Mana</div><h3>${esc(c.name)}</h3>
+      <div class="chips">${typeChip(c.type)}${U ? `<span class="rchip">${esc(ROLE_NAME[U.role] || 'Troop')}</span>` : ''}</div></div></div>
+    <p class="sdesc">${esc(c.desc)}</p><p class="quote" style="--ty:${TYPES[c.type].col}">${esc(sayFor(c.base, c.type, hash(c.base)))}</p>
+    <div class="stats">${statHTML(statRows(id, Math.max(1, L)))}</div>
+    ${lines.length ? `<ul class="abil">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}${c.note ? `<p class="bnote2">${esc(c.note)}</p>` : ''}
+    <div style="width:100%"><div class="note" style="margin-bottom:6px">${lvNote}</div><div class="prog"><i style="width:${L / MAX_LVL * 100}%"></i></div></div>
     <div class="k-row" id="shAct"></div><div class="note" id="shNote"></div>`;
   box.querySelector('.sheet-top > div').replaceWith(cardEl(id, {div:true, lvl:L, now:true}));
-  const act = box.querySelector('#shAct'), coin = '<span class="coin" style="margin-left:6px"></span>';
+  const act = box.querySelector('#shAct');
   const btn = (t, cls, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn ' + cls; b.innerHTML = t; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); return b; };
   const close = () => { $('sheet').hidden = true; }, short = n => { box.querySelector('#shNote').textContent = `You need ${fmt(n - P.coins)} more coins.`; };
-  if (B && !B.done){ /* mid-match: just the facts */ }
-  else if (!L){ btn(`Buy ${coin}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); BDB.sfx.good(); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
+  if (!P || !P.onboarded || (B && !B.done)){ /* mid-match, or just looking: the facts and nothing to buy */ }
+  else if (!L){ btn(`Buy ${COIN}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); BDB.sfx.good(); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
   else {
-    if (L < MAX_LVL){ btn(`Upgrade ${coin}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; save(); BDB.sfx.big(); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
+    if (L < MAX_LVL){ btn(`Upgrade ${COIN}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; save(); BDB.sfx.big(); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
     if (!curDeck().includes(id)) btn('Put in deck', L < MAX_LVL ? '' : 'primary', () => { swap = id; close(); tab('Deck'); });
   }
   btn('Close', '', close);
@@ -153,79 +225,87 @@ function sheet(id){
 }
 
 /* ---------- a filterable, paged list of cards (well over a thousand of them, so never all at once) ---------- */
-const lists = {};
+const lists = {}, RO = {c:0, r:1, e:2, l:3};
 function listUI(key, source, label){
-  const st = lists[key] = {q:'', type:'', rar:'', base:'', aff:'', sort:'cost', n:PAGE}, box = $(key + 'F');
-  box.innerHTML = `<input class="field" type="search" placeholder="Search cards" autocomplete="off" spellcheck="false">
-    <select class="field" data-k="type"><option value="">Any type</option><option value="unit">Troops</option><option value="build">Buildings</option><option value="spell">Spells</option><option value="trap">Traps</option></select>
-    <select class="field" data-k="rar"><option value="">Any rarity</option>${RAR_IDS.map(r => `<option value="${r}">${RAR[r].name}</option>`).join('')}</select>
-    <select class="field" data-k="base"><option value="">Any character</option>${BASE_IDS.map(b => `<option value="${b}">${esc(baseName(b))}</option>`).join('')}</select>
-    <select class="field" data-k="aff"><option value="">Any style</option>${AFF_IDS.map(a => `<option value="${a}">${AFF[a].name || 'Standard'}</option>`).join('')}</select>
-    <select class="field" data-k="sort"><option value="cost">Sort by Mana</option><option value="price">Sort by price</option><option value="name">Sort by name</option><option value="lvl">Sort by level</option></select>`;
+  const st = lists[key] = {q:'', kind:'', rar:'', type:'', aff:'', sort:'cost', n:PAGE}, box = $(key + 'F');
+  box.innerHTML = `<div class="tfilter" role="group" aria-label="Type">${TYPE_IDS.map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('')}</div>
+    <input class="field" type="search" placeholder="Search cards" autocomplete="off" spellcheck="false" aria-label="Search cards">
+    <select class="field" data-k="kind" aria-label="Kind"><option value="">Any kind</option><option value="unit">Troops</option><option value="build">Buildings</option><option value="spell">Spells</option><option value="trap">Traps</option></select>
+    <select class="field" data-k="rar" aria-label="Rarity"><option value="">Any rarity</option>${RAR_IDS.map(r => `<option value="${r}">${RAR[r].name}</option>`).join('')}</select>
+    <select class="field" data-k="aff" aria-label="Build"><option value="">Any build</option>${AFF_IDS.map(a => `<option value="${a}">${AFF[a].name || 'Standard'}</option>`).join('')}</select>
+    <select class="field" data-k="sort" aria-label="Sort"><option value="cost">Sort by Mana</option><option value="rar">Sort by rarity</option><option value="price">Sort by price</option><option value="name">Sort by name</option><option value="lvl">Sort by level</option></select>`;
   const draw = () => {
-    const q = st.q.toLowerCase(), ro = {c:0, r:1, e:2, l:3};
-    let ids = source().filter(id => { const c = CARDS[id]; return (!st.type || c.type === st.type) && (!st.rar || c.rar === st.rar) && (!st.base || c.base === st.base) && (!st.aff || c.aff === st.aff) && (!q || c.name.toLowerCase().includes(q)); });
-    ids.sort(st.sort === 'price' ? (a, b) => CARDS[a].price - CARDS[b].price : st.sort === 'name' ? (a, b) => CARDS[a].name.localeCompare(CARDS[b].name) : st.sort === 'lvl' ? (a, b) => lvl(b) - lvl(a) || CARDS[a].cost - CARDS[b].cost : (a, b) => CARDS[a].cost - CARDS[b].cost || ro[CARDS[a].rar] - ro[CARDS[b].rar] || CARDS[a].name.localeCompare(CARDS[b].name));
+    const q = st.q.toLowerCase();
+    const ids = source().filter(id => { const c = CARDS[id]; return (!st.kind || c.kind === st.kind) && (!st.rar || c.rar === st.rar) && (!st.type || c.type === st.type) && (!st.aff || c.aff === st.aff) && (!q || c.name.toLowerCase().includes(q)); });
+    const byCost = (a, b) => CARDS[a].cost - CARDS[b].cost || RO[CARDS[a].rar] - RO[CARDS[b].rar] || CARDS[a].name.localeCompare(CARDS[b].name);
+    ids.sort(st.sort === 'price' ? (a, b) => CARDS[a].price - CARDS[b].price : st.sort === 'name' ? (a, b) => CARDS[a].name.localeCompare(CARDS[b].name) : st.sort === 'lvl' ? (a, b) => lvl(b) - lvl(a) || byCost(a, b) : st.sort === 'rar' ? (a, b) => RO[CARDS[b].rar] - RO[CARDS[a].rar] || byCost(a, b) : byCost);
     const g = $(key + 'Grid'), dl = key === 'shop' ? deals() : [], dk = curDeck(); g.innerHTML = '';
-    for (const id of ids.slice(0, st.n)){ const c = cardEl(id, key === 'shop' ? {tag:lvl(id) ? 'Owned' : fmt(priceOf(id)), sale:dl.includes(id) && !lvl(id), lvl:lvl(id), cls:lvl(id) ? 'dim' : ''} : {lvl:lvl(id), cls:dk.includes(id) ? 'inuse' : ''}); c.onclick = () => sheet(id); g.appendChild(c); }
-    if (!ids.length) g.innerHTML = '<p class="note">No cards match that.</p>';
-    $(key + 'Lbl').textContent = `${label} · ${fmt(ids.length)}`; $(key + 'More').hidden = ids.length <= st.n;
+    for (const id of ids.slice(0, st.n)){ const c = cardEl(id, key === 'shop' ? {tag:lvl(id) ? 'Owned' : fmt(priceNow(id)), sale:dl.includes(id) && !lvl(id), lvl:lvl(id), cls:lvl(id) ? 'dim' : ''} : {lvl:lvl(id), cls:dk.includes(id) ? 'inuse' : ''}); c.onclick = () => sheet(id); g.appendChild(c); }
+    if (!ids.length) g.innerHTML = '<p class="note">No cards match that. Clear a filter to see more.</p>';
+    $(key + 'Lbl').textContent = `${label}: ${fmt(ids.length)}`; $(key + 'More').hidden = ids.length <= st.n;
   };
   st.draw = draw;
   box.querySelector('input').oninput = e => { st.q = e.target.value; st.n = PAGE; draw(); };
   for (const s of box.querySelectorAll('select')) s.onchange = () => { st[s.dataset.k] = s.value; st.n = PAGE; draw(); };
+  box.querySelector('.tfilter').onclick = e => { const b = e.target.closest('button'); if (!b) return; st.type = st.type === b.dataset.t ? '' : b.dataset.t; for (const o of box.querySelectorAll('.tfilter button')) o.setAttribute('aria-pressed', o.dataset.t === st.type); st.n = PAGE; draw(); };
   $(key + 'More').onclick = () => { st.n += PAGE; draw(); };
 }
 
 /* ---------- hub ---------- */
-let curTab = 'Battle', swap = null;
+let curTab = 'Battle', swap = null, deckType = '';
 function tab(t){ curTab = t; for (const k of ['Battle', 'Deck', 'Market', 'Profile']) $('tab' + k).hidden = k !== t; for (const b of $('tabbar').children) b.setAttribute('aria-selected', b.dataset.tab === t); if (t !== 'Deck') swap = null; hub(); $('hubBody').scrollTop = 0; }
 $('tabbar').onclick = e => { const b = e.target.closest('button'); if (b) tab(b.dataset.tab); };
 $('toDeck').onclick = () => tab('Deck');
 const avgCost = d => (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.length).toFixed(1);
-const COLS = ['#9fb3d9', '#4ade80', '#4fb3ff', '#c77dff', '#ff9d3c', '#ff6fae', '#ff5a4a', '#ffd95a'];
+const PACK = Object.fromEntries(PACKS.map(p => [p.id, p]));
+const PACK_ART = {bronze:'ironclad', silver:'bell', gold:'zephyr', diamond:'infernus', mythic:'lich'};
+const TYPE_ART = {dragon:'jade', fire:'magmaw', frost:'glacius', arcane:'zephyr', dark:'mort', shadow:'vesper', beast:'gorehorn', nature:'elderbark', horde:'gorak', order:'bell', tech:'brassbolt', crew:'janitor'};
+const nextLevel = () => Math.min(LEVELS, P.ladder + 1);
+/* what a win is worth, as a row of chips. first: the first-win extras are still there to be won */
+function prizeChips(cpu, first){
+  const f = cpu.first || {}, out = [`<span class="pz">${COIN}${fmt(first || cpu.rand ? cpu.coins : cpu.coins / 2)}</span>`];
+  if (first || cpu.card) out.push('<span class="pz cardz">One of his cards</span>');
+  const pk = cpu.rand ? cpu.pack : first ? f.pack : null; if (pk) out.push(`<span class="pz packz" style="--pc:${PACK[pk].col}">${esc(PACK[pk].name)}</span>`);
+  if (first && f.rar) out.push(`<span class="pz r-${f.rar}">${RAR[f.rar].name} card</span>`);
+  if (first && f.token) out.push(`<span class="pz tokz">${f.token} upgrade ${f.token > 1 ? 'tokens' : 'token'}</span>`);
+  return out.join('');
+}
 function hub(){
   if (!P) return;
   top();
   if (curTab === 'Battle'){
-    $('bDeckLbl').textContent = `Deck ${P.deck + 1} · average ${avgCost(curDeck())} Mana`;
+    const n = nextLevel(), all = P.ladder >= LEVELS, cpu = ladderCpu(n), T = TIERS[cpu.tier], h = $('hero');
+    h.style.setProperty('--tc', T.col);
+    h.innerHTML = `<div class="pic"><b>${n}</b></div><div><small>${all ? 'All 1,000 beaten. Run the last one back' : `Level ${fmt(n)} of ${fmt(LEVELS)}, ${esc(T.name)} tier`}</small><h2>${esc(cpu.name)}</h2><p>${esc(cpu.tag)} ${esc(MAPS[cpu.map].name)}, level ${cpu.lvl} cards.</p><div class="pzrow">${prizeChips(cpu, !all)}</div><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
+    $('heroGo').onclick = () => preCpu(cpu);
+    const road = $('road'), a = Math.max(1, Math.min(n - 2, LEVELS - 11)); road.innerHTML = '';
+    for (let i = a; i < a + 12 && i <= LEVELS; i++){
+      const pr = levelPrize(i), f = pr.first, st = i <= P.ladder ? 'done' : i === n ? 'next' : 'lock', b = document.createElement('button');
+      b.type = 'button'; b.className = 'node ' + st + (i % 100 === 0 ? ' boss' : ''); b.disabled = st === 'lock'; b.setAttribute('aria-label', `Level ${i}${st === 'done' ? ', beaten' : st === 'lock' ? ', locked' : ''}`);
+      b.innerHTML = `<b>${i}</b><span>${f.pack ? `<i class="pk" style="--pc:${PACK[f.pack].col}" title="${esc(PACK[f.pack].name)}"></i>` : ''}${f.token ? '<i class="tk" title="Upgrade token"></i>' : ''}${!f.pack && !f.token ? '<i class="cd" title="One of his cards"></i>' : ''}</span><small>${st === 'done' ? 'Beaten' : fmt(pr.coins)}</small>`;
+      b.onclick = () => preCpu(ladderCpu(i));
+      road.appendChild(b);
+    }
+    $('tierLbl').textContent = `The ladder: ${fmt(P.ladder)} of ${fmt(LEVELS)}`;
+    $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><b>${esc(t.name)}</b><span>${i * 100 + 1} to ${(i + 1) * 100}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
+    $('bDeckLbl').textContent = `Deck ${P.deck + 1}, average ${avgCost(curDeck())} Mana`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
-    const ni = Math.min(P.ladder, CPUS.length - 1), nc = CPUS[ni];
-    $('hero').innerHTML = `<div class="pic"></div><div><small>${P.ladder >= CPUS.length ? 'You beat them all. Run it back against' : 'Next up'}</small><h2>${esc(nc.name)}</h2><p>${esc(nc.tag)} ${esc(MAPS[nc.map].name)}, level ${nc.lvl} cards.</p><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
-    $('heroGo').onclick = () => preCpu(ni);
-    const qr = $('quickRow'); qr.innerHTML = ''; for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small><span class="coin"></span>${sk.coins}</small>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
-    const ld = $('ladder'); ld.innerHTML = '';
-    CPUS.forEach((c, i) => {
-      const locked = i > P.ladder, wins = P.beaten[c.id] || 0, row = document.createElement('div');
-      row.className = 'cpu' + (locked ? ' locked' : ''); row.style.setProperty('--tc', COLS[i]);
-      row.innerHTML = `<div class="av"><b>${i + 1}</b></div><div><h4>${esc(c.name)}</h4><p>${esc(c.tag)}</p><div class="meta">${esc(MAPS[c.map].name)} · Level ${c.lvl} cards · ${fmt(wins ? c.coins / 2 : c.coins)} coins</div></div>
-        <div>${locked ? '<span class="note">Beat the one above</span>' : `<button type="button" class="k-btn ${wins ? '' : 'primary'}">${wins ? 'Rematch' : 'Fight'}</button>${wins ? `<span class="done">Beaten x${wins}</span>` : ''}`}</div>`;
-      const b = row.querySelector('button'); if (b) b.onclick = () => preCpu(i);
-      ld.appendChild(row);
-    });
+    $('bSets').innerHTML = setsHTML(curDeck());
+    const qr = $('quickRow'); qr.innerHTML = '';
+    for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small>${COIN}${sk.coins}</small><em>${sk.pack ? 'card and a pack' : sk.card ? 'and a card' : 'coins'}</em>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
   } else if (curTab === 'Deck'){
     const seg = $('deckSeg'); seg.innerHTML = '';
     for (let i = 0; i < DECK_SLOTS; i++){ const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Deck ' + (i + 1); b.setAttribute('aria-pressed', i === P.deck); b.onclick = () => { P.deck = i; swap = null; save(); hub(); }; seg.appendChild(b); }
     $('deckAvg').textContent = `Average ${avgCost(curDeck())} Mana`;
+    $('deckSets').innerHTML = setsHTML(curDeck());
     const g = $('deckGrid'); g.innerHTML = '';
     curDeck().forEach((id, i) => { const c = cardEl(id, {lvl:lvl(id), cls:swap ? 'pickme' : ''}); c.onclick = () => { if (swap) doSwap(i); else sheet(id); }; g.appendChild(c); });
-    $('deckHint').innerHTML = swap ? `Tap the card above that <b>${esc(CARDS[swap].name)}</b> should replace. <button type="button" class="link" id="swapX" style="padding:2px 6px">Cancel</button>` : `${DECK_SIZE} cards, 5 in your hand at a time, and the deck keeps cycling. One version of each character, no more than ${MAX_LEGEND} Legendary. Tap a card below to swap it in.`;
+    $('deckHint').innerHTML = swap ? `Tap the card above that <b>${esc(CARDS[swap].name)}</b> should replace. <button type="button" class="link" id="swapX" style="padding:2px 6px">Cancel</button>`
+      : `${DECK_SIZE} cards, 5 in your hand at a time, and the deck keeps cycling. One version of each character, no more than ${MAX_LEGEND} Legendary. Put ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type in a deck and that type gets ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage. Tap a card below to swap it in.`;
     const sx = $('swapX'); if (sx) sx.onclick = () => { swap = null; hub(); };
     lists.own.draw();
-  } else if (curTab === 'Market'){
-    const dg = $('dealGrid'); dg.innerHTML = '';
-    for (const id of deals()){ const c = cardEl(id, {tag:lvl(id) ? 'Owned' : fmt(priceOf(id)), sale:!lvl(id), lvl:lvl(id)}); c.onclick = () => sheet(id); dg.appendChild(c); }
-    lists.shop.draw();
-    const tot = RAR_IDS.reduce((a, r) => a + RAR[r].w, 0);
-    $('odds').innerHTML = RAR_IDS.map(k => `<span class="r-${k}">${RAR[k].name} ${Math.round(RAR[k].w / tot * 100)}%</span>`).join('');
-    $('crateBuy').innerHTML = `Open for <span class="coin" style="margin-left:6px"></span>${fmt(CRATE)}`; $('crateBuy').disabled = P.coins < CRATE;
-  } else {
-    $('pName').textContent = P.name;
-    $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. Create an account from the sign in screen to keep it online and show up for friends.' : 'Saved on this device.';
-    const s = P.stats, own = Object.keys(P.cards).length;
-    $('pStats').innerHTML = [['Coins', fmt(P.coins)], ['Trophies', fmt(P.trophies)], ['BDBs beaten', `${Math.min(P.ladder, CPUS.length)} of ${CPUS.length}`], ['Wins against BDB', s.w], ['Losses against BDB', s.l], ['Online wins', s.ow], ['Online losses', s.ol], ['Cards collected', `${fmt(own)} of ${fmt(CARD_IDS.length)}`], ['Cards won from BDB', s.won], ['Upgrades bought', s.up]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
-    $('codeOut').value = Accounts.code(P);
-  }
+  } else if (curTab === 'Market') market();
+  else profile();
 }
 function doSwap(i){
   const d = curDeck().slice(); d[i] = swap;
@@ -234,30 +314,126 @@ function doSwap(i){
   P.decks[P.deck] = d; swap = null; save(); BDB.sfx.good(); hub();
 }
 
-/* ---------- market ---------- */
+/* ---------- profile: the numbers, and the upgrades bought with tokens from the ladder ---------- */
+function profile(){
+  $('pName').textContent = P.name;
+  $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. Create an account from the sign in screen to keep it online and show up for friends.' : 'Saved on this device.';
+  const s = P.stats, own = Object.keys(P.cards).length;
+  $('pStats').innerHTML = [['Coins', fmt(P.coins)], ['Trophies', fmt(P.trophies)], ['Ladder', `${fmt(P.ladder)} of ${fmt(LEVELS)}`], ['Tier', tierOf(nextLevel()).name], ['Wins against BDB', s.w], ['Losses against BDB', s.l], ['Online wins', s.ow], ['Online losses', s.ol],
+    ['Cards collected', `${fmt(own)} of ${fmt(CARD_IDS.length)}`], ['Cards won from BDB', s.won], ['Packs opened', s.packs], ['Card upgrades', s.up]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  $('tokN').textContent = P.tokens;
+  const pk = $('perks'); pk.innerHTML = '';
+  for (const k of PERK_IDS){
+    const K = PERKS[k], r = P.perks[k], cost = r + 1, max = r >= K.max, can = !max && P.tokens >= cost, row = document.createElement('div'); row.className = 'perk' + (max ? ' max' : '');
+    row.innerHTML = `<div><h4>${esc(K.name)}</h4><p>${r ? esc(K.text(r)) : 'Not bought yet.'}${max ? '' : ' Next level: ' + esc(K.text(r + 1))}</p><div class="pips">${Array.from({length:K.max}, (_, i) => `<i${i < r ? ' class="on"' : ''}></i>`).join('')}</div></div>
+      <button type="button" class="k-btn${can ? ' primary' : ''}" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `${cost} ${cost > 1 ? 'tokens' : 'token'}`}</button>`;
+    row.querySelector('button').onclick = () => { if (P.tokens < cost || P.perks[k] >= K.max) return; P.tokens -= cost; P.perks[k]++; save(); BDB.sfx.big(); hub(); };
+    pk.appendChild(row);
+  }
+  $('codeOut').value = Accounts.code(P);
+}
+
+/* ---------- market: packs, type packs, ready-made decks, today's deals, every card ---------- */
 let dealDay = -1, dealIds = [];
 function deals(){ const day = Math.floor(Date.now() / 864e5); if (day !== dealDay){ dealDay = day; let a = day * 2654435761 >>> 0; const r = () => { a = (a * 1664525 + 1013904223) >>> 0; return a / 4294967296; }; dealIds = []; while (dealIds.length < 6){ const id = crateRoll(r); if (!dealIds.includes(id)) dealIds.push(id); } } return dealIds; }
-const priceOf = id => Math.round(CARDS[id].price * (deals().includes(id) ? DEAL : 1) / 10) * 10;
+const priceNow = id => Math.round(CARDS[id].price * (deals().includes(id) ? DEAL : 1) / 5) * 5;
+/* a ready-made deck costs what the cards you are missing would, less a fifth */
+const deckCost = d => Math.round(d.deck.reduce((a, id) => a + (lvl(id) ? 0 : CARDS[id].price), 0) * .8 / 10) * 10;
 /* a card arrives: new at level 1, or one level up if you already have it, or coins if it is maxed */
 function grant(id){
   const L = lvl(id);
-  if (!L){ P.cards[id] = 1; return 'New card'; }
-  if (L < MAX_LVL){ P.cards[id] = L + 1; return `Already yours, so it goes up to level ${L + 1}`; }
-  const c = Math.round(CARDS[id].price * .2); P.coins += c; return `Already maxed, so you get ${fmt(c)} coins instead`;
+  if (!L){ P.cards[id] = 1; return {id, lvl:1, tag:'New', line:'New card'}; }
+  if (L < MAX_LVL){ P.cards[id] = L + 1; return {id, lvl:L + 1, tag:'Level ' + (L + 1), line:`Already yours, so it goes up to level ${L + 1}`}; }
+  const c = Math.round(CARDS[id].price * .2 / 5) * 5; P.coins += c; return {id, lvl:L, tag:'+' + fmt(c), line:`Already maxed, so you get ${fmt(c)} coins instead`};
 }
-$('crateBuy').onclick = () => {
-  if (P.coins < CRATE) return;
-  P.coins -= CRATE; const id = crateRoll(), line = grant(id); save();
-  reveal('Mystery crate', id, `${RAR[CARDS[id].rar].name}. ${line}.`, () => { dlgClose(); hub(); });
-};
-function reveal(title, id, line, done){
-  const b = dlg(`<div class="k-eyebrow">${esc(title)}</div><div class="big-card spin" id="rv"></div><h3 id="rvN">&nbsp;</h3><p id="rvL">&nbsp;</p><div class="k-row"><button type="button" class="k-btn primary" id="rvOk" disabled>Nice</button></div>`, {lock:true});
-  const slot = b.querySelector('#rv'); let n = 0;
-  const iv = setInterval(() => {
-    const fin = ++n >= 11; slot.innerHTML = ''; slot.appendChild(cardEl(fin ? id : pick(CARD_IDS), {div:true, now:fin}));
-    if (fin){ clearInterval(iv); slot.classList.remove('spin'); b.querySelector('#rvN').textContent = CARDS[id].name; b.querySelector('#rvL').textContent = line; b.querySelector('#rvOk').disabled = false; CARDS[id].rar === 'l' ? SND.legend() : CARDS[id].rar === 'c' ? BDB.sfx.good() : BDB.sfx.big(); } else BDB.sfx.tick();
-  }, BDB.reduced ? 20 : 110);
-  b.querySelector('#rvOk').onclick = done;
+function market(){
+  const pr = $('packRow'); pr.innerHTML = '';
+  for (const p of PACKS){
+    const el = document.createElement('div'); el.className = 'pack'; el.style.setProperty('--pc', p.col);
+    el.innerHTML = `<button type="button" class="foil" aria-label="What is in the ${esc(p.name)}"><img alt="" loading="lazy" src="art/${PACK_ART[p.id]}.webp"><b>${p.n}<small>cards</small></b></button><h4>${esc(p.name)}</h4><p>${esc(p.blurb)}</p><button type="button" class="k-btn primary buy">${COIN}${fmt(p.price)}</button>`;
+    el.querySelector('.foil').onclick = () => packInfo(p);
+    const b = el.querySelector('.buy'); b.disabled = P.coins < p.price; b.onclick = () => buyPack(p);
+    pr.appendChild(el);
+  }
+  const tp = $('tpackRow'); tp.innerHTML = '';
+  for (const t of TYPE_IDS){
+    const b = document.createElement('button'), p = {...TYPE_PACK, id:'type-' + t, name:TYPES[t].name + ' Pack', col:TYPES[t].col, art:TYPE_ART[t], blurb:`Four ${TYPES[t].name} cards. One Rare or better, guaranteed.`};
+    b.type = 'button'; b.className = 'tpack'; b.style.setProperty('--pc', p.col);
+    b.innerHTML = `<img alt="" loading="lazy" src="art/${p.art}.webp"><b>${esc(TYPES[t].name)}</b><span>${COIN}${fmt(p.price)}</span>`;
+    b.onclick = () => packInfo(p, t);
+    tp.appendChild(b);
+  }
+  const tf = $('tdeckF'); if (!tf.children.length){ tf.innerHTML = `<button type="button" data-t="" aria-pressed="true">All 30</button>` + TYPE_IDS.filter(t => THEME_DECKS.some(d => d.type === t)).map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('');
+    tf.onclick = e => { const b = e.target.closest('button'); if (!b) return; deckType = b.dataset.t; for (const o of tf.children) o.setAttribute('aria-pressed', o.dataset.t === deckType); market(); }; }
+  const td = $('tdeckRow'); td.innerHTML = '';
+  for (const d of THEME_DECKS){
+    if (deckType && d.type !== deckType) continue;
+    const miss = d.deck.filter(id => !lvl(id)).length, el = document.createElement('button'), top5 = d.deck.slice().sort((a, b) => CARDS[b].price - CARDS[a].price).slice(0, 5);
+    el.type = 'button'; el.className = 'tdeck' + (miss ? '' : ' own'); el.style.setProperty('--ty', TYPES[d.type].col);
+    el.innerHTML = `<div class="fan"></div><h4>${esc(d.name)}</h4><p>${esc(d.blurb)}</p><div class="foot">${typeChip(d.type)}<span class="pr">${miss ? COIN + fmt(deckCost(d)) : 'Owned'}</span></div>`;
+    const fan = el.querySelector('.fan'); top5.forEach((id, i) => { const c = cardEl(id, {div:true}); c.style.setProperty('--i', i - 2); fan.appendChild(c); });
+    el.onclick = () => deckBox(d);
+    td.appendChild(el);
+  }
+  const dg = $('dealGrid'); dg.innerHTML = '';
+  for (const id of deals()){ const c = cardEl(id, {tag:lvl(id) ? 'Owned' : fmt(priceNow(id)), sale:!lvl(id), lvl:lvl(id)}); c.onclick = () => sheet(id); dg.appendChild(c); }
+  lists.shop.draw();
+}
+/* one ready-made deck: every card in it, what it costs, buy it, use it */
+function deckBox(d){
+  const miss = d.deck.filter(id => !lvl(id)), cost = deckCost(d), inUse = curDeck().join() === d.deck.join();
+  const b = dlg(`<div class="k-eyebrow">Ready-made deck</div><h3>${esc(d.name)}</h3><p>${esc(d.blurb)}</p>
+    <div class="grid deck dk15" id="dbGrid"></div><div class="sets">${setsHTML(d.deck)}</div>
+    <p class="note">Average ${avgCost(d.deck)} Mana. ${miss.length ? `You are missing ${miss.length} of the 15, so that is all you pay for.` : 'You own every card in it.'}</p>
+    <div class="k-row">${miss.length ? `<button type="button" class="k-btn primary" id="dbBuy" ${P.coins < cost ? 'disabled' : ''}>Buy for ${COIN}${fmt(cost)}</button>` : `<button type="button" class="k-btn primary" id="dbUse" ${inUse ? 'disabled' : ''}>${inUse ? 'In use' : `Use as Deck ${P.deck + 1}`}</button>`}<button type="button" class="k-btn" id="dbX">Close</button></div>
+    ${miss.length && P.coins < cost ? `<p class="note">You need ${fmt(cost - P.coins)} more coins.</p>` : ''}`);
+  const g = b.querySelector('#dbGrid'); for (const id of d.deck){ const c = cardEl(id, {lvl:lvl(id), cls:lvl(id) ? '' : 'dim'}); c.onclick = () => sheet(id); g.appendChild(c); }
+  b.querySelector('#dbX').onclick = dlgClose;
+  const buy = b.querySelector('#dbBuy'), use = b.querySelector('#dbUse');
+  if (buy) buy.onclick = () => { if (P.coins < cost) return; P.coins -= cost; for (const id of miss) P.cards[id] = 1; save(); BDB.sfx.big(); hub(); deckBox(d); };
+  if (use) use.onclick = () => { P.decks[P.deck] = d.deck.slice(); save(); BDB.sfx.good(); dlgClose(); tab('Deck'); };
+}
+/* what a pack can hold, with the real odds, and the button that opens one */
+function packInfo(p, type){
+  const tot = RAR_IDS.reduce((a, r) => a + p.odds[r], 0), share = r => { const v = p.odds[r] / tot * 100; return (v && v < 1 ? v.toFixed(1) : Math.round(v)) + '%'; };
+  const b = dlg(`<div class="k-eyebrow">What is inside</div><div class="foil big" style="--pc:${p.col}"><img alt="" src="art/${p.art || PACK_ART[p.id]}.webp"><b>${p.n}<small>cards</small></b></div><h3>${esc(p.name)}</h3><p>${esc(p.blurb)}</p>
+    <div class="oddsx">${RAR_IDS.map(r => `<div class="r-${r}"><b>${share(r)}</b><span>${RAR[r].name}</span></div>`).join('')}</div>
+    <p class="note">That is the chance for each card. ${p.min ? `The last card is always ${RAR[p.min].name} or better${p.two ? `, and the one before it ${RAR[p.two].name} or better` : ''}. ` : ''}Builds are random, no pack holds the same character twice, and a card you already own goes up a level.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" id="pkBuy" ${P.coins < p.price ? 'disabled' : ''}>Open for ${COIN}${fmt(p.price)}</button><button type="button" class="k-btn" id="pkX">Close</button></div>
+    ${P.coins < p.price ? `<p class="note">You need ${fmt(p.price - P.coins)} more coins.</p>` : ''}`);
+  b.querySelector('#pkX').onclick = dlgClose; b.querySelector('#pkBuy').onclick = () => buyPack(p, type);
+}
+function buyPack(p, type){
+  if (P.coins < p.price) return;
+  P.coins -= p.price; P.stats.packs++;
+  const got = openPack(p, type).map(grant); save();
+  packReveal(p, got, () => { dlgClose(); hub(); }, () => buyPack(p, type));
+}
+/* tear the pack open, then the cards turn over one at a time, best last */
+function packReveal(p, got, done, again){
+  const b = dlg(`<div class="k-eyebrow">${esc(p.name)}</div><div class="opener" id="opn" style="--pc:${p.col}"><button type="button" class="foil big shake" id="opnPack" aria-label="Open the pack"><img alt="" src="art/${p.art || PACK_ART[p.id]}.webp"><b>${got.length}<small>cards</small></b></button></div>
+    <p class="note" id="opnLine">Tap the pack to tear it open.</p><div class="k-row" id="opnRow"></div>`, {lock:true});
+  const stage = b.querySelector('#opn'), line = b.querySelector('#opnLine'), row = b.querySelector('#opnRow'), fast = BDB.reduced || Q.get('fast');
+  const finish2 = () => {
+    const fresh2 = got.filter(g => g.tag === 'New').length;
+    line.textContent = fresh2 === got.length ? 'All new.' : fresh2 ? `${fresh2} new, and the rest level up cards you already had.` : 'Nothing new this time, but every one of them made a card you own stronger.';
+    row.innerHTML = `${again ? `<button type="button" class="k-btn" id="opnAgain" ${P.coins < p.price ? 'disabled' : ''}>Another for ${COIN}${fmt(p.price)}</button>` : ''}<button type="button" class="k-btn primary" id="opnOk">Done</button>`;
+    row.querySelector('#opnOk').onclick = done; const ag = row.querySelector('#opnAgain'); if (ag) ag.onclick = again;
+  };
+  const open = () => {
+    stage.innerHTML = '<div class="burst"></div><div class="pulled"></div>'; SND.rip(); line.textContent = ' ';
+    const wrap = stage.querySelector('.pulled'); let i = 0;
+    const els = got.map(g => { const s = document.createElement('div'); s.className = 'pull r-' + CARDS[g.id].rar; s.innerHTML = '<div class="flip"><div class="bk"></div><div class="ft"></div></div><small>&nbsp;</small>'; const c = cardEl(g.id, {lvl:g.lvl, now:true}); c.onclick = () => sheet(g.id); s.querySelector('.ft').appendChild(c); wrap.appendChild(s); return s; });
+    const next = () => {
+      if (!b.isConnected) return;
+      if (i >= got.length) return finish2();
+      const g = got[i], el = els[i++], r = CARDS[g.id].rar; el.classList.add('on'); el.querySelector('small').textContent = g.tag;
+      r === 'l' ? SND.legend() : r === 'e' ? BDB.sfx.big() : r === 'r' ? BDB.sfx.good() : BDB.sfx.pop();
+      setTimeout(next, fast ? 30 : r === 'l' ? 1500 : r === 'e' ? 950 : 430);
+    };
+    setTimeout(next, fast ? 0 : 520);
+  };
+  b.querySelector('#opnPack').onclick = open;
 }
 
 /* ---------- sign in ---------- */
@@ -265,17 +441,20 @@ function show(scr){ for (const s of ['scrLogin', 'scrOnb', 'scrHub', 'scrBattle'
 function loginScreen(){
   show('scrLogin'); P = null;
   const w = $('whoList'); w.innerHTML = '';
-  for (const p of Accounts.all()){ const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span>${esc(p.name)}</span><small>${fmt(p.coins)} coins · ${Object.keys(p.cards).length} cards</small>`; b.onclick = () => signIn(p); w.appendChild(b); }
+  for (const p of Accounts.all()){ const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<span>${esc(p.name)}</span><small>${fmt(p.coins)} coins, ${Object.keys(p.cards).length} cards</small>`; b.onclick = () => signIn(p); w.appendChild(b); }
   $('loginErr').textContent = '';
 }
 function signIn(p){ P = p; Accounts.save(P); if (!P.onboarded && !Q.get('skip')) return onboard(); P.onboarded = true; show('scrHub'); tab('Battle'); hallStart(); const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else whatsNew(); }
-/* anyone who was playing before trap cards existed gets one to try, once */
+/* anyone whose save came from the game as it was gets told, once, what changed */
 function whatsNew(){
-  if (P.flags.traps) return;
-  P.flags.traps = 1;
-  if (Object.keys(P.cards).some(id => CARDS[id].type === 'trap')){ save(); return; }
-  const id = 'wetfloor-std-c'; grant(id); save();
-  reveal('New: trap cards', id, 'Here is one on the house. Set it face down on your half and it springs on the first enemy to walk in. There are more in the Market under Traps.', () => { dlgClose(); hub(); });
+  if (!P.flags.moved || P.flags.told) return;
+  P.flags.told = 1; save();
+  const b = dlg(`<div class="k-eyebrow">Big update</div><h3>Welcome back, ${esc(P.name)}</h3>
+    <p>The game has been rebuilt around your save. Your cards came across as their new versions, and any character that left the game was paid out at 150 coins.</p>
+    <ul class="abil"><li>Every character now has one rarity and one of twelve types. Stack a type in your deck and it fights harder.</li><li>The ladder is 1,000 levels, with packs, cards and tower upgrades along the way.</li>
+    <li>The Market sells card packs and 30 ready-made decks.</li><li>Mana doubles for the last two minutes of a match and triples for the last one.</li></ul>
+    <div class="k-row"><button type="button" class="k-btn primary" id="wnOk">Show me</button></div>`);
+  b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
 }
 $('newGo').onclick = () => {
   const n = Accounts.cleanName($('newName').value);
@@ -295,7 +474,7 @@ async function accSign(create){
     } else {
       const r = await Cloud.login(n, pw);
       if (r.error) return err('Wrong name or password.');
-      signIn(sanitize(r.data && r.data.cards ? {...r.data, name:r.name} : fresh(r.name)));
+      signIn(r.data && r.data.cards ? sanitize({...r.data, name:r.name}) : fresh(r.name));
     }
   } catch(e){ err('Could not reach the account server. Check your connection, or play on this device only.'); }
 }
@@ -311,77 +490,135 @@ $('wipe').onclick = () => confirmBox('Delete this player?', `${P.name}'s cards, 
 $('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; };
 $('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
 
-/* ---------- first time in: how it works, pick a starting deck, here are your coins ---------- */
+/* ---------- first time in: how it works, pick a free Rare, build a deck out of your starting coins ---------- */
 function onboard(){
-  show('scrOnb'); const box = $('onbBox'); let pickd = 0;
+  show('scrOnb'); const box = $('onbBox'); let hero = null, picks = [], ft = '', fk = '';
+  const pool = CARD_IDS.filter(id => { const c = CARDS[id]; return c.aff === 'std' && (c.rar === 'c' || c.rar === 'r'); }).sort((a, b) => CARDS[a].cost - CARDS[b].cost || RO[CARDS[a].rar] - RO[CARDS[b].rar] || CARDS[a].name.localeCompare(CARDS[b].name));
+  const spent = () => picks.reduce((a, id) => a + CARDS[id].price, 0), NEED = DECK_SIZE - 1;
   const step1 = () => {
     box.innerHTML = `<div class="k-eyebrow">Welcome, ${esc(P.name)}</div><h2>How a brawl works</h2>
-      <div class="tips"><div><b>1</b><h4>Drop cards on your half</h4><p>Drag a card onto the field, or tap the card and then the spot. Each one costs Mana.</p></div>
-      <div><b>2</b><h4>Mind your Mana</h4><p>It refills on its own, and 30% faster once you hold off summoning for three seconds.</p></div>
+      <div class="tips"><div><b>1</b><h4>Drop cards on your half</h4><p>Drag a card onto the field, or tap the card and then the spot. Stronger cards cost more Mana.</p></div>
+      <div><b>2</b><h4>Mind your Mana</h4><p>It refills on its own. It doubles for the last two minutes and triples for the last one, so save something for the end.</p></div>
       <div><b>3</b><h4>Take his towers</h4><p>Knock down more towers than he does in ten minutes. Take the king tower and it ends on the spot.</p></div>
-      <div><b>4</b><h4>Set traps</h4><p>Trap cards go face down on your half. Only you can see them, and they spring on the first enemy to walk in. Flyers pass over, and a damage spell clears one.</p></div></div>
-      <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Pick my deck</button></div>`;
+      <div><b>4</b><h4>Build around a type</h4><p>Every card has a type: Dragon, Fire, Dark Arts and nine more. Four or more of one type in your deck and that type fights harder.</p></div></div>
+      <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Pick my free Rare</button></div>`;
     $('onNext').onclick = step2;
   };
   const step2 = () => {
-    box.innerHTML = `<div class="k-eyebrow">Step 2 of 3</div><h2>Pick your starting deck</h2><p class="note">15 cards, 5 in your hand at a time. You can change every card later.</p><div class="decks" id="onDecks"></div>
-      <div class="k-row"><button type="button" class="k-btn primary big" id="onNext">Take this deck</button></div>`;
-    const wrap = $('onDecks');
-    STARTER_DECKS.forEach((d, i) => {
-      const el = document.createElement('button'); el.type = 'button'; el.className = 'sdeck' + (i === pickd ? ' on' : '');
-      el.innerHTML = `<h4>${esc(d.name)}</h4><p>${esc(d.blurb)}</p><div class="mini"></div><span>Average ${avgCost(d.deck)} Mana</span>`;
-      const m = el.querySelector('.mini'); for (const id of d.deck) m.appendChild(cardEl(id, {div:true}));
-      el.onclick = () => { pickd = i; for (const c of wrap.children) c.classList.toggle('on', c === el); BDB.sfx.tick(); };
+    box.innerHTML = `<div class="k-eyebrow">Step 1 of 2</div><h2>Pick your free Rare</h2><p class="note">One of these six is yours to keep. Each does something no Common can.</p><div class="heroes" id="onHeroes"></div>
+      <div class="k-row"><button type="button" class="k-btn" id="onBack">Back</button><button type="button" class="k-btn primary big" id="onNext" ${hero ? '' : 'disabled'}>Take this one</button></div>`;
+    const wrap = $('onHeroes');
+    for (const hb of FREE_RARES){
+      const id = hb + '-std', c = CARDS[id], el = document.createElement('button'); el.type = 'button'; el.className = 'hpick' + (hero === id ? ' on' : ''); el.style.setProperty('--ty', TYPES[c.type].col);
+      el.innerHTML = `<div class="hc"></div><div><h4>${esc(c.name)}</h4><div class="chips">${typeChip(c.type)}<span class="rchip">${esc(ROLE_NAME[c.U.role])}</span><span class="rchip">${c.cost} Mana</span></div><p>${esc(c.desc)}</p></div>`;
+      el.querySelector('.hc').appendChild(cardEl(id, {div:true, now:true}));
+      el.onclick = () => { hero = id; picks = picks.filter(p => CARDS[p].base !== c.base); for (const o of wrap.children) o.classList.toggle('on', o === el); $('onNext').disabled = false; BDB.sfx.tick(); };
       wrap.appendChild(el);
-    });
-    $('onNext').onclick = () => { const d = STARTER_DECKS[pickd].deck; P.cards = {}; for (const id of d) P.cards[id] = 1; P.decks = Array.from({length:DECK_SLOTS}, () => d.slice()); P.deck = 0; save(); BDB.sfx.good(); step3(); };
+    }
+    $('onBack').onclick = step1; $('onNext').onclick = () => { if (hero) step3(); };
   };
   const step3 = () => {
-    box.innerHTML = `<div class="k-eyebrow">Step 3 of 3</div><h2>Here is ${fmt(P.coins)} coins</h2><p class="note" style="max-width:520px;margin:0 auto 6px">Spend them in the Market on new cards, or on upgrades for the ones in your deck. There are over a thousand to collect. Beat a BDB and you take one of his cards too.</p>
+    box.innerHTML = `<div class="k-eyebrow">Step 2 of 2</div><h2>Build your deck</h2><p class="note">${esc(CARDS[hero].name)} is in. Pick ${NEED} more cards with your ${fmt(START_COINS)} coins. Whatever you do not spend, you keep. Hold a card, or right-click it, to read what it does.</p>
+      <div class="bbar"><div class="budget">${COIN}<b id="obLeft"></b><small>left to spend</small></div><div class="bcount"><b id="obN"></b><small>of ${DECK_SIZE} cards</small></div><div class="sets" id="obSets"></div></div>
+      <div class="grid deck dk15" id="obDeck"></div>
+      <div class="qfill"><span class="note">Or start from a ready one:</span>${STARTER_DECKS.map((d, i) => `<button type="button" class="k-btn" data-i="${i}">${esc(d.name)}</button>`).join('')}<button type="button" class="link" id="obClear">Clear</button></div>
+      <div class="filters"><div class="tfilter" id="obT" role="group" aria-label="Type">${TYPE_IDS.map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="false">${esc(TYPES[t].name)}</button>`).join('')}</div>
+        <select class="field" id="obK" aria-label="Kind"><option value="">Any kind</option><option value="unit">Troops</option><option value="build">Buildings</option><option value="spell">Spells</option><option value="trap">Traps</option></select></div>
+      <div class="grid" id="obPool"></div><p class="err" id="obErr"></p>
+      <div class="k-row"><button type="button" class="k-btn" id="onBack">Back</button><button type="button" class="k-btn primary big" id="onDone">Start playing</button></div>
+      <p class="note">Epic and Legendary cards come from packs, the ladder and the Market once you are in.</p>`;
+    const say = t => { $('obErr').textContent = t; if (t) BDB.sfx.bad(); };
+    const draw = () => {
+      const left = START_COINS - spent(), dk = $('obDeck'), pl = $('obPool'), bases = new Set([hero, ...picks].map(id => CARDS[id].base));
+      $('obLeft').textContent = fmt(left); $('obN').textContent = picks.length + 1; $('obSets').innerHTML = setsHTML([hero, ...picks]); $('onDone').disabled = picks.length < NEED;
+      dk.innerHTML = '';
+      const h = cardEl(hero, {tag:'Free'}); h.onclick = () => sheet(hero); dk.appendChild(h);
+      for (const id of picks){ const c = cardEl(id, {tag:fmt(CARDS[id].price)}); c.onclick = () => { picks = picks.filter(p => p !== id); say(''); BDB.sfx.tick(); draw(); }; dk.appendChild(c); }
+      for (let i = picks.length; i < NEED; i++){ const e = document.createElement('div'); e.className = 'card empty'; dk.appendChild(e); }
+      pl.innerHTML = '';
+      for (const id of pool){
+        const c = CARDS[id]; if (c.base === CARDS[hero].base || (ft && c.type !== ft) || (fk && c.kind !== fk)) continue;
+        const inDeck = picks.includes(id), cant = !inDeck && (c.price > left || picks.length >= NEED), el = cardEl(id, {tag:fmt(c.price), cls:inDeck ? 'inuse' : cant ? 'dim' : ''});
+        el.onclick = () => {
+          if (inDeck) picks = picks.filter(p => p !== id);
+          else if (picks.length >= NEED) return say('Your deck is full. Tap a card in it to take it out.');
+          else if (c.price > left) return say(`${c.name} costs ${fmt(c.price)} and you have ${fmt(left)} left.`);
+          else if (bases.has(c.base)) return say('That character is already in your deck.');
+          else picks.push(id);
+          say(''); BDB.sfx.tick(); draw();
+        };
+        pl.appendChild(el);
+      }
+      if (!pl.children.length) pl.innerHTML = '<p class="note">Nothing matches that. Clear a filter to see more.</p>';
+    };
+    $('obT').onclick = e => { const b = e.target.closest('button'); if (!b) return; ft = ft === b.dataset.t ? '' : b.dataset.t; for (const o of $('obT').children) o.setAttribute('aria-pressed', o.dataset.t === ft); draw(); };
+    $('obK').onchange = e => { fk = e.target.value; draw(); };
+    box.querySelector('.qfill').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'obClear') picks = []; else picks = STARTER_DECKS[+b.dataset.i].deck.filter(id => CARDS[id].base !== CARDS[hero].base && !FREE_RARES.includes(CARDS[id].base)).slice(0, NEED); say(''); BDB.sfx.good(); draw(); };
+    $('onBack').onclick = step2;
+    $('onDone').onclick = () => {
+      const deck = [hero, ...picks], bad = deckProblem(deck);
+      if (bad || spent() > START_COINS) return say(bad || 'That deck costs more than you have.');
+      P.cards = {}; for (const id of deck) P.cards[id] = 1; P.decks = Array.from({length:DECK_SLOTS}, () => deck.slice()); P.deck = 0; P.coins = START_COINS - spent(); save(); BDB.sfx.big(); step4();
+    };
+    draw();
+  };
+  const step4 = () => {
+    box.innerHTML = `<div class="k-eyebrow">You are in</div><h2>${P.coins ? `${fmt(P.coins)} coins left over` : 'Every coin spent'}</h2><p class="note" style="max-width:540px;margin:0 auto 6px">Win on the ladder for coins, packs and BDB's own cards. Spend coins in the Market on packs, ready-made decks and upgrades. There are ${fmt(CARD_IDS.length)} cards to collect.</p>
       <div class="bigcoin"><span class="coin"></span>${fmt(P.coins)}</div>
-      <div class="k-row"><button type="button" class="k-btn primary big" id="onShop">Spend them in the Market</button><button type="button" class="k-btn big" id="onFight">Fight Trainee BDB</button></div>`;
+      <div class="k-row"><button type="button" class="k-btn primary big" id="onFight">Fight level 1</button><button type="button" class="k-btn big" id="onShop">See the Market</button></div>`;
     const done = t => { P.onboarded = true; save(); show('scrHub'); tab(t); hallStart(); };
-    $('onShop').onclick = () => done('Market'); $('onFight').onclick = () => { done('Battle'); preCpu(0); };
+    $('onShop').onclick = () => done('Market'); $('onFight').onclick = () => { done('Battle'); preCpu(ladderCpu(1)); };
   };
   step1();
 }
 
-/* ---------- before a CPU match: the draw for which of his cards is up for grabs ---------- */
-function preCpu(i){
-  const cpu = typeof i === 'number' ? CPUS[i] : i, prize = weightedPick(cpu.deck, id => DRAW_W[CARDS[id].rar]), map = MAPS[cpu.map];
-  const b = dlg(`<div class="k-eyebrow">${esc(map.name)} · ${esc(map.blurb)}</div>
-    <div class="vs"><div class="side"><div class="av me">${esc(P.name[0].toUpperCase())}</div>${esc(P.name)}</div><div class="mid">VS</div><div class="side"><div class="av"></div>${esc(cpu.name)}</div></div>
-    <div class="k-label">Up for grabs</div><div class="big-card spin" id="vsPrize" style="width:112px"></div>
-    <p class="note" id="vsLine">Drawing one of his cards.</p>
+/* ---------- before a CPU match: who he is, what is on the line, and the draw for which of his cards is up for grabs ---------- */
+function preCpu(cpu){
+  const ladder = !cpu.rand, first = ladder && cpu.level > P.ladder, prize = first || cpu.card ? weightedPick(cpu.deck, id => DRAW_W[CARDS[id].rar]) : null, map = MAPS[cpu.map], T = ladder ? TIERS[cpu.tier] : null;
+  const b = dlg(`<div class="k-eyebrow">${esc(map.name)}. ${esc(map.blurb)}</div>
+    <div class="vs"><div class="side"><div class="av me">${esc(P.name[0].toUpperCase())}</div>${esc(P.name)}</div><div class="mid">VS</div><div class="side"><div class="av"${T ? ` style="--tc:${T.col}"` : ''}></div>${esc(cpu.name)}</div></div>
+    <p class="note" style="margin:0">${ladder ? `Level ${fmt(cpu.level)}, ${esc(T.name)} tier. ` : ''}${esc(cpu.tag)} His cards are level ${cpu.lvl}.</p>
+    <div class="pzrow">${prizeChips(cpu, first)}</div>
+    ${prize ? '<div class="big-card spin" id="vsPrize" style="width:112px"></div><p class="note" id="vsLine">Drawing one of his cards.</p>' : `<p class="note">${ladder ? 'You have beaten this level before, so it pays half the coins and no card.' : 'Lose and you still get a few coins for showing up.'}</p>`}
     <div class="k-row"><button type="button" class="k-btn primary big" id="vsGo">Start</button><button type="button" class="k-btn" id="vsNo">Back</button></div>`);
-  const slot = b.querySelector('#vsPrize'); let n = 0;
-  const iv = setInterval(() => { const fin = ++n >= 10; slot.innerHTML = ''; slot.appendChild(cardEl(fin ? prize : pick(cpu.deck), {div:true, now:fin})); if (fin){ clearInterval(iv); slot.classList.remove('spin'); BDB.sfx.pop(); const l = b.querySelector('#vsLine'); if (l) l.textContent = `Beat him and ${CARDS[prize].name} is yours. Lose and you keep everything.`; } else BDB.sfx.tick(); }, BDB.reduced ? 10 : 110);
+  const slot = b.querySelector('#vsPrize'); let n = 0, iv = 0;
+  if (slot) iv = setInterval(() => { const fin = ++n >= 10; slot.innerHTML = ''; slot.appendChild(cardEl(fin ? prize : pick(cpu.deck), {div:true, now:true})); if (fin){ clearInterval(iv); slot.classList.remove('spin'); BDB.sfx.pop(); const l = b.querySelector('#vsLine'); if (l) l.textContent = `Beat him and ${CARDS[prize].name} is yours. Lose and you keep everything.`; } else BDB.sfx.tick(); }, BDB.reduced ? 10 : 110);
   b.querySelector('#vsNo').onclick = () => { clearInterval(iv); dlgClose(); };
-  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu, idx:typeof i === 'number' ? i : -1, prize, map:cpu.map, oppName:cpu.name}); };
+  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu, first, prize, map:cpu.map, oppName:cpu.name, units:unitsOf([...curDeck(), ...cpu.deck])}); };
 }
 
 /* ---------- the match ---------- */
 let B = null, raf = 0, lastT = 0, ticker = null;
-function begin(o){
-  B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false]};
-  show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function begin(o){
+  const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
+  if (o.mode === 'host') B.ready = new Promise(res => { B.rdRes = res; });
+  show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
+  const w = $('wait'); w.hidden = false; w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Bringing both decks onto the field.</div></div>`;
+  if (MD && V && o.units) try { await MD.needModels(o.units, Q.get('fast') ? 60000 : 25000); } catch(e){}
+  if (B !== me) return;                                   // they backed out while it loaded
   if (V) V.reset(B.team, o.map);
   if (o.coop && o.mode === 'host'){                       // 2v2: you and a friend against two BDBs
     const [a, b] = o.cpus, dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
-    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, dk(a), dk(b)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, a.ai.el * .85, b.ai.el * .85], towerLvl:[myTower(), a.lvl]});
+    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, dk(a), dk(b)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, a.ai.el * .85, b.ai.el * .85], towerLvl:[myTower(), a.tower || a.lvl]});
     B.ais = [createAI(B.sim, 1, a.ai, Math.random, 2), createAI(B.sim, 1, b.ai, Math.random, 3)];
-  } else if (o.mode !== 'guest'){
-    const oppDeck = o.mode === 'cpu' ? o.cpu.deck.map(id => ({id, lvl:o.cpu.lvl})) : o.oppDeck;
-    B.sim = createSim({map:o.map, decks:[myDeck(), oppDeck], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, o.mode === 'cpu' ? o.cpu.ai.el : 1], towerLvl:[myTower(), o.mode === 'cpu' ? o.cpu.lvl : o.oppTower]});
-    if (o.mode === 'cpu') B.ai = createAI(B.sim, 1, o.cpu.ai);
+  } else if (o.mode === 'host'){
+    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck], seed:(Math.random() * 2 ** 31) | 0, towerLvl:[myTower(), o.oppTower]});
+  } else if (o.mode === 'cpu'){                           // against BDB your player upgrades count; online everyone is even
+    const c = o.cpu, k = P.perks;
+    B.sim = createSim({map:o.map, decks:[myDeck(), c.deck.map(id => ({id, lvl:c.lvl}))], seed:(Math.random() * 2 ** 31) | 0, elMul:[1 + k.flow * PERKS.flow.per, c.ai.el], towerLvl:[myTower(), c.tower || c.lvl],
+      boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}], start:[5 + k.start * PERKS.start.per, 5]});
+    B.ai = createAI(B.sim, 1, c.ai);
   }
   hud(true);
-  const w = $('wait'); w.hidden = false; let n = 3;
-  const cd = () => { if (!B) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? TALK.start : o.coop ? [`Two of you? Fine. There are two of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
-  cd();
   cancelAnimationFrame(raf); lastT = performance.now(); raf = requestAnimationFrame(loop);
+  if (o.mode === 'guest' && room) room.send('rd', {}, OL && OL.opp);
+  if (o.mode === 'host'){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Waiting for ${esc(o.mate || o.oppName)} to load in.</div></div>`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
+  let n = 3;
+  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? TALK.start : o.coop ? [`Two of you? Fine. There are two of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  cd();
 }
 function startTicker(){ try { ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'], {type:'text/javascript'}))); ticker.onmessage = () => { if (document.hidden) hostPump(); }; } catch(e){} }
 function hostPump(){
@@ -402,14 +639,35 @@ function loop(now){
     if (B.mode === 'cpu'){ B.acc += dt; let n = 0; while (B.acc >= DT && n++ < 6 && !B.sim.over){ B.ai.tick(); B.sim.step(); B.acc -= DT; pump(); } if (n >= 6) B.acc = 0; }
     else if (B.mode === 'host') hostPump();
   }
-  if (V){ V.setTraps(myTraps()); V.frame(B.pz || (B.mode === 'cpu' && !B.run) ? 0 : dt, B.mode === 'guest' ? B.ents : B.sim.ents); }
+  if (V){ V.setTraps(myTraps()); V.frame(B.pz || (B.mode === 'cpu' && !B.run) ? 0 : dt, B.mode === 'guest' ? B.ents : B.sim.ents); stepBubbles(); }
   hud();
   raf = requestAnimationFrame(loop);
 }
 /* the traps this player is allowed to see: their own team's, and any Instant Replay that has already been sprung */
-const myTraps = () => !B ? [] : B.mode === 'guest' ? B.traps : B.sim.traps.filter(t => t.team === B.team || t.live > 0);
+const myTraps = () => !B ? [] : B.mode === 'guest' ? B.traps : !B.sim ? [] : B.sim.traps.filter(t => t.team === B.team || t.live > 0);
 function note(text){ const d = document.createElement('div'); d.className = 'bnote'; d.textContent = text; for (const o of document.querySelectorAll('.bnote')) o.remove(); $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2200); }
 function stamp(text, bad){ const d = document.createElement('div'); d.className = 'stamp' + (bad ? ' bad' : ''); d.textContent = text; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 1600); }
+
+/* what the characters say: a line over their head when they arrive, and now and then when something goes their way */
+const bubbles = [], lastSay = [0, 0];
+function bubble(uid, text, mine, force){
+  if (!V || !text || !uid) return;
+  const now = performance.now(), k = mine ? 0 : 1;
+  if (!force && (now - lastSay[k] < 1700 || bubbles.length >= 4)) return;
+  if (bubbles.some(b => b.uid === uid)) return;
+  lastSay[k] = now;
+  const d = document.createElement('div'); d.className = 'sayb' + (mine ? ' mine' : ''); d.textContent = text; d.style.opacity = 0; $('arena').appendChild(d);
+  bubbles.push({d, uid, until:now + 2300 + text.length * 26});
+}
+function stepBubbles(){
+  const now = performance.now();
+  for (let i = bubbles.length - 1; i >= 0; i--){
+    const b = bubbles[i], p = now < b.until ? V.headOf(b.uid) : null;
+    if (!p){ b.d.remove(); bubbles.splice(i, 1); continue; }
+    b.d.style.opacity = 1; b.d.style.transform = `translate(${Math.round(clamp(p.x, 76, Math.max(76, p.w - 76)))}px,${Math.round(Math.max(54, p.y))}px) translate(-50%,-100%)`;
+  }
+}
+const clearBubbles = () => { for (const b of bubbles) b.d.remove(); bubbles.length = 0; };
 function onEvents(ev){
   for (const e of ev){
     if (e.e === 'tower'){
@@ -418,19 +676,24 @@ function onEvents(ev){
     } else if (e.e === 'king'){ if (e.team !== B.team && B.mode === 'cpu') talk(TALK.king); }
     else if (e.e === 'ot'){ stamp('Overtime'); SND.horn(); if (B.mode === 'cpu') talk(TALK.ot, true); }
     else if (e.e === 'drop' || e.e === 'spell'){
-      if (e.rar === 'l' && CARDS[e.id]){ SND.legend(); const d = document.createElement('div'); d.className = 'legend-banner'; d.innerHTML = `<small>Legendary</small><b>${esc(CARDS[e.id].name)}</b>`; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2000); if (e.team !== B.team && B.mode === 'cpu') talk(TALK.legend); }
+      const c = CARDS[e.id];
+      if (e.rar === 'l' && c){ SND.legend(); const d = document.createElement('div'); d.className = 'legend-banner'; d.innerHTML = `<small>Legendary</small><b>${esc(c.name)}</b>`; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2000); if (e.team !== B.team && B.mode === 'cpu') talk(TALK.legend); }
       else e.e === 'drop' ? SND.drop() : SND.spell();
+      if (c && e.e === 'drop' && e.u && c.kind === 'unit' && (c.rar !== 'c' || Math.random() < .6)){ const uid = e.u, line = sayFor(c.base, c.type), mine = e.team === B.team, big = c.rar === 'l' || c.rar === 'e'; setTimeout(() => { if (B && !B.over) bubble(uid, line, mine, big); }, 420); }
     } else if (e.e === 'boom' && e.k !== 'rage') SND.boom();
+    else if (e.e === 'grow'){ if (Math.random() < .45) bubble(e.id, sayWhen('kill'), true); }
+    else if (e.e === 'revive'){ bubble(e.id, sayWhen('low'), true); }
     else if (e.e === 'trapset'){ if (e.team === B.team) SND.trapSet(); else { note(B.mode === 'cpu' ? 'He set a trap' : 'They set a trap'); if (B.mode === 'cpu') talk(TALK.trapSet); } }
     else if (e.e === 'trap'){
       const mine = e.team === B.team, c = CARDS[e.id]; SND.trap();
       if (e.k !== 'counter'){ stamp(mine ? 'Trap!' : "It's a trap!", !mine); note(c ? c.name : 'Trap'); if (B.mode === 'cpu') talk(mine ? TALK.trapOnHim : TALK.trapHit, true); }
     } else if (e.e === 'negate'){ const mine = e.team !== B.team; SND.negate(); stamp(mine ? 'Waved off!' : 'No basket!', !mine); if (e.burn && e.pid === B.me) note(`You lose ${e.burn} Mana`); if (B.mode === 'cpu') talk(mine ? TALK.foulOnHim : TALK.foulOnYou, true); }
     else if (e.e === 'trapx'){ note(e.team === B.team ? 'Your trap was cleared' : 'You cleared a trap'); }
+    else if (e.e === 'shbreak'){ if (e.twr) note(e.team === B.team ? 'Your tower shield broke' : 'His tower shield broke'); }
     else if (e.e === 'over' && !B.over){ B.over = true; if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
   }
 }
-const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim, p = s.players[B.team]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT}; };
+const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim; if (!s) return null; const p = s.players[B.me]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT}; };
 function hud(force){
   const I = info(); if (!I) return;
   const key = I.hand.map(c => c.id).join() + '|' + I.next.id;
@@ -444,12 +707,15 @@ function hud(force){
     if (poor !== was){ cs[i].classList.toggle('poor', poor); if (!poor && B.run){ cs[i].classList.remove('ready'); void cs[i].offsetWidth; cs[i].classList.add('ready'); } }
     if (poor) cs[i].style.setProperty('--p', Math.min(1, I.el / cost).toFixed(3)); }
   $('coffeeFill').style.width = (I.el / MAX_EL * 100) + '%'; $('coffeeN').textContent = Math.floor(I.el);
-  const dbl = I.phase === 'ot' || I.left <= DOUBLE_AT, bonus = I.bonus && I.el < MAX_EL;
-  $('coffee').classList.toggle('dbl', dbl); $('coffee').classList.toggle('bonus', !!bonus); const nt = B.run ? myTraps().filter(t => !t.live && t.team === B.team).length : 0;
-  $('coffeeLbl').textContent = (dbl ? 'Mana x2' : 'Mana') + (bonus ? ' · charging +30%' : '') + (nt ? ` · ${nt} trap${nt > 1 ? 's' : ''} set` : '');
-  if (dbl && !B.said.dbl && I.phase === 'play' && B.run){ B.said.dbl = true; stamp('Double Mana'); if (B.mode === 'cpu') talk(TALK.late, true); }
+  const rate = I.phase === 'ot' || I.left <= TRIPLE_AT ? 3 : I.left <= DOUBLE_AT ? 2 : 1, bonus = I.bonus && I.el < MAX_EL;
+  $('coffee').classList.toggle('dbl', rate === 2); $('coffee').classList.toggle('tpl', rate === 3); $('coffee').classList.toggle('bonus', !!bonus); const nt = B.run ? myTraps().filter(t => !t.live && t.team === B.team).length : 0;
+  $('coffeeLbl').textContent = (rate > 1 ? 'Mana x' + rate : 'Mana') + (bonus ? ', charging +30%' : '') + (nt ? `, ${nt} trap${nt > 1 ? 's' : ''} set` : '');
+  if (B.run && I.phase === 'play'){
+    if (rate === 2 && !B.said.dbl){ B.said.dbl = true; stamp('Double Mana'); SND.horn(); if (B.mode === 'cpu') talk(TALK.late, true); }
+    if (rate === 3 && !B.said.tpl){ B.said.tpl = true; stamp('Triple Mana'); SND.horn(); if (B.mode === 'cpu') talk(TALK.last, true); }
+  }
   const t = Math.ceil(I.left); $('clockT').textContent = mmss(t);
-  $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
+  $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : rate === 3 ? 'Triple Mana' : rate === 2 ? 'Double Mana' : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
   $('meCr').textContent = I.crowns[B.team]; $('oppCr').textContent = I.crowns[1 - B.team];
   if (B.run && !B.over && B.mode === 'cpu' && performance.now() - lastTalk > 38000){ lastTalk = performance.now(); BDB.roast(); }
 }
@@ -458,7 +724,7 @@ function hud(force){
 let aim = null;
 function select(i){
   B.sel = i; for (const c of $('hand').children) c.classList.toggle('sel', +c.dataset.slot === i);
-  const I = info(); if (V){ V.setNoGo(i >= 0 && CARDS[I.hand[i].id].type !== 'spell', I.pocket); if (i < 0) V.setGhost(false); }
+  const I = info(), c = i >= 0 && I ? CARDS[I.hand[i].id] : null; if (V){ V.setNoGo(!!c && c.kind !== 'spell' && !(c.U && c.U.any), I ? I.pocket : null); if (i < 0) V.setGhost(false); }
 }
 function ghostAt(cx, cy){
   const I = info(); if (!V || B.sel < 0 || !I) return null;
@@ -470,7 +736,7 @@ function ghostAt(cx, cy){
 }
 function tryPlay(slot, p){
   if (!B || !B.run || B.over || B.pz || slot < 0 || !p) return false;
-  const I = info(), c = I.hand[slot];
+  const I = info(); if (!I) return false; const c = I.hand[slot]; if (!c) return false;
   let ok;
   if (B.mode === 'guest'){ ok = I.el >= CARDS[c.id].cost && canPlace(MAPS[B.map], B.team, CARDS[c.id], p.x, p.z, I.pocket); if (ok) room.send('p', {slot, id:c.id, x:Math.round(p.x * 100) / 100, z:Math.round(p.z * 100) / 100}, OL.opp); }
   else ok = B.sim.play(B.team, slot, p.x, p.z);
@@ -501,7 +767,7 @@ addEventListener('pointermove', e => {
 const endAim = e => { if (!aim || e.pointerId !== aim.pid) return; const a = aim; aim = null; if (a.el){ a.el.classList.add('gone'); setTimeout(() => a.el.remove(), 160); } a.card.classList.remove('lifting'); if (!B) return; if (a.moved){ if (a.p && overArena(e.clientX, e.clientY) && e.type === 'pointerup') tryPlay(B.sel, a.p); else if (V) V.setGhost(false); } };
 addEventListener('pointerup', endAim); addEventListener('pointercancel', endAim);
 let floorAim = false, pan = null, pinch = 0; const ptrs = new Map();
-const KEYCARD = {}; for (const id of CARD_IDS){ const c = CARDS[id]; if (c.U) KEYCARD[c.U.key + '|' + c.aff + '|' + c.rar] = KEYCARD[c.U.key + '|' + c.aff + '|' + c.rar] || id; }
+const KEYCARD = {}; for (const id of CARD_IDS){ const c = CARDS[id]; if (c.U) for (const k of c.us || [c.u]) KEYCARD[k + '|' + c.aff] ??= id; }
 $('arena').addEventListener('pointerdown', e => {
   if (!B || aim) return;
   ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY}); try { $('arena').setPointerCapture(e.pointerId); } catch(er){}
@@ -538,22 +804,22 @@ function inspect(cx, cy){
     if (!c){ box.hidden = true; return; }
     const mine = t.team === B.team;
     box.className = 'insp ' + (mine ? 'mine' : 'theirs') + ' r-' + c.rar;
-    box.innerHTML = `<div class="ih"><b>${esc(c.name)}</b><span>${mine ? 'Your trap' : 'Enemy trap'} · ${t.live ? 'sprung' : 'face down'} · ${RAR[c.rar].name}</span></div><p>${esc(c.desc + (c.note ? ' ' + c.note : ''))}</p><div class="ig">${statRows(c.id, 1).slice(0, 6).map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
+    box.innerHTML = `<div class="ih"><b>${esc(c.name)}</b><span>${mine ? 'Your trap' : 'Enemy trap'}, ${t.live ? 'sprung' : 'face down'}, ${RAR[c.rar].name}</span></div><p>${esc(c.desc + (c.note ? ' ' + c.note : ''))}</p><div class="ig">${statRows(c.id, 1).slice(0, 6).map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
     box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; }, 7000); return;
   }
-  const U = e.U, id = KEYCARD[U.key + '|' + U.aff + '|' + U.rar], c = id && CARDS[id], mine = e.team === B.team, m = lvlMul(e.lvl || 1);
+  const U = e.U, id = KEYCARD[U.key + '|' + U.aff], c = id && CARDS[id], mine = e.team === B.team, m = lvlMul(e.lvl || 1);
   const rows = [['Health', `${Math.max(0, Math.ceil(e.hp))} / ${e.max}`]];
   if (U.dmg) rows.push([U.splash ? 'Area damage' : 'Damage', Math.round(U.dmg * m)], ['Hit speed', U.hit + 's'], ['Range', U.rng <= 1.5 ? 'Melee' : U.rng]);
   if (!U.bld) rows.push(['Speed', SPD(U.spd)]);
   rows.push(['Targets', U.only ? 'Buildings' : !U.dmg ? 'None' : U.air ? 'Air and ground' : 'Ground']);
-  const what = U.twr ? (U.key === 'king' ? 'The king tower. Lose it and the match is over. It only wakes up once it is hit or a hoop tower falls.' : 'A hoop tower. It fires at anything in range, ground or air.') : c ? c.desc + (c.note ? ' ' + c.note : '') : 'Summoned by another card.';
+  const what = U.twr ? (U.key === 'king' ? 'The king tower. Lose it and the match is over. It only wakes up once it is hit or a guard tower falls.' : 'A guard tower. It fires at anything in range, ground or air.') : c ? c.desc + (c.note ? ' ' + c.note : '') : 'Summoned by another card.';
   box.className = 'insp ' + (mine ? 'mine' : 'theirs') + (c ? ' r-' + c.rar : '');
-  box.innerHTML = `<div class="ih"><b>${esc(c && (!c.n || c.n === 1) ? c.name : (AFF[U.aff].name ? AFF[U.aff].name + ' ' : '') + U.name)}</b><span>${mine ? 'Yours' : 'Enemy'} · Level ${e.lvl || 1}${c ? ' · ' + RAR[c.rar].name : ''}</span></div><p>${esc(what)}</p><div class="ig">${rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
+  box.innerHTML = `<div class="ih"><b>${esc(c && (!c.n || c.n === 1) ? c.name : (AFF[U.aff].name ? AFF[U.aff].name + ' ' : '') + U.name)}</b><span>${mine ? 'Yours' : 'Enemy'}, level ${e.lvl || 1}${c ? ', ' + RAR[c.rar].name + ' ' + TYPES[c.type].name : ''}</span></div><p>${esc(what)}</p><div class="ig">${rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
   box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; }, 7000);
 }
 addEventListener('keydown', e => { if (!B || $('scrBattle').hidden) return; if (e.key >= '1' && e.key <= String(HAND)) select(B.sel === +e.key - 1 ? -1 : +e.key - 1); else if (e.key === 'Escape') select(-1); });
 new ResizeObserver(() => { if (V && !$('scrBattle').hidden) V.resize(); }).observe($('arena'));
-$('btQuit').onclick = () => { if (!B || B.over) return; confirmBox('Walk off the court?', 'Quitting counts as a loss.', 'Quit match', () => { if (!B || B.over) return; B.over = true; if (B.mode !== 'cpu' && room) room.send('bye', {}, OL && OL.opp); finish(1 - B.team, null, 'You walked off.'); }); };
+$('btQuit').onclick = () => { if (!B || B.over) return; confirmBox('Quit the match?', 'Quitting counts as a loss.', 'Quit match', () => { if (!B || B.over) return; B.over = true; if (B.mode !== 'cpu' && room) room.send('bye', {}, OL && OL.opp); finish(1 - B.team, null, 'You walked off.'); }); };
 
 /* ---------- emotes and quick chat ---------- */
 $('emoPanel').innerHTML = `<div class="em">${EMO.map((e, i) => `<button type="button" data-i="${i}">${e}</button>`).join('')}</div>${CHAT.map((c, i) => `<button type="button" data-i="${i + EMO.length}">${esc(c)}</button>`).join('')}`;
@@ -605,41 +871,51 @@ function pzUI(){
   if (mine) B.pzUsed[B.me] = true;
 }
 
-/* ---------- after the match ---------- */
-function finish(w, cr, note){
-  if (!B || B.done) return; B.done = true; B.over = true; clearInterval(pzIv); B.pz = null; $('wait').hidden = true;
-  const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = crowns[B.team], win = w === B.team, draw = w < 0;
-  let coins = 0, lines = [], prize = '', title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
+/* ---------- after the match: coins, cards, packs and upgrade tokens ---------- */
+function finish(w, cr, why){
+  if (!B || B.done) return; B.done = true; B.over = true; clearInterval(pzIv); B.pz = null; $('wait').hidden = true; clearBubbles();
+  const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = crowns[B.team], win = w === B.team, draw = w < 0, lines = [], got = [];
+  let coins = 0, pack = null, tokens = 0, title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
   if (B.mode === 'cpu'){
-    const c = B.cpu, first = !c.rand && !P.beaten[c.id];
+    const c = B.cpu;
     if (win){
-      coins = (first || c.rand ? c.coins : c.coins / 2) + mine * 10; P.stats.w++; if (!c.rand) P.beaten[c.id] = (P.beaten[c.id] || 0) + 1;
-      lines.push(first ? `First win over ${c.name}.` : `Another win over ${c.name}.`);
-      if (B.idx === P.ladder && P.ladder < CPUS.length){ P.ladder++; lines.push(P.ladder < CPUS.length ? `${CPUS[P.ladder].name} is unlocked.` : 'That was the last BDB. The ladder is yours.'); }
-      prize = B.prize; P.stats.won++; lines.push(`You took his ${CARDS[prize].name}. ${grant(prize)}.`);
-    } else if (draw){ coins = 30 + mine * 10; P.stats.d++; } else { coins = 15 + mine * 10; P.stats.l++; lines.push('You keep all your cards.'); }
+      P.stats.w++;
+      coins = ((B.first || c.rand ? c.coins : c.coins / 2) + mine * 10) * (1 + P.perks.coin * PERKS.coin.per);
+      if (B.prize){ got.push(grant(B.prize)); P.stats.won++; }
+      if (c.rand){ if (c.pack) pack = PACK[c.pack]; }
+      else if (B.first){
+        const f = c.first || {}; P.ladder = Math.max(P.ladder, c.level);
+        lines.push(c.level >= LEVELS ? 'That was the last one. The whole ladder is yours.' : c.boss ? `${c.name} is down. ${TIERS[c.tier + 1].name} tier is open.` : `Level ${fmt(c.level)} cleared.`);
+        if (f.rar) got.push(grant(rollCard(f.rar)));
+        if (f.token){ P.tokens += f.token; tokens = f.token; }
+        if (f.pack) pack = PACK[f.pack];
+      } else lines.push('You had beaten this one before, so it paid half.');
+    } else if (draw){ coins = (c.lose || 15) + mine * 10; P.stats.d++; lines.push('Nobody blinked. You keep everything.'); }
+    else { coins = (c.lose || 10) + mine * 5; P.stats.l++; lines.push('You keep all your cards, and a few coins for showing up.'); }
   } else {
     if (B.coop){ coins = win ? 120 : draw ? 50 : 30; lines.push(win ? 'You and your friend beat two BDBs.' : draw ? 'Nobody blinked.' : 'Two BDBs were too many this time.'); }
     else if (win){ coins = 150; P.trophies += 30; P.stats.ow++; lines.push('+30 trophies'); } else if (draw){ coins = 50; } else { coins = 25; P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies'); }
     endOnline();
   }
-  if (note) lines.unshift(note);
-  P.coins += Math.round(coins); save();
+  const packGot = pack ? openPack(pack).map(grant) : null; if (pack) P.stats.packs++;
+  if (why) lines.unshift(why);
+  coins = Math.round(coins); P.coins += coins; save();
   win ? BDB.sfx.big() : BDB.sfx.bad();
   const line = B.mode === 'cpu' ? pick(win ? TALK.win : draw ? ["A draw. We'll both tell people we won."] : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : 'BDB says he could have won that one. He could not.');
-  const b = dlg(`<div class="bigav"></div><div class="k-eyebrow">${crowns[B.team]} crowns to ${crowns[1 - B.team]}</div><h3>${title}</h3><p>“${esc(line)}”</p>
-    ${prize ? '<div class="big-card" id="rsCard" style="width:104px"></div>' : ''}
-    <div class="k-jumbo k-stats"><div class="cell"><small>Coins</small><b>+${fmt(coins)}</b></div><div class="cell"><small>Total</small><b>${fmt(P.coins)}</b></div></div>
-    <p class="note">${lines.map(esc).join(' ')}</p>
-    <div class="k-row">${B.mode === 'cpu' ? `<button type="button" class="k-btn primary" id="rsAgain">${B.cpu.rand ? 'Another one' : win && B.idx + 1 < CPUS.length && B.idx + 1 <= P.ladder ? 'Next BDB' : 'Rematch'}</button>` : ''}<button type="button" class="k-btn${B.mode === 'cpu' ? '' : ' primary'}" id="rsBack">Back to menu</button></div>`, {lock:true});
-  if (prize) b.querySelector('#rsCard').appendChild(cardEl(prize, {div:true, lvl:lvl(prize), now:true}));
-  const idx = B.idx, nextIdx = win && idx + 1 < CPUS.length && idx + 1 <= P.ladder ? idx + 1 : idx, wasCpu = B.mode === 'cpu';
+  const c = B.cpu, wasCpu = B.mode === 'cpu', ladder = wasCpu && !c.rand, nextUp = ladder && win && c.level < LEVELS && c.level + 1 <= P.ladder + 1;
+  const b = dlg(`<div class="bigav"></div><div class="k-eyebrow">${crowns[B.team]} crowns to ${crowns[1 - B.team]}</div><h3>${title}</h3><p>${esc(line)}</p>
+    <div class="loot"><div class="lt coinz"><b>+${fmt(coins)}</b><small>coins</small></div>${got.map((g, i) => `<div class="lt cardz" data-i="${i}"><small>${esc(g.tag)}</small></div>`).join('')}${pack ? `<div class="lt packz" style="--pc:${pack.col}"><div class="foil"><img alt="" src="art/${PACK_ART[pack.id]}.webp"><b>${pack.n}<small>cards</small></b></div><small>${esc(pack.name)}</small></div>` : ''}${tokens ? `<div class="lt tokz"><b>+${tokens}</b><small>upgrade ${tokens > 1 ? 'tokens' : 'token'}</small></div>` : ''}</div>
+    <p class="note">${lines.map(esc).join(' ')}${tokens ? ' Spend tokens on tower and Mana upgrades in your Profile.' : ''}</p>
+    <div class="k-row">${pack ? `<button type="button" class="k-btn primary" id="rsPack">Open the ${esc(pack.name)}</button>` : wasCpu ? `<button type="button" class="k-btn primary" id="rsAgain">${c.rand ? 'Another one' : nextUp ? 'Next level' : 'Rematch'}</button>` : ''}<button type="button" class="k-btn${wasCpu || pack ? '' : ' primary'}" id="rsBack">Back to menu</button></div>`, {lock:true});
+  for (const el of b.querySelectorAll('.lt.cardz')){ const g = got[+el.dataset.i], cd = cardEl(g.id, {lvl:g.lvl, now:true}); cd.onclick = () => sheet(g.id); el.prepend(cd); }
   const leave = () => { dlgClose(); stopBattle(); show('scrHub'); hub(); };
+  const again = () => { leave(); preCpu(c.rand ? randomCpu(c.skill, myTower()) : ladderCpu(nextUp ? c.level + 1 : c.level)); };
   b.querySelector('#rsBack').onclick = leave;
-  const again = wasCpu && B.cpu.rand ? B.cpu.skill : null;
-  if (wasCpu) b.querySelector('#rsAgain').onclick = () => { leave(); preCpu(again ? randomCpu(again, myTower()) : nextIdx); };
+  const ra = b.querySelector('#rsAgain'), rp = b.querySelector('#rsPack');
+  if (ra) ra.onclick = again;
+  if (rp) rp.onclick = () => { stopBattle(); show('scrHub'); hub(); packReveal(pack, packGot, () => { dlgClose(); hub(); }); };
 }
-function stopBattle(){ cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner')) e.remove(); }
+function stopBattle(){ cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
 
 /* ---------- online ---------- */
 let net = null, lobby = null, room = null, OL = null;
@@ -651,7 +927,7 @@ $('olQuick').onclick = async () => {
   waitBox('Looking for a player', 'Waiting for someone else to hit Quick match. Send a friend the link to this page to speed it up.');
   try { await netUp(); } catch(e){ return netFail(); }
   if ($('dlg').hidden) return;
-  lobby = net.join('brawl-lobby'); OL = {state:'look', pending:null};
+  lobby = net.join('brawl2-lobby'); OL = {state:'look', pending:null};
   const hello = to => lobby && lobby.send('look', {n:P.name}, to);
   lobby.onJoin(id => hello(id)); OL.iv = setInterval(() => hello(), 2500); hello();
   lobby.onMessage((t, d, from) => {
@@ -689,7 +965,7 @@ function enterMatch(code, host, keepBox, coop){
   if (lobby){ clearInterval(OL && OL.iv); const l = lobby; lobby = null; setTimeout(() => { try { l.leave(); } catch(e){} }, 300); }
   if (OL) clearTimeout(OL.pt);
   OL = {state:'wait', code, host, opp:null, coop:!!coop};
-  room = net.join('brawl-m-' + code);
+  room = net.join('brawl2-m-' + code);
   if (!keepBox){ const t = $('olText'); if (t) t.textContent = 'Found someone. Setting up the match.'; }
   const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower()}, to);
   room.onJoin(id => hi(id)); hi(); OL.hiIv = setInterval(() => { if (OL && !OL.opp) hi(); }, 1500);
@@ -699,17 +975,19 @@ function enterMatch(code, host, keepBox, coop){
     if (t === 'hi'){
       if (!OL.host || OL.opp || !okDeck(d.d)) return;
       OL.opp = from; clearInterval(OL.hiIv);
-      const map = pick(MAP_IDS), name = clean(d.n, 20) || 'Player';
-      room.send('go', {map, n:P.name, co:OL.coop ? 1 : 0}, from); dlgClose();
-      const ci = Math.min(P.ladder, CPUS.length - 1);
-      begin({mode:'host', map, coop:OL.coop, cpus:[CPUS[ci], CPUS[Math.max(0, ci - 1)]], mate:name, oppName:OL.coop ? 'Two BDBs' : name, oppDeck:d.d.map(c => ({id:c.id, lvl:c.lvl})), oppTower:Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1});
+      const map = pick(MAP_IDS), name = clean(d.n, 20) || 'Player', od = d.d.map(c => ({id:c.id, lvl:c.lvl})), ci = Math.max(1, P.ladder);
+      const cpus = OL.coop ? [ladderCpu(ci), ladderCpu(Math.max(1, ci - 3))] : null, units = unitsOf([...curDeck(), ...od.map(c => c.id), ...(cpus ? cpus.flatMap(c => c.deck) : [])]);
+      room.send('go', {map, n:P.name, co:OL.coop ? 1 : 0, uk:units}, from); dlgClose();
+      begin({mode:'host', map, coop:OL.coop, cpus, mate:name, oppName:OL.coop ? 'Two BDBs' : name, oppDeck:od, oppTower:Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1, units});
     } else if (t === 'go'){
       if (OL.host || OL.opp || !MAPS[d.map]) return;
       OL.opp = from; clearInterval(OL.hiIv); clearTimeout(OL.to); dlgClose();
-      begin({mode:'guest', map:d.map, coop:!!d.co, mate:clean(d.n, 20) || 'Player', oppName:d.co ? 'Two BDBs' : clean(d.n, 20) || 'Player'});
+      const uk = Array.isArray(d.uk) ? d.uk.filter(k => typeof k === 'string' && Object.hasOwn(UNITS, k)).slice(0, 260) : [];
+      begin({mode:'guest', map:d.map, coop:!!d.co, mate:clean(d.n, 20) || 'Player', oppName:d.co ? 'Two BDBs' : clean(d.n, 20) || 'Player', units:[...new Set([...uk, ...unitsOf(curDeck())])]});
     } else if (from !== OL.opp || !B) return;
+    else if (t === 'rd'){ if (B.mode === 'host' && B.rdRes) B.rdRes(); }
     else if (t === 's' && B.mode === 'guest') snap(d);
-    else if (t === 'p' && B.mode === 'host'){ const s = d.slot, h = B.sim.players[1].hand; if (B.run && Number.isInteger(s) && s >= 0 && s < HAND && h[s] && h[s].id === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.play(1, s, d.x, d.z); }
+    else if (t === 'p' && B.mode === 'host'){ const s = d.slot, h = B.sim.players[1].hand; if (B.run && B.sim && Number.isInteger(s) && s >= 0 && s < HAND && h[s] && h[s].id === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.play(1, s, d.x, d.z); }
     else if (t === 'em') showEmote(d.i, false);
     else if (t === 'pq' && B.mode === 'host'){ if (['pause', 'resume', 'ext', 'yes', 'no'].includes(d.a)) pzDo(d.a, 1); }
     else if (t === 'pz' && B.mode === 'guest'){ B.pz = d.on ? {by:d.by === 1 ? 1 : 0, left:Math.max(0, Math.min(3600, +d.left || 0)), ask:[0, 1, 2].includes(d.ask) ? d.ask : 0} : null; if (!B.pz) $('wait').hidden = true; pzUI(); }
@@ -717,7 +995,7 @@ function enterMatch(code, host, keepBox, coop){
   });
 }
 function snap(d){
-  const s = d.s; if (!s || !Array.isArray(s.e) || !Array.isArray(s.h) || !B || B.done) return;
+  const s = d.s; if (!s || !Array.isArray(s.e) || !Array.isArray(s.h) || !B || B.done || typeof s.n !== 'string') return;
   const ok = id => CARDS[id] ? id : CARD_IDS[0];
   B.ents = decodeEnts(s.e, B.prev); B.prev = new Map(B.ents.map(e => [e.id, e])); B.traps = decodeTraps(s.tr);
   B.info = {el:+s.el || 0, hand:s.h.slice(0, HAND).map((id, i) => ({id:ok(id), lvl:(s.hl && s.hl[i]) || 1})), next:{id:ok(s.n)}, left:+s.l || 0, phase:s.ph === 'ot' ? 'ot' : s.ph === 'over' ? 'over' : 'play', crowns:Array.isArray(s.cr) ? s.cr : [0, 0], pocket:Array.isArray(s.pk) ? s.pk : [false, false], bonus:!!s.bo};
@@ -725,8 +1003,14 @@ function snap(d){
 }
 function oppLeft(){ if (!B || B.done) return; B.over = true; if (B.coop) finish(-1, null, 'Your teammate left the match.'); else finish(B.team, null, 'Your opponent left the match.'); }
 
-/* right-click (or long-press on Android) any card for what it does and its stats */
+/* right-click any card, or hold your finger on it, for what it does and its stats */
 addEventListener('contextmenu', e => { const c = e.target.closest && e.target.closest('.card[data-id]'); if (!c) return; e.preventDefault(); sheet(c.dataset.id); });
+let holdT = 0, held = false;
+addEventListener('pointerdown', e => { held = false; clearTimeout(holdT); const c = e.pointerType !== 'mouse' && e.target.closest && e.target.closest('.card[data-id]'); if (!c || c.closest('#hand')) return; const x = e.clientX, y = e.clientY, id = c.dataset.id;
+  const off = () => { clearTimeout(holdT); removeEventListener('pointermove', mv); removeEventListener('pointerup', off); removeEventListener('pointercancel', off); }, mv = m => { if (Math.hypot(m.clientX - x, m.clientY - y) > 10) off(); };
+  addEventListener('pointermove', mv); addEventListener('pointerup', off); addEventListener('pointercancel', off);
+  holdT = setTimeout(() => { held = true; off(); sheet(id); }, 480); }, true);
+addEventListener('click', e => { if (held){ held = false; e.stopPropagation(); e.preventDefault(); } }, true);
 
 /* ---------- who's on: everyone signed in shows up, and everyone you see becomes a friend ---------- */
 let hallT = 0, HALL = {online:[], invites:[]}; const seenInv = new Set();
@@ -751,10 +1035,10 @@ function renderHall(){
   if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on the sign in screen to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
   const on = (HALL.online || []).map(o => ({name:clean(o.name, 20), status:o.status, tr:o.trophies | 0})).filter(o => o.name), names = new Set(on.map(o => o.name));
   const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
-  $('hallLbl').textContent = `Who's on · ${on.length}`;
+  $('hallLbl').textContent = `Who's on: ${on.length}`;
   box.innerHTML = (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
-    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'} · ${fmt(o.tr)} trophies</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">2v2</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
-    off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend · seen ${ago(P.friends[n])}</small></div><div></div></div>`).join('');
+    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">2v2</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
+    off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend, seen ${ago(P.friends[n])}</small></div><div></div></div>`).join('');
 }
 $('hall').onclick = e => { const b = e.target.closest('button[data-k]'); if (b && !B) sendInvite(b.parentNode.dataset.n, b.dataset.k); };
 async function sendInvite(to, kind){
@@ -781,7 +1065,7 @@ async function openTrade(code, name){
   drawTrade();
   try { await netUp(); } catch(e){ TR = null; return netFail(); }
   if (!TR) return;
-  const room = TR.room = net.join('brawl-t-' + code), hello = to => TR && room.send('th', {n:P.name}, to);
+  const room = TR.room = net.join('brawl2-t-' + code), hello = to => TR && room.send('th', {n:P.name}, to);
   room.onJoin(id => hello(id)); hello(); TR.iv = setInterval(() => { if (TR && !TR.opp) hello(); }, 1500);
   TR.to = setTimeout(() => { if (TR && !TR.opp) closeTrade(`${name} did not pick up.`); }, 70000);
   room.onLeave(id => { if (TR && id === TR.opp && !TR.done) closeTrade(`${TR.name} left the trade.`); });
@@ -836,15 +1120,15 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden)
 listUI('own', () => Object.keys(P.cards), 'Your cards');
 listUI('shop', () => CARD_IDS, 'All cards');
 window.__game = {
-  get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? 'hub' : 'login'; }, get score(){ return P ? P.coins : 0; },
-  get P(){ return P; }, get B(){ return B; }, get TR(){ return TR; }, get hall(){ return HALL; }, cloud:Cloud, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get thumbsLeft(){ return tq.length; },
-  play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(){ P.ladder = CPUS.length; save(); hub(); },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, preCpu, sheet, showEmote, pzAct
+  get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? (P.onboarded ? 'hub' : 'onboard') : 'login'; }, get score(){ return P ? P.coins : 0; },
+  get P(){ return P; }, get B(){ return B; }, get TR(){ return TR; }, get hall(){ return HALL; }, cloud:Cloud, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get bubbles(){ return bubbles.length; },
+  play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach
   loginScreen(); $('loginErr').textContent = 'Signing you in.';
-  Cloud.load().then(r => { if (r.error){ Cloud.signOut(); loginScreen(); } else signIn(sanitize({...r.data, name:r.name})); })
+  Cloud.load().then(r => { if (r.error){ Cloud.signOut(); loginScreen(); } else signIn(r.data && r.data.cards ? sanitize({...r.data, name:r.name}) : fresh(r.name)); })
     .catch(() => { const p = Accounts.get(sess0.name); if (p) signIn(p); else { loginScreen(); $('loginErr').textContent = 'Could not reach the account server.'; } });
 } else if (last && !Q.get('fresh')) signIn(last); else loginScreen();
 initView();

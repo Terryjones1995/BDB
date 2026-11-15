@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Break Room Brawl</title>
-<meta name="description" content="3D card battles against BDB. Build a deck, knock down his towers, win his cards.">
+<meta name="description" content="3D card battles against BDB. Dragons, wizards, orcs and the night janitor. Build a deck, knock down his towers, win his cards.">
 <meta property="og:image" content="../assets/face.jpg">
 <link rel="icon" href="../assets/face.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -385,18 +385,6 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .tips b{position:absolute;left:50%;top:-22px;transform:translateX(-50%);width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(180deg,#ffe066,#f59a1c);border:3px solid var(--ink2);font:400 24px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .tips h4{margin:0 0 6px;font:400 20px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .tips p{margin:0;color:#d6e6ff;font:600 13px/1.4 var(--f-body)}
-.decks{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:12px}
-.sdeck{text-align:left;cursor:pointer;color:#fff;background:#12357c;border:3px solid var(--ink2);border-radius:18px;padding:12px;box-shadow:0 5px 0 var(--ink2);font-family:var(--f-body)}
-.sdeck.on{background:linear-gradient(180deg,#3aa13a,#22762a);box-shadow:0 0 0 3px #ffd23f,0 5px 0 3px var(--ink2);transform:translateY(-3px)}
-.sdeck h4{margin:0 0 4px;font:400 21px/1.1 var(--f-game);text-shadow:var(--stroke)}
-.sdeck p{margin:0 0 10px;color:#d6e6ff;font:600 12px/1.35 var(--f-body);min-height:32px}
-.sdeck.on p{color:#eaffdf}
-.sdeck .mini{display:grid;grid-template-columns:repeat(5,1fr);gap:9px 6px;padding:4px 2px 2px}
-.sdeck .mini .card{cursor:pointer}
-.sdeck .mini .card .nm{display:none}
-.sdeck .mini .card img{top:8%;height:84%}
-.sdeck .mini .card .cost{transform:scale(.8);transform-origin:left top}
-.sdeck span{display:block;margin-top:8px;font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#ffe9a8}
 .bigcoin{display:inline-flex;align-items:center;gap:10px;margin:14px 0 2px;font:400 54px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
 .bigcoin .coin{width:44px;height:44px;margin:0;box-shadow:0 0 0 3px var(--ink2)}
 .pl{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:8px}
@@ -491,6 +479,208 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 @media (max-width:759px){ .hand .card .nm{display:none} }
 @media (min-width:760px){ :root{--hand-h:252px} }
 @media (max-height:620px){ :root{--hand-h:150px} }
+
+/* ================= 15 Nov: types, packs, ready-made decks, the ladder, player upgrades ================= */
+/* card extras: the type pip, how many it drops, and a colour wash for builds that follows the shape of the picture */
+.card img,.card .tint{left:-7%;top:-14%;width:114%;height:90%}
+.card .tint{position:absolute;z-index:1;pointer-events:none;background:var(--tc);mix-blend-mode:color;opacity:.6;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:50% 100%;mask-position:50% 100%}
+.card .ty{position:absolute;right:5px;top:6px;z-index:3;width:13px;height:13px;border-radius:50%;background:var(--ty);box-shadow:0 0 0 2px var(--ink2),inset 0 3px 0 rgba(255,255,255,.45)}
+.card:has(.lv) .ty{top:17px}
+.card .cnt{position:absolute;left:4px;bottom:29px;z-index:3;font:400 13px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.tg .card img,.tpool .card img,.tg .card .tint,.tpool .card .tint{top:8%;height:84%}
+.tg .card .cnt,.tpool .card .cnt,.tg .card .ty,.tpool .card .ty{display:none}
+.tchip,.rchip{display:inline-flex;align-items:center;gap:5px;font:400 12px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);padding:4px 9px 3px;border-radius:999px;border:2px solid var(--ink2);white-space:nowrap}
+.tchip{background:color-mix(in srgb,var(--ty) 62%,#0a1430);box-shadow:inset 0 2px 0 rgba(255,255,255,.28)}
+.tchip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ty);box-shadow:0 0 0 1.5px #fff}
+.rchip{background:#0a1e52}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.sets{display:flex;gap:6px;flex-wrap:wrap}
+.sets:empty{display:none}
+.set{display:inline-flex;align-items:baseline;gap:5px;padding:5px 9px 4px;border-radius:10px;border:2px solid var(--ink2);background:#0a1e52;font:400 12px/1.1 var(--f-game);color:#cfe1ff}
+.set b{font-size:15px;color:var(--ty)}
+.set small{font:700 10px/1 var(--f-body);color:#a9c4f5}
+.set em{font-style:normal;color:#ffe066}
+.set.on{background:color-mix(in srgb,var(--ty) 58%,#0a1430);color:#fff;text-shadow:var(--stroke);box-shadow:inset 0 2px 0 rgba(255,255,255,.3)}
+.set.on b{color:#fff}
+
+/* card sheet */
+.sheetx .sdesc{margin:0;width:100%;text-align:left;color:#eef5ff;font:600 13px/1.45 var(--f-body)}
+.quote{position:relative;margin:0;width:100%;text-align:left;font:400 15px/1.25 var(--f-game);color:#fff;padding:9px 12px 8px;border-radius:14px 14px 14px 3px;background:color-mix(in srgb,var(--ty) 34%,#0a1430);border:2px solid var(--ink2)}
+.abil{margin:0;padding:0;list-style:none;width:100%;text-align:left;display:grid;gap:5px}
+.abil li{position:relative;padding:6px 10px 6px 26px;border-radius:10px;background:#0a1e52;border:2px solid var(--ink2);font:600 12px/1.35 var(--f-body);color:#eef5ff}
+.abil li::before{content:"";position:absolute;left:9px;top:10px;width:8px;height:8px;transform:rotate(45deg);background:#ffd23f;box-shadow:0 0 0 1.5px var(--ink2)}
+.bnote2{margin:0;width:100%;text-align:left;font:700 12px/1.35 var(--f-body);color:#ffe9a8}
+.k-box .pzrow{justify-content:center;margin:0}
+
+/* type filter: a row of chips above every card list */
+.tfilter{display:flex;gap:6px;flex:1 1 100%;overflow-x:auto;padding:3px 2px 7px;scrollbar-width:none}
+.tfilter::-webkit-scrollbar{display:none}
+.tfilter button{flex:none;display:inline-flex;align-items:center;gap:6px;font:400 13px/1 var(--f-game);color:#cfe1ff;padding:7px 11px 6px;border-radius:999px;border:2px solid var(--ink2);background:#0a1e52;cursor:pointer}
+.tfilter button[style]::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--ty)}
+.tfilter button[aria-pressed="true"]{background:color-mix(in srgb,var(--ty,#f59a1c) 80%,#0a1430);color:#fff;text-shadow:var(--stroke);box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2);transform:translateY(-2px)}
+.tfilter button[aria-pressed="true"]::before{background:#fff}
+@media (min-width:860px){ .tfilter{flex-wrap:wrap;overflow:visible} }
+#tdeckF{margin-bottom:10px}
+
+/* the next fight: the tier's colour, the level number, what a win is worth */
+.hero{background:radial-gradient(ellipse 80% 130% at 88% 50%,color-mix(in srgb,var(--tc,#7fd24a) 80%,#fff) 0,var(--tc,#3f9a2e) 52%,color-mix(in srgb,var(--tc,#2a7a22) 58%,#06102a) 100%)}
+.hero .pic{position:relative}
+.hero .pic b{position:absolute;right:-10px;bottom:-6px;min-width:40px;height:38px;padding:2px 9px 0;border-radius:999px;display:grid;place-items:center;background:linear-gradient(180deg,#ffe066,#f59a1c);border:3px solid var(--ink2);font:400 19px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.pzrow{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.pz{display:inline-flex;align-items:center;gap:3px;padding:6px 10px 5px;border-radius:10px;border:2px solid var(--ink2);background:#0a1e52;font:400 14px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);box-shadow:inset 0 2px 0 rgba(255,255,255,.18)}
+.pz.cardz{background:linear-gradient(180deg,#5fb2ff,#2a73e0)}
+.pz.packz{background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 78%,#fff),color-mix(in srgb,var(--pc) 70%,#0a1430))}
+.pz.tokz{background:linear-gradient(180deg,#58e0d0,#1a8f86)}
+.pz.r-e{background:linear-gradient(180deg,#d68cff,#7a2fc0)}
+.pz.r-l{background:linear-gradient(180deg,#ffe066,#f08a12)}
+@media (max-width:520px){ .hero .pzrow{justify-content:center} }
+
+/* the ladder: the levels right around you, then the ten tiers */
+.road{display:flex;gap:9px;overflow-x:auto;padding:14px 3px 12px;scrollbar-width:thin}
+.node{flex:none;position:relative;width:76px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px 8px;border-radius:14px;border:3px solid var(--ink2);background:#12357c;color:#fff;cursor:pointer;font-family:var(--f-body);box-shadow:0 4px 0 var(--ink2)}
+.node b{font:400 22px/1 var(--f-game);text-shadow:var(--stroke)}
+.node span{display:flex;gap:5px;height:18px;align-items:center}
+.node small{font:800 10px/1 var(--f-body);color:#d6e6ff}
+.node i{display:block;box-shadow:0 0 0 2px var(--ink2)}
+.node .pk{width:13px;height:17px;border-radius:3px;background:linear-gradient(160deg,color-mix(in srgb,var(--pc) 55%,#fff),var(--pc))}
+.node .tk,.tok::before{border-radius:50%;background:radial-gradient(circle at 35% 30%,#c8fff6,#2fc9b9 55%,#0d6f67)}
+.node .tk{width:15px;height:15px}
+.node .cd{width:11px;height:15px;border-radius:3px;background:linear-gradient(180deg,#c4ebff,#4f9be8)}
+.node.done{background:linear-gradient(180deg,#3aa13a,#22762a)}
+.node.next{background:linear-gradient(180deg,#ffe066,#f59a1c);transform:translateY(-5px);box-shadow:0 0 0 3px #fff,0 6px 0 3px var(--ink2)}
+.node.lock{opacity:.6;cursor:default}
+.node.boss::before{content:"";position:absolute;top:-12px;left:50%;width:28px;height:15px;transform:translateX(-50%);background:#ffd23f;clip-path:polygon(0 100%,0 15%,26% 62%,50% 0,74% 62%,100% 15%,100% 100%);filter:drop-shadow(0 2px 0 var(--ink2))}
+.tiers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
+.tier{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:baseline;padding:7px 9px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--ink2);opacity:.55}
+.tier b{font:400 14px/1.1 var(--f-game);color:var(--tc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tier span{font:800 10px/1 var(--f-body);color:#a9c4f5}
+.tier .prog{grid-column:1/-1;height:9px;border-width:1.5px}
+.tier .prog i{background:var(--tc)}
+.tier.on,.tier.done{opacity:1}
+.quick .k-btn em{font:800 10px/1 var(--f-body);font-style:normal;color:#fff;text-shadow:none;opacity:.92}
+
+/* ----- the market ----- */
+.shelf{background:radial-gradient(ellipse 90% 80% at 50% 0,#4a8ff2 0,#2a66d2 46%,#17409c 100%)}
+.packs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;align-items:start}
+.pack{display:flex;flex-direction:column;align-items:center;text-align:center;gap:7px;min-width:0}
+.pack h4{margin:8px 0 0;font:400 19px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.pack p{margin:0;font:600 11.5px/1.35 var(--f-body);color:#e4efff;min-height:47px}
+.pack .buy{width:100%;padding:10px 4px 8px;font-size:17px;display:flex;align-items:center;justify-content:center}
+@media (max-width:900px){ .packs{display:flex;overflow-x:auto;gap:14px;padding:4px 4px 10px;scroll-snap-type:x proximity} .pack{flex:0 0 146px;scroll-snap-align:start} }
+/* a foil pack: crimped at both ends, a sheen across it, whoever is on the front standing out of the wrapper */
+.foil{position:relative;display:block;width:min(100%,134px);aspect-ratio:5/7;padding:0;border:0;cursor:pointer;border-radius:11px;isolation:isolate;font-family:var(--f-body);
+  background:linear-gradient(112deg,rgba(255,255,255,0) 28%,rgba(255,255,255,.6) 43%,rgba(255,255,255,0) 58%),radial-gradient(ellipse 90% 60% at 50% 42%,color-mix(in srgb,var(--pc) 55%,#fff),var(--pc) 58%,color-mix(in srgb,var(--pc) 52%,#12103a));
+  box-shadow:0 0 0 3px var(--ink2),0 7px 0 3px var(--ink2),0 17px 14px rgba(0,0,0,.34);transition:transform .18s cubic-bezier(.3,1.5,.5,1)}
+.foil::before,.foil::after{content:"";position:absolute;left:0;right:0;height:10px;z-index:2;background:repeating-linear-gradient(90deg,rgba(8,14,40,.34) 0 3px,rgba(255,255,255,.34) 3px 6px)}
+.foil::before{top:0;border-radius:9px 9px 0 0}
+.foil::after{bottom:0;border-radius:0 0 9px 9px}
+.foil img{position:absolute;left:-7%;top:10%;width:114%;height:68%;object-fit:contain;z-index:1;pointer-events:none;filter:drop-shadow(0 4px 0 rgba(8,18,46,.5))}
+.foil b{position:absolute;left:50%;bottom:15px;transform:translateX(-50%);z-index:3;display:flex;align-items:baseline;gap:4px;padding:4px 10px 2px;border-radius:999px;background:var(--ink2);font:400 17px/1 var(--f-game);color:#fff;white-space:nowrap}
+.foil b small{font:800 10px/1 var(--f-body);color:#cfe1ff}
+button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
+.foil.big{width:150px;margin:6px auto 2px}
+.foil.shake{animation:shake 1.15s ease-in-out infinite}
+@keyframes shake{0%,100%{transform:none}18%{transform:rotate(-5deg) translateY(-4px)}36%{transform:rotate(4deg)}54%{transform:rotate(-3deg) translateY(-2px)}72%{transform:rotate(2deg)}}
+.tpacks{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:26px 10px;padding-top:18px}
+.tpack{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:0 6px 9px;border-radius:14px;border:3px solid var(--ink2);cursor:pointer;color:#fff;font-family:var(--f-body);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 78%,#fff),var(--pc) 52%,color-mix(in srgb,var(--pc) 48%,#0a1430));box-shadow:inset 0 3px 0 rgba(255,255,255,.36),0 4px 0 var(--ink2)}
+.tpack img{width:78%;aspect-ratio:1;object-fit:contain;margin-top:-18px;pointer-events:none;filter:drop-shadow(0 3px 0 rgba(8,18,46,.5))}
+.tpack b{font:400 15px/1 var(--f-game);text-shadow:var(--stroke)}
+.tpack span{display:inline-flex;align-items:center;font:400 13px/1 var(--f-game);color:#fff7c2;text-shadow:var(--stroke)}
+.tpack:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink2)}
+.tdecks{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:14px}
+.tdeck{position:relative;text-align:left;cursor:pointer;color:#fff;font-family:var(--f-body);padding:10px 12px 12px;border-radius:18px;border:3px solid var(--ink2);overflow:hidden;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--ty) 50%,#12357c),#12357c 60%);box-shadow:inset 0 3px 0 rgba(255,255,255,.2),0 5px 0 var(--ink2)}
+.tdeck .fan{position:relative;height:112px;margin:8px 0 8px}
+.tdeck .fan .card{position:absolute;left:50%;top:8px;width:68px;margin-left:-34px;transform:translateX(calc(var(--i) * 41px)) rotate(calc(var(--i) * 7deg)) translateY(calc(var(--i) * var(--i) * 3px));cursor:pointer}
+.tdeck .fan .card :is(.nm,.cost,.ty,.cnt){display:none}
+.tdeck .fan .card :is(img,.tint){top:6%;height:88%}
+.tdeck h4{margin:0 0 3px;font:400 20px/1.1 var(--f-game);text-shadow:var(--stroke)}
+.tdeck p{margin:0 0 10px;font:600 12px/1.4 var(--f-body);color:#dbe8ff;min-height:50px}
+.tdeck .foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tdeck .pr{display:inline-flex;align-items:center;font:400 18px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.tdeck.own .pr{color:#8dff7a}
+.tdeck:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ink2)}
+.oddsx{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%}
+.oddsx div{padding:9px 4px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--rc)}
+.oddsx b{display:block;font:400 21px/1 var(--f-game);color:var(--rc);margin-bottom:4px}
+.oddsx span{font:800 10px/1 var(--f-body);color:#cfe1ff}
+.k-box .dk15{grid-template-columns:repeat(5,1fr);gap:16px 8px;width:100%;max-width:none}
+.k-box .dk15 .card :is(.nm,.cnt){display:none}
+.k-box .dk15 .card :is(img,.tint){top:-12%;height:108%}
+/* opening a pack */
+#dlgBox:has(.opener){width:min(640px,100%);max-width:min(640px,100%)}
+.opener{position:relative;width:100%;min-height:236px;display:grid;place-items:center}
+.pulled{display:flex;flex-wrap:wrap;justify-content:center;gap:18px 14px;padding:16px 4px 4px;width:100%}
+.pull{position:relative;isolation:isolate;width:92px;display:flex;flex-direction:column;align-items:center;gap:9px;perspective:700px}
+.pull .flip{position:relative;width:100%;aspect-ratio:3/4;transform-style:preserve-3d;transform:rotateY(180deg);transition:transform .52s cubic-bezier(.3,1.4,.5,1)}
+.pull.on .flip{transform:none}
+.pull .bk,.pull .ft{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.pull .bk{transform:rotateY(180deg);border-radius:14px;background:radial-gradient(circle at 50% 50%,#ffd23f 0 13%,transparent 14%),repeating-linear-gradient(45deg,#1b3a82 0 8px,#12306b 8px 16px);box-shadow:inset 0 0 0 4px #ffd23f,0 0 0 2.5px var(--ink2),0 6px 0 2.5px var(--ink2)}
+.pull small{min-height:14px;font:400 14px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);opacity:0;transition:opacity .2s .28s}
+.pull.on small{opacity:1}
+.pull.on:is(.r-e,.r-l)::before{content:"";position:absolute;left:50%;top:42%;width:170%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;z-index:-1;background:radial-gradient(circle,var(--rc) 0,transparent 64%);animation:glow 1.4s ease-in-out infinite alternate}
+@keyframes glow{from{opacity:.3}to{opacity:.75}}
+.burst{position:absolute;left:50%;top:46%;width:22px;height:22px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#fff,color-mix(in srgb,var(--pc) 60%,#fff) 42%,transparent 70%);animation:burst .62s ease-out forwards}
+@keyframes burst{from{transform:translate(-50%,-50%) scale(1);opacity:1}to{transform:translate(-50%,-50%) scale(28);opacity:0}}
+
+/* ----- profile: player upgrades ----- */
+.tok{display:inline-flex;align-items:center;gap:7px;font:400 22px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.tok::before{content:"";width:20px;height:20px;box-shadow:0 0 0 2.5px var(--ink2)}
+.perk{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:#12357c;border:3px solid var(--ink2);margin-bottom:8px}
+.perk h4{margin:0 0 3px;font:400 18px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.perk p{margin:0 0 8px;font:600 12px/1.35 var(--f-body);color:#d6e6ff}
+.pips{display:flex;gap:4px}
+.pips i{width:15px;height:8px;border-radius:3px;background:#0a1e52;box-shadow:0 0 0 1.5px var(--ink2)}
+.pips i.on{background:linear-gradient(180deg,#8dff7a,#2fbf3a)}
+.perk .k-btn{padding:9px 12px 8px;font-size:15px;white-space:nowrap}
+
+/* ----- first time in: pick a free Rare, then build a deck out of your coins ----- */
+.heroes{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;margin-top:14px}
+.hpick{display:grid;grid-template-columns:98px 1fr;gap:14px;align-items:center;text-align:left;cursor:pointer;color:#fff;font-family:var(--f-body);padding:12px 14px 12px 12px;border-radius:18px;border:3px solid var(--ink2);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--ty) 42%,#12357c),#12357c 72%);box-shadow:0 5px 0 var(--ink2)}
+.hpick.on{transform:translateY(-3px);box-shadow:0 0 0 3px #ffd23f,0 5px 0 3px var(--ink2);background:linear-gradient(180deg,color-mix(in srgb,var(--ty) 72%,#12357c),color-mix(in srgb,var(--ty) 30%,#12357c))}
+.hpick .hc .card{cursor:pointer;margin-top:8px}
+.hpick h4{margin:0;font:400 21px/1.1 var(--f-game);text-shadow:var(--stroke)}
+.hpick p{margin:8px 0 0;font:600 12px/1.4 var(--f-body);color:#e9f1ff}
+.bbar{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;justify-content:center;margin:12px 0 6px;padding:9px 12px 8px;border-radius:14px;background:#0a1e52;border:3px solid var(--ink2);box-shadow:0 4px 0 var(--ink2)}
+.budget,.bcount{display:flex;align-items:baseline;gap:6px;font:400 26px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.budget .coin{width:20px;height:20px;align-self:center;margin:0}
+.bcount{color:#fff}
+.budget small,.bcount small{font:700 11px/1 var(--f-body);color:#cfe1ff;text-shadow:none}
+.qfill{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin:16px 0 14px}
+.qfill .k-btn{padding:8px 11px 7px;font-size:14px;border-width:2px;box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2)}
+.onb .filters{justify-content:center}
+.onb .dk15{grid-template-columns:repeat(15,minmax(0,1fr));gap:14px 7px;max-width:none;margin:10px 0 0}
+.onb .dk15 .card :is(.nm,.cnt,.ty){display:none}
+.onb .dk15 .card :is(img,.tint){top:-12%;height:100%}
+.onb .dk15 .card .tagc{font-size:11px;padding:4px 1px 3px}
+.onb .dk15 .card .cost{transform:scale(.72);transform-origin:left top}
+@media (max-width:900px){ .onb .dk15{grid-template-columns:repeat(8,minmax(0,1fr))} .onb .dk15 .card .tagc{font-size:9px} }
+.card.empty::before{display:none}
+.card.empty{box-shadow:none;border:3px dashed #5f84d6;background:rgba(6,14,40,.35)}
+
+/* ----- what a match paid ----- */
+.loot{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:flex-end;width:100%}
+.lt{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:76px}
+.lt > b{font:400 30px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.lt small{font:400 13px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.lt.coinz,.lt.tokz{padding:13px 12px 10px;border-radius:14px;background:#0a1e52;border:3px solid var(--ink2)}
+.lt.tokz > b{color:#7ff0e2}
+.lt.cardz .card{width:84px;margin-top:8px}
+.lt.packz .foil{width:76px;cursor:default}
+.lt.packz .foil b{font-size:12px;bottom:9px;padding:3px 7px 1px}
+.vs .av{box-shadow:0 0 0 3px var(--tc,#b8201a)}
+
+/* ----- in the match: what the characters say, and the last minute ----- */
+.sayb{position:absolute;left:0;top:0;z-index:4;max-width:176px;padding:5px 9px 6px;border-radius:12px;border:2.5px solid var(--ink2);background:#ffe9e5;color:#0a1430;font:400 13px/1.15 var(--f-game);text-align:center;pointer-events:none;box-shadow:0 3px 0 var(--ink2);transition:opacity .15s;will-change:transform}
+.sayb::after{content:"";position:absolute;left:50%;bottom:-7px;width:9px;height:9px;margin-left:-5px;background:inherit;border-right:2.5px solid var(--ink2);border-bottom:2.5px solid var(--ink2);transform:rotate(45deg)}
+.sayb.mine{background:#e2f1ff}
+.coffee.tpl i{background:linear-gradient(180deg,#fff6c4 0,#ffd23f 40%,#f08a12 100%);box-shadow:inset 0 5px 0 rgba(255,255,255,.6),inset 0 -5px 0 rgba(130,60,0,.5),0 0 22px rgba(255,214,70,.9)}
+.coffee.tpl{animation:tpl 1s ease-in-out infinite alternate}
+@keyframes tpl{to{box-shadow:inset 0 5px 0 rgba(0,0,0,.5),0 0 0 3px rgba(255,214,70,.5),0 0 22px rgba(255,214,70,.6)}}
+@media (max-width:759px){ .hand .card :is(img,.tint){top:-12%;height:108%} .grid.deck .card :is(img,.tint),.grid.eight .card :is(img,.tint){top:-12%;height:108%} .hand .card .cnt{bottom:6px} .sayb{font-size:12px;max-width:140px} }
+@media (prefers-reduced-motion:reduce){ .foil.shake,.coffee.tpl,.pull.on::before{animation:none} .pull .flip{transition:none} .burst{display:none} }
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
@@ -505,7 +695,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
     <div class="face" aria-hidden="true"></div>
     <div class="k-eyebrow">BDB Entertainment presents</div>
     <h1>Break Room <span>Brawl</span></h1>
-    <p class="sub">Over 1,000 cards. Build a 15 card deck, flood the lanes and knock down BDB's towers. Win coins, upgrade your cards, take his.</p>
+    <p class="sub">Over 1,300 cards in twelve types, and a ladder a thousand levels long. Build a 15 card deck, flood the lanes and knock down BDB's towers. Win coins, open packs, take his cards.</p>
     <div class="rowx"><input class="field" id="newName" maxlength="20" placeholder="Player name" autocomplete="username" spellcheck="false"></div>
     <div class="rowx acc"><input class="field" id="newPass" type="password" maxlength="72" placeholder="Password" autocomplete="current-password"></div>
     <div class="rowx acc"><button type="button" class="k-btn primary" id="accIn" style="flex:1">Sign in</button><button type="button" class="k-btn" id="accNew" style="flex:1">Create account</button></div>
@@ -535,20 +725,24 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 
     <div id="tabBattle" class="bgrid">
       <div class="hero" id="hero"></div>
-      <div class="c1"><div class="panel"><span class="k-label">Beat the BDBs</span><div id="ladder"></div></div></div>
+      <div class="c1">
+        <div class="panel">
+          <span class="k-label" id="tierLbl">The ladder</span>
+          <div class="road" id="road"></div>
+          <p class="note" style="margin:2px 0 10px">A thousand levels, ten tiers. The first win on a level pays in full and you take one of his cards. Packs and upgrade tokens are marked on the way.</p>
+          <div class="tiers" id="tiers"></div>
+        </div>
+      </div>
       <div class="c2">
         <div class="panel">
           <div class="deckbar"><span class="k-label" id="bDeckLbl">Your deck</span><button type="button" class="link" id="toDeck" style="padding:4px">Change deck</button></div>
           <div class="grid eight" id="bDeck"></div>
+          <div class="sets" id="bSets" style="margin-top:12px"></div>
         </div>
         <div class="panel">
           <span class="k-label">Quick battle</span>
-          <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. Pick how good he is.</p>
+          <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. The better he is, the more a win pays.</p>
           <div class="quick" id="quickRow"></div>
-        </div>
-        <div class="panel">
-          <span class="k-label">Win his cards</span>
-          <p class="note" style="margin:0">Before each fight a random draw picks one card from his deck. Beat him and it is yours. Already have it? It goes up a level for free. You never lose cards for losing.</p>
         </div>
       </div>
       <div class="c3">
@@ -565,37 +759,52 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
       <div class="panel">
         <div class="deckbar"><div class="k-seg" id="deckSeg"></div><span class="note" id="deckAvg"></span></div>
         <div class="grid deck" id="deckGrid"></div>
+        <div class="sets" id="deckSets" style="margin-top:12px"></div>
         <p class="note" id="deckHint" style="margin:10px 0 0"></p>
       </div>
       <div class="panel"><span class="k-label" id="ownLbl">Your cards</span><div class="filters" id="ownF"></div><div class="grid" id="ownGrid"></div><div class="more-row"><button type="button" class="k-btn" id="ownMore">Show more</button></div></div>
     </div>
 
     <div id="tabMarket" hidden>
-      <div class="split">
-        <div>
-          <div class="panel"><span class="k-label">Today's deals</span><div class="grid" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down 30%. New ones every day.</p></div>
-          <div class="panel"><span class="k-label" id="shopLbl">All cards</span><div class="filters" id="shopF"></div><div class="grid" id="shopGrid"></div><div class="more-row"><button type="button" class="k-btn" id="shopMore">Show more</button></div></div>
-        </div>
-        <div>
-          <div class="panel">
-            <span class="k-label">Mystery crate</span>
-            <div class="crate"><div class="box">?</div><div><p class="note" style="margin:0 0 4px">One random card. The rarer it is, the less often it drops.</p><div class="odds" id="odds"></div></div></div>
-            <div class="k-row" style="justify-content:flex-start;margin-top:12px"><button type="button" class="k-btn primary" id="crateBuy"></button></div>
-          </div>
-          <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Beat a BDB for the first time for the full purse, half on replays. Online wins pay too. Spend coins to buy new cards or to upgrade the ones you have. Every level adds 8% health and damage, up to level 10.</p></div>
-        </div>
+      <div class="panel shelf">
+        <span class="k-label">Card packs</span>
+        <p class="note" style="margin:0 0 14px">The dearer the pack, the more cards in it and the better they are. Tap a pack to see its odds.</p>
+        <div class="packs" id="packRow"></div>
       </div>
+      <div class="panel">
+        <span class="k-label">Type packs</span>
+        <p class="note" style="margin:0 0 6px">Building around one type? Four cards of that type, one of them Rare or better.</p>
+        <div class="tpacks" id="tpackRow"></div>
+      </div>
+      <div class="panel">
+        <span class="k-label">Ready-made decks</span>
+        <p class="note" style="margin:0 0 10px">Thirty full decks, built to work from the first match. You only pay for the cards you are missing.</p>
+        <div class="tfilter" id="tdeckF" role="group" aria-label="Deck type"></div>
+        <div class="tdecks" id="tdeckRow"></div>
+      </div>
+      <div class="split">
+        <div class="panel"><span class="k-label">Today's deals</span><div class="grid" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down 30%. New ones every day.</p></div>
+        <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Every win pays coins, and harder fights pay more. The first win on a ladder level pays in full, replays pay half, and a loss still pays a little. Spend coins on packs, decks, single cards, or upgrades for the cards you have. Every level adds 8% health and damage, up to level 10. A card you pull twice goes up a level for free.</p></div>
+      </div>
+      <div class="panel"><span class="k-label" id="shopLbl">All cards</span><div class="filters" id="shopF"></div><div class="grid" id="shopGrid"></div><div class="more-row"><button type="button" class="k-btn" id="shopMore">Show more</button></div></div>
     </div>
 
     <div id="tabProfile" hidden>
       <div class="split">
-        <div class="panel"><span class="k-label" id="pName">Player</span><p class="note" id="accNote" style="margin:0 0 12px"></p><div class="kv" id="pStats"></div></div>
         <div>
+          <div class="panel"><span class="k-label" id="pName">Player</span><p class="note" id="accNote" style="margin:0 0 12px"></p><div class="kv" id="pStats"></div></div>
           <div class="panel">
             <span class="k-label">Save code</span>
             <p class="note" style="margin:0 0 10px">Copy this on your old device and paste it on the sign in screen of the new one.</p>
             <textarea class="field" id="codeOut" readonly></textarea>
             <div class="k-row" style="justify-content:flex-start;margin-top:10px"><button type="button" class="k-btn" id="codeCopy">Copy code</button></div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="deckbar"><span class="k-label">Player upgrades</span><span class="tok" title="Upgrade tokens"><span id="tokN">0</span></span></div>
+            <p class="note" style="margin:0 0 12px">Tokens come from the ladder: every tenth level, and more from bosses. Upgrades count against BDB only. Online matches are always even.</p>
+            <div id="perks"></div>
           </div>
           <div class="panel"><div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn" id="signOut">Switch player</button><button type="button" class="k-btn ghost" id="wipe">Delete this player</button></div></div>
         </div>
@@ -638,6 +847,6 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1114p"></script>
+<script type="module" src="main.js?v=1115a"></script>
 </body>
 </html>
