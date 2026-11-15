@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115u';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115u';
-import { createAI } from './ai.js?v=1115u';
-import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115u';
-import { Cloud, cloudWhy } from './cloud.js?v=1115u';
-import { sayFor, sayWhen } from './talk.js?v=1115u';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115v';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115v';
+import { createAI } from './ai.js?v=1115v';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115v';
+import { Cloud, cloudWhy } from './cloud.js?v=1115v';
+import { sayFor, sayWhen } from './talk.js?v=1115v';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -70,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115u'), import('./models.js?v=1115u')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115v'), import('./models.js?v=1115v')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -636,7 +636,16 @@ function signIn(p){
   if (!P.onboarded && !Q.get('skip')) return onboard();
   P.onboarded = true; if (OWN) save();
   show('scrHub'); tab('Battle'); hallStart();
-  const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else if (!ownerHello() && !whatsNew()) rulesNote();
+  const j = Q.get('join'), gift = takeGifts(); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else if (!ownerHello() && !giftHello(gift) && !whatsNew()) rulesNote();
+}
+/* a present from the owner, waiting for this account: taken once, and said out loud */
+function takeGifts(){ let n = 0; for (const g of giftsFor(P.name)) if (!P.flags[g.id]){ P.flags[g.id] = 1; P.coins += g.coins || 0; n += g.coins || 0; } if (n) save(); return n; }
+function giftHello(n){
+  if (!n) return false;
+  const b = dlg(`<div class="k-eyebrow">A present</div><h3>${fmt(n)} coins, ${esc(P.name)}</h3><div class="bigcoin"><span class="coin"></span>+${fmt(n)}</div><p>From the owner of the game. They are in your account now. Packs and ready-made decks are in the Market.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" id="gfShop">Go to the Market</button><button type="button" class="k-btn" id="gfX">Close</button></div>`);
+  b.querySelector('#gfX').onclick = dlgClose; b.querySelector('#gfShop').onclick = () => { dlgClose(); tab('Market'); };
+  BDB.sfx.big(); return true;
 }
 /* the owner is told once what the account came with */
 function ownerHello(){
@@ -791,7 +800,7 @@ function onboard(){
     box.innerHTML = `<div class="k-eyebrow">You are in</div><h2>${P.coins ? `${fmt(P.coins)} coins left over` : 'Every coin spent'}</h2><p class="note" style="max-width:540px;margin:0 auto 6px">Win on the ladder for coins, packs and BDB's own cards. Spend coins in the Market on packs, ready-made decks and upgrades. There are ${fmt(CARD_IDS.length)} cards to collect.</p>
       <div class="bigcoin"><span class="coin"></span>${fmt(P.coins)}</div>
       <div class="k-row"><button type="button" class="k-btn primary big" id="onFight">Fight level 1</button><button type="button" class="k-btn big" id="onShop">See the Market</button></div>`;
-    const done = t => { P.onboarded = true; save(); show('scrHub'); tab(t); hallStart(); return ownerHello(); };
+    const done = t => { P.onboarded = true; save(); show('scrHub'); tab(t); hallStart(); const gift = takeGifts(); return ownerHello() || giftHello(gift); };
     $('onShop').onclick = () => done('Market'); $('onFight').onclick = () => { if (!done('Battle')) preCpu(ladderCpu(1)); };
   };
   step1();
