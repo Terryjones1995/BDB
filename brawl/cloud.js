@@ -1,7 +1,7 @@
 /* Break Room Brawl: online accounts, cloud saves, who's online and invites, through the SQL functions in supabase.sql.
    Everything is a plain fetch to Supabase's REST endpoint; no SDK. Every call can fail (offline, server not set up yet):
    callers catch that and the game carries on with the copy saved on this device. */
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1115e';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1115f';
 
 const base = (new URLSearchParams(location.search).get('api') || SUPABASE_URL || '').replace(/\/+$/, '');
 const SKEY = 'brawl-session';
@@ -15,20 +15,24 @@ async function rpc(fn, args, keepalive){
     try { r = await fetch(`${base}/rest/v1/rpc/${fn}`, {method:'POST', keepalive:!!keepalive, signal:ac.signal, headers:{'Content-Type':'application/json', apikey:SUPABASE_KEY, Authorization:'Bearer ' + SUPABASE_KEY}, body:JSON.stringify(args)}); }
     catch(e){ throw fail('net', 0); }                                   // no answer at all: offline, the server is down, or the browser was not allowed to ask
     if (!r.ok){
-      let code = ''; try { code = String((await r.json()).code || ''); } catch(e){}
-      throw fail(r.status === 404 || code === 'PGRST202' || code === '42883' ? 'setup' : r.status === 401 || r.status === 403 ? 'key' : 'http', r.status);
+      let code = '', msg = ''; try { const j = await r.json(); code = String(j.code || ''); msg = String(j.message || j.msg || ''); } catch(e){}
+      const lost = code === 'PGRST202' || (code === '42883' && msg.includes('brawl_'));          // the server has no such function: supabase.sql was never run on it
+      throw fail(lost ? 'setup' : r.status === 404 && !code ? 'route' : r.status === 401 || r.status === 403 ? 'key' : 'http', r.status, code, msg);
     }
     return await r.json();
   } finally { clearTimeout(t); }
 }
 /* why a call failed, so the screen can say something useful. kind: 'net' (never got an answer), 'setup' (the server answered but the game's functions
-   are not installed on it: supabase.sql has not been run), 'key' (it turned the key down), 'http' (anything else it said no to) */
-function fail(kind, status){ const e = new Error(kind + ' ' + status); e.kind = kind; e.status = status; return e; }
+   are not installed on it: supabase.sql has not been run), 'route' (something answered at that address, but not a Supabase REST API), 'key' (it turned the
+   key down), 'http' (anything else it said no to). The server's own words ride along in square brackets, so a screenshot is enough to see what is wrong. */
+function fail(kind, status, code = '', msg = ''){ const e = new Error(kind + ' ' + status); e.kind = kind; e.status = status; e.code = code; e.msg = msg; return e; }
 export const cloudWhy = e => { const k = e && e.kind, host = base.replace(/^https?:\/\//, '');
-  return k === 'setup' ? `The account server (${host}) answered, but accounts are not set up on it yet: brawl/supabase.sql has to be run there once. Play on this device for now.`
-    : k === 'key' ? `The account server (${host}) turned down the game's key (error ${e.status}). Play on this device for now.`
-    : k === 'http' ? `The account server (${host}) had a problem (error ${e.status}). Try again in a minute, or play on this device only.`
-    : `No answer from the account server (${host}). Check your connection, or play on this device only.`; };
+  const said = k && k !== 'net' ? ` [${[e.status, e.code, String(e.msg || '').replace(/[^\x20-\x7e]/g, ' ').slice(0, 90)].filter(Boolean).join(' ')}]` : '';
+  return (k === 'setup' ? `The account server (${host}) answered, but accounts are not set up on it yet: brawl/supabase.sql has to be run there once. Play on this device for now.`
+    : k === 'route' ? `Something answered at ${host}, but it is not a Supabase API: it has nothing at /rest/v1. Check the address in brawl/config.js. Play on this device for now.`
+    : k === 'key' ? `The account server (${host}) turned down the game's key. Play on this device for now.`
+    : k === 'http' ? `The account server (${host}) had a problem. Try again in a minute, or play on this device only.`
+    : `No answer from the account server (${host}). Check your connection, or play on this device only.`) + said; };
 function keep(s){ sess = s; try { if (s) localStorage.setItem(SKEY, JSON.stringify(s)); else localStorage.removeItem(SKEY); } catch(e){} }
 const mine = () => ({p_name:sess.name, p_token:sess.token});
 
