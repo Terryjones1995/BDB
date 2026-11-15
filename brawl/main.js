@@ -1,9 +1,9 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
-import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js?v=1114n';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT, TRIG } from './sim.js?v=1114n';
-import { createAI } from './ai.js?v=1114n';
-import { Accounts, fresh, sanitize } from './store.js?v=1114n';
-import { Cloud } from './cloud.js?v=1114n';
+import { CARDS, CARD_IDS, BASE_IDS, baseName, AFF, AFF_IDS, RAR, RAR_IDS, MAPS, MAP_IDS, CPUS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, crateRoll, STARTER_DECKS, SKILLS, randomCpu } from './cards.js?v=1114o';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, PATIENT, TRIG } from './sim.js?v=1114o';
+import { createAI } from './ai.js?v=1114o';
+import { Accounts, fresh, sanitize } from './store.js?v=1114o';
+import { Cloud } from './cloud.js?v=1114o';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -57,7 +57,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1114n'), import('./models.js?v=1114n')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1114o'), import('./models.js?v=1114o')]);
     await md.preload();
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true});
     ready3d = true; for (const el of document.querySelectorAll('.card[data-tk]')) want(el.dataset.tk);
