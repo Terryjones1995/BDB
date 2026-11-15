@@ -16,5 +16,7 @@ Made for this game with Hyper3D Rodin (generated, rigged and animated):
 
 Made for this game with Tripo (generated), then rigged here: the T_ files. Each has a mesh and a 20-joint skeleton and no clips;
   they all play aG.glb, a clip library put together from the Rodin characters' clips above.
+  T_Horseman is the exception: one solid model with no skeleton, moved by code.
+  BlackHorse is a Tripo model that was rigged and animated with Hyper3D Rodin.
 
 Every file was cut down for the web: fewer triangles, small WebP textures, thinned keyframes, meshopt compression.

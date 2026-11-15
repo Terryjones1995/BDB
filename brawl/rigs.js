@@ -69,6 +69,9 @@ export const RIGS = {
   fuse:S('GoblinBomber', 1.2), rattatat:T('Drummer', 1.2), stubbeard:C('Viking', 1.4, {at:.6, idle:'IdleB'}), howl:T('WolfPelt', 1.5, {idle:'IdleB'}), furball:T('FurKing', 2.1, {at:.8}), shortbows:C('GoblinArcher', 1.1, {at:.6}),
   smokey:C('FurnaceBot', 1.8), rivet:C('Mechanic', 1.35, {at:.6}), shrinkwell:C('Scientist', 1.5, {at:.7}), gearheart:T('GoldBot', 1.6), nugget:C('Gnome', 1.1, {at:.6}), ironbeard:C('Blacksmith', 1.6, {at:.7}),
   scald:T('Salamander', 1.7, {idle:'IdleB'}), razorback:T('LizardPunk', 1.5, {idle:'IdleB'}), kai:T('DragonKid', 1.35, {atk:'Kick', idle:'IdleB', at:.45}), spikeback:T('SpikeTurtle', 1.6), plum:C('PurpleDragon', 1.2, {at:.7}),
+  noir:S('CoatDuelist', 1.45, {atk:'Throw', idle:'IdleB', lift:.4}), onyx:S('HornNinja', 1.4, {atk:'Kick', idle:'IdleB', lift:.35}), midnight:T('HatRogue', 1.7, {idle:'IdleB', lift:.5}), prior:T('RedCultist', 1.9, {idle:'IdleB', lift:.4}),
+  malgrave:F('PurpleWraith', 1.8, {atk:'Throw', at:.8, fly:1.2, lift:.4}), turnkey:F('KeyWraith', 1.9, {atk:'Throw', at:.9, fly:1.3, lift:.5}), auditor:T('HaloMan', 2.1, {lift:.55}), slagmaw:T('LavaDemon', 2.1, {idle:'IdleB', lift:.55}),
+  nightmare:R('BlackHorse', 1.7, {walk:'Run', lift:.55, at:.6}), horseman:{f:'T_Horseman', h:2.5, gallop:true, lift:.4},
   jade:R('Dragon', 1.7, {lift:.25, at:.6}), emberwing:Q('Flying_Dragon', 1.2), elder:Q('Flying_Dragon_Evolved', 2.1), raptor:Q('Big_Dino', 1.5, {walk:'Run'}), kaiju:K('Monster', 1.7, 'Kick'), whelp:Q('Flying_Dragon', .7)
 };
 const lib = {}, clips = {}, pending = {}, mats = new Map(), inks = new Map();
@@ -157,6 +160,12 @@ export function makeRig(key, o, grad, extras){
   const clip = n => n && anims ? THREE.AnimationClip.findByName(anims, n) : null, wc = clip(def.walk), ac = clip(def.atk), ic = clip(def.idle || 'Idle');
   if (!ic || !wc || !ac){                                        // nothing to play: a statue that code brings to life
     const seed = Math.random() * 6;
+    if (def.gallop) return {g, h:H, fly, rig:true, die(){ return false; }, cheer(){}, anim(t, s){                // a rider cast in one piece: he rocks like a horse at full stretch
+      const a = s.atk < .4 ? Math.sin(s.atk / .4 * Math.PI) : 0, k = s.mv ? 1 : .12, w = s.mv ? s.ph * .55 : t * 1.6 + seed;
+      root.rotation.x = Math.sin(w) * .17 * k - a * .3;                                    // nose down, nose up; rears into the hit
+      root.position.y = y0 + (s.mv ? Math.abs(Math.sin(w * .5 + .6)) * .22 : 0) + a * .12;
+      root.position.z = a * .28;
+    }};
     return {g, h:H, fly, rig:true, die(){ return false; }, cheer(){}, anim(t, s){
       const a = s.atk < .32 ? Math.sin(s.atk / .32 * Math.PI) : 0, w = s.mv ? Math.sin(s.ph) : 0;
       root.rotation.z = w * .1; root.rotation.y = w * .12;                                   // a waddle: rocks side to side and twists with each step

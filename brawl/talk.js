@@ -32,6 +32,9 @@ const S = {
   corvus:"I smell a limp.|Leftovers. My favourite.|Circling. Waiting.|You look half finished.|Caw. That means goodbye.|Shiny tower. Mine.",
   whiskers:"Came in through the window.|Nine lives. Zero guilt.|Your tower left a door open.|Purr. Then pounce.|Paws off? No.|In, out, richer.",
   kitsune:"Which one is me?|Wrong. Wrong again.|Three of us. One of you guessing.|The mask is not for you.|Blink and pick again.|Fooled you twice already.",
+  noir:"En garde.|Second cut is the deep one.|Coat stays clean. You will not.|I only duel the losing side.|Your loss. My lunch.|Point to me.",
+  onyx:"You missed me.|Marked. They all see you now.|First cut. Worst cut.|Horns up. Lights out.|From nowhere.|Tag.",
+  midnight:"Tip of the hat.|Third punch. Count them.|The arm does what it wants.|Arrows? Keep trying.|Midnight. Your time is up.|I feed. You fade.",
   /* ----- Dark Arts ----- */
   bonecrew:"Night shift, reporting.|Four of us. One brain. Enough.|Rattle rattle, your tower is next.|We work for exposure.|No skin in the game.|Dead tired and still showing up.",
   boneknight:"Knock me down. I get up. Once.|Death was a suggestion.|I have a bone to pick. Several.|Round two is on the house.|You hit like a living person.|Back from break.",
@@ -56,6 +59,10 @@ const S = {
   rattlecage:"Break me. Meet the family.|Three more in the pile.|Bone tired of you.|Helmet on. Skin optional.|Rattle rattle.|Some assembly required. Again.",
   pins:"Go on. Hit me.|That hurt you more than me.|Pins and needles. Mostly pins.|Stitch this.|Feel that? Thought so.|I am just a doll. A mean one.",
   nocturne:"Yours. Now ours.|Give a little. Give it all.|I take the pain and pass it on.|Lights out. Health up.|Robbing you to pay us.|Hush now.",
+  prior:"Bleed for me.|These are not for clapping.|It does not stop. Neither do I.|Confess. Scream. Same thing.|Red hides the stains.|Hurt me more. I get faster.",
+  malgrave:"Cold. Everywhere.|It jumps. To your friends.|You cannot reach me.|Rags and ruin.|Feel that draft?|Slow now. All of you.",
+  turnkey:"Locked.|Your tower. My key.|No more shooting.|Click.|I do not see troops. I see doors.|Shut it down.",
+  horseman:"Have you seen my head?|Catch.|Ride. Burn. Repeat.|Heads will roll. Mine did.|Hooves on fire. You are next.|No brakes. No head. No mercy.",
   /* ----- Fire ----- */
   hellion:"Time to f**k s**t up.|I landed. Things are on fire. You are welcome.|Hot enough for you?|Burn first, apologise never.|These horns are not for show.|Stop, drop and lose.",
   imps:"Hee hee, hot hot hot.|Three little fires, coming up.|We bite and it keeps burning.|Catch us, tall stuff.|Burn, baby, burn.|Flame on, brains off.",
@@ -67,6 +74,7 @@ const S = {
   flicker:"Catch me. Burn trying.|Too hot. Too fast.|Out with a bang.|Blink and you are ash.|Light it up.|Do not touch. Seriously.",
   obsidian:"Touch me. Catch fire.|Fire? I am made of it.|Cooled lava. Hot temper.|Burn me. Go on. Try.|Black glass. Bad day.|Your blade is melting.",
   kindle:"They burn. Then they pop.|Stand closer together.|One spark. Whole crowd.|Bang. Next.|I light the fuse. They are the fuse.|Fire spreads. So does losing.",
+  slagmaw:"BURN.|I land. You cook.|Fire does not hurt fire.|Step in the puddle.|Ash is all you leave.|Even dead, I burn you.",
   /* ----- Frost ----- */
   glacius:"Chill. That was an order.|Cold landing, colder shoulder.|Hit me. I will heal while you try.|Everybody slow down.|Freeze, punks.|I am not mad. I am just cold.",
   permafrost:"Touch me and slow down.|Tower. Ice. Shatter.|Break me and everyone freezes.|I am a walking winter.|Cold hands, colder everything.|Ice to meet you.",
@@ -117,6 +125,7 @@ const S = {
   hogwild:"Out of the way.|Oink. Bam.|Run-up. Wind-up. Lights out.|Tusks first.|Pig headed. On purpose.|Squeal for me.",
   cackle:"Hehehe.|Something died. Lunch.|I eat what you leave.|Go on. Lose more.|Laughing at you. Not with.|Seconds? Thank you.",
   stripes:"Lesson one. Pain.|Kick. Kick. Harder kick.|Bow first. Then fall.|Black belt. Bad news.|The student falls down.|Class dismissed.",
+  nightmare:"Neigh means no.|No rider. No brakes.|Out of the way.|Gallop. Crash. Next.|Sleep well.|Hooves first.",
   /* ----- Nature ----- */
   thornweaver:"Roots for you. Heals for us.|The forest says hi. It is not friendly.|Tangled yet?|Slow down. Smell the thorns.|Everyone near me feels better. Except you.|Nature bats last.",
   elderbark:"I was here before your towers.|Roots up. Speed down.|Take your time. You have to.|Lean on me. I heal.|Chop me? Good luck.|I am older than your excuses.",
@@ -203,6 +212,7 @@ const S = {
   pizza:"Thirty minutes or less.|Extra cheese. Extra health.|Hot and fresh.|Who ordered the beatdown?|Tip your driver.|Delivery. Open up.",
   flint:"Fire? What fire?|Stand back. Axe coming through.|I break down doors for a living.|Fireproof. You are not.|Tower down. Nobody hurt. Mostly.|Stop. Drop. Lose.",
   blitz:"HUT.|Tackle. Stars. Good night.|Fourth and you.|Sprint. Hit. Repeat.|Flag on the play. Not mine.|Lights out.",
+  auditor:"I have some questions.|Your Mana. It is not adding up.|This will take a while.|Per section four. You lose.|Receipts. Now.|Everything slows down for an audit.",
   /* ----- Dragon ----- */
   infernus:"Kneel before the flame.|I land. Everything burns.|You brought an army. I brought fire.|Roast everyone.|The sky was mine. Now the ground is too.|Ash is all you will be.",
   jade:"Breathe in. Breathe fire.|Green means go. Go burn.|Small dragon, big breath.|Everything in front of me is toast.|Hot take incoming.|Rawr. That is the warning.",

@@ -1,5 +1,5 @@
 /* Break Room Brawl: every card, unit, map, pack, deck and CPU opponent. Pure data, no DOM, shared by the rules, the CPU and the screens.
-   233 characters, spells, buildings and traps, each in 10 builds = 2,330 cards. Every character has one fixed rarity and one type. */
+   243 characters, spells, buildings and traps, each in 10 builds = 2,430 cards. Every character has one fixed rarity and one type. */
 
 export const RAR = {
   c:{name:'Common',    w:60, col:'#9fb3d9', base:50,   per:15},
@@ -80,6 +80,9 @@ const ROSTER = [
   ['corvus', 'Corvus', 'shadow', 'r', 'flyer', 4, 1, {exec:{at:.5, mul:2}, mark:{t:3}, hm:.9}, 'Circles overhead and drops on anything already hurt: double damage below half health. Whatever he pecks is marked.'],
   ['whiskers', 'Whiskers', 'shadow', 'r', 'killer', 3, 1, {any:1, leech:.5, hm:1.4}, 'A cat burglar. Drops in anywhere on the field, and every hit on a tower steals Mana for you.'],
   ['kitsune', 'Kitsune', 'shadow', 'e', 'killer', 4, 1, {land:{r:2, summon:{u:'kitshade', n:2}}, crit:{every:3, mul:2.2}, dodge:.2, spd:2}, 'Arrives with two copies of herself. They hit hard and vanish at a touch. Good luck picking the right one.'],
+  ['noir', 'Noir', 'shadow', 'r', 'killer', 4, 1, {crit:{every:2, mul:1.7}, steal:.2, spd:1.9}, 'A duellist in a long coat. Every second cut lands hard, and every cut feeds him.'],
+  ['onyx', 'Onyx', 'shadow', 'r', 'killer', 3, 1, {stealth:{mul:2.5, re:4}, mark:{t:3}, spd:2.1}, 'Unseen until the first cut, which lands for two and a half times. Whatever she cuts is marked for everyone else.'],
+  ['midnight', 'Mister Midnight', 'shadow', 'e', 'bruiser', 5, 1, {crit:{every:3, mul:2.5}, steal:.25, deflect:.3, hm:1.05}, 'Wide hat, cursed arm. Every third punch lands for two and a half times, every punch feeds him, and arrows find him hard to hit.'],
   ['akaoni', 'Akaoni, the Red Blade', 'shadow', 'e', 'bruiser', 5, 1, {first:{mul:3}, hm:1.05, spd:1.5, hit:1.1}, 'Draws on every new opponent: his first cut on anything lands triple. Send him at their biggest troop.'],
   ['redbeard', 'Captain Redbeard', 'shadow', 'r', 'bruiser', 4, 1, {loot:.5, hm:1.1}, 'Every kill is plunder. Half a Mana for you each time he finishes something off.'],
   ['cutpurse', 'Cutpurse', 'shadow', 'r', 'killer', 3, 1, {hm:1.25, spd:2.2, leech:.35}, 'Quick hands. Every hit he lands on a tower lifts a little Mana for you.'],
@@ -111,7 +114,12 @@ const ROSTER = [
   ['rattlecage', 'Rattlecage', 'dark', 'r', 'brawler', 4, 1, {split:{u:'skel', n:3}, armor:15}, 'A skeleton in a helmet. Break him and three more climb out of the pile.'],
   ['pins', 'Pins', 'dark', 'r', 'brawler', 3, 1, {mirror:.5, dm:.7, hm:1.2}, 'A voodoo doll. Whoever hits it, from any distance, feels half of it themselves.'],
   ['nocturne', 'Nocturne', 'dark', 'e', 'caster', 5, 1, {splash:0, siphon:{r:5, frac:.5}, dm:1.3, hm:1.2, shot:'magic'}, 'Takes from them and gives to you: half of the damage he deals goes to your most hurt troop as healing.'],
+  ['prior', 'The Crimson Prior', 'dark', 'e', 'bruiser', 5, 1, {psn:{dps:38, t:4}, berserk:1, hm:1.05}, 'Long claws under red robes. Every scratch keeps hurting long after, and the more wounded he is the faster they come.'],
+  ['malgrave', 'Malgrave', 'dark', 'e', 'flyer', 5, 1, {rng:3, chain:{n:2, r:2.8, fall:.7}, chill:2, shot:'magic', dm:.8, hm:1.1}, 'A wraith in purple rags. He floats over everything, his bolts jump to two more targets, and all of them slow down.'],
+  ['turnkey', 'The Turnkey', 'dark', 'e', 'flyer', 5, 1, {only:'b', lock:.8, hit:1.9, dm:.9, hm:1.2}, 'Floats past every troop, straight to the nearest building or tower, and locks it: after each blow it cannot fire for most of a second.'],
+  ['horseman', 'The Headless Horseman', 'dark', 'l', 'bruiser', 6, 1, {charge:{after:2.2, spd:1.7, dmg:3, dash:1}, knock:1.3, burn:{dps:30, t:3}, aura:{r:2, burn:30}, land:{r:2.4, dmg:120, burn:1}, spd:1.9, r:.7, hm:1.5}, 'Arrives at a gallop on burning hooves. The first hit of every charge lands triple and throws the target back, and everything near him burns.'],
   /* ----- Fire ----- */
+  ['slagmaw', 'Slagmaw', 'fire', 'e', 'bruiser', 5, 1, {fireproof:1, land:{r:2.6, dmg:150, burn:1}, burn:{dps:34, t:3}, death:{dmg:160, r:2.4, delay:.4, pool:{dps:60, t:4}}}, 'Lands in a burst of flame, burns everything he touches, and leaves a pool of fire where he falls.'],
   ['flicker', 'Flicker', 'fire', 'c', 'killer', 3, 1, {burn:{dps:22, t:3}, spd:2.2, fireproof:1, death:{dmg:140, r:1.8, delay:.3}, hm:.9}, 'Fast, bright and gone in a flash. Every hit burns, and she goes out with a bang.'],
   ['obsidian', 'Obsidian', 'fire', 'e', 'tank', 6, 1, {fireproof:1, armor:25, sear:{dps:28, t:3}, hm:.85}, 'A knight of cooled lava. Small hits bounce off, fire does nothing, and whatever hits him up close catches light.'],
   ['kindle', 'Kindle', 'fire', 'r', 'caster', 4, 1, {burn:{dps:26, t:3}, pyre:{dmg:120, r:2}, fireproof:1, shot:'fire'}, 'His fire splashes and sticks. Anything he finishes off while it is burning explodes over its friends.'],
@@ -172,6 +180,7 @@ const ROSTER = [
   ['hogwild', 'Hogwild', 'beast', 'c', 'bruiser', 3, 1, {charge:{after:2.2, spd:1.6, dmg:2}, knock:.9, hm:.95}, 'A boar with a run-up. The first hit of a charge lands double and sends the target backwards.'],
   ['cackle', 'Cackle', 'beast', 'r', 'killer', 3, 1, {feast:.2, exec:{at:.35, mul:1.6}, spd:2}, 'A hyena who eats well. He heals a fifth of his health whenever anything dies close by, friend or foe.'],
   ['stripes', 'Sensei Stripes', 'beast', 'e', 'brawler', 5, 1, {ramp:{step:.2, max:1.2}, hit:.7, leap:{min:2, max:4.2, mul:1.6}, dodge:.15}, 'A tiger in a black belt. Kicks fast, each kick on the same target lands harder than the last, and the first one arrives from the air.'],
+  ['nightmare', 'Nightmare', 'beast', 'r', 'killer', 3, 1, {charge:{after:2, spd:1.6, dmg:2.5, dash:1}, spd:2.4, hm:1.3, r:.5}, 'A black horse with no rider and no brakes. Arrives at a full gallop, and the first hit of every charge lands for two and a half times.'],
   /* ----- Nature ----- */
   ['greenhorn', 'Greenhorn', 'nature', 'r', 'bruiser', 4, 1, {grow:{per:.12, max:6}, regen:.02}, 'A forest spirit in antlers. Mends himself as he goes, and every kill makes him hit harder for the rest of the match.'],
   ['bogmaw', 'Bogmaw', 'nature', 'e', 'tank', 6, 1, {regen:.025, land:{r:3, slow:4, dmg:50}, split:{u:'mudling', n:2}, hm:.85}, 'A walking swamp. Mud slows everything where he lands, he mends himself, and he falls apart into two Mudlings when he is beaten.'],
@@ -236,6 +245,7 @@ const ROSTER = [
   ['bjorn', 'Boomstick Bjorn', 'tech', 'e', 'sniper', 4, 1, {only:'b', rng:8.2, splash:1.3, hit:3.2, dm:.7, hm:1.25, spd:1, shot:'shell'}, 'A walking mortar. Ignores troops and lobs shells at towers and buildings from further away than they can shoot back. Helpless up close.'],
   ['redline', 'Redline', 'tech', 'e', 'tank', 6, 1, {knock:1.2, dm:1.25, hm:.85, split:{u:'scraplet', n:2}}, 'A war machine with fists like wrecking balls. Every punch throws the target back, and two Scraplets climb out of the wreck when it goes down.'],
   /* ----- Break Room ----- */
+  ['auditor', 'The Auditor', 'crew', 'e', 'bruiser', 5, 1, {rob:.3, aura:{r:3.2, slow:1}, hm:1.1, dm:.9}, 'From head office. Everything near him slows to a crawl while he goes through the books, and every hit takes Mana straight out of their pocket.'],
   ['finn', 'Field Trip Finn', 'crew', 'c', 'brawler', 2, 1, {raze:2, spd:1.9, hm:.9}, 'Two Mana of enthusiasm and a shovel. Digs through buildings and towers at double damage.'],
   ['lagspike', 'Lag Spike', 'crew', 'r', 'sniper', 4, 1, {chill:2, stun:{every:4, t:.9}, shot:'laser'}, 'Plays from the back with a headset on. His target stutters: slowed on every shot, frozen on the fourth.'],
   ['chef', 'Chef Sizzle', 'crew', 'r', 'bruiser', 4, 1, {burn:{dps:26, t:3}, stun:{every:3, t:.8}}, 'A hot pan and a short temper. Every hit burns, and every third one rings like a dinner bell.'],
@@ -302,7 +312,7 @@ const ROSTER = [
 ];
 const ABIL = ['shield', 'heal', 'land', 'taunt', 'stun', 'charge', 'knock', 'pack', 'leech', 'stealth', 'any', 'dodge', 'crit', 'revive', 'spawn', 'raise', 'mark', 'steal', 'grow', 'chill', 'split', 'armor', 'burn', 'psn', 'berserk', 'aura',
   'death', 'regen', 'numb', 'leap', 'thorns', 'chain', 'morph', 'exec', 'mana', 'ramp', 'only', 'life', 'shot', 'splash', 'first', 'curse', 'loot', 'rise', 'pierce', 'brittle', 'riposte',
-  'stoic', 'deflect', 'rob', 'infect', 'sap', 'wild', 'mirror', 'siphon', 'fireproof', 'sear', 'pyre', 'shatter', 'mend', 'brew', 'bless', 'feast', 'kamikaze', 'frenzy', 'recharge', 'eject', 'raze', 'tough'];
+  'stoic', 'deflect', 'rob', 'infect', 'sap', 'wild', 'mirror', 'siphon', 'fireproof', 'sear', 'pyre', 'shatter', 'mend', 'brew', 'bless', 'feast', 'kamikaze', 'frenzy', 'recharge', 'eject', 'raze', 'tough', 'lock'];
 
 /* Units. Speeds are arena units per second, hit is seconds between attacks, rng is reach beyond the bodies.
    air: can hit flyers. only:'b': walks past troops and only hits buildings. splash: hit radius. */
@@ -536,6 +546,7 @@ export const THEME_DECKS = [
   TD('tech3', 'The Workshop', 'tech', 'A walking mortar, a shrink ray and a mechanic who makes your buildings fire faster.', 'smokey rivet shrinkwell gearheart nugget ironbeard bjorn redline tinker cannon stormcoil watchtower scrapbot zap arrows'),
   TD('crew3', 'Office Party', 'crew', 'The Regional Manager brought everyone: the Ref, the chef, the lunch lady and a wrestler from accounts.', 'manager ref goldmask chef gert crusty pizza flint blitz lagspike finn hank vending janitor arrows'),
   TD('dragon3', 'Scales', 'dragon', 'Fifteen cards with scales, shells or both. A salamander who grows back, a turtle who hides, and three dragons who breathe on things.', 'scald razorback kai spikeback plum sirscorch shiver kobolds jade emberwing raptor kaiju nest fireball zap'),
+  TD('dark5', 'Sleepy Hollow', 'dark', 'The Headless Horseman, a wraith who locks towers and a prior with very long claws. The nastiest deck in the Market.', 'horseman turnkey prior malgrave baron nocturne rotter pins acolyte grinn nightmare gloombats poison zap arrows'),
   TD('mix4', 'The Full Legend', 'crew', 'Three Legendaries in one deck, with the best support money can buy.', 'lich infernus kingbellow zephyr oathkeeper mort tonic lightning manawell bonecrew ironclad longshots zap arrows gravewitch')
 ];
 export const deckPrice = d => Math.round(d.deck.reduce((a, id) => a + CARDS[id].price, 0) * .8 / 10) * 10;

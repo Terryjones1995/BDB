@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115d';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115d';
-import { createAI } from './ai.js?v=1115d';
-import { Accounts, fresh, sanitize } from './store.js?v=1115d';
-import { Cloud, cloudWhy } from './cloud.js?v=1115d';
-import { sayFor, sayWhen } from './talk.js?v=1115d';
+  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115e';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, DOUBLE_AT, TRIPLE_AT, PATIENT, TRIG } from './sim.js?v=1115e';
+import { createAI } from './ai.js?v=1115e';
+import { Accounts, fresh, sanitize } from './store.js?v=1115e';
+import { Cloud, cloudWhy } from './cloud.js?v=1115e';
+import { sayFor, sayWhen } from './talk.js?v=1115e';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -64,7 +64,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115d'), import('./models.js?v=1115d')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115e'), import('./models.js?v=1115e')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1});
     ready3d = true;
@@ -147,6 +147,7 @@ function abil(U, m = 1){
   if (U.stun) a.push(`Every ${ORD[U.stun.every] || 'few'} hit stuns for ${sec(U.stun.t)}.`);
   if (U.crit) a.push(`Every ${ORD[U.crit.every] || 'few'} hit lands for ${x10(U.crit.mul)}x.`);
   if (U.exec) a.push(`${x10(U.exec.mul)}x damage to anything under ${pc(U.exec.at)} health.`);
+  if (U.lock) a.push(`Every hit locks the building or tower it lands on: it cannot fire for ${sec(U.lock)}.`);
   if (U.raze) a.push(`${x10(U.raze)}x damage to buildings and towers.`);
   if (U.wild) a.push('Every hit does anywhere from half to triple damage.');
   if (U.eject) a.push(`Every ${ORD[U.eject.every] || 'few'} hit is a red card: the target is sent back to its own king tower.`);

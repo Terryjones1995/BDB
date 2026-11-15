@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115d';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115e';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const MATCH = 600, OVERTIME = 60, DOUBLE_AT = 120, TRIPLE_AT = 60, MAX_EL = 10, SIGHT = 6.5, HELP = 9.5;   // a 10 minute match: double Mana for the last two, triple for the last one
@@ -292,6 +292,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (p.melee && t.U.curse && !src.U.twr) src.mk = Math.max(src.mk, T(t.U.curse));
       if (u.rob && !t.U.bld && src.hp > 0){ const vp = players[t.pid], mp = players[src.pid]; if (vp && mp && tm(t.pid) !== tm(src.pid)){ const a = Math.min(vp.el, u.rob); if (a > 0){ vp.el -= a; mp.el = Math.min(MAX_EL, mp.el + a); emit({e:'mana', id:src.id, amt:+a.toFixed(2), pid:src.pid, steal:1}); } } }
       if (u.siphon && src.hp > 0){ let w = null; for (const o of ents) if (o.team === src.team && o !== src && o.hp > 0 && !o.U.bld && o.hp < o.max && Math.hypot(o.x - src.x, o.z - src.z) <= u.siphon.r && (!w || o.hp / o.max < w.hp / w.max)) w = o; if (w){ w.hp = Math.min(w.max, w.hp + p.dmg * u.siphon.frac); emit({e:'heal', id:w.id, r:1}); } }
+      if (u.lock && t.U.bld && t.hp > 0) t.frz = Math.max(t.frz, T(u.lock));      // the door is locked: that building or tower cannot fire for a moment
       if (u.leech && t.U.twr){ const pl = players[src.pid]; if (pl){ pl.el = Math.min(MAX_EL, pl.el + u.leech); emit({e:'mana', id:src.id, amt:u.leech, pid:src.pid, steal:1}); } }
     }
     if (p.eject && t.hp > 0 && !t.U.twr){ t.x = clamp(t.x * .45, -2.6, 2.6); t.z = (t.team === 0 ? 1 : -1) * (L - 5.6); t.frz = Math.max(t.frz, T(1)); t.tgt = 0; t.lock = false; t.run = 0; t.chg = false; t.lp = 0; emit({e:'warp', id:t.id, x:t.x, z:t.z}); }      // sent off: back to its own king tower
