@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115p';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115p';
-import { createAI } from './ai.js?v=1115p';
-import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115p';
-import { Cloud, cloudWhy } from './cloud.js?v=1115p';
-import { sayFor, sayWhen } from './talk.js?v=1115p';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf } from './cards.js?v=1115r';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG } from './sim.js?v=1115r';
+import { createAI } from './ai.js?v=1115r';
+import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115r';
+import { Cloud, cloudWhy } from './cloud.js?v=1115r';
+import { sayFor, sayWhen } from './talk.js?v=1115r';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -66,7 +66,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115p'), import('./models.js?v=1115p')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115r'), import('./models.js?v=1115r')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -96,8 +96,12 @@ const lvl = id => P.cards[id] || 0;
 const curDeck = () => P.decks[P.deck];
 const myDeck = () => curDeck().map(id => ({id, lvl:Math.max(1, lvl(id))}));
 const myTower = () => Math.round(curDeck().reduce((a, id) => a + Math.max(1, lvl(id)), 0) / DECK_SIZE);
+/* On the ladder BDB scouts the deck in front of him: his cards and towers come up to within two levels of yours, so a deck upgraded far past its place on the ladder still gets a fight. */
+const CPU_GAP = 2, cpuLvl = c => c.rand ? c.lvl : Math.min(MAX_LVL, Math.max(c.lvl, myTower() - CPU_GAP)), cpuTower = c => c.rand ? c.tower || c.lvl : Math.max(c.tower || c.lvl, myTower() - CPU_GAP);
+/* and the soft towers of the first tier are for decks that belong there: bring cards more than a level above his and his towers are at full health */
+const cpuSoft = c => c.rand || !(c.soft < 1) || myTower() > c.lvl + 1 ? 1 : c.soft;
 /* a deck can stand part-built while it is being put together. These are the rules a part-built one still keeps, and the test for one that is ready to play. */
-const limitProblem = d => new Set(d.map(i => CARDS[i].base)).size !== d.length ? 'Only one version of each character per deck.' : OWN ? '' : d.filter(i => CARDS[i].rar === 'l').length > MAX_LEGEND ? `No more than ${MAX_LEGEND} Legendary cards per deck.` : d.filter(i => CARDS[i].rar === 'g').length > MAX_GOD ? 'Only one God to a deck.' : '';
+const limitProblem = d => new Set(d.map(i => CARDS[i].base)).size !== d.length ? 'Only one version of each character per deck.' : OWN ? '' : capProblem(d);
 const deckOK = (d = curDeck()) => d.length === DECK_SIZE && !deckProblem(d, !OWN);
 let deckMsg = '', pend = null, clearT = 0, slotOn = false;      // a line to show under the deck; a card waiting to take a place in a full deck; when "clear" was first pressed; an empty place was clicked
 /* a match needs a whole deck: true (and it says so, on the Deck tab) when the one in use is not finished */
@@ -114,7 +118,7 @@ const artOf = c => `art/${c.art}.webp`, hex = n => '#' + n.toString(16).padStart
 function cardEl(id, o = {}){
   const c = CARDS[id], b = document.createElement(o.div ? 'div' : 'button'), A = AFF[c.aff], T = TYPES[c.type], src = artOf(c);
   if (!o.div) b.type = 'button';
-  b.className = `card r-${c.rar}` + (o.cls ? ' ' + o.cls : ''); b.dataset.id = id; b.setAttribute('aria-label', c.name);
+  b.className = `card r-${c.rar}` + (o.lvl ? ' g' + gradeOf(o.lvl) : '') + (o.cls ? ' ' + o.cls : ''); b.dataset.id = id; b.setAttribute('aria-label', c.name);
   b.innerHTML = `<span class="cost">${c.cost}</span><img alt="" ${o.now ? '' : 'loading="lazy" '}decoding="async" src="${src}" onerror="this.style.visibility='hidden'">` + (A.tint != null ? `<i class="tint" style="--tc:${hex(A.tint)};-webkit-mask-image:url(${src});mask-image:url(${src})"></i>` : '') +
     `<i class="ty" style="--ty:${T.col}"></i>` + (c.n > 1 ? `<span class="cnt">x${c.n}</span>` : '') +
     (o.lvl ? `<span class="lv">Lv ${o.lvl}</span>` : '') + (o.tag ? `<span class="tagc${o.sale ? ' sale' : ''}">${o.tag}</span>` : `<span class="nm">${esc(c.name)}</span>`) + '<span class="veil"></span>' +
@@ -123,9 +127,9 @@ function cardEl(id, o = {}){
 }
 const typeChip = t => `<span class="tchip" style="--ty:${TYPES[t].col}">${esc(TYPES[t].name)}</span>`;
 /* which types a deck has enough of to earn their bonus, and how close the others are */
-function setsHTML(deck){
+function setsHTML(deck, brief){
   const n = typeCount(deck), bon = typeBonus(deck);
-  return Object.keys(n).sort((a, b) => n[b] - n[a]).map(t => { const nx = SET_AT.find(v => v > n[t]); return `<span class="set${bon[t] ? ' on' : ''}" style="--ty:${TYPES[t].col}"><b>${n[t]}</b>${esc(TYPES[t].name)}${bon[t] ? `<em>+${Math.round((bon[t] - 1) * 100)}%</em>` : nx ? `<small>${nx - n[t]} more for +${Math.round((SET_MUL[SET_AT.indexOf(nx)] - 1) * 100)}%</small>` : ''}</span>`; }).join('');
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).filter((t, i) => !brief || bon[t] || (n[t] >= 2 && i < 4)).map(t => { const nx = SET_AT.find(v => v > n[t]); return `<span class="set${bon[t] ? ' on' : ''}" style="--ty:${TYPES[t].col}"><b>${n[t]}</b>${esc(TYPES[t].name)}${bon[t] ? `<em>+${Math.round((bon[t] - 1) * 100)}%</em>` : nx ? `<small>${nx - n[t]} more for +${Math.round((SET_MUL[SET_AT.indexOf(nx)] - 1) * 100)}%</small>` : ''}</span>`; }).join('');
 }
 
 /* ---------- dialogs ---------- */
@@ -137,9 +141,43 @@ backdrop($('dlg'), () => { if (!dlg.lock) dlgClose(); });
 function confirmBox(title, text, yes, fn){ const b = dlg(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="k-row"><button type="button" class="k-btn primary" id="cy">${esc(yes)}</button><button type="button" class="k-btn" id="cn">Cancel</button></div>`); b.querySelector('#cy').onclick = () => { dlgClose(); fn(); }; b.querySelector('#cn').onclick = dlgClose; }
 function msgBox(title, text){ const b = dlg(`<h3>${esc(title)}</h3><p>${esc(text)}</p><div class="k-row"><button type="button" class="k-btn primary" id="nf">OK</button></div>`); b.querySelector('#nf').onclick = dlgClose; }
 
+/* ---------- rewards that do not hang on one match: the daily one, the win streak and the tower bounty ---------- */
+const DAILY = [{coins:150}, {pack:'bronze'}, {coins:300}, {pack:'silver'}, {coins:500, token:1}, {pack:'gold'}, {pack:'diamond', token:2}];      // seven days running, then round again. Miss a day and it starts over
+const BOUNTY = 10;                                        // enemy towers to take for a bounty pack
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const dayGap = (a, b) => Math.round((Date.parse(b + 'T12:00:00') - Date.parse(a + 'T12:00:00')) / 864e5);
+/* ready: can be taken now. day: the day (1 to 7) that is next to take. done: how many of this run are already in the bag */
+function dailyState(){
+  const d = P.daily, gap = d.day ? dayGap(d.day, today()) : 99;
+  return gap === 0 ? {ready:false, day:d.n % 7 + 1, done:d.n} : gap === 1 ? {ready:true, day:d.n % 7 + 1, done:d.n % 7} : {ready:true, day:1, done:0};
+}
+const streakMul = n => 1 + .1 * Math.min(5, Math.max(0, n - 1));      // the second win in a row pays 10% more coins, the sixth and every one after it 50% more
+const bountyPack = () => { const t = Math.floor(P.ladder / 100); return t < 2 ? 'silver' : t < 5 ? 'gold' : 'diamond'; };
+const rewardText = r => [r.coins ? `${fmt(r.coins)} coins` : '', r.pack ? `a ${PACK[r.pack].name}` : '', r.token ? `${r.token} upgrade ${r.token > 1 ? 'tokens' : 'token'}` : ''].filter(Boolean).join(' and ');
+function claimDaily(){
+  const st = dailyState(); if (!st.ready) return;
+  const r = DAILY[st.day - 1]; P.daily = {day:today(), n:st.day};
+  if (r.coins) P.coins += r.coins; if (r.token) P.tokens += r.token;
+  if (r.pack){ const got = openPack(PACK[r.pack]).map(grant); P.stats.packs++; save(); packReveal(PACK[r.pack], got, () => { dlgClose(); hub(); }); }
+  else { save(); BDB.sfx.big(); hub(); const b = dlg(`<div class="k-eyebrow">Daily reward, day ${st.day} of 7</div><h3>${esc(rewardText(r).replace(/^./, c => c.toUpperCase()))}</h3><p class="note">Come back tomorrow for day ${st.day % 7 + 1}: ${esc(rewardText(DAILY[st.day % 7]))}. Miss a day and it starts again from day 1.</p><div class="k-row"><button type="button" class="k-btn primary" id="dyX">Good</button></div>`); b.querySelector('#dyX').onclick = dlgClose; }
+}
+function claimBounty(){
+  if (P.bounty < BOUNTY) return;
+  const pk = PACK[bountyPack()]; P.bounty -= BOUNTY; P.bn++; P.stats.packs++;
+  const got = openPack(pk).map(grant); save(); packReveal(pk, got, () => { dlgClose(); hub(); });
+}
+function boonsUI(){
+  const el = $('boons'); if (!el) return;
+  const d = dailyState(), bp = PACK[bountyPack()], full = P.bounty >= BOUNTY, sb = Math.round((streakMul(P.streak + 1) - 1) * 100);
+  el.innerHTML = `<div class="boon${d.ready ? ' go' : ''}"><div class="ic day">${d.day}</div><div><b>Daily reward</b><small>${d.ready ? `Day ${d.day} of 7: ${esc(rewardText(DAILY[d.day - 1]))}.` : `Taken today. Tomorrow is day ${d.day}: ${esc(rewardText(DAILY[d.day - 1]))}.`}</small><div class="pips">${DAILY.map((_, i) => `<i${i < d.done ? ' class="on"' : ''}></i>`).join('')}</div></div>${d.ready ? '<button type="button" class="k-btn primary" id="dayGo">Claim</button>' : ''}</div>
+    <div class="boon"><div class="ic fire${P.streak ? '' : ' cold'}">${P.streak}</div><div><b>Win streak</b><small>${P.streak ? `${P.streak} in a row${P.best > P.streak ? `, best ${P.best}` : ''}. ${sb ? `The next win pays ${sb}% more coins.` : ''}` : 'Win two in a row and every win after pays extra coins, up to half as much again.'}</small></div></div>
+    <div class="boon${full ? ' go' : ''}"><div class="ic pack" style="--pc:${bp.col}">${Math.min(P.bounty, BOUNTY)}</div><div><b>Tower bounty</b><small>${full ? `Ten towers down. A ${esc(bp.name)} is yours.` : `${P.bounty} of ${BOUNTY} enemy towers taken. Ten earns a ${esc(bp.name)}.`}</small><div class="bar"><i style="width:${Math.min(100, P.bounty / BOUNTY * 100)}%"></i></div></div>${full ? '<button type="button" class="k-btn primary" id="bntGo">Open</button>' : ''}</div>`;
+  const dg = $('dayGo'), bg = $('bntGo'); if (dg) dg.onclick = claimDaily; if (bg) bg.onclick = claimBounty;
+}
+
 /* ---------- card sheet: what it is, what it does, buy, upgrade, put in deck ---------- */
 const KIND = {unit:'troop', build:'building', spell:'spell', trap:'trap'};
-const SPD = s => s <= 0 ? 'None' : s < 1.1 ? 'Slow' : s < 1.5 ? 'Medium' : s < 2 ? 'Fast' : 'Very fast';
+const SPD = v => { const s = v / PACE; return s <= 0 ? 'None' : s < 1.1 ? 'Slow' : s < 1.5 ? 'Medium' : s < 2 ? 'Fast' : 'Very fast'; };      // named from the listed speed, before the field-wide pace is applied
 const ORD = ['', '', 'second', 'third', 'fourth', 'fifth', 'sixth'];
 const pc = v => Math.round(v * 100) + '%', x10 = v => +(+v).toFixed(1), sec = v => x10(v) + 's';
 const uName = (k, n) => { const s = UNITS[k] ? UNITS[k].name : 'unit'; return n === 1 ? s : s + 's'; };
@@ -274,7 +312,8 @@ const statHTML = rows => rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</
 function sheet(id){
   const c = CARDS[id]; if (!c) return;
   const L = lvl(id), R = RAR[c.rar], price = priceNow(id), up = upgradeCost(id, L), box = $('sheetBox'), U = c.U, lines = U ? abil(U, lvlMul(Math.max(1, L))) : [];
-  const lvNote = !L ? 'You do not own this card yet.' : `Level ${L} of ${MAX_LVL}. ` + (L >= MAX_LVL ? 'Maxed out.' : c.trap ? (c.trap.dmg || c.trap.burst || c.trap.heal ? 'The next level adds 8% to what it does.' : 'Levels do not change this trap.') : c.spell && !(c.spell.dmg || c.spell.heal || c.spell.shield) ? 'Levels do not change this spell.' : 'The next level adds 8% health and damage.');
+  const pct = Math.round(LVL_STEP * 100), G = gradeOf(Math.max(1, L)), up2 = L < MAX_LVL && gradeOf(L + 1) > G ? ` and moves it up to ${GRADES[gradeOf(L + 1)]}` : '';
+  const lvNote = !L ? 'You do not own this card yet.' : `Level ${L} of ${MAX_LVL}, ${GRADES[G]} grade. ` + (L >= MAX_LVL ? 'Maxed out.' : c.trap ? (c.trap.dmg || c.trap.burst || c.trap.heal ? `The next level adds ${pct}% to what it does${up2}.` : 'Levels do not change this trap.') : c.spell && !(c.spell.dmg || c.spell.heal || c.spell.shield) ? 'Levels do not change this spell.' : `The next level adds ${pct}% health and damage${up2}.`);
   box.className = 'k-box sheetx r-' + c.rar;
   box.innerHTML = `<div class="sheet-top"><div></div><div><div class="rar">${R.name} ${KIND[c.kind]}, ${c.cost} Mana</div><h3>${esc(c.name)}</h3>
       <div class="chips">${typeChip(c.type)}${U ? `<span class="rchip">${esc(ROLE_NAME[U.role] || 'Troop')}</span>` : ''}</div></div></div>
@@ -349,14 +388,16 @@ function prizeChips(cpu, first){
   if (first && f.token) out.push(`<span class="pz tokz">${f.token} upgrade ${f.token > 1 ? 'tokens' : 'token'}</span>`);
   return out.join('');
 }
+const PAINTED = new Set(['ruins', 'glacier', 'citadel', 'yard', 'temple', 'keep', 'hollow', 'foundry', 'cinder', 'heavens']);      // the arenas with a painted floor: the next fight's is laid out beside it on the hub
 function hub(){
   if (!P) return;
   top();
   if (curTab === 'Battle'){
     const n = nextLevel(), all = P.ladder >= LEVELS, cpu = ladderCpu(n), T = TIERS[cpu.tier], h = $('hero');
     h.style.setProperty('--tc', T.col);
-    h.innerHTML = `<div class="pic"><b>${n}</b></div><div><small>${all ? 'All 1,000 beaten. Run the last one back' : `Level ${fmt(n)} of ${fmt(LEVELS)}, ${esc(T.name)} tier`}</small><h2>${esc(cpu.name)}</h2><p>${esc(cpu.tag)} ${esc(MAPS[cpu.map].name)}, level ${cpu.lvl} cards.</p><div class="pzrow">${prizeChips(cpu, !all)}</div><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
+    h.innerHTML = `${PAINTED.has(cpu.map) ? `<div class="hero-map" aria-hidden="true"><img alt="" src="maps/${cpu.map}.webp"></div>` : ''}<div class="pic"><b>${n}</b></div><div><small>${all ? 'All 1,000 beaten. Run the last one back' : `Level ${fmt(n)} of ${fmt(LEVELS)}, ${esc(T.name)} tier`}</small><h2>${esc(cpu.name)}</h2><p>${esc(cpu.tag)} ${esc(MAPS[cpu.map].name)}, level ${cpuLvl(cpu)} cards.</p><div class="pzrow">${prizeChips(cpu, !all)}</div><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
     $('heroGo').onclick = () => preCpu(cpu);
+    boonsUI();
     const road = $('road'), a = Math.max(1, Math.min(n - 2, LEVELS - 11)); road.innerHTML = '';
     for (let i = a; i < a + 12 && i <= LEVELS; i++){
       const pr = levelPrize(i), f = pr.first, st = i <= P.ladder ? 'done' : i === n ? 'next' : 'lock', b = document.createElement('button');
@@ -366,10 +407,13 @@ function hub(){
       road.appendChild(b);
     }
     $('tierLbl').textContent = `The ladder: ${fmt(P.ladder)} of ${fmt(LEVELS)}`;
+    // too strong for where you are? The tier's boss can be challenged at any time: beat him and every level under him is cleared
+    const boss = Math.ceil(n / 100) * 100, gapN = boss - n; $('skipRow').hidden = all || gapN < 1;
+    if (gapN >= 1){ $('skipNote').textContent = `Level ${fmt(boss)}, ${ladderCpu(boss).name}. Beat him and the ${gapN} ${gapN > 1 ? 'levels' : 'level'} before him ${gapN > 1 ? 'are' : 'is'} cleared, for half their coins and none of their packs or cards.`; $('skipGo').onclick = () => preCpu(ladderCpu(boss)); }
     $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><b>${esc(t.name)}</b><span>${i * 100 + 1} to ${(i + 1) * 100}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
     $('bDeckLbl').textContent = deckOK() ? `Deck ${P.deck + 1}, average ${avgCost(curDeck())} Mana` : `Deck ${P.deck + 1} is not finished: ${curDeck().length} of ${DECK_SIZE} cards`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
-    $('bSets').innerHTML = setsHTML(curDeck());
+    $('bSets').innerHTML = setsHTML(curDeck(), true);
     const qr = $('quickRow'); qr.innerHTML = '';
     for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small>${COIN}${sk.coins}</small><em>${sk.pack ? 'card and a pack' : sk.card ? 'and a card' : 'coins'}</em>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
   } else if (curTab === 'Deck'){
@@ -384,7 +428,7 @@ function hub(){
     const side = matchMedia('(min-width:1100px)').matches;
     $('deckHint').innerHTML = deckMsg ? `<span class="err">${esc(deckMsg)}</span>${pend ? ' <button type="button" class="link" id="swapX" style="padding:2px 6px">Cancel</button>' : ''}`
       : slotOn && d.length < DECK_SIZE ? `<b>Now pick a card from ${side ? 'your cards on the right' : 'your cards below'}.</b> It goes in the lit place.`
-      : `Click a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Legendary and God cards do not apply to this account' : `, no more than ${MAX_LEGEND} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
+      : `Click a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Rare, Epic, Legendary and God cards do not apply to this account' : `, and no more than ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
     const sx = $('swapX'); if (sx) sx.onclick = () => { pend = null; deckMsg = ''; hub(); };
     lists.own.draw();
   } else if (curTab === 'Market') market();
@@ -584,7 +628,7 @@ function signIn(p){
   if (!P.onboarded && !Q.get('skip')) return onboard();
   P.onboarded = true; if (OWN) save();
   show('scrHub'); tab('Battle'); hallStart();
-  const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else if (!ownerHello()) whatsNew();
+  const j = Q.get('join'); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else if (!ownerHello() && !whatsNew()) rulesNote();
 }
 /* the owner is told once what the account came with */
 function ownerHello(){
@@ -601,14 +645,31 @@ function ownerHello(){
 }
 /* anyone whose save came from the game as it was gets told, once, what changed */
 function whatsNew(){
-  if (!P.flags.moved || P.flags.told) return;
-  P.flags.told = 1; save();
+  if (!P.flags.moved || P.flags.told) return false;
+  P.flags.told = 1; P.flags.bal1 = 1; save();
   const b = dlg(`<div class="k-eyebrow">Big update</div><h3>Welcome back, ${esc(P.name)}</h3>
     <p>The game has been rebuilt around your save. Your cards came across as their new versions, and any character that left the game was paid out at 150 coins.</p>
     <ul class="abil"><li>Every character now has one rarity and one of twelve types. Stack a type in your deck and it fights harder.</li><li>The ladder is 1,000 levels, with packs, cards and tower upgrades along the way.</li>
     <li>The Market sells card packs and ${THEME_DECKS.length} ready-made decks.</li><li>Mana comes in faster every two minutes of a match: x1.5, x2, x2.5, then triple for the last two.</li></ul>
     <div class="k-row"><button type="button" class="k-btn primary" id="wnOk">Show me</button></div>`);
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
+  return true;
+}
+/* a save from before the rebalance is told once what changed */
+function rulesNote(){
+  if (P.flags.bal1) return false;
+  P.flags.bal1 = 1; save();
+  const short = P.decks.some(d => d.length && d.length < DECK_SIZE);
+  const b = dlg(`<div class="k-eyebrow">Rebalanced</div><h3>The rules changed, ${esc(P.name)}</h3>
+    <ul class="abil"><li>Towers are much tougher and troops walk slower, so a match is a fight and not a sprint.</li>
+    <li>Flyers pay for their wings with less health, damage and speed. Nothing with a sword can reach them, and they had been winning far too much.</li>
+    <li>A card level adds ${Math.round(LVL_STEP * 100)}% now, not 8%. Every two levels a card changes colour: bronze, silver, gold, diamond.</li>
+    <li>${OWN ? 'Decks are limited to 7 Rare, 5 Epic, 3 Legendary and 1 God. Not yours: this account has no limits.' : `A deck holds at most ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and 1 God.${short ? ' A deck of yours was over that and has lost cards: fill it back up on the Deck tab.' : ''}`}</li>
+    <li>New on the Battle tab: a daily reward, a win streak that pays extra coins, a pack for every ten towers you take, and a way to skip to the tier boss.</li>
+    <li>BDB plays quicker at the bottom of the ladder and saves up for proper pushes at the top.</li></ul>
+    <div class="k-row"><button type="button" class="k-btn primary" id="rnOk">Got it</button></div>`);
+  b.querySelector('#rnOk').onclick = dlgClose;
+  return true;
 }
 $('newGo').onclick = () => {
   const n = Accounts.cleanName($('newName').value);
@@ -732,14 +793,14 @@ function preCpu(cpu){
   const ladder = !cpu.rand, first = ladder && cpu.level > P.ladder, prize = first || cpu.card ? weightedPick(cpu.deck, id => DRAW_W[CARDS[id].rar]) : null, map = MAPS[cpu.map], T = ladder ? TIERS[cpu.tier] : null;
   const b = dlg(`<div class="k-eyebrow">${esc(map.name)}. ${esc(map.blurb)}</div>
     <div class="vs"><div class="side"><div class="av me">${esc(P.name[0].toUpperCase())}</div>${esc(P.name)}</div><div class="mid">VS</div><div class="side"><div class="av"${T ? ` style="--tc:${T.col}"` : ''}></div>${esc(cpu.name)}</div></div>
-    <p class="note" style="margin:0">${ladder ? `Level ${fmt(cpu.level)}, ${esc(T.name)} tier. ` : ''}${esc(cpu.tag)} His cards are level ${cpu.lvl}.</p>
+    <p class="note" style="margin:0">${ladder ? `Level ${fmt(cpu.level)}, ${esc(T.name)} tier. ` : ''}${esc(cpu.tag)} His cards are level ${cpuLvl(cpu)}${cpuLvl(cpu) > cpu.lvl ? ', brought up to match your deck' : ''}.${cpuSoft(cpu) < 1 ? ` This early on his towers have ${Math.round(cpuSoft(cpu) * 100)}% of their full health.` : ''}</p>
     <div class="pzrow">${prizeChips(cpu, first)}</div>
     ${prize ? '<div class="big-card spin" id="vsPrize" style="width:112px"></div><p class="note" id="vsLine">Drawing one of his cards.</p>' : `<p class="note">${ladder ? 'You have beaten this level before, so it pays half the coins and no card.' : 'Lose and you still get a few coins for showing up.'}</p>`}
     <div class="k-row"><button type="button" class="k-btn primary big" id="vsGo">Start</button><button type="button" class="k-btn" id="vsNo">Back</button></div>`);
   const slot = b.querySelector('#vsPrize'); let n = 0, iv = 0;
   if (slot) iv = setInterval(() => { const fin = ++n >= 10; slot.innerHTML = ''; slot.appendChild(cardEl(fin ? prize : pick(cpu.deck), {div:true, now:true})); if (fin){ clearInterval(iv); slot.classList.remove('spin'); BDB.sfx.pop(); const l = b.querySelector('#vsLine'); if (l) l.textContent = `Beat him and ${CARDS[prize].name} is yours. Lose and you keep everything.`; } else BDB.sfx.tick(); }, BDB.reduced ? 10 : 110);
   b.querySelector('#vsNo').onclick = () => { clearInterval(iv); dlgClose(); };
-  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu, first, prize, map:cpu.map, oppName:cpu.name, units:unitsOf([...curDeck(), ...cpu.deck])}); };
+  b.querySelector('#vsGo').onclick = () => { clearInterval(iv); dlgClose(); begin({mode:'cpu', cpu:{...cpu, lvl:cpuLvl(cpu), tower:cpuTower(cpu), soft:cpuSoft(cpu)}, first, prize, map:cpu.map, oppName:cpu.name, units:unitsOf([...curDeck(), ...cpu.deck])}); };
 }
 
 /* ---------- the match ---------- */
@@ -765,7 +826,7 @@ async function begin(o){
   } else if (o.mode === 'cpu'){                           // against BDB your player upgrades count; online everyone is even
     const c = o.cpu, k = P.perks;
     B.sim = createSim({map:o.map, decks:[myDeck(), c.deck.map(id => ({id, lvl:c.lvl}))], seed:(Math.random() * 2 ** 31) | 0, elMul:[1 + k.flow * PERKS.flow.per, c.ai.el], towerLvl:[myTower(), c.tower || c.lvl],
-      boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}], start:[5 + k.start * PERKS.start.per, 5]});
+      boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}, {hp:c.soft || 1}], start:[5 + k.start * PERKS.start.per, 5]});
     B.ai = createAI(B.sim, 1, c.ai);
   }
   hud(true);
@@ -1040,7 +1101,8 @@ function finish(w, cr, why){
       if (B.prize){ got.push(grant(B.prize)); P.stats.won++; }
       if (c.rand){ if (c.pack) pack = PACK[c.pack]; }
       else if (B.first){
-        const f = c.first || {}; P.ladder = Math.max(P.ladder, c.level);
+        const f = c.first || {}, was = P.ladder; P.ladder = Math.max(P.ladder, c.level);
+        if (c.level > was + 1){ let sk = 0; for (let i = was + 1; i < c.level; i++) sk += levelPrize(i).coins; sk = Math.round(sk / 2 / 10) * 10; coins += sk; lines.push(`${c.level - was - 1} levels skipped: ${fmt(sk)} coins for them.`); }
         lines.push(c.level >= LEVELS ? 'That was the last one. The whole ladder is yours.' : c.boss ? `${c.name} is down. ${TIERS[c.tier + 1].name} tier is open.` : `Level ${fmt(c.level)} cleared.`);
         if (f.rar) got.push(grant(rollCard(f.rar)));
         if (f.token){ P.tokens += f.token; tokens = f.token; }
@@ -1053,6 +1115,11 @@ function finish(w, cr, why){
     else if (win){ coins = 150; P.trophies += 30; P.stats.ow++; lines.push('+30 trophies'); } else if (draw){ coins = 50; } else { coins = 25; P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies'); }
     endOnline();
   }
+  // on top of the match itself: all three towers pays extra, a win streak pays extra, and every tower taken counts towards the bounty pack
+  if (win && mine >= 3 && B.mode === 'cpu'){ coins *= 1.25; lines.push('All three towers: 25% more coins.'); }
+  if (win){ P.streak++; P.best = Math.max(P.best, P.streak); const m = streakMul(P.streak); if (m > 1){ coins *= m; lines.push(`Win streak ${P.streak}: ${Math.round((m - 1) * 100)}% more coins.`); } }
+  else if (!draw) P.streak = 0;
+  if (mine > 0){ P.bounty = Math.min(999, P.bounty + mine); lines.push(P.bounty >= BOUNTY ? `Tower bounty full: a ${PACK[bountyPack()].name} is waiting on the Battle tab.` : `Tower bounty ${P.bounty} of ${BOUNTY}.`); }
   const packGot = pack ? openPack(pack).map(grant) : null; if (pack) P.stats.packs++;
   if (why) lines.unshift(why);
   coins = Math.round(coins); P.coins += coins; save();
@@ -1294,7 +1361,7 @@ window.__game = {
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
   ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ B.ai.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach

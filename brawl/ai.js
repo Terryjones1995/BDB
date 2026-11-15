@@ -1,14 +1,15 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul } from './cards.js?v=1115p';
-import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1115p';
+import { CARDS, lvlMul } from './cards.js?v=1115r';
+import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1115r';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 export function createAI(sim, team, prof, rnd = Math.random, pid = team){
   const s = team === 0 ? 1 : -1;                 // f = z * s is "how deep on my own side"
   const edge = riverOf(sim.map) + .8;
-  let wait = Math.round((2.5 + prof.react) * TPS), hot = null;      // hot: the lane the other side last pushed down
+  let wait = Math.round((1.5 + prof.react) * TPS), hot = null;      // hot: the lane the other side last pushed down
+  const urgent = Math.round(Math.min(prof.react, .45 + prof.react * .3) * TPS);      // how soon he looks up when something is at his towers
   const seen = new Set(), warded = new Set();    // spells he has watched the other side cast, and the ones he has already answered
   const P = () => sim.players[pid];
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -88,11 +89,13 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     for (const e of sim.ents){ if (e.hp <= 0 || (e.hid && e.team !== team)) continue; (e.U.twr ? (e.team === team ? myTw : eTw) : e.U.bld ? (e.team === team ? myBld : eBld) : (e.team === team ? mine : foes)).push(e); }
     const is = (h, f) => h.U && f(h.U), kind = k => hand.find(h => h.card.kind === 'spell' && h.card.spell.kind === k);
 
-    if (rnd() < prof.derp){                       // the "I meant to do that" play
+    if (rnd() < prof.derp){                       // the "I meant to do that" play: whatever comes to hand, down whichever lane. Careless, but still a play
       if (p.el < Math.min(prof.hold, 9.5)) return;
-      const h = hand[Math.floor(rnd() * hand.length)];
-      if (h.card.kind === 'spell'){ const all = foes.concat(eTw), t = all[Math.floor(rnd() * all.length)]; return t ? put(h, t.x + (rnd() - .5) * 4, t.z * s + (rnd() - .5) * 4) : false; }
-      return put(h, (rnd() * 2 - 1) * 7, edge + rnd() * 10);
+      const any = hand.filter(h => h.U && !h.U.mana);
+      if (any.length){
+        const h = any[Math.floor(rnd() * any.length)], side = rnd() < .5 ? -1 : 1;
+        return h.U.bld ? put(h, side * rnd() * 4, edge + 2 + rnd() * 5) : put(h, side * (4.5 + rnd() * 2), rnd() < .6 ? edge + .4 : edge + 2 + rnd() * 9);
+      }
     }
 
     // 1. a spell that finishes a tower, lands on a crowd, or takes out a Mana farm
@@ -146,6 +149,7 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
         for (const h of hand){
           if (!h.U) continue;
           const U = h.U, n = h.card.n;
+          if (U.mana || U.only === 'b' || (!U.air && air > .99)) continue;      // however little thought goes into it: not a Mana farm, not a wall-breaker, and nothing that cannot reach what is coming
           let sc = 1 + (rnd() - .5) * (1.2 - prof.smart);
           if (!U.air) sc *= 1 - air * .95;
           if (!U.dmg) sc *= U.spawn ? .6 : pull && U.bld && !U.mana && !U.heal && !U.aura ? 1.9 : .05;        // a wall is only worth it in front of something that only wants buildings
@@ -168,6 +172,10 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
           const back = U.bld ? 4 : U.land && (U.land.dmg || U.land.stun || U.land.slow) ? 0 : U.rng > 2 ? 3.6 : 1.4;
           let x = lead.x + dx / d * back, f = lead.z * s + df / d * back;
           if (U.bld){ x = lead.x * .45; f = Math.max(edge + 2.2, Math.min(f, 6.5)); }
+          else if (U.rng <= 2 && rnd() < prof.smart){                    // a fighter goes down on top of whoever is shooting from the back, not in front of the line to be shot at on the way in
+            const soft = threats.filter(o => o.U.rng > 2 && o.max < 700 && o.z * s >= edge && (!o.U.fly || U.air)).sort((a, b) => a.hp - b.hp)[0];
+            if (soft && !(lead.max >= 900 && dist(lead, k) < 4)){ x = soft.x; f = soft.z * s + .3; }      // unless something big is already at the tower: that comes first
+          }
           return put(best, x, Math.max(f, edge));
         }
       }
@@ -228,8 +236,20 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     if (p.el >= 9.5){
       const d = hand.find(h => h.U && h.U.bld && h.U.dmg); if (d) return put(d, laneX * .45, edge + 3 + rnd() * 2);
       const sh = hand.find(h => h.card.kind === 'spell' && h.card.spell.dmg > 0 && h.card.spell.twr > 0); if (sh && tgt) return put(sh, tgt.x, tgt.z * s);
+      const any = hand.filter(h => h.U).sort((a, b) => a.card.cost - b.card.cost)[0];                       // a full bar earns nothing: the cheapest thing in hand goes down to turn the deck over
+      if (any) return put(any, any.U.bld ? laneX * .45 : laneX, any.U.bld ? edge + 3 + rnd() * 2 : L - 3);
     }
   }
+  /* is anything of theirs deep in his half? */
+  const alarm = () => { for (const e of sim.ents) if (e.team !== team && e.hp > 0 && e.dep <= 0 && !e.U.twr && !e.U.bld && !e.hid && e.z * s > 5.5) return true; return false; };
 
-  return { tick(){ if (sim.over) return; if (prof.smart >= .35) reflex(); else for (const zn of sim.zones) if (zn.team !== team && zn.spell) seen.add(zn.kind); if (--wait > 0) return; wait = Math.round(prof.react * (.7 + rnd() * .6) * TPS); decide(); } };
+  return { tick(){
+    if (sim.over) return;
+    if (prof.smart >= .35) reflex(); else for (const zn of sim.zones) if (zn.team !== team && zn.spell) seen.add(zn.kind);
+    if (wait > urgent && (sim.tick + pid) % 5 === 0 && alarm()) wait = urgent;          // a push at his towers does not wait for his next thought
+    if (--wait > 0) return;
+    const el = P().el;                                                                  // and with Mana piling up he thinks faster: nothing is gained by sitting on a full bar
+    wait = Math.max(4, Math.round(prof.react * (.7 + rnd() * .6) * TPS * (el >= 8.5 ? .45 : el >= 6.5 ? .7 : 1)));
+    decide();
+  } };
 }

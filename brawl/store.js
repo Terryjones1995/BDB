@@ -1,7 +1,7 @@
 /* Break Room Brawl: player accounts.
    A player is a named save on this device (localStorage), with a save code to carry it to another device, and an online copy when they have an account (cloud.js).
    Everything that reads a save goes through sanitize(), so a bad or old save can never break the game: it is repaired or brought up to date instead. */
-import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, MAX_LEGEND, MAX_GOD, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115p';
+import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, RAR_CAP, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115r';
 
 const KEY = 'brawl-accounts-v2';
 function sum(s){ let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
@@ -18,9 +18,12 @@ function write(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); return tr
 export function fresh(name){
   const cards = {}; for (const c of STARTERS) cards[c] = 1;
   return {v:3, name:clean(name, 20) || 'Player', coins:START_COINS, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, (_, i) => i ? [] : STARTERS.slice()), deck:0,
-    ladder:0, tokens:0, perks:Object.fromEntries(PERK_IDS.map(k => [k, 0])), stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0, packs:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1, dk:1}};
+    ladder:0, tokens:0, perks:Object.fromEntries(PERK_IDS.map(k => [k, 0])), stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0, packs:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1, dk:1, bal1:1},
+    daily:{day:'', n:0}, streak:0, best:0, bounty:0, bn:0};
   // cards: id -> level. decks: the first holds the starter deck, the others start empty; a deck may be part-built (it only has to be whole to play a match).
   // ladder: the highest level beaten. tokens: unspent player upgrades. flags: one-off announcements already seen (dk: saved since decks could be part-built)
+  // daily: the day (local, YYYY-MM-DD) the daily reward was last taken and how many days running. streak / best: wins in a row now and ever.
+  // bounty: enemy towers taken since the last bounty pack. bn: bounty packs opened
 }
 /* a card id from any version of the game, as today's id (or null if that character is gone) */
 export function cardId(k){
@@ -47,11 +50,11 @@ export function sanitize(p){
   if (Array.isArray(p.decks)) for (let i = 0; i < DECK_SLOTS; i++){
     const src = p.decks[i]; if (!Array.isArray(src)) continue;
     // keep every card that is real, owned and within the deck rules, in the order it was in
-    const d = [], seen = new Set(), free = isOwner(o.name); let leg = 0, god = 0;
+    const d = [], seen = new Set(), free = isOwner(o.name), n = {};
     for (const k of src){
       const c = cardId(k); if (!c || d.length >= DECK_SIZE || !(o.cards[c] > 0)) continue;
-      const C = CARDS[c]; if (seen.has(C.base) || (!free && ((C.rar === 'l' && leg >= MAX_LEGEND) || (C.rar === 'g' && god >= MAX_GOD)))) continue;
-      seen.add(C.base); if (C.rar === 'l') leg++; else if (C.rar === 'g') god++; d.push(c);
+      const C = CARDS[c]; if (seen.has(C.base) || (!free && (n[C.rar] || 0) >= (RAR_CAP[C.rar] ?? 99))) continue;      // one version of a character, and no more of a rarity than a deck may hold
+      seen.add(C.base); n[C.rar] = (n[C.rar] || 0) + 1; d.push(c);
     }
     if (partOK) o.decks[i] = d;
     else if (i > 0 && d.join() === STARTERS.join()) o.decks[i] = [];        // an older save filled every spare slot with the starter deck: hand those back empty
@@ -60,8 +63,10 @@ export function sanitize(p){
   for (const d of o.decks) for (const c of d) o.cards[c] = Math.max(1, o.cards[c] || 0);          // a deck slot that fell back to the starter deck brings its cards with it
   o.deck = int(p.deck, 0, DECK_SLOTS - 1, 0); o.onboarded = p.onboarded !== false;
   if (p.friends && typeof p.friends === 'object'){ let n = 0; for (const k in p.friends){ const nm = clean(k, 20); if (nm && n++ < 200) o.friends[nm] = int(p.friends[k], 0, 9e15, 0); } }
+  if (p.daily && typeof p.daily === 'object') o.daily = {day:/^\d{4}-\d{2}-\d{2}$/.test(p.daily.day) ? p.daily.day : '', n:int(p.daily.n, 0, 7, 0)};
+  o.streak = int(p.streak, 0, 99999, 0); o.best = Math.max(o.streak, int(p.best, 0, 99999, 0)); o.bounty = int(p.bounty, 0, 999, 0); o.bn = int(p.bn, 0, 99999, 0);
   o.flags = {}; if (p.flags && typeof p.flags === 'object') for (const k in p.flags) if (/^[a-z0-9]{1,12}$/.test(k) && p.flags[k]) o.flags[k] = 1;
-  o.flags.dk = 1;
+  o.flags.dk = 1; if (!(p.flags && p.flags.bal1)) delete o.flags.bal1;      // bal1: has been told about the rebalance (a save from before it has not)
   if (old) o.flags.moved = 1;                             // tell them once what changed
   if (p.stats && typeof p.stats === 'object') for (const k in o.stats) o.stats[k] = int(p.stats[k], 0, 9999999, 0);
   return o;

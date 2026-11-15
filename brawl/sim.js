@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115p';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115r';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -119,7 +119,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (o.hp <= 0){ kill(o, src); return; }
     if (o.U.morph && o.hp <= o.max * o.U.morph.at){ morph(o); return; }
     // someone is hitting me: unless I am busy with a fight of my own, turn on them rather than walk on
-    if (src && src.hp > 0 && how === 'hit' && !o.U.bld && o.U.only !== 'b' && o.U.dmg && ok(o, src)){
+    if (src && src.hp > 0 && how === 'hit' && !o.U.bld && o.U.only !== 'b' && o.U.dmg && ok(o, src) && !(src.key === 'princess' && o.ln && (src.x > 0) !== (o.ln > 0))){      // (not on the far guard tower: a troop keeps to its side even under fire)
       const cur = byId.get(o.tgt);
       if (!(o.lock && cur && cur.hp > 0 && !cur.U.bld) && gap(o, src) <= SIGHT + 3){ o.tgt = src.id; o.lock = false; }
     }
@@ -574,8 +574,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (s.again) zones.push({...zn, dmg:zn.dmg * s.again, t:T(s.delay + 1.3), spell:false, live:0, pool:null});     // Toxic: it lingers and lands again
       emit({e:'spell', k:s.kind, id:c.id, x, z, r:s.r, d:s.delay, team, t:s.rage || s.freeze || s.dur || 0, rar:card.rar, aff:card.aff});
     } else {
-      const n = card.n, rad = n > 1 ? .3 + .13 * n : 0; let first = 0;
-      for (let i = 0; i < n; i++){ const a = i / n * 6.283 + .5; const e = add(card.us ? card.us[i % card.us.length] : card.u, team, x + Math.cos(a) * rad, z + Math.sin(a) * rad, c.lvl, card.rar === 'g' ? DEPLOY + 24 : card.rar === 'l' ? DEPLOY + 14 : DEPLOY, card.aff, pid, bm); if (card.U.any) ashore(e, z); else constrain(e, x, z); first = first || e.id; }
+      const n = card.n, crowd = n > 8; let first = 0;                          // a few stand in a ring; a crowd fills a disc from the middle out
+      for (let i = 0; i < n; i++){ const a = crowd ? i * 2.39996 + .5 : i / n * 6.283 + .5, rad = crowd ? .34 * Math.sqrt(i + .6) : n > 1 ? .3 + .13 * n : 0; const e = add(card.us ? card.us[i % card.us.length] : card.u, team, x + Math.cos(a) * rad, z + Math.sin(a) * rad, c.lvl, card.rar === 'g' ? DEPLOY + 24 : card.rar === 'l' ? DEPLOY + 14 : DEPLOY, card.aff, pid, bm); if (card.U.any) ashore(e, z); else constrain(e, x, z); first = first || e.id; }
       emit({e:'drop', id:c.id, x, z, team, rar:card.rar, u:first, pid});
     }
     return true;

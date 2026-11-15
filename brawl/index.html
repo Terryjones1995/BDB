@@ -256,6 +256,10 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
   background:radial-gradient(ellipse 80% 120% at 85% 50%,#7fd24a 0,#3f9a2e 60%,#2a7a22 100%);box-shadow:inset 0 4px 0 rgba(255,255,255,.35),0 7px 0 var(--ink2)}
 .hero::before{content:"";position:absolute;inset:0;background:repeating-conic-gradient(from 0deg at 100% 50%,rgba(255,255,255,.1) 0 8deg,transparent 8deg 16deg);pointer-events:none}
 .hero > *{position:relative}
+/* the arena the next fight is on, laid flat and seen from the stands */
+.hero > .hero-map{position:absolute;right:26px;top:50%;width:400px;height:206px;margin-top:-112px;transform:perspective(620px) rotateX(50deg);pointer-events:none;filter:drop-shadow(0 14px 10px rgba(4,10,30,.45))}
+.hero-map img{position:absolute;left:50%;top:50%;height:400px;width:auto;max-width:none;transform:translate(-50%,-50%) rotate(90deg);border-radius:14px}
+@media (max-width:1180px){ .hero > .hero-map{display:none} }
 .hero .pic{width:104px;height:104px;border-radius:50%;background:url(../assets/face.jpg) center 32%/cover}
 .hero small{display:block;font:400 14px/1 var(--f-game);color:#fff7c2;text-shadow:var(--stroke);margin-bottom:6px}
 .hero h2{margin:0 0 4px;font:400 30px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
@@ -402,8 +406,30 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .bgrid{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);align-items:start}
 .bgrid .hero{margin:0}
 .bgrid .panel:last-child{margin-bottom:0}
-@media (min-width:900px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)} .bgrid .hero,.bgrid .c3{grid-column:1/-1} .bgrid .c3{display:grid;grid-template-columns:1fr 1fr;gap:16px} .bgrid .c3 .panel{margin:0} }
-@media (min-width:1280px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.8fr)} .bgrid .hero{grid-column:1/3} .bgrid .c3{grid-column:3;grid-row:1/3;display:block} .bgrid .c3 .panel{margin-bottom:16px} }
+@media (max-width:899px){ .bgrid .c1{order:5} }      /* on a phone: the fight, the rewards, your deck, the other ways to play, then the long ladder list */
+@media (min-width:900px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)} .bgrid .hero,.bgrid .boons,.bgrid .c3{grid-column:1/-1} .bgrid .c3{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px} .bgrid .c3 .panel{margin:0} }
+@media (min-width:1280px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.8fr)} .bgrid .hero,.bgrid .boons{grid-column:1/3} .bgrid .c3{grid-column:3;grid-row:1/4;display:block} .bgrid .c3 .panel{margin-bottom:16px} }
+/* standing rewards: the daily one, the win streak, the tower bounty */
+.boons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.boon{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:12px 14px;border-radius:18px;border:3px solid var(--ink2);background:linear-gradient(180deg,#2c6ad6,#1a429e);box-shadow:inset 0 3px 0 rgba(255,255,255,.24),0 5px 0 var(--ink2)}
+.boon.go{background:linear-gradient(180deg,#3c8a3a,#1f5a2a)}
+.boon .ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font:400 24px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);border:3px solid var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.35)}
+.boon .ic.day{background:linear-gradient(180deg,#ffd23f,#d98a10)}
+.boon .ic.fire{background:linear-gradient(180deg,#ff8a3c,#c9281c)}
+.boon .ic.fire.cold{background:linear-gradient(180deg,#6f83b5,#3a4a78)}
+.boon .ic.pack{background:linear-gradient(180deg,color-mix(in srgb,var(--pc,#c5cede) 82%,#fff),color-mix(in srgb,var(--pc,#c5cede) 60%,#0a1430))}
+.boon b{display:block;font:400 17px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.boon small{display:block;margin-top:3px;font:700 12px/1.35 var(--f-body);color:#d6e4ff}
+.boon .k-btn{padding:9px 16px 8px;font-size:16px}
+.boon .pips{display:flex;gap:4px;margin-top:7px}
+.boon .pips i{flex:1;height:6px;border-radius:3px;background:rgba(6,18,58,.6)}
+.boon .pips i.on{background:#ffd23f}
+.boon .bar{height:8px;margin-top:7px;border-radius:4px;background:rgba(6,18,58,.6);overflow:hidden}
+.boon .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#ffd23f,#ff9d3c)}
+@media (max-width:1000px){ .boons{grid-template-columns:1fr} }
+.skip{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.skip .k-btn{flex:none;padding:8px 14px;font-size:15px}
+.skip .note{margin:0}
 .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .quick .k-btn{padding:10px 4px 8px;font-size:16px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .quick small{font:800 11px/1 var(--f-body);color:#fff7c2;text-shadow:none;display:flex;align-items:center}
@@ -465,6 +491,13 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .card .cost::after{content:"";position:absolute;left:11px;top:17px;width:8px;height:5px;border-radius:50%;background:rgba(255,255,255,.75);transform:rotate(-35deg);z-index:-1}
 .card .lv{z-index:3;right:-5px;top:-7px;border:2px solid var(--ink2);border-radius:9px;background:linear-gradient(180deg,#27408a,#101f52);padding:3px 6px 2px;font-size:11px}
 .card .veil{display:none}
+/* an upgraded card shows it: every two levels its name plate and level badge move up a colour (bronze, silver, gold, diamond) */
+.card.g1 .nm,.card.g1 .lv{background:linear-gradient(180deg,#c9803f,#6e3a12)}
+.card.g2 .nm,.card.g2 .lv{background:linear-gradient(180deg,#b4c0d4,#56637c)}
+.card.g3 .nm,.card.g3 .lv{background:linear-gradient(180deg,#f0bd22,#96630a)}
+.card.g4 .nm,.card.g4 .lv{background:linear-gradient(180deg,#5fe0ff,#1273a8)}
+.card.g1 .lv,.card.g2 .lv,.card.g3 .lv,.card.g4 .lv{color:#fff}
+.card.g4 .nm{box-shadow:inset 0 2px 0 rgba(255,255,255,.55),0 -2.5px 0 var(--ink2)}
 .card.inuse::after{z-index:5}
 .card.dim{opacity:.55}
 /* a price under a card on a shelf: the card keeps its name */
@@ -818,11 +851,13 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 
     <div id="tabBattle" class="bgrid">
       <div class="hero" id="hero"></div>
+      <div class="boons" id="boons"></div>
       <div class="c1">
         <div class="panel">
           <span class="k-label" id="tierLbl">The ladder</span>
           <div class="road" id="road"></div>
           <p class="note" style="margin:2px 0 10px">A thousand levels, ten tiers. The first win on a level pays in full and you take one of his cards. Packs and upgrade tokens are marked on the way.</p>
+          <div class="skip" id="skipRow" hidden><button type="button" class="k-btn" id="skipGo">Skip to the boss</button><span class="note" id="skipNote"></span></div>
           <div class="tiers" id="tiers"></div>
         </div>
       </div>
@@ -832,13 +867,13 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
           <div class="grid eight" id="bDeck"></div>
           <div class="sets" id="bSets" style="margin-top:12px"></div>
         </div>
+      </div>
+      <div class="c3">
         <div class="panel">
           <span class="k-label">Quick battle</span>
           <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. The better he is, the more a win pays.</p>
           <div class="quick" id="quickRow"></div>
         </div>
-      </div>
-      <div class="c3">
         <div class="panel">
           <span class="k-label">Play online</span>
           <p class="note" style="margin:0 0 10px">Play a real person with your current deck, or team up with a friend for 2v2 against two BDBs.</p>
@@ -948,6 +983,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115p"></script>
+<script type="module" src="main.js?v=1115r"></script>
 </body>
 </html>
