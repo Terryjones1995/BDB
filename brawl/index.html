@@ -14,7 +14,7 @@
 <style>
 .scr{position:fixed;inset:0;display:flex;flex-direction:column;min-width:0}
 .k-top .k-brand{white-space:nowrap}
-.coin{display:inline-block;width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b8,#f2c14e 45%,#a8780e);box-shadow:0 0 0 1px #7a5608;vertical-align:-2px;margin-right:4px}
+.coin{display:inline-block;width:18px;height:18px;background:url(ui/coin-s.webp) center/contain no-repeat;vertical-align:-4px;margin-right:4px}      /* small: the coin face-on. Big ones (.rw-pic, .bigcoin, the bar at the top) use the tilted one */
 .h2{font:400 22px/1.1 var(--f-display);letter-spacing:.01em;margin:0 0 4px}
 .h2 span{color:var(--orange)}
 .sub{color:var(--muted);font:600 13px/1.4 var(--f-body);margin:0 0 12px}
@@ -191,11 +191,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 #scrHub,#scrLogin{background:radial-gradient(ellipse 120% 70% at 50% -10%,#4aa0ff 0,#1f5fd0 42%,#0d2f86 100%)}
 #scrHub::before,#scrLogin::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;background:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 26px,transparent 26px 52px)}
 #scrHub > *,#scrLogin > *{position:relative}
-#scrHub .k-top{background:linear-gradient(180deg,#123a8e,#0b2666);border-bottom:3px solid var(--ink2);box-shadow:0 3px 0 rgba(255,255,255,.12) inset}
-#scrHub .k-brand{font-family:var(--f-game);font-size:24px;color:#fff;text-shadow:var(--stroke);letter-spacing:.02em}
-#scrHub .k-brand span{color:#ffd23f}
 #scrHub .k-pill{background:#0a1e52;border:2px solid var(--ink2);box-shadow:inset 0 2px 0 rgba(255,255,255,.14);color:#fff}
-#scrHub .k-home{color:#cfe1ff}
 .panel{background:linear-gradient(180deg,#2f79e6,#1d50b4);border:3px solid var(--ink2);border-radius:20px;box-shadow:inset 0 3px 0 rgba(255,255,255,.28),0 6px 0 var(--ink2);padding:16px}
 .panel > .k-label,.deckbar .k-label,.k-label{font:400 17px/1 var(--f-game);letter-spacing:.03em;text-transform:none;color:#fff;text-shadow:var(--stroke)}
 .note,.sub{color:#d6e6ff}
@@ -234,18 +230,57 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 @media (hover:none){ .card .inf{opacity:1} }
 .card.pend{outline:4px solid #fff;outline-offset:3px}
 #deckHint .err{color:#ffd0c8;font-weight:800}
-.tabs{display:flex;gap:6px;margin-left:20px;min-width:0}
-.tabs button{display:inline-flex;align-items:center;gap:8px;font:400 16px/1 var(--f-game);letter-spacing:.02em;color:#cfe1ff;background:none;border:3px solid transparent;border-radius:13px;padding:8px 16px 10px;cursor:pointer;white-space:nowrap}
-.tabs button svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.tabs button:hover{background:rgba(255,255,255,.1);color:#fff}
-.tabs button:focus-visible{outline:3px solid #fff;outline-offset:2px}
-.tabs button[aria-selected="true"]{color:#fff;text-shadow:var(--stroke);background:linear-gradient(180deg,#ffe066,#f59a1c);border-color:var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.5),0 3px 0 var(--ink2)}
+/* ---------- the bar across the top of the menus: the name of the game, where you are, what you have, who you are ---------- */
+.top{flex:none;position:relative;z-index:5;background:linear-gradient(180deg,#2c74e6 0,#1750c0 48%,#0e3491 100%);border-bottom:4px solid var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.28),0 6px 0 rgba(5,12,40,.35)}
+.top::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.055) 0 16px,transparent 16px 40px);pointer-events:none}
+.top-in{position:relative;display:flex;align-items:center;gap:14px;max-width:1412px;margin:0 auto;padding:10px 16px 11px}
+.top-back,.top-snd{flex:none;display:grid;place-items:center;width:38px;height:38px;padding:0;border-radius:50%;border:3px solid var(--ink2);background:linear-gradient(180deg,#5fb2ff,#2a73e0);box-shadow:inset 0 3px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2);color:#fff;cursor:pointer}
+.top-back svg,.top-snd svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.top-snd svg path:first-child{fill:currentColor;stroke-width:1.5}
+.top-snd .x{display:none} .top-snd[aria-pressed="false"] .w{display:none} .top-snd[aria-pressed="false"] .x{display:inline}
+.top-snd[aria-pressed="false"]{background:linear-gradient(180deg,#8e9bbd,#56638a)}
+.top-back:active,.top-snd:active{transform:translateY(3px);box-shadow:inset 0 3px 0 rgba(255,255,255,.3),0 0 0 var(--ink2)}
+.logo{flex:none;position:relative;isolation:isolate;display:flex;flex-direction:column;align-items:flex-start;margin:-2px 10px -2px 2px;transform:rotate(-3deg);-webkit-user-select:none;user-select:none}
+.logo small{margin:0 0 -1px 3px;font:400 13px/1 var(--f-game);letter-spacing:.16em;text-transform:uppercase;color:#fff;text-shadow:var(--stroke)}
+.logo b{position:relative;font:400 40px/.9 var(--f-game);letter-spacing:.02em;text-transform:uppercase;background:linear-gradient(180deg,#fff6b8 8%,#ffd23f 46%,#f58a10 92%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.logo b::before{content:attr(data-t);position:absolute;left:0;top:0;z-index:-1;color:var(--ink2);-webkit-text-fill-color:var(--ink2);-webkit-text-stroke:9px var(--ink2);text-shadow:0 5px 0 var(--ink2),0 9px 0 rgba(5,12,40,.4)}
+.tabs{display:flex;gap:8px;min-width:0}
+.tabs button{display:inline-flex;align-items:center;gap:8px;font:400 17px/1 var(--f-game);letter-spacing:.02em;color:#dbe8ff;background:rgba(6,20,66,.5);border:3px solid var(--ink2);border-radius:14px;padding:10px 16px 11px;box-shadow:inset 0 2px 0 rgba(255,255,255,.14);cursor:pointer;white-space:nowrap}
+.tabs button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tabs button:hover{background:rgba(40,90,200,.7);color:#fff}
+.tabs button:focus-visible,.pur:focus-visible,.who-chip:focus-visible,.top-snd:focus-visible,.top-back:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.tabs button[aria-selected="true"]{color:#fff;text-shadow:var(--stroke);background:linear-gradient(180deg,#ffe066,#ffb52e 55%,#f08a12);box-shadow:inset 0 3px 0 rgba(255,255,255,.55),0 4px 0 var(--ink2);transform:translateY(-2px)}
+/* what you have: an icon hanging off the left end of a dark slot, the number in it */
+.top-res{display:flex;align-items:center;gap:16px;margin-left:auto}
+.pur{position:relative;flex:none;display:inline-flex;align-items:center;gap:7px;height:36px;min-width:64px;padding:0 9px 0 32px;border-radius:999px;border:3px solid var(--ink2);background:#071a4a;box-shadow:inset 0 3px 0 rgba(0,0,0,.4),0 2px 0 rgba(255,255,255,.16);color:#fff;cursor:pointer}
+.pur b{font:400 19px/1 var(--f-game);letter-spacing:.02em;text-shadow:var(--stroke);font-variant-numeric:tabular-nums}
+.pur .ic{position:absolute;left:-12px;top:50%;width:42px;height:42px;transform:translateY(-50%);background:center/contain no-repeat;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4))}
+.pur:hover .ic{transform:translateY(-50%) scale(1.1) rotate(-6deg)}
+.pur .ic-coin{background-image:url(ui/coin.webp)} .pur .ic-tok{background-image:url(ui/token.webp)}
+.pur .ic-tro{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg stroke='%230a1430' stroke-width='3' stroke-linejoin='round'%3E%3Cpath d='M12 9H4.5c0 9 3.5 13 9.5 14M36 9h7.5c0 9-3.5 13-9.5 14' fill='none' stroke-width='4.5'/%3E%3Cpath d='M12 9H4.5c0 9 3.5 13 9.5 14M36 9h7.5c0 9-3.5 13-9.5 14' fill='none' stroke='%23ffb52e' stroke-width='2'/%3E%3Cpath d='M11 5h26c0 15-3.5 23-13 25C14.500 28 11 20 11 5z' fill='%23ffd23f'/%3E%3Cpath d='M20 29.500h8V36h-8z' fill='%23f08a12'/%3E%3Cpath d='M14 36h20v7H14z' fill='%23c0621a'/%3E%3C/g%3E%3Cpath d='M15.500 8.500h6c0 9 .5 14 2.500 18-5-2-8-8-8.500-18z' fill='%23fff3a6' opacity='.75'/%3E%3C/svg%3E")}
+.pur .plus{flex:none;display:grid;place-items:center;width:22px;height:22px;margin-right:-3px;border-radius:7px;border:2px solid var(--ink2);background:linear-gradient(180deg,#8dff7a,#2fbf3a);box-shadow:inset 0 2px 0 rgba(255,255,255,.5);font:400 18px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+/* who is playing */
+.who-chip{flex:none;display:inline-flex;align-items:center;gap:9px;max-width:220px;padding:3px 14px 3px 3px;border-radius:999px;border:3px solid var(--ink2);background:linear-gradient(180deg,#4a96ff,#1f5fd0);box-shadow:inset 0 3px 0 rgba(255,255,255,.35),0 3px 0 var(--ink2);color:#fff;cursor:pointer;text-align:left}
+.who-chip .av{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#12306b;border:2.5px solid #fff;font:400 19px/1 var(--f-game)}
+.who-chip .nm{display:flex;flex-direction:column;min-width:0}
+.who-chip b{font:400 16px/1.05 var(--f-game);text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who-chip small{margin-top:2px;font:800 10px/1 var(--f-body);letter-spacing:.05em;color:#d6e6ff;white-space:nowrap}
+.who-chip:active{transform:translateY(3px);box-shadow:inset 0 3px 0 rgba(255,255,255,.3),0 0 0 var(--ink2)}
+@media (max-width:1240px){ .tabs button{padding:10px 12px 11px;font-size:16px} .top-res{gap:14px} .who-chip .nm{display:none} .who-chip{padding:3px} }
+@media (max-width:1040px){ .logo b{font-size:32px} .logo small{font-size:11px} .tabs button svg{display:none} }
 @media (max-width:860px){
-  #scrHub .k-top{flex-wrap:wrap;row-gap:8px}
-  .tabs{order:9;flex:1 0 100%;margin:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
-  .tabs button{justify-content:center;gap:6px;padding:8px 2px 9px;font-size:14px}
+  .top-in{flex-wrap:wrap;gap:8px;padding:8px 10px 9px}
+  .tabs{order:9;flex:1 0 100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .tabs button{justify-content:center;gap:6px;padding:9px 2px 10px;font-size:15px}
+  .tabs button svg{display:inline}
+  .logo{margin:0 4px 0 0} .logo b{font-size:27px} .logo small{font-size:9.5px;letter-spacing:.12em}
+  .logo b::before{-webkit-text-stroke-width:7px;text-shadow:0 4px 0 var(--ink2)}
+  .top-back,.top-snd{width:32px;height:32px} .top-back svg,.top-snd svg{width:17px;height:17px}
+  .top-res{gap:10px} .pur{height:30px;min-width:0;padding:0 8px 0 24px;border-width:2.5px} .pur b{font-size:16px} .pur .ic{left:-9px;width:32px;height:32px} .pur .plus{display:none}
+  .who-chip{display:none}
 }
-@media (max-width:380px){ .tabs button svg{display:none} }
+@media (max-width:400px){ .tabs button svg{display:none} .logo small{display:none} .logo b{font-size:25px} .top-res{gap:9px} }
+@media (max-width:350px){ #resTro{display:none} }
 .login{background:linear-gradient(180deg,#2f79e6,#1d50b4);border:4px solid var(--ink2);box-shadow:inset 0 4px 0 rgba(255,255,255,.3),0 8px 0 var(--ink2),0 30px 60px rgba(0,0,0,.4)}
 .login h1{font-family:var(--f-game);font-size:44px;color:#fff;text-shadow:var(--stroke)}
 .login h1 span{color:#ffd23f}
@@ -433,7 +468,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .quick .k-btn{padding:10px 4px 8px;font-size:16px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .quick small{font:800 11px/1 var(--f-body);color:#fff7c2;text-shadow:none;display:flex;align-items:center}
-.quick .coin{width:11px;height:11px;margin-right:3px}
+.quick .coin{width:15px;height:15px;margin-right:2px;vertical-align:-3px}
 .sk-easy{background:linear-gradient(180deg,#8dff7a,#2fbf3a)}.sk-medium{background:linear-gradient(180deg,#ffe066,#f59a1c)}.sk-hard{background:linear-gradient(180deg,#ff9a6a,#e2461a)}.sk-insane{background:linear-gradient(180deg,#e58bff,#8a22c8)}
 #scrOnb{align-items:center;justify-content:flex-start;overflow:auto;padding:22px 14px;background:radial-gradient(ellipse 120% 70% at 50% -10%,#4aa0ff 0,#1f5fd0 42%,#0d2f86 100%)}
 .onb{width:min(1080px,100%);margin:auto;text-align:center;background:linear-gradient(180deg,#2f79e6,#1d50b4);border:4px solid var(--ink2);border-radius:24px;box-shadow:inset 0 4px 0 rgba(255,255,255,.3),0 8px 0 var(--ink2);padding:24px 18px 26px}
@@ -446,7 +481,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .tips h4{margin:0 0 6px;font:400 20px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .tips p{margin:0;color:#d6e6ff;font:600 13px/1.4 var(--f-body)}
 .bigcoin{display:inline-flex;align-items:center;gap:10px;margin:14px 0 2px;font:400 54px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
-.bigcoin .coin{width:44px;height:44px;margin:0;box-shadow:0 0 0 3px var(--ink2)}
+.bigcoin .coin{width:56px;height:56px;margin:0;background-image:url(ui/coin.webp)}
 .pl{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:8px}
 .pl i{width:12px;height:12px;border-radius:50%;background:#5d6f95;box-shadow:0 0 0 2px var(--ink2)}
 .pl.on i{background:#4ade80;box-shadow:0 0 0 2px var(--ink2),0 0 8px #4ade80}
@@ -503,7 +538,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 /* a price under a card on a shelf: the card keeps its name */
 .grid.priced{row-gap:34px;padding-bottom:26px}
 .card .pr{position:absolute;z-index:2;left:-4px;right:-4px;top:calc(100% + 7px);display:flex;align-items:center;justify-content:center;gap:3px;font:400 14px/1 var(--f-game);color:#ffe27a;text-shadow:var(--stroke);white-space:nowrap;pointer-events:none}
-.card .pr .coin{flex:none;width:12px;height:12px;margin:0 1px 0 0}
+.card .pr .coin{flex:none;width:14px;height:14px;margin:0 1px 0 0}
 .card .pr s{font:800 10px/1 var(--f-body);color:#a9c4f5;text-shadow:none;margin-right:2px}
 .card .pr.sale{color:#9dff8a}
 .card .pr.own{font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#cfe0ff;text-shadow:none}
@@ -627,8 +662,8 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .node small{font:800 10px/1 var(--f-body);color:#d6e6ff}
 .node i{display:block;box-shadow:0 0 0 2px var(--ink2)}
 .node .pk{width:13px;height:17px;border-radius:3px;background:linear-gradient(160deg,color-mix(in srgb,var(--pc) 55%,#fff),var(--pc))}
-.node .tk,.tok::before{border-radius:50%;background:radial-gradient(circle at 35% 30%,#c8fff6,#2fc9b9 55%,#0d6f67)}
-.node .tk{width:15px;height:15px}
+.node .tk,.tok::before{background:url(ui/token.webp) center/contain no-repeat}
+.node .tk{width:18px;height:18px}
 .node .cd{width:11px;height:15px;border-radius:3px;background:linear-gradient(180deg,#c4ebff,#4f9be8)}
 .node.done{background:linear-gradient(180deg,#3aa13a,#22762a)}
 .node.next{background:linear-gradient(180deg,#ffe066,#f59a1c);transform:translateY(-5px);box-shadow:0 0 0 3px #fff,0 6px 0 3px var(--ink2)}
@@ -713,7 +748,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 
 /* ----- profile: player upgrades ----- */
 .tok{display:inline-flex;align-items:center;gap:7px;font:400 22px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
-.tok::before{content:"";width:20px;height:20px;box-shadow:0 0 0 2.5px var(--ink2)}
+.tok::before{content:"";width:30px;height:30px}
 .perk{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:#12357c;border:3px solid var(--ink2);margin-bottom:8px}
 .perk h4{margin:0 0 3px;font:400 18px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .perk p{margin:0 0 8px;font:600 12px/1.35 var(--f-body);color:#d6e6ff}
@@ -732,7 +767,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .hpick p{margin:8px 0 0;font:600 12px/1.4 var(--f-body);color:#e9f1ff}
 .bbar{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;justify-content:center;margin:12px 0 6px;padding:9px 12px 8px;border-radius:14px;background:#0a1e52;border:3px solid var(--ink2);box-shadow:0 4px 0 var(--ink2)}
 .budget,.bcount{display:flex;align-items:baseline;gap:6px;font:400 26px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
-.budget .coin{width:20px;height:20px;align-self:center;margin:0}
+.budget .coin{width:26px;height:26px;align-self:center;margin:0}
 .bcount{color:#fff}
 .budget small,.bcount small{font:700 11px/1 var(--f-body);color:#cfe1ff;text-shadow:none}
 .qfill{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin:16px 0 14px}
@@ -786,8 +821,8 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res-loot{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:20px 16px 0}
 .rw{flex:1 1 0;min-width:86px;max-width:124px;display:flex;flex-direction:column;align-items:center;padding:10px 4px 11px;border-radius:16px;background:#0a1e52;border:3px solid var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.1)}
 .rw-pic{width:100%;height:118px;display:grid;place-items:center}
-.rw-pic .coin{width:62px;height:62px;margin:0;box-shadow:0 0 0 3px var(--ink2),inset 0 -6px 0 rgba(120,80,0,.35)}
-.rw-pic .tokbig{width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#c8fff6,#2fc9b9 55%,#0d6f67);box-shadow:0 0 0 3px var(--ink2)}
+.rw-pic .coin{width:84px;height:84px;margin:0;background-image:url(ui/coin.webp);filter:drop-shadow(0 4px 0 rgba(4,10,30,.5))}
+.rw-pic .tokbig{width:80px;height:80px;background:url(ui/token.webp) center/contain no-repeat;filter:drop-shadow(0 4px 0 rgba(4,10,30,.5))}
 .rw-pic .card{width:min(80px,100%);margin:6px 0 0}
 .rw-pic .card .nm{display:none}
 .rw-pic .foil{width:min(78px,100%);cursor:default}
@@ -796,7 +831,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res > .note{margin:16px 22px 0;color:#dbe8ff}
 .res-btns{display:flex;flex-direction:column;gap:10px;padding:18px 22px 22px}
 .res-btns .k-btn{width:100%}
-@media (max-width:520px){ .rw{min-width:68px;padding:8px 3px 9px} .rw-pic{height:88px} .rw-pic .coin{width:50px;height:50px} .rw-pic .card{width:min(62px,100%)} .rw-pic .foil{width:min(60px,100%)} .rw > b{font-size:13px} .res-loot{gap:6px;margin:14px 12px 0} .res-top{padding:22px 16px 14px} .res-say{margin:14px 16px 0} .res-sum{margin:12px 16px 0;padding:8px 12px} .res > .note{margin:12px 16px 0}
+@media (max-width:520px){ .rw{min-width:68px;padding:8px 3px 9px} .rw-pic{height:88px} .rw-pic .coin{width:64px;height:64px} .rw-pic .card{width:min(62px,100%)} .rw-pic .foil{width:min(60px,100%)} .rw > b{font-size:13px} .res-loot{gap:6px;margin:14px 12px 0} .res-top{padding:22px 16px 14px} .res-say{margin:14px 16px 0} .res-sum{margin:12px 16px 0;padding:8px 12px} .res > .note{margin:12px 16px 0}
   .res-btns{padding:14px 16px 16px;gap:8px} .res-btns .k-btn.big{font-size:21px;padding:13px 12px 12px} .res-btns .k-btn{padding:10px 12px 9px}
   .vs-prizes .big-card{width:92px;flex-basis:92px} .vs .av{width:54px;height:54px} .k-box:has(.odds){gap:10px;padding-top:16px;padding-bottom:16px} }
 .loot{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;align-items:flex-end;width:100%}
@@ -877,19 +912,24 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 
 <!-- hub -->
 <section class="scr" id="scrHub" hidden>
-  <header class="k-top">
-    <a class="k-home" href="../" aria-label="All games">←<span> All games</span></a>
-    <div class="k-brand"><span class="pre">Break Room </span><span>Brawl</span></div>
-    <nav class="tabs" id="tabbar" role="tablist" aria-label="Sections">
-      <button type="button" data-tab="Battle" role="tab"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M14 5h5v5M5 5l5 5M14 14l5 5M5 14v5h5"/></svg>Battle</button>
-      <button type="button" data-tab="Deck" role="tab"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="11" height="15" rx="2"/><path d="M9 5V3h9a2 2 0 0 1 2 2v12h-2"/></svg>Deck</button>
-      <button type="button" data-tab="Market" role="tab"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5zM8 9V7a4 4 0 0 1 8 0v2"/></svg>Market</button>
-      <button type="button" data-tab="Profile" role="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</button>
-    </nav>
-    <div class="k-spacer"></div>
-    <span class="k-pill" title="Coins"><span class="coin"></span><span class="k-led" id="hCoins">0</span></span>
-    <span class="k-pill" title="Trophies">🏆 <span class="k-led" id="hTro">0</span></span>
-    <button type="button" class="k-pill" id="mute" aria-label="Sound">Sound on</button>
+  <header class="top">
+    <div class="top-in">
+      <a class="top-back" href="../" aria-label="All games" title="All games"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
+      <div class="logo" aria-label="Break Room Brawl"><small>Break Room</small><b data-t="Brawl">Brawl</b></div>
+      <nav class="tabs" id="tabbar" role="tablist" aria-label="Sections">
+        <button type="button" data-tab="Battle" role="tab"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M14 5h5v5M5 5l5 5M14 14l5 5M5 14v5h5"/></svg>Battle</button>
+        <button type="button" data-tab="Deck" role="tab"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="11" height="15" rx="2"/><path d="M9 5V3h9a2 2 0 0 1 2 2v12h-2"/></svg>Deck</button>
+        <button type="button" data-tab="Market" role="tab"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1 11H5zM8 9V7a4 4 0 0 1 8 0v2"/></svg>Market</button>
+        <button type="button" data-tab="Profile" role="tab"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Profile</button>
+      </nav>
+      <div class="top-res">
+        <button type="button" class="pur" id="resCoins" title="Coins. Spend them in the Market"><i class="ic ic-coin"></i><b id="hCoins">0</b><span class="plus" aria-hidden="true">+</span></button>
+        <button type="button" class="pur" id="resTok" title="Upgrade tokens. Spend them in your Profile"><i class="ic ic-tok"></i><b id="hTok">0</b></button>
+        <button type="button" class="pur" id="resTro" title="Trophies, from online wins"><i class="ic ic-tro"></i><b id="hTro">0</b></button>
+      </div>
+      <button type="button" class="who-chip" id="whoChip" title="Your profile"><span class="av" id="hAv"></span><span class="nm"><b id="hName"></b><small id="hTier"></small></span></button>
+      <button type="button" class="top-snd" id="mute" aria-label="Sound" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path class="w" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
+    </div>
   </header>
   <div class="body" id="hubBody"><div class="wrapx">
 
@@ -1027,6 +1067,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115t"></script>
+<script type="module" src="main.js?v=1115u"></script>
 </body>
 </html>

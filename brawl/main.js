@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115t';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115t';
-import { createAI } from './ai.js?v=1115t';
-import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115t';
-import { Cloud, cloudWhy } from './cloud.js?v=1115t';
-import { sayFor, sayWhen } from './talk.js?v=1115t';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115u';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115u';
+import { createAI } from './ai.js?v=1115u';
+import { Accounts, fresh, sanitize, isOwner } from './store.js?v=1115u';
+import { Cloud, cloudWhy } from './cloud.js?v=1115u';
+import { sayFor, sayWhen } from './talk.js?v=1115u';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -70,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115t'), import('./models.js?v=1115t')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115u'), import('./models.js?v=1115u')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -115,7 +115,10 @@ function noDeck(){
   BDB.sfx.bad(); dlgClose(); tab('Deck'); return true;
 }
 const coinsTxt = () => OWN ? '\u221e' : fmt(P.coins);
-function top(){ $('hCoins').textContent = coinsTxt(); $('hCoins').title = OWN ? 'Coins never run out on this account' : ''; $('hTro').textContent = fmt(P.trophies); }
+function top(){
+  $('hCoins').textContent = coinsTxt(); $('resCoins').title = OWN ? 'Coins never run out on this account' : 'Coins. Spend them in the Market'; $('hTro').textContent = fmt(P.trophies); $('hTok').textContent = fmt(P.tokens);
+  $('hName').textContent = P.name; $('hAv').textContent = P.name[0].toUpperCase(); $('hTier').textContent = P.ladder >= LEVELS ? 'Ladder cleared' : `${tierOf(P.ladder + 1).name}, level ${fmt(P.ladder + 1)}`;
+}
 
 /* a card: the picture, what it costs, its type, its name. A build other than the standard one washes the picture in its colour. */
 const artOf = c => `art/${c.art}.webp`, hex = n => '#' + n.toString(16).padStart(6, '0');
@@ -707,8 +710,10 @@ $('codeGo').onclick = () => { try { signIn(Accounts.fromCode($('codeIn').value))
 $('codeCopy').onclick = async () => { try { await navigator.clipboard.writeText($('codeOut').value); $('codeCopy').textContent = 'Copied'; } catch(e){ $('codeOut').select(); } setTimeout(() => { $('codeCopy').textContent = 'Copy code'; }, 1500); };
 $('signOut').onclick = () => { Cloud.flush(); Cloud.signOut(); Accounts.signOut(); clearInterval(hallT); loginScreen(); };
 $('wipe').onclick = () => confirmBox('Delete this player?', `${P.name}'s cards, coins and decks will be gone from this device.`, 'Delete', () => { Accounts.remove(P.name); loginScreen(); });
-$('mute').onclick = () => { $('mute').textContent = BDB.sfx.toggle() ? 'Sound off' : 'Sound on'; };
-$('mute').textContent = BDB.sfx.muted ? 'Sound off' : 'Sound on';
+const sndUI = () => { const on = !BDB.sfx.muted; $('mute').setAttribute('aria-pressed', on); $('mute').title = on ? 'Sound is on' : 'Sound is off'; };
+$('mute').onclick = () => { BDB.sfx.toggle(); sndUI(); if (!BDB.sfx.muted) BDB.sfx.tick(); };
+sndUI();
+$('resCoins').onclick = () => tab('Market'); $('resTok').onclick = () => tab('Profile'); $('resTro').onclick = () => tab('Profile'); $('whoChip').onclick = () => tab('Profile');
 
 /* ---------- first time in: how it works, pick a free Rare, build a deck out of your starting coins ---------- */
 function onboard(){
