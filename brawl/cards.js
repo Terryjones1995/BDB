@@ -704,6 +704,20 @@ export const ODDS = [null, {n:1, name:'Even', el:1, pay:1}, {n:2, name:'Outnumbe
 export const TEAM_ODDS = {2:{el:1, pay:1}, 3:{el:.77, pay:2}}, TEAM_TOWERS = 1.35;
 /* every tower taken raises what the match pays: a quarter more, half as much again, and double for all three */
 export const CROWN_PAY = [1, 1.25, 1.5, 2], CROWN_COINS = 10;
+/* Milestones: things that add up over a whole career. Each has rungs. Reaching one earns a chest, and the higher rungs bring upgrade tokens as well.
+   of(p): where the player stands. A tower bounty chest is ten towers, so chests opened that way and the towers waiting come to every tower ever taken. */
+export const MS_PRIZE = [{pack:'silver'}, {pack:'gold'}, {pack:'diamond', tok:1}, {pack:'mythic', tok:2}, {pack:'divine', tok:3}, {pack:'divine', tok:5}];
+export const MILESTONES = {
+  wins:  {name:'BDB beaten',      at:[10, 50, 150, 400, 1000],      of:p => p.stats.w},
+  cards: {name:'Cards collected', at:[30, 75, 150, 300, 600, 1200], of:p => Object.keys(p.cards).length},
+  tow:   {name:'Towers taken',    at:[25, 100, 300, 1000, 3000],    of:p => p.bn * 10 + p.bounty},
+  ups:   {name:'Card upgrades',   at:[10, 50, 150, 400],            of:p => p.stats.up},
+  streak:{name:'Best win streak', at:[3, 5, 10, 20],                of:p => p.best},
+  online:{name:'Online wins',     at:[1, 10, 50, 200],              of:p => p.stats.ow},
+  packs: {name:'Chests opened',   at:[10, 50, 200, 500],            of:p => p.stats.packs},
+  trade: {name:'Trades made',     at:[1, 5, 25],                    of:p => p.stats.tr}
+};
+export const MS_IDS = Object.keys(MILESTONES);
 /* the BDBs who back him up when the odds are raised: each from a few levels down the ladder (or another dealt at random in a quick battle), with a deck and a name
    of his own, playing as well as the one he is helping and with cards at the same level. n: how many are on the field in all. */
 export function backupCpus(cpu, n, myLvl = 1, rnd = Math.random){

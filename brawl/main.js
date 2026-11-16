@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116n';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116n';
-import { createAI } from './ai.js?v=1116n';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116n';
-import { Cloud, cloudWhy } from './cloud.js?v=1116n';
-import { sayFor, sayWhen } from './talk.js?v=1116n';
-import { createAudio } from './audio.js?v=1116n';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1116o';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116o';
+import { createAI } from './ai.js?v=1116o';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116o';
+import { Cloud, cloudWhy } from './cloud.js?v=1116o';
+import { sayFor, sayWhen } from './talk.js?v=1116o';
+import { createAudio } from './audio.js?v=1116o';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116n'), import('./models.js?v=1116n')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116o'), import('./models.js?v=1116o')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -129,6 +129,7 @@ const bigN = n => n >= 1e6 ? +(n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : fmt(n)
 const tierPic = t => `ui/tier-${t.id}.webp`;
 const kN = n => n >= 1e6 ? bigN(n) : n >= 1e5 ? Math.floor(n / 1e3) + 'K' : n >= 1e4 ? Math.floor(n / 100) / 10 + 'K' : fmt(n);      // and less still on a narrow phone: 152K, 48.2K
 function top(){
+  const pt = $('tabbar').querySelector('[data-tab="Profile"]'); if (pt) pt.classList.toggle('has', msDue().length > 0);      // a dot on the Profile tab while a milestone is waiting to be collected
   const num = (id, full, short) => { const el = $(id); el.textContent = full; if (short !== full) el.dataset.s = short; else delete el.dataset.s; };
   num('hCoins', OWN ? coinsTxt() : bigN(P.coins), OWN ? coinsTxt() : kN(P.coins)); num('hTro', fmt(P.trophies), kN(P.trophies)); $('hTok').textContent = fmt(P.tokens);
   $('resCoins').title = OWN ? 'Coins never run out on this account' : `${fmt(P.coins)} coins. Spend them in the Market`;
@@ -237,6 +238,26 @@ function jobsBox(){
     if (L.every(x => x.got) && !P.jobs.all){ P.jobs.all = 1; P.stats.packs++; const got = openPack(pk).map(grant); save(); hub(); return packReveal(pk, got, () => { dlgClose(); hub(); }); }
     save(); hub(); jobsBox();
   };
+}
+/* milestones: career totals with rungs. msDue: the ones with a rung reached and not yet collected. */
+const msAt = k => (P.ms && P.ms[k]) || 0;
+const msDue = () => MS_IDS.filter(k => { const M = MILESTONES[k], n = msAt(k); return n < M.at.length && M.of(P) >= M.at[n]; });
+const msPrize = n => { const R = MS_PRIZE[Math.min(n, MS_PRIZE.length - 1)]; return {...R, pk:PACK[R.pack], text:PACK[R.pack].name + (R.tok ? ` and ${R.tok} upgrade token${R.tok > 1 ? 's' : ''}` : '')}; };
+function msCollect(k){
+  const M = MILESTONES[k], n = msAt(k); if (!M || n >= M.at.length || M.of(P) < M.at[n]) return;
+  const R = msPrize(n);
+  if (!P.ms) P.ms = {};
+  P.ms[k] = n + 1; if (R.tok) P.tokens += R.tok; P.stats.packs++; jobTick('chest');
+  const got = openPack(R.pk).map(grant); save(); hub();
+  packReveal(R.pk, got, () => { dlgClose(); hub(); if (R.tok) hubToast(`${R.tok} upgrade token${R.tok > 1 ? 's' : ''} added. Spend ${R.tok > 1 ? 'them' : 'it'} on your Profile.`); });
+}
+function msUI(){
+  const el = $('msList'); if (!el) return;
+  el.innerHTML = MS_IDS.map(k => {
+    const M = MILESTONES[k], n = msAt(k), v = M.of(P), max = n >= M.at.length, goal = max ? M.at[M.at.length - 1] : M.at[n], due = !max && v >= goal, R = max ? null : msPrize(n);
+    return `<div class="job ms${due ? ' done' : max ? ' got' : ''}"><img alt="" loading="lazy" src="${chestPic(max ? PACK.divine : R.pk)}"><div><b>${esc(M.name)}</b><div class="bar"><i style="width:${max ? 100 : clamp(v / goal * 100, 0, 100)}%"></i></div>
+      <small>${max ? `All ${M.at.length} rungs done, at ${fmt(v)}` : `${fmt(Math.min(v, goal))} of ${fmt(goal)}. ${esc(R.text)}`}</small></div>${due ? `<button type="button" class="k-btn primary" data-ms="${k}">Collect</button>` : `<span class="rung">${n} of ${M.at.length}</span>`}</div>`; }).join('');
+  for (const q of el.querySelectorAll('button[data-ms]')) q.onclick = () => msCollect(q.dataset.ms);
 }
 function boonsUI(){
   const el = $('boons'); if (!el) return;
@@ -557,6 +578,7 @@ function profile(){
     .map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('');
   $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
   const riv = Object.entries(P.vs || {}).map(([n, v]) => ({n, w:v[0], l:v[1], d:v[2], g:v[0] + v[1] + v[2]})).filter(o => o.g).sort((a, b) => b.g - a.g || b.w - a.w).slice(0, 12);
+  msUI();
   $('vsPanel').hidden = !riv.length;
   $('vsList').innerHTML = riv.map(o => `<div class="vsr"><b>${esc(o.n)}</b><span class="bar${o.w + o.l ? '' : ' none'}" title="${o.w} won, ${o.l} lost${o.d ? `, ${o.d} drawn` : ''}"><i style="width:${o.w + o.l ? Math.round(o.w / (o.w + o.l) * 100) : 0}%"></i></span><small>${fmt(o.w)} to ${fmt(o.l)}${o.d ? `, ${fmt(o.d)} drawn` : ''}</small></div>`).join('');
   $('tokN').textContent = P.tokens;
@@ -761,17 +783,18 @@ function whatsNew(){
 }
 /* a save from before the odds, the crowns that pay, team matches at a level and real sound is told once */
 function newsNote(){
-  if (P.flags.n15) return false;
-  P.flags.n15 = 1; save();
-  const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More ways to win, ${esc(P.name)}</h3>
-    <ul class="abil"><li><b>Raise the odds.</b> Before a match, pick two or three BDBs at once. Two pay double, three pay triple.</li>
-    <li><b>Towers pay.</b> A win is worth x${CROWN_PAY[1]}, x${CROWN_PAY[2]} or x${CROWN_PAY[3]} for one, two or three towers taken.</li>
-    <li><b>Overtime</b> is two minutes at Mana x${OT_MANA}. The next tower wins it.</li>
-    <li><b>Team up</b> online against two or three BDBs at any level, and play again straight from the result screen.</li>
-    <li><b>BDB got better.</b> He starts at Medium and climbs to Legend up the ladder. Quick battles go up to Legend too.</li>
-    <li><b>Sound.</b> Music and proper effects. The speaker button at the top mutes it, and Profile has a switch for each.</li></ul>
-    <div class="k-row"><button type="button" class="k-btn primary" id="nnOk">Got it</button></div>`);
-  b.querySelector('#nnOk').onclick = dlgClose;
+  if (P.flags.n16) return false;
+  const old = !P.flags.n15, due = msDue().length;                   // old: has not seen the note before this one either
+  P.flags.n15 = P.flags.n16 = 1; save();
+  const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More to play for, ${esc(P.name)}</h3>
+    <ul class="abil"><li><b>Milestones.</b> Your Profile keeps eight career totals. Every rung is a chest, and the higher ones bring upgrade tokens.${due ? ` You have ${due === 1 ? 'one' : due} waiting.` : ''}</li>
+    <li><b>Head to head.</b> Every one against one online adds to a running score against that person. It is on their row in Who's on and on your Profile.</li>
+    <li><b>Trading</b> has been rebuilt: a proper list of your cards with a search box, and Lock and Confirm always on screen.</li>
+    ${old ? `<li><b>Raise the odds.</b> Before a match, pick two or three BDBs at once for double or triple, and every tower you take raises the pay: x${CROWN_PAY[1]}, x${CROWN_PAY[2]}, x${CROWN_PAY[3]}.</li>
+    <li><b>Sound.</b> Music and proper effects. The speaker button at the top mutes it, and Profile has a switch for each.</li>` : ''}
+    <li><b>No signal, no problem.</b> Once it has been opened, the game opens again at once and plays against BDB with no connection.</li></ul>
+    <div class="k-row"><button type="button" class="k-btn primary" id="nnOk">${due ? 'Show me' : 'Got it'}</button></div>`);
+  b.querySelector('#nnOk').onclick = () => { dlgClose(); if (due){ tab('Profile'); $('msPanel').scrollIntoView({block:'start'}); } };
   return true;
 }
 /* a save from before the rebalance is told once what changed */
@@ -1344,7 +1367,7 @@ function payout(base, crowns, o = {}){
   return {coins:Math.round(c), rows};
 }
 function finish(w, cr, why){
-  if (!B || B.done) return; B.done = true; B.over = true; if (B.coach){ P.flags.coach = 1; coachOff(); } clearInterval(pzIv); B.pz = null; $('wait').hidden = true; clearBubbles();
+  if (!B || B.done) return; B.done = true; B.over = true; const ms0 = new Set(msDue()); if (B.coach){ P.flags.coach = 1; coachOff(); } clearInterval(pzIv); B.pz = null; $('wait').hidden = true; clearBubbles();
   const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = clamp(crowns[B.team] | 0, 0, 3), win = w === B.team, draw = w < 0, lines = [], got = [];
   let pack = null, tokens = 0, pay, title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
   if (win){ P.streak++; P.best = Math.max(P.best, P.streak); } else if (!draw) P.streak = 0;
@@ -1390,6 +1413,7 @@ function finish(w, cr, why){
     if (B.mode === 'cpu'){ const c = B.cpu; if (c.rand){ if (c.skill !== 'easy') jt('quick'); if (c.skill === 'insane' || c.skill === 'legend') jt('hard'); } else if (B.first) jt('ladder'); if ((B.odds || 1) > 1) jt('odds'); }
     else jt('online'); }
   for (const t of jd) lines.push(`Job done: ${t}. Collect it on the Battle tab.`);
+  for (const k of msDue()) if (!ms0.has(k)) lines.push(`Milestone: ${MILESTONES[k].name}, ${fmt(MILESTONES[k].at[msAt(k)])}. A ${msPrize(msAt(k)).pk.name} is waiting on your Profile.`);
   if (why) lines.unshift(why);
   const coins = pay.coins; P.coins += coins; save();
   A.music('off'); fx(win ? 'win' : draw ? 'draw' : 'lose', null, win ? BDB.sfx.big : BDB.sfx.bad); buzz(win ? [30, 50, 30, 50, 120] : draw ? 60 : 180); if (win && coins > 0) fx('coins', {delay:2.6});

@@ -732,6 +732,9 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .job .k-btn{padding:9px 14px 8px;font-size:16px;white-space:nowrap}
 .job.done{background:linear-gradient(180deg,#2f7d34,#1b5226)}
 .job.got{opacity:.62} .job.got .bar i{background:#ffd23f}
+.job.ms{grid-template-columns:44px minmax(0,1fr) auto;gap:10px;padding:9px 12px 9px 9px} .job.ms img{width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 3px 0 rgba(4,10,30,.45))}
+.job.ms .rung{font:800 11px/1 var(--f-body);color:#a9c4f5;white-space:nowrap} .job.ms.got{opacity:.8}
+.tabs button{position:relative} .tabs button.has::after{content:"";position:absolute;top:-5px;right:-5px;width:13px;height:13px;border-radius:50%;background:#ff4d4d;border:2.5px solid var(--ink2);box-shadow:0 0 0 2px rgba(255,255,255,.25)}
 /* before a match: both sides on name plates, the arena, and a tip or the countdown under them */
 .wait{padding-bottom:calc(var(--hand-h,150px) + 16px)}      /* centred over the field, not over the hand */
 .vs2{display:grid;justify-items:center;gap:9px;width:min(430px,100%)}
@@ -1197,6 +1200,11 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
             <p class="note" id="accNote" style="margin:12px 0 0"></p>
             <div class="k-row" id="accMakeRow" style="justify-content:flex-start;margin-top:10px" hidden><button type="button" class="k-btn primary" id="accMake">Create an account</button></div>
           </div>
+          <div class="panel" id="msPanel">
+            <span class="k-label">Milestones</span>
+            <p class="note" style="margin:0 0 10px">What you have done over your whole career. Every rung is a chest, and the higher rungs bring upgrade tokens with it.</p>
+            <div class="jobs" id="msList" style="margin-bottom:0"></div>
+          </div>
           <div class="panel" id="vsPanel" hidden>
             <span class="k-label">Head to head</span>
             <p class="note" style="margin:0 0 10px">Your score against everyone you have fought one against one.</p>
@@ -1272,6 +1280,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <button type="button" class="hubtoast" id="hubToast" hidden></button>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116n"></script>
+<script type="module" src="main.js?v=1116o"></script>
 </body>
 </html>
