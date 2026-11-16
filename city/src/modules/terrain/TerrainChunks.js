@@ -12,7 +12,7 @@ const LOD_SEGMENTS = [128, 64, 32, 16];
 const _box = new THREE.Box3();
 
 export class TerrainChunks {
-  constructor({ heightmap, material, horizonMaterial, controlAt, chunkSize = 256, lodDistances = [100, 320, 800], castShadow = true, horizon = true }) {
+  constructor({ heightmap, material, horizonMaterial, controlAt, chunkSize = 256, lodDistances = [100, 320, 800], castShadow = true, horizon = true, horizonDetail = 1 }) {
     this.hm = heightmap;
     this.material = material;
     this.horizonMaterial = horizonMaterial || material;
@@ -20,6 +20,8 @@ export class TerrainChunks {
     this.chunkSize = chunkSize;
     this.lodDistances = lodDistances;
     this.castShadow = castShadow;
+    /** 1 = the horizon rings at full density; 0.5 halves the segments per tile (a quarter of the triangles). */
+    this.horizonDetail = horizonDetail;
     this.group = new THREE.Group();
     this.group.name = 'terrain-chunks';
     this.group.matrixAutoUpdate = false;
@@ -160,7 +162,7 @@ export class TerrainChunks {
         const geo = buildGridGeometry(grid, x0, z0, tile, segs, skirt, this.controlAt);
         const mesh = new THREE.Mesh(geo, this.horizonMaterial);
         mesh.name = `terrain-horizon-${lodTag}-${i}-${j}`;
-        mesh.castShadow = lodTag === 'near' && (geo.boundingBox.max.y - geo.boundingBox.min.y) > 30;
+        mesh.castShadow = this.castShadow && lodTag === 'near' && (geo.boundingBox.max.y - geo.boundingBox.min.y) > 30;
         mesh.receiveShadow = true;
         mesh.matrixAutoUpdate = false;
         mesh.frustumCulled = true;
@@ -169,8 +171,9 @@ export class TerrainChunks {
         this.horizonTiles.push(mesh);
       }
     };
-    addRing(hm.outer, H, H * 2, 512, 64, 40, 'near');
-    addRing(hm.far, H * 2, H * 4, 2048, 64, 90, 'far');
+    const segs = Math.max(8, Math.round(64 * this.horizonDetail));
+    addRing(hm.outer, H, H * 2, 512, segs, 40, 'near');
+    addRing(hm.far, H * 2, H * 4, 2048, segs, 90, 'far');
   }
 
   dispose() {

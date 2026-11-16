@@ -161,6 +161,19 @@ export async function init(ctx) {
     },
     setOpacity(v) { overlay.setOpacity(v); },
     clear() { const changed = grid.clear(); return afterPaint(changed, 'clear'); },
+    /** For tests: every cell as `seg|side|i|k|typeIndex|worldKey`, so two grids can be compared exactly. */
+    cellList() { grid.ensure(); return grid.cells.map((c) => `${c.seg}|${c.side}|${c.i}|${c.k}|${c.type}|${c.key}`); },
+    /** Saving and loading (ZoneGrid.exportPaint / importPaint). */
+    exportPaint() { return grid.exportPaint(); },
+    importPaint(data) {
+      const n = grid.importPaint(data);
+      overlay.rebuildGeometry();
+      if (ground) ground.markDirty();
+      ctx.world.zones.lots = grid.lots;
+      refreshSelection();
+      emitChanged([], 'load');
+      return n;
+    },
     refresh() { grid.dirty = true; rebuildFromRoads('refresh'); },
     stats() { return { ...grid.stats, drawn: overlay.visible ? 1 : 0, version: world.zones.version, frames: grid.frames.length, ground: ground ? ground.stats : null }; },
     /** Per-zone ground treatment (paving / aprons / yards / lawn). Visible independently of the overlay. */

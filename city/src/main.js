@@ -70,6 +70,8 @@ async function boot() {
     cameraController.update(dt);
   });
   engine.onAfterRender(() => input.endFrame());
+  // nothing is drawn until the world is ready: the loading screen covers the canvas (Engine.renderPaused)
+  engine.renderPaused = true;
   engine.start();
 
   // --- start screen: runs BEFORE module init so it can choose the seed the world is built from ---
@@ -101,9 +103,15 @@ async function boot() {
 
   // --- load modules in order ---
   const list = [...MODULES].sort((a, b) => a.order - b.order).filter((m) => !config.focus || config.focus.includes(m.name));
+  // How the bar is shared out. Building a town or the demo city is a good part of the wait, so it
+  // gets a good part of the bar; it used to be squeezed into the last few percent, where a long
+  // step looked exactly like a hang.
+  const builds = config.demo || config.start === 'village' || config.start === 'town';
+  const moduleShare = builds ? 0.58 : 0.9;
+  const buildAt = (f) => moduleShare + 0.02 + (0.955 - moduleShare) * Math.max(0, Math.min(1, f));
   let i = 0;
   for (const entry of list) {
-    setLoading((i / (list.length + 1)) * 0.9, `Loading ${entry.name}`);
+    setLoading((i / (list.length + 1)) * moduleShare, `Loading ${entry.name}`);
     const t0 = performance.now();
     try {
       const mod = await entry.load();
@@ -160,10 +168,10 @@ async function boot() {
 
   // --- demo city ---
   if (config.demo) {
-    setLoading(0.92, 'Building city');
+    setLoading(buildAt(0), 'Building city');
     try {
       const { buildDemoCity } = await import('./demo/DemoCity.js');
-      await buildDemoCity(ctx);
+      await buildDemoCity(ctx, (f, text) => setLoading(buildAt(f), text));
       ctx.moduleStatus.demo = { ok: true };
     } catch (err) {
       console.error('[main] demo city failed', err);
@@ -175,10 +183,10 @@ async function boot() {
   // --- starter city: a small town already standing (demo/StarterTown.js) ---
   let starter = null;
   if (!config.demo && (config.start === 'village' || config.start === 'town')) {
-    setLoading(0.92, 'Raising the town');
+    setLoading(buildAt(0), 'Raising the town');
     try {
       const { buildStarter } = await import('./demo/StarterTown.js');
-      starter = await buildStarter(ctx, config.start);
+      starter = await buildStarter(ctx, config.start, (f, text) => setLoading(buildAt(f), text));
       ctx.moduleStatus.starter = starter ? { ok: true } : { ok: false, error: 'no town was built' };
     } catch (err) {
       console.error('[main] starter city failed', err);
@@ -199,6 +207,13 @@ async function boot() {
     }
   }
   debug.setCamera(config.cam, true) || debug.setCamera('city', true);
+  // every program the first frame needs, compiled off the main thread while the bar still moves
+  setLoading(0.985, 'Warming up the graphics');
+  const tWarm = performance.now();
+  const warmed = await engine.warmUp();
+  // `ok` stays true either way: a warm-up that timed out only means the first frame compiles the rest
+  ctx.moduleStatus.warmUp = { ok: true, finished: warmed, ms: Math.round(performance.now() - tWarm) };
+  engine.renderPaused = false;
   setLoading(1, 'Ready');
   await debug.waitStable(2);
   document.getElementById('loading')?.classList.add('hidden');

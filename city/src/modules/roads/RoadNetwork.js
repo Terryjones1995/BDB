@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three';
 import { ROAD_TYPES, BED, surfaceOffset, bedDrop } from './RoadTypes.js';
-import { makeCurvePieces, anchorIndices, segSegIntersect, closestOnPolyline, headingOf, wrapPi } from './curves.js';
+import { makeCurvePieces, anchorIndices, segSegIntersect, closestOnPolyline, headingOf, wrapPi, RoadCurve, prepareBase } from './curves.js';
 import { computeJunction } from './Junctions.js';
 import { hash2, hashString, makeRng } from '../../shared/random.js';
 
@@ -137,6 +137,19 @@ export class RoadNetwork {
   }
 
   _computeHeights(seg) {
+    // A loaded road brings its own profile (importState). Deriving it again from ground that has
+    // already been cut to the road would smooth it a little more on every load.
+    if (seg._savedHeights) {
+      const saved = seg._savedHeights;
+      seg._savedHeights = null;
+      if (saved.length === seg.samples.n + 1) {
+        seg.rawHeights = Float32Array.from(saved);
+        seg.heights = Float32Array.from(saved);
+        seg.heightStep = seg.samples.ds;
+        seg.y0 = this.nodes.get(seg.a).y;
+        return;
+      }
+    }
     const { xs, zs, n, ds } = seg.samples;
     const raw = new Float64Array(n + 1);
     for (let i = 0; i <= n; i++) raw[i] = this.terrainY(xs[i], zs[i]);
@@ -169,6 +182,9 @@ export class RoadNetwork {
    * blend onto this plane over their approach so the fan is planar (no tent between mouths).
    */
   _nodeGradient(node) {
+    // a loaded junction keeps the slope it was saved with: every arm's profile was blended onto that
+    // plane, and the ground was cut to those profiles (importState)
+    if (node._savedGrad !== undefined) { node.grad = node._savedGrad; delete node._savedGrad; return; }
     const J = node.junction;
     node.grad = null;
     if (!J || !J.pad) return;
@@ -441,6 +457,108 @@ export class RoadNetwork {
     return result;
   }
 
+  // ------------------------------------------------------------------ saving and loading
+  /**
+   * The whole network as plain data, exact enough to rebuild it as it stands:
+   *   nodes  [id, x, z, y, gx, gz]   (gx, gz: the slope of the junction's pad, or null)
+   *   bases  the base curves, each `[kind, …coordinates]` with kind L (line), Q (quadratic),
+   *          C (cubic) or R (Catmull-Rom through all the points)
+   *   segs   [id, nodeA, nodeB, type, baseIndex, u0, u1, heights] where heights is the road's own
+   *          profile in centimetres, the first value followed by differences
+   * Segments are listed in the order they were built; zoning walks them in that order.
+   */
+  exportState() {
+    // Coordinates go out at full precision. Rounding them to the millimetre looked harmless and
+    // was not: a street of exactly eleven zoning cells came back a hair short of eleven, the grid
+    // gave it ten columns, and the buildings on the eleventh had no plot to stand on.
+    const bases = [], index = new Map(), segs = [];
+    for (const seg of this.segments.values()) {
+      const c = seg.curve, base = c && c.isRoadCurve ? c.base : c;
+      let bi = index.get(base);
+      if (bi === undefined) {
+        bi = bases.length;
+        index.set(base, bi);
+        const flat = (pts) => { const out = []; for (const p of pts) out.push(p.x, p.z); return out; };
+        if (base.isCatmullRomCurve3) bases.push(['R', ...flat(base.points)]);
+        else if (base.isCubicBezierCurve3) bases.push(['C', ...flat([base.v0, base.v1, base.v2, base.v3])]);
+        else if (base.isQuadraticBezierCurve3) bases.push(['Q', ...flat([base.v0, base.v1, base.v2])]);
+        else bases.push(['L', ...flat([base.v1, base.v2])]);
+      }
+      const src = seg.rawHeights || seg.heights || [];
+      const heights = [];
+      let prev = 0;
+      for (let i = 0; i < src.length; i++) { const q = Math.round(src[i] * 100); heights.push(q - prev); prev = q; }
+      segs.push([seg.id, seg.a, seg.b, seg.type, bi, c && c.isRoadCurve ? c.u0 : 0, c && c.isRoadCurve ? c.u1 : 1, heights]);
+    }
+    const nodes = [];
+    const r6 = (v) => Math.round(v * 1e6) / 1e6;
+    for (const n of this.nodes.values()) nodes.push([n.id, n.x, n.z, Math.round(n.y * 1e4) / 1e4, n.grad ? r6(n.grad.gx) : null, n.grad ? r6(n.grad.gz) : null]);
+    return { nodes, bases, segs, nextNode: this._nextNode, nextSeg: this._nextSeg };
+  }
+
+  /**
+   * Replace the network with a saved one. Node and segment ids, curves and height profiles come
+   * back exactly; junctions, lanes and meshes are derived again. The ground is NOT touched: a
+   * save restores the ground separately, with every corridor already in it.
+   * → `{ nodes, segments }` counts actually restored.
+   */
+  importState(state, opts = {}) {
+    const out = { nodes: 0, segments: 0 };
+    if (!state || !Array.isArray(state.nodes) || !Array.isArray(state.segs)) return out;
+    this.clear();
+    const num = (id) => parseInt(String(id).slice(1), 10) || 0;
+    const V = (x, z) => new THREE.Vector3(x, 0, z);
+    const bases = (state.bases || []).map((b) => {
+      const kind = b[0], pts = [];
+      for (let i = 1; i + 1 < b.length; i += 2) pts.push(V(b[i], b[i + 1]));
+      if (kind === 'R' && pts.length >= 3) {
+        const base = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+        base.arcLengthDivisions = (pts.length - 1) * 64;
+        base.updateArcLengths();
+        return base;
+      }
+      if (kind === 'C' && pts.length === 4) return prepareBase(new THREE.CubicBezierCurve3(pts[0], pts[1], pts[2], pts[3]));
+      if (kind === 'Q' && pts.length === 3) return prepareBase(new THREE.QuadraticBezierCurve3(pts[0], pts[1], pts[2]));
+      return pts.length >= 2 ? prepareBase(new THREE.LineCurve3(pts[0], pts[pts.length - 1])) : null;
+    });
+    this._beginMutation();
+    // opts.conform: a rescued city has no saved ground, so its roads cut their corridors as usual
+    this._groundIsFinal = !opts.conform;
+    try {
+      let maxNode = 0, maxSeg = 0;
+      for (const [id, x, z, y, gx, gz] of state.nodes) {
+        this._nextNode = num(id);                        // _createNode names the node from this counter
+        const node = this._createNode(+x, +z);
+        if (Number.isFinite(y)) {
+          node.y = y;
+          node._savedGrad = Number.isFinite(gx) && Number.isFinite(gz) ? { gx, gz } : null;   // read once by _nodeGradient
+        }
+        maxNode = Math.max(maxNode, num(id));
+        out.nodes++;
+      }
+      for (const [id, a, b, type, bi, u0, u1, heights] of state.segs) {
+        const A = this.nodes.get(a), B = this.nodes.get(b), t = ROAD_TYPES[type], base = bases[bi];
+        maxSeg = Math.max(maxSeg, num(id));
+        if (!A || !B || !t || !base) continue;
+        this._nextSeg = num(id);
+        const seg = this._addSegment(A, B, t, new RoadCurve(base, +u0, +u1));
+        if (Array.isArray(heights) && heights.length) {
+          const h = new Float32Array(heights.length);
+          let q = 0;
+          for (let i = 0; i < heights.length; i++) { q += heights[i]; h[i] = q / 100; }
+          seg._savedHeights = h;                           // picked up by _computeHeights in _finishMutation
+        }
+        out.segments++;
+      }
+      this._nextNode = Math.max(maxNode + 1, +state.nextNode || 0);
+      this._nextSeg = Math.max(maxSeg + 1, +state.nextSeg || 0);
+      this._finishMutation();
+    } finally {
+      this._groundIsFinal = false;
+    }
+    return out;
+  }
+
   remove(segmentId) {
     const seg = this.segments.get(segmentId);
     if (!seg) return false;
@@ -652,12 +770,35 @@ export class RoadNetwork {
         api.clearVegetationPath(pts, seg.width + extra);
       }
     }
+    // Second pass, carriageways only. The wide blend of one corridor can leave ground standing
+    // above a neighbour that was cut earlier at a lower level: parallel streets on a slope, the
+    // arms of a junction. Measured on a starter town, that left grass up to half a metre over
+    // the asphalt in a few places. Stamping each bed again with almost no blend gives every road
+    // its own surface back, and costs little because the stamped area is only the road itself.
+    for (const sid of segIds) {
+      const seg = this.segments.get(sid);
+      if (!seg || !seg.points.length) continue;
+      const drop = bedDrop(ROAD_TYPES[seg.type]);
+      api.conformPath(seg.points.map((p) => ({ x: p.x, y: p.y - drop, z: p.z })), seg.width + 1.2, 1.5);
+    }
   }
 
   /** Conform terrain for the touched segments/nodes plus neighbours whose corridors a falloff could touch. */
   _conformTerrainFor(segIds, nodeIds) {
     const api = this.world.terrain.api;
     if (!api) return;
+    if (this._groundIsFinal) {
+      // loading a save: the ground already carries every corridor, so only the trees need clearing
+      if (typeof api.clearVegetationPath === 'function') {
+        for (const sid of segIds) {
+          const seg = this.segments.get(sid);
+          if (!seg || !seg.points.length) continue;
+          const extra = seg.type === 'highway' ? 9 : ROAD_TYPES[seg.type].lamps ? 6 : 3;
+          api.clearVegetationPath(seg.points, seg.width + extra);
+        }
+      }
+      return;
+    }
     if (typeof api.conformPath === 'function') return this._conformPaths(segIds, nodeIds, api);
     if (typeof api.flattenRect !== 'function') return;
     const ops = [];

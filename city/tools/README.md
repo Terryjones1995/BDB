@@ -30,6 +30,38 @@ It needs Playwright. If `require('playwright')` does not find it, point at it:
 On a machine with no graphics card it renders in software: allow minutes, use `?demo=0` and a
 small window. The timeout argument is in milliseconds.
 
+
+## startercheck.mjs — do the starter towns sit on level ground?
+
+```
+node city/tools/startercheck.mjs town 7 437124 16991 42799 977660 31337
+```
+
+Builds a starter (`village` or `town`) on each seed and compares the ground with every road
+surface. One JSON line per seed: `buried` is the number of road sample points with more than 25 cm
+of ground over them (want 0), `maxGrade` the steepest street in percent (want under about 6),
+`relief` the height range across the town's streets, and `timing` where the build spent its time.
+
+Run it on at least six seeds after any change to `src/demo/StarterTown.js`. The first version was
+only ever looked at on one seed, which happened to be flat; on others the streets ran at 25 to 50%.
+`SHOT=dir` saves a screenshot per seed, `FOCUS=''` loads every module instead of only the ones the
+builder needs.
+
+## savecheck.mjs — does a saved city come back the same?
+
+```
+node city/tools/savecheck.mjs 42799 town
+```
+
+Plays a starter (a new street, zoning, a tax change, nine game days), saves it, loads the save
+into a fresh page and compares the two cities: every zoning cell, every plot, every building, the
+ground and the road heights, people and money. Then both play on for three game days, and the
+loaded city is saved and loaded a second time to prove nothing drifts. Each `DIFF` line should
+name nothing but the clock.
+
+Run it after any change to `src/save/`, to a module's `exportState` / `importState`, or to
+anything that decides where a zoning cell, a plot or a road surface ends up.
+
 ## Checking a model from Tripo
 
 ```

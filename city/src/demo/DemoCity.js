@@ -23,6 +23,9 @@ import { buildDistrictGround } from './DistrictGround.js';
 import { buildLandmarks } from './Landmarks.js';
 import { shapeMotorway, dressMotorway, buildRail, buildPort } from './Infrastructure.js';
 import { registerPresets } from './presets.js';
+import { sliced } from './pace.js';
+
+const DAY_S = 60 * 60 * 24;   // one game day, in game seconds
 
 // ------------------------------------------------------------------------------------------------
 // layout constants (metres, local frame)
@@ -43,7 +46,7 @@ const AVENUE_ROWS = new Set([0, 2]);          // ROWS indices built as avenues
 const GRID_U0 = COLS[0], GRID_U1 = COLS[COLS.length - 1];
 const GRID_V0 = ROWS[ROWS.length - 1];   // inland edge of the grid (most negative v)
 
-export async function buildDemoCity(ctx) {
+export async function buildDemoCity(ctx, report = () => {}) {
   const { world, config, events } = ctx;
   const roads = world.roads && world.roads.api;
   if (!roads || typeof roads.build !== 'function') {
@@ -68,7 +71,15 @@ export async function buildDemoCity(ctx) {
   const gfxReady = gfx.load().catch((err) => { console.error('[demo] gfx load failed', err); return null; });
   const phase = {};
   let tMark = performance.now();
-  const mark = (name) => { const n = performance.now(); phase[name] = Math.round(n - tMark); tMark = n; };
+  // what the loading screen says once each phase is done, and how far along that is
+  const NEXT = {
+    site: [0.02, 'Surveying the coast'], shore: [0.04, 'Levelling the blocks'], grade: [0.06, 'Laying the streets'],
+    roads: [0.2, 'Raising the landmarks'], landmarks: [0.24, 'Building the port and rail'], infra: [0.28, 'Zoning the districts'],
+    zoning: [0.34, 'Switching on the services'], services: [0.38, 'Raising the skyline'], grow: [0.5, 'Paving the lots'],
+    ground: [0.52, 'Moving people in'], economy: [0.96, 'Starting the traffic'], traffic: [1, 'Waking the city'],
+  };
+  const say = (f, text) => { try { report(f, text); } catch (_) { /* progress is cosmetic */ } };
+  const mark = (name) => { const n = performance.now(); phase[name] = Math.round(n - tMark); tMark = n; if (NEXT[name]) say(NEXT[name][0], NEXT[name][1]); };
 
   // ------------------------------------------------------------------ 1. site + local frame
   const site = pickSite(terrain, world);
@@ -491,7 +502,8 @@ export async function buildDemoCity(ctx) {
   const buildings = world.buildings && world.buildings.api;
   try {
     if (lots && buildings && typeof buildings.fastForward === 'function') {
-      buildings.fastForward(60 * 60 * 24 * 400); await frames(ctx, 1);
+      await sliced(400, 40, (days) => buildings.fastForward(DAY_S * days), (f) => say(0.38 + 0.12 * f, 'Raising the skyline'));
+      await frames(ctx, 1);
     }
   } catch (err) {
     console.error('[demo] buildings failed', err);
@@ -557,9 +569,12 @@ export async function buildDemoCity(ctx) {
       const cap1 = topUp(24000);
       phase.cap = `${Math.round(cap0)}->${Math.round(cap1)}`;
       for (let pass = 0; pass < 2; pass++) {
-        sim.fastForward(60 * 60 * 24 * 7 * 17);       // seventeen game weeks
+        const from = 0.52 + 0.2 * pass;
+        // seventeen game weeks, a few days at a time so the page keeps breathing
+        await sliced(7 * 17, 2, (days) => sim.fastForward(DAY_S * days), (f) => say(from + 0.15 * f, 'Moving people in'));
         await frames(ctx, 1);
-        buildings?.fastForward?.(60 * 60 * 24 * 340); // demand moved on — let lots catch up / level up
+        // demand moved on — let lots catch up / level up
+        await sliced(340, 40, (days) => buildings?.fastForward?.(DAY_S * days), (f) => say(from + 0.15 + 0.05 * f, 'Moving people in'));
         await frames(ctx, 1);
       }
       // Still short? That is a seed whose site yielded far fewer lots (a broken shoreline halves the
@@ -570,9 +585,9 @@ export async function buildDemoCity(ctx) {
       }
       for (let extra = 0; extra < 2 && world.economy.population < 15300; extra++) {
         topUp(24000 + extra * 6000);
-        sim.fastForward(60 * 60 * 24 * 7 * 12);
+        await sliced(7 * 12, 2, (days) => sim.fastForward(DAY_S * days), (f) => say(0.92 + 0.02 * (extra + f), 'Moving more people in'));
         await frames(ctx, 1);
-        buildings?.fastForward?.(60 * 60 * 24 * 120);
+        await sliced(120, 40, (days) => buildings?.fastForward?.(DAY_S * days));
         await frames(ctx, 1);
       }
       Object.assign(world.time, t0date);

@@ -52,6 +52,9 @@ export async function init(ctx) {
     flush: () => renderer.flush(),
     rebuild: () => { network.refreshAll(); renderer.flush(); },
     conformAll: () => network._conformTerrainFor([...network.segments.keys()], [...network.nodes.keys()]),
+    /** Saving and loading (RoadNetwork.exportState / importState): the network as plain data, and back. */
+    exportState: () => network.exportState(),
+    importState: (state, opts) => { const r = network.importState(state, opts); renderer.flush(); return r; },
     setInfoView: (view) => { infoView = view; infoDirty = true; },
     /** Street lamps are part of the road asset (CS2 style); a props module may switch them off. */
     setStreetLights: (on) => renderer.setStreetLights(on),
