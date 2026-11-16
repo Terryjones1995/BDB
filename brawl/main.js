@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115w';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115w';
-import { createAI } from './ai.js?v=1115w';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115w';
-import { Cloud, cloudWhy } from './cloud.js?v=1115w';
-import { sayFor, sayWhen } from './talk.js?v=1115w';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1115x';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115x';
+import { createAI } from './ai.js?v=1115x';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115x';
+import { Cloud, cloudWhy } from './cloud.js?v=1115x';
+import { sayFor, sayWhen } from './talk.js?v=1115x';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -70,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115w'), import('./models.js?v=1115w')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115x'), import('./models.js?v=1115x')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -831,7 +831,7 @@ function preCpu(cpu, odds = 1){
     b.querySelector('#vsThem').innerHTML = `<div class="avs">${squad.slice(0, n).map(() => `<div class="av"${T ? ` style="--tc:${T.col}"` : ''}></div>`).join('')}</div>${n > 1 ? `${NUM[n]} BDBs<small>${esc(squad.slice(0, n).map(c => c.name.replace(/ BDB$/, '')).join(', '))}</small>` : esc(cpu.name)}`;
     const O = ODDS[n], lv = cpuLvl(cpu), soft = cpuSoft(cpu);
     const nt = b.querySelector('#vsNote'); nt.hidden = n < 2; nt.textContent = n > 1 ? `${NUM[n]} BDBs at once. Each has a deck of his own and ${Math.round(O.el * 100)}% of the usual Mana.` : '';
-    b.querySelector('#vsFacts').innerHTML = [ladder ? `Level ${fmt(cpu.level)}, ${T.name}` : cpu.tag.replace(/\..*$/, ''), n > 1 ? '' : ladder ? cpu.tag.replace(/\.$/, '') : '', `Cards level ${lv}${lv > cpu.lvl ? ', matched to yours' : ''}`, soft < 1 ? `Towers at ${Math.round(soft * 100)}% health` : '']
+    b.querySelector('#vsFacts').innerHTML = [ladder ? `Level ${fmt(cpu.level)}, ${T.name}` : cpu.tag.replace(/\..*$/, ''), n > 1 ? '' : ladder ? cpu.tag.replace(/\.$/, '') : '', `Plays at ${brainName(cpu.ai)}`, `Cards level ${lv}${lv > cpu.lvl ? ', matched to yours' : ''}`, soft < 1 ? `Towers at ${Math.round(soft * 100)}% health` : '']
       .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
     b.querySelector('#vsChips').innerHTML = prizeChips(cpu, first, n);
     slots.forEach((d, i) => { d.hidden = i >= n; });

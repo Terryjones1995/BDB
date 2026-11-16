@@ -355,7 +355,7 @@ for (const [key, name, type, rar, role, cost, n, x, desc] of ROSTER){
 for (const k of ['bonecrew', 'bonehorde', 'bonelegion', 'gloombats', 'mushnubs', 'bees']) delete UNITS[k];          // those cards drop the shared small unit, not one of their own
 delete UNITS.interns;
 UNITS.princess = {name:'Guard Tower', role:'build', type:'order', hp:2300, dmg:55, hit:.8, rng:7.5, spd:0, r:1.15, bld:1, air:1, shot:'ball', twr:1};      // one target at a time. (For a day its shots burst and hit everything round the target: towers then killed whole pushes, and matches stalled.)
-UNITS.king     = {name:'King Tower',  role:'build', type:'order', hp:3900, dmg:62, hit:1.0, rng:7,  spd:0, r:1.5,  bld:1, air:1, shot:'ball', twr:1};
+UNITS.king     = {name:'King Tower',  role:'build', type:'order', hp:3900, dmg:72, hit:1.0, rng:7,  spd:0, r:1.5,  bld:1, air:1, shot:'ball', twr:1};
 
 /* Spells and traps: [key, name, type, rarity, Mana, spell or trap, description] */
 const MAGIC = [
@@ -648,12 +648,31 @@ export function levelPrize(n){
   if (n === 1) first.pack = 'silver';
   return {coins, first, lose:Math.max(10, Math.round(coins * .18 / 5) * 5)};
 }
+/* The four brains, and the one a point on the ladder gets (g from 0 at level 1 to 1 at level 1,000) by sliding between them. */
+export const BRAINS = {
+  medium:{react:1.7,  hold:6.2, derp:.12, smart:.55, el:1},
+  hard:  {react:1.2,  hold:7,   derp:.05, smart:.8,  el:1.05},
+  insane:{react:.8,   hold:7.5, derp:0,   smart:1,   el:1.2},
+  legend:{react:.55,  hold:7.5, derp:0,   smart:1,   el:1.35}
+};
+const STEPS = ['medium', 'hard', 'insane', 'legend'];
+export function brainAt(g, boss){
+  const x = clamp(g, 0, 1) * (STEPS.length - 1), i = Math.min(STEPS.length - 2, Math.floor(x)), t = x - i, A = BRAINS[STEPS[i]], B = BRAINS[STEPS[i + 1]], o = {};
+  for (const k in A) o[k] = +lerp(A[k], B[k], t).toFixed(2);
+  if (boss){ o.smart = Math.min(1, +(o.smart + .1).toFixed(2)); o.el = +(o.el + .05).toFixed(2); }
+  return o;
+}
+/* what to call a brain: the step it has reached */
+export const brainName = ai => ai.smart >= 1 && ai.el >= 1.3 ? 'Legend' : ai.smart >= .97 ? 'Insane' : ai.smart >= .78 ? 'Hard' : ai.smart >= .5 ? 'Medium' : 'Easy';
 export function ladderCpu(n){
   n = clamp(Math.round(n), 1, LEVELS);
   const rnd = mulberry(n * 7919 + 13), T = tierOf(n), t = TIERS.indexOf(T), boss = n % 100 === 0, g = (n - 1) / (LEVELS - 1), q = Math.min(1, g * 1.5);
   const types = [TYPE_IDS[Math.floor(rnd() * TYPE_IDS.length)], TYPE_IDS[Math.floor(rnd() * TYPE_IDS.length)]];
   const deck = dealDeck(rnd, {types, rare:1 + Math.round(g * 9) + (boss ? 1 : 0), epic:Math.floor(g * 7 + (boss ? 1.5 : n > 30 ? .5 : 0)), legend:Math.floor(g * 3.4 + (boss && t >= 2 ? 1 : 0)), god:t >= 7 && (boss || n % 10 === 0) ? 1 : 0, build:.08 + g * .5, traps:n < 20 ? 0 : n < 150 ? 1 : 3});
-  const ai = {react:+lerp(2.2, .8, Math.pow(g, .6)).toFixed(2), hold:+lerp(5.5, 7.5, q).toFixed(1), derp:+lerp(.3, 0, Math.min(1, g * 2.2)).toFixed(2), smart:+lerp(.3, 1, Math.min(1, g * 1.8 + (boss ? .15 : 0))).toFixed(2), el:+(lerp(.7, 1, Math.min(1, g * 7)) + .3 * g).toFixed(2) + (boss ? .05 : 0)};      // el: short of Mana for the first tier and a half, level by about 150, ahead by the end
+  // The brain climbs the same steps a quick battle offers: Medium at the bottom of the ladder, Hard a third of the way up, Insane at two thirds, Legend at the top.
+  // No level is slow or careless on purpose any more: a BDB who cannot defend his towers is no fight.
+  const ai = brainAt(g, boss);
+  if (n < 120) ai.el = +Math.min(ai.el, lerp(.85, 1, clamp((n - 30) / 90, 0, 1)) + (boss ? .05 : 0)).toFixed(2);      // the one allowance for a starter deck: in the first tier his Mana comes in a little slower (85% up to level 30, full by 120). Mana decides these matches: at full Mana a Medium brain beats a new player two games in three
   const name = boss ? T.name + ' BDB' : MINIONS[Math.floor(rnd() * MINIONS.length)] + ' BDB';
   return {id:'lv' + n, level:n, boss, tier:t, name, tag:boss ? T.tag : `${TYPES[types[0]].name}${types[1] !== types[0] ? ' and ' + TYPES[types[1]].name : ''} deck.`,
     map:(r => r < .75 ? T.map : MAP_IDS[Math.floor((r - .75) * 4 * MAP_IDS.length)])(boss ? 0 : rnd()),      // three games in four are on the tier's own arena
@@ -666,9 +685,10 @@ export function ladderCpu(n){
    more coins, then one of his cards on top, then a pack as well. */
 export const SKILLS = [
   {id:'easy',   name:'Easy',   coins:50,  lose:10, card:false, pack:null,     dl:-1, ai:{react:2.2,  hold:5.5, derp:.3,  smart:.3,  el:.9},  deal:{rare:1, epic:0, legend:0, build:.05, traps:1}},
-  {id:'medium', name:'Medium', coins:110, lose:20, card:true,  pack:null,     dl:0,  ai:{react:1.7,  hold:6.2, derp:.12, smart:.55, el:1},   deal:{rare:3, epic:1, legend:0, build:.2,  traps:2}},
-  {id:'hard',   name:'Hard',   coins:220, lose:35, card:true,  pack:'bronze', dl:1,  ai:{react:1.2,  hold:7,   derp:.05, smart:.8,  el:1.05}, deal:{rare:5, epic:3, legend:1, build:.4, traps:3}},
-  {id:'insane', name:'Insane', coins:420, lose:60, card:true,  pack:'silver', dl:2,  ai:{react:.8,   hold:7.5, derp:0,   smart:1,   el:1.2},  deal:{rare:6, epic:5, legend:3, build:.6, traps:3}}
+  {id:'medium', name:'Medium', coins:110, lose:20, card:true,  pack:null,     dl:0,  ai:BRAINS.medium, deal:{rare:3, epic:1, legend:0, build:.2,  traps:2}},
+  {id:'hard',   name:'Hard',   coins:220, lose:35, card:true,  pack:'bronze', dl:1,  ai:BRAINS.hard,   deal:{rare:5, epic:3, legend:1, build:.4, traps:3}},
+  {id:'insane', name:'Insane', coins:420, lose:60, card:true,  pack:'silver', dl:2,  ai:BRAINS.insane, deal:{rare:6, epic:5, legend:3, build:.6, traps:3}},
+  {id:'legend', name:'Legend', coins:800, lose:100, card:true, pack:'gold',   dl:3,  ai:BRAINS.legend, deal:{rare:7, epic:5, legend:3, god:1, build:.6, traps:3}}
 ];
 export function randomCpu(skill, myLvl = 1, rnd = Math.random){
   const S = SKILLS.find(s => s.id === skill) || SKILLS[1], pick = a => a[Math.floor(rnd() * a.length)];

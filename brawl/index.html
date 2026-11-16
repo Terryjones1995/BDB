@@ -466,11 +466,11 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .skip{display:flex;align-items:center;gap:12px;margin:0 0 12px}
 .skip .k-btn{flex:none;padding:8px 14px;font-size:15px}
 .skip .note{margin:0}
-.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.quick .k-btn{padding:10px 4px 8px;font-size:16px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.quick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.quick .k-btn{padding:10px 2px 8px;font-size:15px;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .quick small{font:800 11px/1 var(--f-body);color:#fff7c2;text-shadow:none;display:flex;align-items:center}
 .quick .coin{width:15px;height:15px;margin-right:2px;vertical-align:-3px}
-.sk-easy{background:linear-gradient(180deg,#8dff7a,#2fbf3a)}.sk-medium{background:linear-gradient(180deg,#ffe066,#f59a1c)}.sk-hard{background:linear-gradient(180deg,#ff9a6a,#e2461a)}.sk-insane{background:linear-gradient(180deg,#e58bff,#8a22c8)}
+.sk-easy{background:linear-gradient(180deg,#8dff7a,#2fbf3a)}.sk-medium{background:linear-gradient(180deg,#ffe066,#f59a1c)}.sk-hard{background:linear-gradient(180deg,#ff9a6a,#e2461a)}.sk-insane{background:linear-gradient(180deg,#e58bff,#8a22c8)}.sk-legend{background:linear-gradient(180deg,#8fdcff,#6a6bff 52%,#4a2bc0)}
 #scrOnb{align-items:center;justify-content:flex-start;overflow:auto;padding:22px 14px;background:radial-gradient(ellipse 120% 70% at 50% -10%,#4aa0ff 0,#1f5fd0 42%,#0d2f86 100%)}
 .onb{width:min(1080px,100%);margin:auto;text-align:center;background:linear-gradient(180deg,#2f79e6,#1d50b4);border:4px solid var(--ink2);border-radius:24px;box-shadow:inset 0 4px 0 rgba(255,255,255,.3),0 8px 0 var(--ink2);padding:24px 18px 26px}
 .onb h2{margin:6px 0 12px;font:400 clamp(28px,5vw,44px)/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
@@ -871,8 +871,9 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .crpay b{margin-left:4px;font:400 15px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 /* teaming up: how good the BDBs are, then how many */
 .tm{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:12px 10px;border-radius:16px;background:rgba(10,30,82,.6);border:3px solid var(--ink2)}
-.tm .k-seg{width:100%;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
-.tm .k-seg button{padding:9px 2px;font-size:13px}
+.tm .k-seg{width:100%;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:3px}
+.tm .k-seg button{padding:9px 1px;font-size:13px}
+@media (max-width:440px){ .tm .k-seg,.res-team .k-seg:first-of-type{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-flow:row} }
 .k-box .tm .note{margin:0;text-align:center}
 .tm .k-row{margin:0}
 .res-team{display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:14px 22px 0;padding:10px;border-radius:14px;background:#0a1e52;border:3px solid var(--ink2)}
@@ -1081,6 +1082,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115w"></script>
+<script type="module" src="main.js?v=1115x"></script>
 </body>
 </html>

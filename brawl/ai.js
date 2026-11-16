@@ -1,7 +1,7 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul } from './cards.js?v=1115w';
-import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1115w';
+import { CARDS, lvlMul } from './cards.js?v=1115x';
+import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1115x';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -141,7 +141,9 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
         if (snp) return ahead(big, snp);
         if (slp) return ahead(onFoot[0], slp);
       }
-      const power = threats.reduce((a, o) => a + o.hp * .4 + o.dmg, 0), have = mine.filter(o => o.z * s > -2).reduce((a, o) => a + o.hp * .4 + o.dmg, 0) + myBld.reduce((a, o) => a + (o.U.dmg ? o.hp * .3 + o.dmg : 0), 0);
+      // what he already has in the way: troops close enough to meet this push (not ones marching off down the other lane), and anything he has built that shoots
+      const close = o => o.z * s > -2 && (dist(o, lead) < 7 || threats.some(t => dist(o, t) < 5.5)) && (o.U.air || threats.some(t => !t.U.fly));
+      const power = threats.reduce((a, o) => a + o.hp * .4 + o.dmg, 0), have = mine.filter(close).reduce((a, o) => a + o.hp * .4 + o.dmg, 0) + myBld.reduce((a, o) => a + (o.U.dmg && dist(o, lead) < o.U.rng + 3 ? o.hp * .3 + o.dmg : 0), 0);
       if (have < power * 1.15 && (near || p.el >= prof.hold - 2.5 || power > 900)){
         const air = threats.filter(o => o.U.fly).length / threats.length, many = threats.length >= 4, huge = threats.some(o => o.hp > 800), pull = threats.some(o => o.U.only === 'b');
         const worth = power / 260;                                   // rough Mana value of what is coming
@@ -177,6 +179,15 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
             if (soft && !(lead.max >= 900 && dist(lead, k) < 4)){ x = soft.x; f = soft.z * s + .3; }      // unless something big is already at the tower: that comes first
           }
           return put(best, x, Math.max(f, edge));
+        }
+        if (near){
+          // nothing in hand can reach them (flyers, and no one who shoots). Next best: any spell that hurts them at all, then a body beside the tower to take the hits in its place
+          let sp = null, sv = 0; for (const h of hand){ if (h.card.kind !== 'spell') continue; const c = cast(h, threats, [], [], mine, myTw); if (c && c.v / (h.card.cost * 95) > sv){ sv = c.v / (h.card.cost * 95); sp = {h, x:c.x, f:c.f}; } }
+          if (sp && sv >= .7) return put(sp.h, sp.x, sp.f);
+          if (!threats.every(o => o.U.only === 'b')){
+            const body = hand.filter(h => h.U && !h.U.mana && !h.U.bld && h.U.only !== 'b').sort((a, b) => b.U.hp * b.card.n / b.card.cost - a.U.hp * a.card.n / a.card.cost)[0];
+            if (body && rnd() < .5 + prof.smart * .5){ const k = myTw.reduce((a, o) => dist(o, lead) < dist(a, lead) ? o : a, myTw[0]); return put(body, k.x + clamp(lead.x - k.x, -1.6, 1.6), Math.max(edge, k.z * s - 2)); }
+          }
         }
       }
     }
