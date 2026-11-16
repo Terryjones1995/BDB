@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116h';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116h';
-import { createAI } from './ai.js?v=1116h';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116h';
-import { Cloud, cloudWhy } from './cloud.js?v=1116h';
-import { sayFor, sayWhen } from './talk.js?v=1116h';
-import { createAudio } from './audio.js?v=1116h';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116i';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116i';
+import { createAI } from './ai.js?v=1116i';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116i';
+import { Cloud, cloudWhy } from './cloud.js?v=1116i';
+import { sayFor, sayWhen } from './talk.js?v=1116i';
+import { createAudio } from './audio.js?v=1116i';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116h'), import('./models.js?v=1116h')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116i'), import('./models.js?v=1116i')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -555,6 +555,9 @@ function profile(){
   $('pTiles').innerHTML = [[fmt(s.w), 'BDB beaten'], [played ? Math.round(s.w / played * 100) + '%' : '0%', 'Win rate'], [fmt(P.best), 'Best streak'], [fmt(s.ow), 'Online wins'], [fmt(own), `Cards of ${fmt(CARD_IDS.length)}`], [fmt(P.trophies), 'Trophies']]
     .map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('');
   $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  const riv = Object.entries(P.vs || {}).map(([n, v]) => ({n, w:v[0], l:v[1], d:v[2], g:v[0] + v[1] + v[2]})).filter(o => o.g).sort((a, b) => b.g - a.g || b.w - a.w).slice(0, 12);
+  $('vsPanel').hidden = !riv.length;
+  $('vsList').innerHTML = riv.map(o => `<div class="vsr"><b>${esc(o.n)}</b><span class="bar${o.w + o.l ? '' : ' none'}" title="${o.w} won, ${o.l} lost${o.d ? `, ${o.d} drawn` : ''}"><i style="width:${o.w + o.l ? Math.round(o.w / (o.w + o.l) * 100) : 0}%"></i></span><small>${fmt(o.w)} to ${fmt(o.l)}${o.d ? `, ${fmt(o.d)} drawn` : ''}</small></div>`).join('');
   $('tokN').textContent = P.tokens;
   const pk = $('perks'); pk.innerHTML = '';
   for (const k of PERK_IDS){
@@ -1038,8 +1041,8 @@ const TIPS = ['A full Mana bar is wasted Mana. Spend it.', 'Spells do far less t
   'He cannot see your traps until one goes off.', `Every tower you take raises what a win pays: x${CROWN_PAY[1]}, x${CROWN_PAY[2]}, then x${CROWN_PAY[3]}.`, 'Mana comes in faster every two minutes.',
   'In overtime the next tower wins it.', 'Drag a card over the field to see where it will land before you let go.', 'Tap any troop on the field to see what it is and what it does.'];
 function vsCard(o, below){
-  const T = tierOf(nextLevel()), solo = o.mode === 'cpu', bdb = solo || o.coop, c = o.cpu;
-  const sub = solo ? (c.rand ? `${(SKILLS.find(k => k.id === c.skill) || {name:'Quick'}).name} quick battle` : `Level ${fmt(c.level)}, ${TIERS[c.tier].name} tier`) + (o.odds > 1 ? `. ${o.odds} against 1` : '') : o.coop ? `${teamSkName(o.skill)}, ${o.coop} against 2` : 'Online, even cards';
+  const T = tierOf(nextLevel()), solo = o.mode === 'cpu', bdb = solo || o.coop, c = o.cpu, rec = bdb ? '' : vsLine(o.oppName);      // rec: the score so far against a real opponent
+  const sub = solo ? (c.rand ? `${(SKILLS.find(k => k.id === c.skill) || {name:'Quick'}).name} quick battle` : `Level ${fmt(c.level)}, ${TIERS[c.tier].name} tier`) + (o.odds > 1 ? `. ${o.odds} against 1` : '') : o.coop ? `${teamSkName(o.skill)}, ${o.coop} against 2` : 'Online, even cards' + (rec ? '. ' + rec[0].toUpperCase() + rec.slice(1) : '');
   return `<div class="vs2"><div class="plate opp"><span class="pav${bdb ? ' bdb' : ''}">${bdb ? '' : esc(o.oppName[0].toUpperCase())}</span><div><strong>${esc(o.oppName)}</strong><small>${esc(sub)}</small></div></div>
     <div class="vsb" aria-hidden="true">VS</div>
     <div class="plate me"><img class="pav" alt="" src="${tierPic(T)}"><div><strong>${esc(o.coop && o.mate ? `${P.name} and ${o.mate}` : P.name)}</strong><small>${esc(T.name)} tier</small></div></div>
@@ -1353,6 +1356,7 @@ function finish(w, cr, why){
       pay = payout(win ? B.base || 120 : draw ? 50 : 30, mine, {...up, label:win ? `${n === 3 ? '2 v 3' : '2 v 2'} won, ${teamSkName(B.skill)}` : draw ? 'A draw' : 'Showing up', pay:O.pay, payLabel:'Outnumbered, 2 v 3'}); }
     else {
       if (win){ P.trophies += 30; P.stats.ow++; lines.push('+30 trophies.'); } else if (!draw){ P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies.'); }
+      const who = vsAdd(B.oppName, win ? 0 : draw ? 2 : 1); if (who) lines.push(`Against ${who}: ${vsLine(who)}.`);
       pay = payout(win ? 150 : draw ? 50 : 25, mine, {...up, label:win ? 'Online win' : draw ? 'A draw' : 'Showing up'});
     }
     if (OL) OL.again = {me:false, them:false};      // the room stays open on the result screen, so either player can ask for another one
@@ -1564,10 +1568,23 @@ addEventListener('pointerdown', e => { held = false; clearTimeout(holdT); const 
   holdT = setTimeout(() => { held = true; off(); sheet(id); }, 480); }, true);
 addEventListener('click', e => { if (held){ held = false; e.stopPropagation(); e.preventDefault(); } }, true);
 
+/* the running score against each real person you have fought one against one: [won, lost, drawn] under their name. It keeps the sixty you have played most. */
+function vsAdd(name, i){
+  const k = clean(name, 20); if (!k) return '';
+  if (!P.vs) P.vs = {};
+  (P.vs[k] || (P.vs[k] = [0, 0, 0]))[i]++;
+  const all = Object.keys(P.vs); if (all.length > 60){ const few = all.filter(n => n !== k).sort((a, b) => P.vs[a].reduce((x, y) => x + y) - P.vs[b].reduce((x, y) => x + y))[0]; delete P.vs[few]; }
+  return k;
+}
+function vsLine(name){
+  const v = P.vs && P.vs[clean(name, 20)]; if (!v || !(v[0] + v[1] + v[2])) return '';
+  return v[0] > v[1] ? `you lead ${fmt(v[0])} to ${fmt(v[1])}` : v[1] > v[0] ? `you trail ${fmt(v[0])} to ${fmt(v[1])}` : v[0] ? `level at ${fmt(v[0])} each` : 'no winner yet';
+}
+
 /* ---------- who's on: everyone signed in shows up, and everyone you see becomes a friend ---------- */
-let hallT = 0, HALL = {online:[], invites:[]}; const seenInv = new Set();
+let hallT = 0, hallGen = 0, hallHTML = '', HALL = {online:[], invites:[]}; const seenInv = new Set();
 function hallStart(){
-  clearInterval(hallT); renderHall();
+  clearTimeout(hallT); const gen = ++hallGen; renderHall();
   if (!Cloud.session()) return;
   const tick = async () => {
     if (!P || !Cloud.session()) return;
@@ -1579,7 +1596,9 @@ function hallStart(){
       for (const iv of r.invites || []) if (iv && !seenInv.has(iv.id)){ seenInv.add(iv.id); gotInvite(iv); }
     } catch(e){}
   };
-  tick(); hallT = setInterval(tick, (+Q.get('ping') || 8) * 1000);
+  // in the menus an invite should land within a few seconds; in a match the ping only has to say "still here"
+  const loop = async () => { await tick(); if (gen === hallGen) hallT = setTimeout(loop, (+Q.get('ping') || (B ? 12 : 5)) * 1000); };
+  loop();
   league();
 }
 /* the league table: asked for when the hub opens and every few minutes after. A server that was set up before it existed has no such function:
@@ -1605,13 +1624,14 @@ function leagueUI(){
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 function renderHall(){
   const box = $('hall'); if (!box || !P) return;
-  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on the sign in screen to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
+  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; hallHTML = ''; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on the sign in screen to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
   const on = (HALL.online || []).map(o => ({name:clean(o.name, 20), status:o.status, tr:o.trophies | 0})).filter(o => o.name), names = new Set(on.map(o => o.name));
   const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
   $('hallLbl').textContent = `Who's on: ${on.length}`;
-  box.innerHTML = (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
-    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">Team up</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
-    off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend, seen ${ago(P.friends[n])}</small></div><div></div></div>`).join('');
+  const html = (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
+    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies${vsLine(o.name) ? ', ' + vsLine(o.name) : ''}</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">Team up</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
+    off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend, seen ${ago(P.friends[n])}${vsLine(n) ? ', ' + vsLine(n) : ''}</small></div><div></div></div>`).join('');
+  if (html !== hallHTML) box.innerHTML = hallHTML = html;      // only when something changed: a list rebuilt under a finger loses the tap
 }
 $('hall').onclick = e => {
   const q = e.target.closest('button[data-k]'); if (!q || B) return; const to = q.parentNode.dataset.n;
@@ -1637,8 +1657,10 @@ function gotInvite(iv){
   if (B || TR){ Cloud.inviteDone(iv.id); return; }
   fx('invite');
   if (!$('dlg').hidden || $('scrHub').hidden){ heldInv = {iv, at:Date.now()}; return; }
-  const b = dlg(`<div class="k-eyebrow">Invite</div><h3>${esc(from)}</h3><p>${what}.</p><div class="k-row"><button type="button" class="k-btn primary" id="ivY">Accept</button><button type="button" class="k-btn" id="ivN">Not now</button></div>`, {lock:true});
+  const rec = vsLine(from);
+  const b = dlg(`<div class="k-eyebrow">Invite</div><h3>${esc(from)}</h3><p>${what}.${iv.kind === 'duel' && rec ? ` So far ${rec}.` : ''}</p><div class="k-row"><button type="button" class="k-btn primary" id="ivY">Accept</button><button type="button" class="k-btn" id="ivN">Not now</button></div>`, {lock:true});
   BDB.sfx.big();
+  const row = b.querySelector('.k-row'); row.style.pointerEvents = 'none'; setTimeout(() => { row.style.pointerEvents = ''; }, 500);      // it appears unasked: a tap already on its way to something else must not answer it
   b.querySelector('#ivY').onclick = () => { Cloud.inviteDone(iv.id); dlgClose(); if (iv.kind === 'trade') openTrade(iv.code, from); else joinFriend(iv.code); };
   b.querySelector('#ivN').onclick = () => { Cloud.inviteDone(iv.id); dlgClose(); };
 }
