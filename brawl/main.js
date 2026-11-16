@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116c';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116c';
-import { createAI } from './ai.js?v=1116c';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116c';
-import { Cloud, cloudWhy } from './cloud.js?v=1116c';
-import { sayFor, sayWhen } from './talk.js?v=1116c';
-import { createAudio } from './audio.js?v=1116c';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116d';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116d';
+import { createAI } from './ai.js?v=1116d';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116d';
+import { Cloud, cloudWhy } from './cloud.js?v=1116d';
+import { sayFor, sayWhen } from './talk.js?v=1116d';
+import { createAudio } from './audio.js?v=1116d';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116c'), import('./models.js?v=1116c')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116d'), import('./models.js?v=1116d')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;

@@ -16,6 +16,9 @@ and Music Jingles, plus four thuds and rumbles that reached this game through th
 Menus, cards, coins, chest lids, blades, blows and the losing jingle come from these, some of them
 layered or re-pitched.
 
+The fanfare for a win is from the Superpowers Medieval Fantasy asset pack by Pixel-boy for Sparklin Labs
+(https://github.com/sparklinlabs/superpowers-asset-packs), released under CC0 1.0.
+
 A few come from the sound folders of Kenney's Starter Kits (City Builder, 3D Platformer, Racing), which
 are published under the MIT licence:
 
@@ -38,5 +41,5 @@ are published under the MIT licence:
 > IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
 > THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Everything else (explosions, thunder, the horns, the whistle, arrows, spells, the bells and the winning
-fanfare) was synthesised for this game and is not taken from anywhere.
+Everything else (explosions, thunder, the horns, the whistle, arrows, spells and the bells) was
+synthesised for this game and is not taken from anywhere.

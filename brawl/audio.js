@@ -21,7 +21,7 @@ const SPRITE = {tap:[0.1, 0.0544, 0.06], tab:[0.2944, 0.1101, 0.066], ok:[0.5445
   thunder1:[49.037, 1.5719, 0.254], thunder2:[50.749, 1.4727, 0.242], freeze:[52.3616, 0.8677, 0.307], heal:[53.3693, 1.6176, 0.13], rage:[55.1269, 1.4209, 0.308],
   poison:[56.6878, 0.4888, 0.259], raise:[57.3165, 1.2488, 0.162], wind:[58.7054, 1.0985, 0.231], warp:[59.9438, 0.3254, 0.148], rain:[60.4093, 0.395, 0.282],
   whistle:[60.9443, 1.3458, 0.177], trapset:[62.4301, 0.487, 0.208], trap:[63.0571, 0.9468, 0.21], horn:[64.1439, 2.1849, 0.187], hornot:[66.4688, 2.7741, 0.202],
-  hornup:[69.3829, 1.5838, 0.175], crown:[71.1067, 1.6544, 0.234], win:[72.9012, 3.5305, 0.237], lose:[76.5717, 2.4645, 0.261], draw:[79.1761, 0.8506, 0.091]};
+  hornup:[69.3829, 1.5838, 0.175], crown:[71.1067, 1.6544, 0.234], win:[72.9012, 2.8281, 0.411], lose:[75.8693, 2.4645, 0.261], draw:[78.4737, 0.8506, 0.091]};
 
 const LOOP = 92.08193, LEAD = 0.3;            // the music repeats every LOOP seconds; the file has LEAD seconds of the loop's end in front of it
 const MASTER = 2, MUSIC = .17, MENU = .55;  // MENU: how much of the music's level the menus keep (it is also muffled there)
