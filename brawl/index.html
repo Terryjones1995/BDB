@@ -7,6 +7,13 @@
 <meta name="description" content="3D card battles against BDB. Dragons, wizards, orcs and the night janitor. Build a deck, knock down his towers, win his cards.">
 <meta property="og:image" content="../assets/face.jpg">
 <link rel="icon" href="../assets/face.jpg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1750c0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Brawl">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Lilita+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
@@ -645,6 +652,13 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .pc-tiles small{display:block;margin-top:6px;font:700 11px/1.2 var(--f-body);color:#cfe1ff}
 .pcard .kv{padding-top:12px;border-top:2px solid rgba(8,18,52,.35)}
 .pcard .kv span:nth-child(even){font-size:17px}
+@supports (padding:max(0px)){
+  .top-in{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .bt-top{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+  .handbar{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  #btTools{left:max(8px,env(safe-area-inset-left))} .crowns{right:max(8px,env(safe-area-inset-right))}
+  @media (max-width:860px){ .top-in{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))} }
+}
 .hero small .tb{width:26px;height:26px;margin:-8px 5px -7px 0;vertical-align:middle;object-fit:contain;filter:drop-shadow(0 2px 0 rgba(8,18,52,.5))}
 /* tips in a player's first match: a note pinned above the hand */
 .coach{position:absolute;left:50%;bottom:calc(100% + 16px);z-index:8;transform:translateX(-50%);width:min(440px,calc(100vw - 28px));padding:10px 16px 12px;border-radius:16px;border:3px solid var(--ink2);background:linear-gradient(180deg,#fff8e2,#ffe49a);box-shadow:0 5px 0 var(--ink2),0 12px 26px rgba(0,0,0,.35);color:#2b1a04;font:700 14px/1.38 var(--f-body);text-align:center;text-wrap:balance}
@@ -1071,6 +1085,11 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
             <textarea class="field" id="codeOut" readonly></textarea>
             <div class="k-row" style="justify-content:flex-start;margin-top:10px"><button type="button" class="k-btn" id="codeCopy">Copy code</button></div>
           </div>
+          <div class="panel" id="appPanel" hidden>
+            <span class="k-label">Put it on your home screen</span>
+            <p class="note" id="appNote" style="margin:0 0 10px"></p>
+            <div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn primary" id="appGo" hidden>Install</button></div>
+          </div>
           <div class="panel">
             <span class="k-label">Sound</span>
             <div class="tfilter" id="sndSeg" role="group" aria-label="Sound" style="margin:8px 0"><button type="button" data-k="music">Music</button><button type="button" data-k="fx">Effects</button></div>
@@ -1129,6 +1148,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116a"></script>
+<script type="module" src="main.js?v=1116b"></script>
 </body>
 </html>

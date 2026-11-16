@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1116a';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116a';
-import { createAI } from './ai.js?v=1116a';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116a';
-import { Cloud, cloudWhy } from './cloud.js?v=1116a';
-import { sayFor, sayWhen } from './talk.js?v=1116a';
-import { createAudio } from './audio.js?v=1116a';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1116b';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116b';
+import { createAI } from './ai.js?v=1116b';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116b';
+import { Cloud, cloudWhy } from './cloud.js?v=1116b';
+import { sayFor, sayWhen } from './talk.js?v=1116b';
+import { createAudio } from './audio.js?v=1116b';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -79,7 +79,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116a'), import('./models.js?v=1116a')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116b'), import('./models.js?v=1116b')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -508,8 +508,21 @@ function profile(){
     row.querySelector('button').onclick = () => { if (P.tokens < cost || P.perks[k] >= K.max) return; P.tokens -= cost; P.perks[k]++; save(); fx('upgrade', null, BDB.sfx.big); hub(); };
     pk.appendChild(row);
   }
-  $('codeOut').value = Accounts.code(P); gfxUI(); sndSet();
+  $('codeOut').value = Accounts.code(P); gfxUI(); sndSet(); appUI();
 }
+/* the game can sit on a phone's home screen and open like an app. Android offers an install prompt we can trigger; on an iPhone it is done from Safari's share menu, so there we say how */
+let installEv = null;
+const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; appUI(); });
+addEventListener('appinstalled', () => { installEv = null; appUI(); });
+function appUI(){
+  const p = $('appPanel'); if (!p) return;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  p.hidden = standalone() || !(installEv || ios);
+  $('appGo').hidden = !installEv; $('appGo').parentElement.hidden = !installEv;
+  $('appNote').textContent = installEv ? 'Brawl gets its own icon and opens full screen, without the browser around it. Your save stays as it is.' : 'In Safari, tap the Share button, then "Add to Home Screen". Brawl gets its own icon and opens full screen. That copy starts empty: sign in there, or paste your save code, and everything comes back.';
+}
+$('appGo').onclick = async () => { if (!installEv) return; const e = installEv; installEv = null; try { e.prompt(); await e.userChoice; } catch(er){} appUI(); };
 /* graphics quality: Auto finds the level this device can hold; the player can pin one */
 function gfxUI(){
   const g = V && V.gfx, seg = $('gfxSeg'); if (!seg) return;
