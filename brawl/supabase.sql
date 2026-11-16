@@ -1,4 +1,4 @@
--- Break Room Brawl: accounts, cloud saves, who's online and invites.
+-- Break Room Brawl: accounts, cloud saves, who's online, invites and the league table.
 -- Run this once in the Supabase SQL editor (it is safe to run again).
 -- Players sign in with a name and a password. The tables have row level security on and no policies,
 -- so nothing can read or write them directly: the page can only call the functions below.
@@ -103,6 +103,23 @@ begin
   delete from brawl_invites where id = p_id and to_key = k;
   return jsonb_build_object('ok', true);
 end $$;
+
+-- The league table: everyone with an account, by how far up the ladder they are, then trophies, then wins. Only a signed-in player can ask for it,
+-- and it gives out nothing but names and those three numbers.
+create or replace function public.brawl_top(p_name text, p_token uuid)
+returns jsonb language plpgsql security definer set search_path = public, extensions as $$
+begin
+  if not exists (select 1 from brawl_players where name_key = lower(btrim(coalesce(p_name, ''))) and token = p_token) then return jsonb_build_object('error', 'bad_token'); end if;
+  return jsonb_build_object('top', coalesce((
+    select jsonb_agg(jsonb_build_object('name', t.name, 'ladder', t.ladder, 'trophies', t.trophies, 'wins', t.wins, 'on', t.seen_at > now() - interval '75 seconds') order by t.ladder desc, t.trophies desc, t.wins desc, t.name)
+    from (select p.name, p.seen_at,
+                 case when p.data->>'ladder' ~ '^[0-9]{1,6}$' then (p.data->>'ladder')::int else 0 end as ladder,
+                 case when p.data->>'trophies' ~ '^[0-9]{1,9}$' then (p.data->>'trophies')::int else 0 end as trophies,
+                 case when p.data#>>'{stats,w}' ~ '^[0-9]{1,9}$' then (p.data#>>'{stats,w}')::int else 0 end as wins
+          from brawl_players p order by 3 desc, 4 desc, 5 desc, 1 limit 50) t), '[]'::jsonb));
+end $$;
+revoke all on function public.brawl_top(text, uuid) from public;
+grant execute on function public.brawl_top(text, uuid) to anon, authenticated;
 
 revoke all on function public.brawl_register(text, text, jsonb), public.brawl_login(text, text), public.brawl_load(text, uuid), public.brawl_save(text, uuid, jsonb),
   public.brawl_ping(text, uuid, text), public.brawl_invite(text, uuid, text, text, text), public.brawl_invite_done(text, uuid, bigint) from public;

@@ -1,7 +1,7 @@
 /* Break Room Brawl: online accounts, cloud saves, who's online and invites, through the SQL functions in supabase.sql.
    Everything is a plain fetch to Supabase's REST endpoint; no SDK. Every call can fail (offline, server not set up yet):
    callers catch that and the game carries on with the copy saved on this device. */
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1116f';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1116g';
 
 const base = (new URLSearchParams(location.search).get('api') || SUPABASE_URL || '').replace(/\/+$/, '');
 const SKEY = 'brawl-session';
@@ -50,6 +50,7 @@ export const Cloud = {
   },
   flush(keepalive){ if (!sess || !pending) return; const d = pending; pending = null; clearTimeout(pushT); rpc('brawl_save', {...mine(), p_data:d}, keepalive).catch(() => { if (!pending) pending = d; }); },
   ping:status => rpc('brawl_ping', {...mine(), p_status:status}),
+  top:() => rpc('brawl_top', mine()),                    // the league table (a server set up before it existed answers with kind 'setup')
   invite:(to, kind, code) => rpc('brawl_invite', {...mine(), p_to:to, p_kind:kind, p_code:code}),
   inviteDone:id => rpc('brawl_invite_done', {...mine(), p_id:id}).catch(() => {})
 };

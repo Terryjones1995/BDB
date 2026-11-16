@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116f';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116f';
-import { createAI } from './ai.js?v=1116f';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116f';
-import { Cloud, cloudWhy } from './cloud.js?v=1116f';
-import { sayFor, sayWhen } from './talk.js?v=1116f';
-import { createAudio } from './audio.js?v=1116f';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116g';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116g';
+import { createAI } from './ai.js?v=1116g';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116g';
+import { Cloud, cloudWhy } from './cloud.js?v=1116g';
+import { sayFor, sayWhen } from './talk.js?v=1116g';
+import { createAudio } from './audio.js?v=1116g';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116f'), import('./models.js?v=1116f')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116g'), import('./models.js?v=1116g')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -791,7 +791,7 @@ $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newGo'
 $('codeToggle').onclick = () => { $('codeBox').hidden = !$('codeBox').hidden; };
 $('codeGo').onclick = () => { try { signIn(Accounts.fromCode($('codeIn').value)); } catch(e){ $('loginErr').textContent = e.message; } };
 $('codeCopy').onclick = async () => { try { await navigator.clipboard.writeText($('codeOut').value); $('codeCopy').textContent = 'Copied'; } catch(e){ $('codeOut').select(); } setTimeout(() => { $('codeCopy').textContent = 'Copy code'; }, 1500); };
-$('signOut').onclick = () => { Cloud.flush(); Cloud.signOut(); Accounts.signOut(); clearInterval(hallT); loginScreen(); };
+$('signOut').onclick = () => { Cloud.flush(); Cloud.signOut(); Accounts.signOut(); clearInterval(hallT); LEAGUE = null; loginScreen(); };
 $('wipe').onclick = () => confirmBox('Delete this player?', `${P.name}'s cards, coins and decks will be gone from this device.`, 'Delete', () => { Accounts.remove(P.name); loginScreen(); });
 const sndUI = () => { const on = !BDB.sfx.muted; $('mute').setAttribute('aria-pressed', on); $('mute').title = on ? 'Sound is on' : 'Sound is off'; sndSet(); };
 function sndSet(){
@@ -1379,7 +1379,7 @@ function finish(w, cr, why){
   if (ra) ra.onclick = again;
   if (rp) rp.onclick = () => { stopBattle(); show('scrHub'); hub(); packReveal(pack, packGot, () => { dlgClose(); hub(); }); };
 }
-function stopBattle(){ A.music('menu'); coachOff(); cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
+function stopBattle(){ A.music('menu'); coachOff(); setTimeout(() => league(true), 3500); cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
 
 /* ---------- online ---------- */
 let net = null, lobby = null, room = null, OL = null;
@@ -1555,6 +1555,27 @@ function hallStart(){
     } catch(e){}
   };
   tick(); hallT = setInterval(tick, (+Q.get('ping') || 8) * 1000);
+  league();
+}
+/* the league table: asked for when the hub opens and every few minutes after. A server that was set up before it existed has no such function:
+   then the panel stays away (and the owner is told what to do about it) */
+let LEAGUE = null, leagueAt = 0, leagueOff = false;
+async function league(force){
+  const box = $('leaguePanel'); if (!box) return;
+  if (!P || !Cloud.session() || leagueOff){ box.hidden = !(leagueOff && OWN && Cloud.session()); if (!box.hidden) $('league').innerHTML = '<p class="note" style="margin:0">The league table needs one more function on the account server. Run brawl/supabase.sql in the Supabase SQL editor again (it is safe to run twice) and it will appear here.</p>'; return; }
+  if (!force && LEAGUE && Date.now() - leagueAt < 150000) return leagueUI();
+  try { const r = await Cloud.top(); if (r && Array.isArray(r.top)){ LEAGUE = r.top; leagueAt = Date.now(); } }
+  catch(e){ if (e && e.kind === 'setup'){ leagueOff = true; return league(); } }
+  leagueUI();
+}
+function leagueUI(){
+  const box = $('leaguePanel'); if (!box) return;
+  const rows = (LEAGUE || []).map(o => ({name:clean(o.name, 20), ladder:clamp(o.ladder | 0, 0, LEVELS), tr:Math.max(0, o.trophies | 0), wins:Math.max(0, o.wins | 0), on:!!o.on})).filter(o => o.name);
+  box.hidden = rows.length < 2;                         // a table of one is not a table
+  if (box.hidden) return;
+  const me = P.name.toLowerCase(), at = rows.findIndex(o => o.name.toLowerCase() === me), show = rows.slice(0, 10); if (at >= 10) show.push(rows[at]);
+  $('league').innerHTML = show.map(o => { const i = rows.indexOf(o), T = tierOf(Math.min(LEVELS, o.ladder + 1)), mine = i === at;
+    return `<div class="lg${mine ? ' me' : ''}"><span class="rk">${i + 1}</span><img alt="" src="${tierPic(T)}"><b><span>${esc(o.name)}</span>${o.on && !mine ? '<i title="On now"></i>' : ''}</b><small><em>Level ${fmt(o.ladder)}</em>${fmt(o.tr)} trophies, ${fmt(o.wins)} wins</small></div>`; }).join('');
 }
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 function renderHall(){
@@ -1671,7 +1692,7 @@ window.__game = {
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
   ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach

@@ -493,13 +493,14 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .tips p{margin:0;color:#d6e6ff;font:600 13px/1.4 var(--f-body)}
 .bigcoin{display:inline-flex;align-items:center;gap:10px;margin:14px 0 2px;font:400 54px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
 .bigcoin .coin{width:56px;height:56px;margin:0;background-image:url(ui/coin.webp)}
-.pl{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:8px}
-.pl i{width:12px;height:12px;border-radius:50%;background:#5d6f95;box-shadow:0 0 0 2px var(--ink2)}
+.pl{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:8px 10px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:8px}
+.pl i{flex:none;width:12px;height:12px;border-radius:50%;background:#5d6f95;box-shadow:0 0 0 2px var(--ink2)}
 .pl.on i{background:#4ade80;box-shadow:0 0 0 2px var(--ink2),0 0 8px #4ade80}
 .pl b{font:400 16px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pl small{display:block;font:700 10px/1.2 var(--f-body);color:#cfe1ff;letter-spacing:.04em}
 .pl .k-btn{padding:7px 10px 6px;font-size:13px;border-width:2px;box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2)}
-.pl .acts{display:flex;gap:6px}
+.pl > div:nth-child(2){flex:1 1 120px;min-width:0}
+.pl .acts{display:flex;gap:6px;margin-left:auto}      /* in a narrow column the buttons drop under the name instead of squeezing it */
 
 /* ---------- cards, redrawn: a thick framed card, the character standing out of the top of it ---------- */
 @property --ray{syntax:'<angle>';initial-value:8deg;inherits:false}
@@ -661,6 +662,15 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
   #btTools{left:max(8px,env(safe-area-inset-left))} .crowns{right:max(8px,env(safe-area-inset-right))}
   @media (max-width:860px){ .top-in{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))} }
 }
+/* the league table: everyone with an account, best first */
+.lg{display:grid;grid-template-columns:22px 26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 10px 6px 6px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:6px}
+.lg.me{background:linear-gradient(180deg,#f7b53c,#d98410);border-color:var(--ink2)}
+.lg .rk{font:400 15px/1 var(--f-game);color:#cfe1ff;text-align:center;text-shadow:var(--stroke)} .lg.me .rk,.lg:nth-child(-n+3) .rk{color:#fff}
+.lg img{width:26px;height:26px;object-fit:contain}
+.lg b{display:flex;align-items:center;gap:6px;min-width:0;font:400 15px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)} .lg b span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg b i{flex:none;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 2px var(--ink2)}
+.lg small{font:700 11px/1.25 var(--f-body);color:#d6e6ff;text-align:right;white-space:nowrap} .lg.me small{color:#3a2204}
+.lg small em{display:block;font-style:normal;font:400 14px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)} .lg.me small em{color:#fff}
 /* the result screen names the troop that did the most damage */
 .res-mvp{display:flex;align-items:center;gap:10px;margin:14px 22px 0;padding:6px 12px 6px 6px;border-radius:14px;border:2.5px solid var(--ink2);background:#0d2764;box-shadow:inset 0 3px 0 rgba(0,0,0,.28);text-align:left}
 .res-mvp img{flex:none;width:46px;height:46px;border-radius:10px;border:2px solid var(--ink2);background:linear-gradient(180deg,#5fb2ff,#2a73e0);object-fit:cover;object-position:50% 18%}
@@ -1068,6 +1078,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
           <div class="k-row" style="justify-content:flex-start"><button type="button" class="k-btn primary" id="olQuick">Quick match</button><button type="button" class="k-btn" id="olFriend">Play a friend</button></div>
         </div>
         <div class="panel"><span class="k-label" id="hallLbl">Who's on</span><div id="hall"><p class="note" style="margin:0">Connecting.</p></div></div>
+        <div class="panel" id="leaguePanel" hidden><span class="k-label">League table</span><div id="league"></div></div>
       </div>
     </div>
 
@@ -1190,6 +1201,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116f"></script>
+<script type="module" src="main.js?v=1116g"></script>
 </body>
 </html>
