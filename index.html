@@ -4,300 +4,243 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>BDB Games</title>
-<meta name="description" content="Fourteen games starring BDB, 2.0 points per game: chess, a property tycoon game, sea battles, blackjack, hoops and more.">
+<meta name="description" content="Fourteen games starring BDB, 2.0 points per game: a 3D card battler, chess, a property tycoon game, sea battles, blackjack, hoops and more.">
 <meta property="og:title" content="BDB Games">
-<meta property="og:description" content="Pick your game. BDB is on every card and every board.">
+<meta property="og:description" content="Fourteen games. One guy. 2.0 points a game.">
 <meta property="og:image" content="assets/face.jpg">
 <link rel="icon" href="assets/face.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Barlow+Condensed:wght@700&family=Figtree:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Figtree:wght@500;700;800&display=swap">
 <style>
-/* Layout: arena lobby. Two featured tiles (solitaire, chess), then a grid of smaller game tiles. Stacks on phones. */
+/* The front door: one bar, the big game across the top, then two shelves (table games, arcade). Every tile is a picture of the game being played. */
 :root{
-  --arena:#050c1c; --ink:#eef2fb; --muted:#8fa3cc; --orange:#ff8a2b; --orange-deep:#a34c0c; --gold:#f2c14e;
-  --panel:rgba(9,20,46,.82); --line:rgba(255,255,255,.1); --card:#fbf8f2; --card-ink:#1b1f2a; --card-red:#cf3326;
-  --maple:#e3c08a; --navy:#1d3f7a;
-  --f-display:"Bowlby One","Arial Black",Impact,sans-serif; --f-rank:"Barlow Condensed","Arial Narrow",sans-serif;
-  --f-body:"Figtree",system-ui,-apple-system,sans-serif;
+  --ink:#0a1430; --sky:#2c74e6; --deep:#0e3491; --panel:#2f79e6; --panel2:#1d50b4; --gold:#ffd23f; --orange:#f08a12; --text:#fff; --soft:#d6e6ff;
+  --f-game:"Lilita One","Arial Rounded MT Bold","Arial Black",sans-serif; --f-body:"Figtree",system-ui,-apple-system,sans-serif;
+  --stroke:-2px 0 var(--ink),2px 0 var(--ink),0 -2px var(--ink),0 2px var(--ink),-1.5px -1.5px var(--ink),1.5px -1.5px var(--ink),-1.5px 1.5px var(--ink),1.5px 1.5px var(--ink),0 4px 0 var(--ink);
   color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{min-height:100%}
-body{margin:0;background:var(--arena);color:var(--ink);font-family:var(--f-body);
-  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
-  background-image:radial-gradient(ellipse 28% 60% at 14% -8%,rgba(90,150,255,.34),transparent 70%),
-    radial-gradient(ellipse 28% 60% at 86% -8%,rgba(90,150,255,.3),transparent 70%),
-    radial-gradient(ellipse 80% 45% at 50% 112%,rgba(255,138,43,.2),transparent 70%);
-  background-attachment:fixed}
-main{max-width:1100px;margin:0 auto;padding-block:clamp(28px,7vh,72px) 40px;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center}
-.me{width:84px;height:84px;border-radius:50%;background:url(assets/face.jpg) center 32%/cover;
-  box-shadow:0 0 0 4px var(--orange),0 0 0 8px rgba(255,138,43,.25),0 14px 30px rgba(0,0,0,.5);animation:drop .6s both}
-.eyebrow{font:800 11px/1 var(--f-body);letter-spacing:.24em;text-transform:uppercase;color:var(--gold);animation:drop .6s .1s both}
-h1{font-family:var(--f-display);font-weight:400;margin:0;font-size:clamp(40px,9vw,72px);line-height:.9;text-wrap:balance;
-  text-shadow:0 4px 0 #0b1f45,0 12px 26px rgba(0,0,0,.6);animation:drop .7s .15s cubic-bezier(.2,.9,.25,1.2) both}
-h1 span{color:var(--orange);text-shadow:0 4px 0 var(--orange-deep),0 12px 26px rgba(0,0,0,.6)}
-.lede{margin:0;color:var(--muted);font-size:16px;line-height:1.45;max-width:44ch;animation:drop .6s .25s both}
-@keyframes drop{from{opacity:0;transform:translateY(-18px)}}
+body{margin:0;color:var(--text);font-family:var(--f-body);padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  background:#123f9f repeating-linear-gradient(115deg,rgba(255,255,255,.035) 0 18px,transparent 18px 46px);background-attachment:fixed}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1240px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
-.games{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;width:100%;margin-top:8px}
-.game{position:relative;display:flex;flex-direction:column;gap:14px;text-decoration:none;color:inherit;text-align:left;
-  background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:18px 18px 20px;overflow:hidden;
-  box-shadow:0 20px 44px rgba(0,0,0,.45);transition:transform .25s cubic-bezier(.2,.8,.25,1),border-color .2s,box-shadow .25s;
-  animation:rise .7s both}
-.game:nth-child(2){animation-delay:.12s}
-@keyframes rise{from{opacity:0;transform:translateY(26px)}}
-.game:hover{transform:translateY(-6px);border-color:rgba(242,193,78,.55);box-shadow:0 28px 54px rgba(0,0,0,.55),0 0 0 1px rgba(242,193,78,.25)}
-.game:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
-.art{position:relative;height:200px;border-radius:14px;overflow:hidden;
-  background:radial-gradient(ellipse at 50% 30%,#14418f,#08204a);box-shadow:inset 0 0 0 2px rgba(242,193,78,.25),inset 0 0 50px rgba(0,0,0,.5)}
-.game h2{font-family:var(--f-display);font-weight:400;margin:0;font-size:26px;line-height:1}
-.game h2 span{color:var(--orange)}
-.game p{margin:0;color:var(--muted);line-height:1.45;font-size:14.5px}
-.tags{display:flex;flex-wrap:wrap;gap:6px}
-.tags span{font:800 10px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--gold);
-  border:1px solid rgba(242,193,78,.35);border-radius:999px;padding:5px 9px}
-.play{align-self:flex-start;font:800 14px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#1f1004;
-  background:var(--orange);border-radius:12px;padding:13px 22px 12px;box-shadow:0 4px 0 var(--orange-deep),0 6px 14px rgba(0,0,0,.35)}
-.game:hover .play{filter:brightness(1.1)}
+/* ---------- the bar ---------- */
+.bar{position:relative;background:linear-gradient(180deg,var(--sky) 0,#1750c0 48%,var(--deep) 100%);border-bottom:4px solid var(--ink);box-shadow:inset 0 3px 0 rgba(255,255,255,.28),0 6px 0 rgba(5,12,40,.35)}
+.bar .wrap{display:flex;align-items:center;gap:14px;padding-block:10px 11px}
+.brand{display:flex;align-items:center;gap:12px;flex:none}
+.face{flex:none;width:52px;height:52px;border-radius:50%;background:url(assets/face.jpg) center 32%/cover;border:3px solid #fff;box-shadow:0 0 0 3px var(--ink),0 4px 0 3px var(--ink)}
+.wm{position:relative;isolation:isolate;display:flex;flex-direction:column;transform:rotate(-3deg)}
+.wm small{margin:0 0 -2px 3px;font:400 15px/1 var(--f-game);letter-spacing:.2em;text-transform:uppercase;text-shadow:var(--stroke)}
+.wm b,.lock b{position:relative;font-family:var(--f-game);font-weight:400;text-transform:uppercase;letter-spacing:.02em;
+  background:linear-gradient(180deg,#fff6b8 8%,var(--gold) 46%,#f58a10 92%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.wm b{font-size:40px;line-height:.9}
+.wm b::before,.lock b::before{content:attr(data-t);position:absolute;left:0;top:0;z-index:-1;color:var(--ink);-webkit-text-fill-color:var(--ink);-webkit-text-stroke:9px var(--ink);text-shadow:0 5px 0 var(--ink),0 9px 0 rgba(5,12,40,.4)}
+.tagline{margin:0 0 0 auto;padding:9px 16px 8px;border-radius:999px;background:#071a4a;border:3px solid var(--ink);box-shadow:inset 0 3px 0 rgba(0,0,0,.4),0 2px 0 rgba(255,255,255,.16);font:400 16px/1.1 var(--f-game);letter-spacing:.02em;color:var(--gold);text-shadow:var(--stroke);text-align:center}
 
-/* solitaire art: fanned cards */
-.fan{position:absolute;left:50%;bottom:-26px;width:0;height:0}
-.c{position:absolute;left:-46px;bottom:0;width:92px;height:129px;border-radius:9px;background:var(--card);color:var(--card-ink);
-  transform-origin:50% 140%;box-shadow:0 10px 22px rgba(0,0,0,.5);transition:transform .35s cubic-bezier(.2,.8,.25,1)}
-.c.red{color:var(--card-red)}
-.c b{position:absolute;top:6px;left:8px;font:700 22px/0.9 var(--f-rank);text-align:center}
-.c b i{display:block;font-style:normal;font-size:16px}
-.c::after{content:"";position:absolute;left:21%;top:28%;width:58%;aspect-ratio:1;border-radius:50%;
-  background:url(assets/face.jpg) center 34%/cover;box-shadow:0 0 0 2px currentColor}
-.c:nth-child(1){transform:rotate(-22deg)} .c:nth-child(2){transform:rotate(-8deg)} .c:nth-child(3){transform:rotate(8deg)} .c:nth-child(4){transform:rotate(22deg)}
-.game:hover .c:nth-child(1){transform:rotate(-30deg)} .game:hover .c:nth-child(2){transform:rotate(-11deg)}
-.game:hover .c:nth-child(3){transform:rotate(11deg)} .game:hover .c:nth-child(4){transform:rotate(30deg)}
+main{padding-block:22px 34px;display:flex;flex-direction:column;gap:26px}
 
-/* chess art: parquet board in perspective with a crowned BDB king */
-.board3d{position:absolute;left:50%;top:58%;width:300px;height:300px;transform:translate(-50%,-50%) perspective(520px) rotateX(58deg);
-  display:grid;grid-template-columns:repeat(8,1fr);border:8px solid #6b4518;border-radius:6px;box-shadow:0 30px 40px rgba(0,0,0,.6)}
-.board3d i:nth-child(16n+1),.board3d i:nth-child(16n+3),.board3d i:nth-child(16n+5),.board3d i:nth-child(16n+7),
-.board3d i:nth-child(16n+10),.board3d i:nth-child(16n+12),.board3d i:nth-child(16n+14),.board3d i:nth-child(16n+16){background:var(--maple)}
-.board3d i{background:var(--navy)}
-.kingpiece{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);width:86px;height:86px;border-radius:50%;
-  background:url(assets/face.jpg) center 32%/cover;box-shadow:0 0 0 4px var(--gold),0 0 0 8px #1a2238,0 18px 26px rgba(0,0,0,.6);
-  transition:transform .35s cubic-bezier(.2,.8,.25,1.3)}
-.kingpiece svg{position:absolute;left:50%;top:-34px;width:66px;transform:translateX(-50%)}
-.game:hover .kingpiece{transform:translateX(-50%) translateY(-8px) rotate(-4deg)}
-.horse{position:absolute;right:26px;bottom:40px;font-size:54px;line-height:1;color:#1a2238;filter:drop-shadow(0 6px 6px rgba(0,0,0,.5));
-  -webkit-text-stroke:1.5px var(--gold);font-family:"Noto Sans Symbols 2","Segoe UI Symbol","DejaVu Sans",serif}
-.pawn{position:absolute;left:30px;bottom:44px;font-size:44px;line-height:1;color:#f3eadb;filter:drop-shadow(0 6px 6px rgba(0,0,0,.5));
-  font-family:"Noto Sans Symbols 2","Segoe UI Symbol","DejaVu Sans",serif}
+/* ---------- the big one ---------- */
+.hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:stretch;min-height:400px;border-radius:26px;border:4px solid var(--ink);overflow:hidden;isolation:isolate;
+  box-shadow:inset 0 4px 0 rgba(255,255,255,.35),0 8px 0 var(--ink);background:#1b5a2a;transition:transform .2s cubic-bezier(.2,.8,.25,1)}
+.hero::before{content:"";position:absolute;inset:0;z-index:-2;background:url(assets/home/hero_bg.webp) 70% center/cover;filter:saturate(1.1)}
+.hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(8,22,64,.94) 0,rgba(8,22,64,.8) 34%,rgba(8,22,64,.2) 62%,rgba(8,22,64,0) 100%)}
+.hero:hover{transform:translateY(-4px)}
+.hero:focus-visible,.tile:focus-visible{outline:4px solid #fff;outline-offset:4px}
+.hero-copy{display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:30px 0 30px 34px}
+.flag{padding:6px 12px 5px;border-radius:999px;border:3px solid var(--ink);background:linear-gradient(180deg,#8dff7a,#2fbf3a);font:400 14px/1 var(--f-game);letter-spacing:.04em;text-shadow:var(--stroke)}
+.lock{position:relative;isolation:isolate;display:flex;flex-direction:column;transform:rotate(-3deg);margin:2px 0 4px 2px}
+.lock small{margin:0 0 -2px 4px;font:400 clamp(17px,2.2vw,26px)/1 var(--f-game);letter-spacing:.16em;text-transform:uppercase;text-shadow:var(--stroke)}
+.lock b{font-size:clamp(64px,9.4vw,118px);line-height:.88}
+.lock b::before{-webkit-text-stroke-width:14px;text-shadow:0 8px 0 var(--ink),0 14px 0 rgba(5,12,40,.4)}
+.hero p{margin:0;max-width:40ch;font:700 16px/1.45 var(--f-body);color:#fff;text-shadow:0 2px 0 rgba(5,12,40,.6)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chips span,.tags span{padding:6px 10px 5px;border-radius:999px;border:2px solid var(--ink);background:rgba(7,26,74,.85);font:800 11px/1.1 var(--f-body);letter-spacing:.03em;color:var(--soft)}
+.btn{display:inline-block;padding:15px 34px 13px;border-radius:18px;border:4px solid var(--ink);background:linear-gradient(180deg,#ffe066,#ffb52e 55%,var(--orange));
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.55),inset 0 -4px 0 rgba(0,0,0,.16),0 5px 0 var(--ink);font:400 26px/1 var(--f-game);letter-spacing:.03em;text-shadow:var(--stroke)}
+.hero:hover .btn{filter:brightness(1.08)}
+.lineup{position:relative;min-height:300px}
+.lineup img{position:absolute;bottom:-4%;height:var(--h,78%);left:var(--x,50%);width:auto;transform:translateX(-50%);filter:drop-shadow(0 10px 0 rgba(5,12,40,.35));transition:transform .25s cubic-bezier(.2,.8,.25,1.3)}
+.hero:hover .lineup img{transform:translateX(-50%) translateY(-6px)}
+.hero:hover .lineup img:nth-child(even){transform:translateX(-50%) translateY(-12px)}
 
-footer{color:var(--muted);font-size:12px;margin-top:10px}
-
-/* more games */
-.sec{width:100%;display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:18px;text-align:left}
-.sec h2{font-family:var(--f-display);font-weight:400;font-size:26px;margin:0}
-.sec h2 span{color:var(--orange)}
-.sec small{color:var(--muted);font-size:13px}
-.more{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.mini{position:relative;display:flex;flex-direction:column;gap:10px;text-decoration:none;color:inherit;text-align:left;
-  background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:12px 12px 14px;overflow:hidden;
-  box-shadow:0 14px 30px rgba(0,0,0,.4);transition:transform .22s cubic-bezier(.2,.8,.25,1),border-color .2s;animation:rise .6s both}
-.mini:hover{transform:translateY(-4px);border-color:rgba(242,193,78,.55)}
-.mini:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
-.mini .art{height:150px;border-radius:12px}
-.mini svg{display:block;width:100%;height:100%}
-.mini h3{font-family:var(--f-display);font-weight:400;font-size:20px;line-height:1.05;margin:2px 2px 0}
-.mini h3 span{color:var(--orange)}
-.mini p{margin:0 2px;color:var(--muted);font-size:13.5px;line-height:1.4}
-.mini .tags{margin:0 2px}
-.flag{position:absolute;top:20px;right:20px;z-index:2;font:800 9px/1 var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#062012;
-  background:#4ade80;border-radius:999px;padding:5px 8px;box-shadow:0 4px 12px rgba(0,0,0,.4)}
-.best{position:absolute;top:20px;left:20px;z-index:2;font:800 9px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
-  background:rgba(5,12,28,.82);border:1px solid var(--line);border-radius:999px;padding:4px 8px 3px;display:flex;align-items:center;gap:6px}
+/* ---------- the shelves ---------- */
+.shelf h2{display:flex;align-items:baseline;gap:12px;margin:0 0 12px;font:400 30px/1 var(--f-game);letter-spacing:.02em;text-shadow:var(--stroke)}
+.shelf h2 small{font:700 13px/1.2 var(--f-body);color:var(--soft);text-shadow:none;letter-spacing:0}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(3,minmax(0,1fr))}
+.grid.four{display:flex;flex-wrap:wrap;justify-content:center}
+.grid.four .tile{flex:0 1 calc((100% - 54px) / 4)}
+.tile{position:relative;display:flex;flex-direction:column;gap:9px;padding:10px 10px 14px;border-radius:22px;border:4px solid var(--ink);background:linear-gradient(180deg,var(--panel),var(--panel2));
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.28),0 6px 0 var(--ink);transition:transform .18s cubic-bezier(.2,.8,.25,1)}
+.tile:hover{transform:translateY(-5px) rotate(-.6deg)}
+.tile:nth-child(even):hover{transform:translateY(-5px) rotate(.6deg)}
+.shot{position:relative;aspect-ratio:16/10;border-radius:14px;border:3px solid var(--ink);overflow:hidden;background:#071a4a}
+.shot img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .3s cubic-bezier(.2,.8,.25,1)}
+.tile:hover .shot img{transform:scale(1.06)}
+.tile h3{margin:2px 4px 0;font:400 22px/1.05 var(--f-game);letter-spacing:.02em;text-shadow:var(--stroke)}
+.tile p{margin:0 4px;font:500 13.5px/1.42 var(--f-body);color:var(--soft)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:auto 4px 0;padding-top:2px}
+.four .tile h3{font-size:19px}
+.four .tile p{font-size:13px}
+.on,.best{position:absolute;top:8px;z-index:2;padding:5px 9px 4px;border-radius:999px;border:2px solid var(--ink);font:400 12px/1 var(--f-game);letter-spacing:.04em;text-shadow:var(--stroke)}
+.on{right:8px;background:linear-gradient(180deg,#8dff7a,#2fbf3a)}
+.best{left:8px;display:flex;align-items:center;gap:6px;background:#071a4a;color:var(--soft)}
+.best b{font-weight:400;color:var(--gold)}
 .best[hidden]{display:none}
-.mini.soon{pointer-events:none;opacity:.55;filter:saturate(.6)}
-.mini.soon::after{content:"Coming soon";position:absolute;top:20px;right:20px;z-index:2;font:800 9px/1 var(--f-body);letter-spacing:.16em;text-transform:uppercase;color:#1f1004;background:var(--gold);border-radius:999px;padding:5px 8px}
-.mini.soon .flag{display:none}
-.best b{font:500 17px/.8 "Teko","Arial Narrow",sans-serif;color:#ffb547;letter-spacing:0}
-@media (max-width:900px){ .more{grid-template-columns:repeat(2,minmax(0,1fr))} }
-@media (max-width:560px){ .more{grid-template-columns:1fr} .mini .art{height:140px} }
-@media (max-width:640px){ .games{grid-template-columns:1fr} .art{height:180px} }
-@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
+.tile.soon{pointer-events:none;filter:saturate(.35);opacity:.7}
+.tile.soon::after{content:"Coming soon";position:absolute;top:18px;right:18px;z-index:3;padding:5px 9px 4px;border-radius:999px;border:2px solid var(--ink);background:var(--gold);color:var(--ink);font:400 12px/1 var(--f-game)}
+.tile.soon .on{display:none}
+footer{padding:4px 0 30px;text-align:center;font:700 13px/1.4 var(--f-body);color:var(--soft)}
+
+@media (max-width:1080px){ .grid.four .tile{flex-basis:calc((100% - 36px) / 3)} }
+@media (max-width:900px){
+  .hero{grid-template-columns:1fr;min-height:0}
+  .hero::after{background:linear-gradient(180deg,rgba(8,22,64,.25) 0,rgba(8,22,64,.5) 38%,rgba(8,22,64,.95) 62%)}
+  .lineup{order:-1;min-height:230px}
+  .hero-copy{padding:6px 20px 24px;align-items:center;text-align:center}
+  .hero p{max-width:46ch} .chips{justify-content:center}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .grid.four{gap:14px} .grid.four .tile{flex-basis:calc((100% - 14px) / 2)}
+}
+@media (max-width:640px){
+  .tagline{font-size:12.5px;padding:7px 11px 6px;border-width:2.5px}
+  .face{width:42px;height:42px} .wm b{font-size:30px} .wm small{font-size:12px} .wm b::before{-webkit-text-stroke-width:7px;text-shadow:0 4px 0 var(--ink)}
+  main{padding-block:16px 26px;gap:22px}
+  .lock b::before{-webkit-text-stroke-width:10px;text-shadow:0 6px 0 var(--ink)}
+  .btn{font-size:22px;padding:13px 28px 11px}
+  .shelf h2{font-size:25px;flex-wrap:wrap;row-gap:4px}
+  .tile{padding:8px 8px 11px;border-radius:18px;border-width:3px} .shot{border-radius:11px;border-width:2.5px}
+  .tile h3,.four .tile h3{font-size:17px} .tile p,.four .tile p{font-size:12.5px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden} .tags span{font-size:10px;padding:5px 7px 4px}
+}
+@media (max-width:420px){ .tagline{display:none} .tags{display:none} .grid,.grid.four{gap:12px} .grid.four .tile{flex-basis:calc((100% - 12px) / 2)} }
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{transition:none!important;animation:none!important} }
 </style>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&text=%E2%99%9E%E2%99%9F%E2%99%99&display=swap">
 </head>
 <body>
-<main>
-  <div class="me" aria-hidden="true"></div>
-  <div class="eyebrow">BDB Entertainment presents</div>
-  <h1>Pick your <span>game</span></h1>
-  <p class="lede">Fourteen games, one guy. He averaged 2.0 points a game and still wants to play you.</p>
+<header class="bar"><div class="wrap">
+  <a class="brand" href="./" aria-label="BDB Games"><span class="face"></span><span class="wm"><small>BDB</small><b data-t="Games">Games</b></span></a>
+  <p class="tagline">Fourteen games. One guy. 2.0 points a game.</p>
+</div></header>
 
-  <div class="games">
-    <a class="game" href="solitaire/">
-      <div class="art" aria-hidden="true">
-        <div class="fan">
-          <div class="c"><b>J<i>♣</i></b></div>
-          <div class="c red"><b>Q<i>♥</i></b></div>
-          <div class="c"><b>K<i>♠</i></b></div>
-          <div class="c red"><b>A<i>♦</i></b></div>
-        </div>
-      </div>
-      <h2>Charleston <span>Solitaire</span></h2>
-      <p>Classic Klondike with BDB on all 52 cards and a new roast every time you deal.</p>
-      <div class="tags"><span>Draw 1 or 3</span><span>500+ roasts</span><span>Undo &amp; hints</span></div>
-      <span class="play">Play solitaire</span>
-    </a>
+<main class="wrap">
+  <a class="hero" href="brawl/" aria-label="Play Break Room Brawl">
+    <div class="hero-copy">
+      <span class="flag">The big one</span>
+      <div class="lock"><small>Break Room</small><b data-t="Brawl">Brawl</b></div>
+      <p>3D card battles. Dragons, wizards, gods and the night janitor. Build a deck, knock down his towers, climb a thousand levels and take BDB’s cards off him.</p>
+      <div class="chips"><span>2,480 cards</span><span>1,000 levels</span><span>Online 1 v 1</span><span>Team up 2 v 2</span><span>Trade cards</span></div>
+      <span class="btn">Play Brawl</span>
+    </div>
+    <div class="lineup" aria-hidden="true">
+      <img src="assets/home/h_genie.webp" alt="" style="--x:11%;--h:56%">
+      <img src="assets/home/h_bell.webp" alt="" style="--x:89%;--h:58%">
+      <img src="assets/home/h_jade.webp" alt="" style="--x:29%;--h:68%">
+      <img src="assets/home/h_infernus.webp" alt="" style="--x:71%;--h:70%">
+      <img src="assets/home/h_kingbellow.webp" alt="" style="--x:50%;--h:84%">
+    </div>
+  </a>
 
-    <a class="game" href="chess/">
-      <div class="art" aria-hidden="true">
-        <div class="board3d"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="pawn">♙&#xFE0E;</div>
-        <div class="horse">♞&#xFE0E;</div>
-        <div class="kingpiece"><svg viewBox="0 0 100 62"><path d="M6 58 L10 16 L30 36 L50 4 L70 36 L90 16 L94 58 Z" fill="#f2c14e" stroke="#8a6410" stroke-width="3" stroke-linejoin="round"/><rect x="6" y="48" width="88" height="10" fill="#d9a72f" stroke="#8a6410" stroke-width="3"/><circle cx="50" cy="9" r="5" fill="#cf3326"/></svg></div>
-      </div>
-      <h2>Charleston <span>Chess</span></h2>
-      <p>3D chess against BDB or your friends online. Every piece has its own kill move, and BDB roasts every capture.</p>
-      <div class="tags"><span>5 levels</span><span>Kill moves</span><span>Play friends online</span></div>
-      <span class="play">Play chess</span>
-    </a>
-  </div>
+  <section class="shelf">
+    <h2>Table games <small>Sit down. He has been waiting.</small></h2>
+    <div class="grid">
+      <a class="tile" href="chess/" data-key="chess">
+        <div class="shot"><img src="assets/home/chess.webp" alt="" width="640" height="400"><span class="best" hidden>Best <b></b></span><span class="on">Online</span></div>
+        <h3>Charleston Chess</h3>
+        <p>3D chess against BDB or your friends online. Every piece has its own kill move, and BDB roasts every capture.</p>
+        <div class="tags"><span>5 levels</span><span>Kill moves</span><span>Play friends online</span></div>
+      </a>
+      <a class="tile" href="solitaire/" data-key="solitaire">
+        <div class="shot"><img src="assets/home/solitaire.webp" alt="" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Charleston Solitaire</h3>
+        <p>Classic Klondike with BDB on all 52 cards and a new roast every time you deal.</p>
+        <div class="tags"><span>Draw 1 or 3</span><span>500+ roasts</span><span>Undo &amp; hints</span></div>
+      </a>
+      <a class="tile" href="tycoon/" data-key="tycoon">
+        <div class="shot"><img src="assets/home/tycoon.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span><span class="on">Online</span></div>
+        <h3>BDB Tycoon</h3>
+        <p>Buy the break room, slap a hotel on Slot Row and bankrupt your friends. Play BDB bots, friends on one phone, or an online table.</p>
+        <div class="tags"><span>2–6 players</span><span>Trade &amp; build</span><span>Online tables</span></div>
+      </a>
+      <a class="tile" href="blackjack/" data-key="blackjack">
+        <div class="shot"><img src="assets/home/blackjack.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>BDB Blackjack</h3>
+        <p>Blackjack against BDB as the dealer: six decks, fake chips, and a dealer who still thinks he’s going pro.</p>
+        <div class="tags"><span>Split &amp; double</span><span>Fake chips</span><span>3 to 2</span></div>
+      </a>
+      <a class="tile" href="fleet/" data-key="fleet">
+        <div class="shot"><img src="assets/home/fleet.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span><span class="on">Online</span></div>
+        <h3>Sink BDB</h3>
+        <p>Hide your fleet, hunt his. Play BDB’s admiral at three levels, or challenge a friend online.</p>
+        <div class="tags"><span>3 levels</span><span>Fair-play check</span><span>Play online</span></div>
+      </a>
+      <a class="tile" href="connect4/" data-key="connect4">
+        <div class="shot"><img src="assets/home/connect4.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span><span class="on">Online</span></div>
+        <h3>Charleston Four</h3>
+        <p>Four in a row against BDB, a friend on the same phone, or anyone in the online lobby. His face is on every navy disc.</p>
+        <div class="tags"><span>4 levels</span><span>Pass &amp; play</span><span>Play online</span></div>
+      </a>
+    </div>
+  </section>
 
-  <div class="sec"><h2>More <span>games</span></h2><small>Best scores are saved on this device.</small></div>
-  <div class="more">
-    <a class="mini" href="freethrow/" data-key="freethrow" style="animation-delay:0.00s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gfreethrow" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14418f"/><stop offset="1" stop-color="#08204a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gfreethrow)"/><rect x="104" y="14" width="112" height="72" rx="4" fill="#fbf8f2" stroke="#d6d0c4" stroke-width="3"/>
-<rect x="138" y="34" width="44" height="34" fill="none" stroke="#ff8a2b" stroke-width="3"/><clipPath id="fa"><circle cx="160" cy="51" r="15"/></clipPath><image href="assets/face.jpg" x="145" y="34.8" width="30" height="34.8" preserveAspectRatio="xMidYMid slice" clip-path="url(#fa)"/>
-<path d="M136 96 L144 128 M152 98 L156 130 M168 98 L164 130 M184 96 L176 128 M140 110 L180 110" stroke="#eef2fb" stroke-width="2" opacity=".75"/>
-<ellipse cx="160" cy="94" rx="28" ry="6" fill="none" stroke="#ff8a2b" stroke-width="5"/>
-<path d="M58 140 Q92 20 150 82" fill="none" stroke="#f2c14e" stroke-width="2.5" stroke-dasharray="4 7"/>
-<circle cx="52" cy="140" r="17" fill="#e87a2a"/><path d="M35 140 H69 M52 123 V157 M40 128 Q52 140 40 152 M64 128 Q52 140 64 152" fill="none" stroke="#5a2a08" stroke-width="2"/></svg></div>
-      <h3>Free Throw <span>Frenzy</span></h3>
-      <p>Sixty seconds of arcade hoops on BDB’s own backboard. You only need to beat 2.0 PPG.</p>
-      <div class="tags"><span>60 seconds</span><span>On fire streaks</span><span>Moving hoop</span></div>
-    </a>
-    <a class="mini" href="whack/" data-key="whack" style="animation-delay:0.05s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gwhack" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14418f"/><stop offset="1" stop-color="#08204a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gwhack)"/><ellipse cx="68" cy="128" rx="40" ry="11" fill="#030712"/><ellipse cx="160" cy="132" rx="44" ry="12" fill="#030712"/><ellipse cx="252" cy="128" rx="40" ry="11" fill="#030712"/>
-<clipPath id="wh"><rect x="100" y="0" width="120" height="132"/></clipPath><g clip-path="url(#wh)"><circle cx="160" cy="98" r="36" fill="#ff8a2b"/><clipPath id="wa"><circle cx="160" cy="98" r="33"/></clipPath><image href="assets/face.jpg" x="127" y="62.36" width="66" height="76.55999999999999" preserveAspectRatio="xMidYMid slice" clip-path="url(#wa)"/></g>
-<g transform="rotate(-28 228 54)"><rect x="196" y="38" width="64" height="30" rx="8" fill="#f2c14e" stroke="#8a6410" stroke-width="3"/><rect x="224" y="66" width="9" height="62" rx="4" fill="#8a5a22"/></g>
-<path d="M112 52 l5 -10 l5 10 l10 1 l-8 6 l3 10 l-10 -6 l-10 6 l3 -10 l-8 -6z" fill="#f2c14e"/></svg></div>
-      <h3>Whack-a-<span>BDB</span></h3>
-      <p>BDB keeps popping up all over the break room. Bonk him, chase the Golden BDB, and spare the scout.</p>
-      <div class="tags"><span>45 seconds</span><span>Combos</span><span>Golden BDB</span></div>
-    </a>
-    <a class="mini" href="clockin/" data-key="clockin" style="animation-delay:0.10s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gclockin" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#4a1636"/><stop offset="1" stop-color="#12061a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gclockin)"/><rect x="0" y="122" width="320" height="38" fill="#2a0f1f"/><path d="M0 122 H320" stroke="#f2c14e" stroke-width="2" opacity=".5"/>
-<rect x="230" y="30" width="62" height="84" rx="8" fill="#1d3f7a" stroke="#f2c14e" stroke-width="3"/><circle cx="261" cy="62" r="20" fill="#fbf8f2"/><path d="M261 62 V48 M261 62 L271 68" stroke="#151a26" stroke-width="3" stroke-linecap="round"/>
-<rect x="246" y="92" width="30" height="8" rx="3" fill="#050c1c"/>
-<path d="M28 70 H70 M18 86 H64 M34 102 H72" stroke="#8fa3cc" stroke-width="3" stroke-linecap="round" opacity=".6"/>
-<rect x="96" y="92" width="44" height="32" rx="10" fill="#2a5bd7"/><path d="M104 124 l-10 22 M132 124 l12 20" stroke="#1b2440" stroke-width="9" stroke-linecap="round"/>
-<circle cx="118" cy="70" r="28" fill="#ff8a2b"/><clipPath id="ca"><circle cx="118" cy="70" r="25"/></clipPath><image href="assets/face.jpg" x="93" y="43.0" width="50" height="57.99999999999999" preserveAspectRatio="xMidYMid slice" clip-path="url(#ca)"/><circle cx="166" cy="132" r="10" fill="#e87a2a"/></svg></div>
-      <h3>Clock-In <span>Rush</span></h3>
-      <p>BDB is late for his shift. Sprint across the casino floor, dodge wet-floor signs and chip carts, and punch the clock every 500 m.</p>
-      <div class="tags"><span>Endless runner</span><span>Jump &amp; slide</span><span>Clock-ins</span></div>
-    </a>
-    <a class="mini" href="snake/" data-key="snake" style="animation-delay:0.15s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gsnake" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14418f"/><stop offset="1" stop-color="#08204a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gsnake)"/><path d="M30 130 C70 130 70 60 120 60 S170 120 210 120 S250 70 268 58" fill="none" stroke="#1d3f7a" stroke-width="22" stroke-linecap="round"/>
-<path d="M30 130 C70 130 70 60 120 60 S170 120 210 120 S250 70 268 58" fill="none" stroke="#ff8a2b" stroke-width="5" stroke-dasharray="14 10" stroke-linecap="round"/>
-<rect x="18" y="122" width="18" height="22" rx="3" fill="#fbf8f2" stroke="#f2c14e" stroke-width="2"/>
-<circle cx="274" cy="54" r="24" fill="#ff8a2b"/><clipPath id="sa"><circle cx="274" cy="54" r="21"/></clipPath><image href="assets/face.jpg" x="253" y="31.32" width="42" height="48.72" preserveAspectRatio="xMidYMid slice" clip-path="url(#sa)"/>
-<circle cx="70" cy="38" r="15" fill="#c78a4a"/><circle cx="70" cy="38" r="6" fill="#08204a"/><path d="M58 33 q12 -10 24 0" fill="none" stroke="#ff5fa2" stroke-width="5" stroke-linecap="round"/></svg></div>
-      <h3>Lanyard <span>Snake</span></h3>
-      <p>Classic snake. BDB’s head, a lanyard body, and every snack in the break room.</p>
-      <div class="tags"><span>3 speeds</span><span>Hot streaks</span><span>Golden ball</span></div>
-    </a>
-    <a class="mini" href="fish/" data-key="fish" style="animation-delay:0.20s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gfish" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#0f5f8a"/><stop offset="1" stop-color="#05223d"/></radialGradient></defs><rect width="320" height="160" fill="url(#gfish)"/><path d="M0 30 Q80 50 160 30 T320 30" fill="none" stroke="#7fd6ff" stroke-width="2" opacity=".25"/>
-<path d="M60 0 L90 160 M150 0 L170 160 M240 0 L250 160" stroke="#bfe8ff" stroke-width="16" opacity=".06"/>
-<path d="M208 84 L256 56 L248 84 L256 112 Z" fill="#e8742a"/><ellipse cx="160" cy="84" rx="66" ry="44" fill="#ff8a2b"/><path d="M150 42 Q170 20 196 46" fill="#e8742a"/>
-<circle cx="132" cy="80" r="32" fill="#fbf8f2"/><clipPath id="fi"><circle cx="132" cy="80" r="29"/></clipPath><image href="assets/face.jpg" x="103" y="48.68" width="58" height="67.28" preserveAspectRatio="xMidYMid slice" clip-path="url(#fi)"/>
-<path d="M48 120 l18 -10 l-4 10 l4 10z" fill="#4ade80"/><ellipse cx="38" cy="120" rx="14" ry="8" fill="#4ade80"/>
-<path d="M286 40 l14 -8 l-3 8 l3 8z" fill="#f2c14e"/><ellipse cx="278" cy="40" rx="10" ry="6" fill="#f2c14e"/>
-<circle cx="84" cy="48" r="4" fill="none" stroke="#bfe8ff" stroke-width="2"/><circle cx="96" cy="32" r="3" fill="none" stroke="#bfe8ff" stroke-width="2"/></svg></div>
-      <h3>Big Fish <span>BDB</span></h3>
-      <p>BDB starts as bait. Eat smaller fish, dodge bigger ones, and grow into the big fish he always said he was.</p>
-      <div class="tags"><span>Grow &amp; eat</span><span>Frenzy</span><span>3 lives</span></div>
-    </a>
-    <a class="mini" href="pingpong/" data-key="pingpong" style="animation-delay:0.25s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gpingpong" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14418f"/><stop offset="1" stop-color="#08204a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gpingpong)"/><path d="M60 150 L110 40 H210 L260 150 Z" fill="#1d3f7a" stroke="#fbf8f2" stroke-width="3"/><path d="M160 40 V150" stroke="#fbf8f2" stroke-width="2" opacity=".7"/>
-<path d="M88 92 H232" stroke="#d6d0c4" stroke-width="7"/><path d="M84 88 H236" stroke="#fbf8f2" stroke-width="2"/>
-<circle cx="182" cy="66" r="6" fill="#fbf8f2"/><ellipse cx="186" cy="80" rx="6" ry="2" fill="#000" opacity=".35"/>
-<rect x="244" y="108" width="12" height="40" rx="5" fill="#8a5a22" transform="rotate(-30 250 128)"/><circle cx="262" cy="96" r="30" fill="#cf3326"/><clipPath id="pa"><circle cx="262" cy="96" r="26"/></clipPath><image href="assets/face.jpg" x="236" y="67.92" width="52" height="60.31999999999999" preserveAspectRatio="xMidYMid slice" clip-path="url(#pa)"/></svg></div>
-      <h3>Break Room <span>Ping Pong</span></h3>
-      <p>Table tennis against BDB on the break-room table. Real serve rules, spin, and a lot of trash talk.</p>
-      <div class="tags"><span>3 levels</span><span>Spin</span><span>First to 11</span></div>
-    </a>
-    <a class="mini" href="blackjack/" data-key="blackjack" style="animation-delay:0.30s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gblackjack" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14603e"/><stop offset="1" stop-color="#06281a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gblackjack)"/><g transform="rotate(-10 120 86)"><rect x="80" y="26" width="80" height="112" rx="8" fill="#fbf8f2"/><text x="90" y="52" font-family="Arial Narrow,Arial" font-weight="700" font-size="22" fill="#151a26">A</text><text x="91" y="70" font-size="16" fill="#151a26">♠</text><clipPath id="b1"><circle cx="120" cy="92" r="24"/></clipPath><image href="assets/face.jpg" x="96" y="66.08" width="48" height="55.67999999999999" preserveAspectRatio="xMidYMid slice" clip-path="url(#b1)"/></g>
-<g transform="rotate(10 196 86)"><rect x="156" y="26" width="80" height="112" rx="8" fill="#fbf8f2"/><text x="166" y="52" font-family="Arial Narrow,Arial" font-weight="700" font-size="22" fill="#cf3326">K</text><text x="167" y="70" font-size="16" fill="#cf3326">♥</text><clipPath id="b2"><circle cx="196" cy="92" r="24"/></clipPath><image href="assets/face.jpg" x="172" y="66.08" width="48" height="55.67999999999999" preserveAspectRatio="xMidYMid slice" clip-path="url(#b2)"/></g>
-<g><ellipse cx="272" cy="136" rx="22" ry="7" fill="#8a6410"/><ellipse cx="272" cy="130" rx="22" ry="7" fill="#f2c14e"/><ellipse cx="272" cy="122" rx="22" ry="7" fill="#cf3326"/><ellipse cx="272" cy="114" rx="22" ry="7" fill="#fbf8f2" stroke="#cf3326" stroke-width="3" stroke-dasharray="5 5"/></g></svg></div>
-      <h3>BDB <span>Blackjack</span></h3>
-      <p>Blackjack against BDB as the dealer: six decks, fake chips, and a dealer who still thinks he’s going pro.</p>
-      <div class="tags"><span>Split &amp; double</span><span>Fake chips</span><span>3 to 2</span></div>
-    </a>
-    <a class="mini" href="connect4/" data-key="connect4" style="animation-delay:0.35s">
-      <span class="flag">Online</span><span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gconnect4" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14418f"/><stop offset="1" stop-color="#08204a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gconnect4)"/><rect x="38" y="12" width="244" height="140" rx="12" fill="#1f4186" stroke="#f2c14e" stroke-width="3"/><circle cx="58" cy="30" r="13" fill="#030712"/><circle cx="92" cy="30" r="13" fill="#030712"/><circle cx="126" cy="30" r="13" fill="#030712"/><circle cx="160" cy="30" r="13" fill="#030712"/><circle cx="194" cy="30" r="13" fill="#030712"/><circle cx="228" cy="30" r="13" fill="#030712"/><circle cx="262" cy="30" r="13" fill="#030712"/><circle cx="58" cy="62" r="13" fill="#030712"/><circle cx="92" cy="62" r="13" fill="#030712"/><circle cx="126" cy="62" r="13" fill="#030712"/><circle cx="160" cy="62" r="13" fill="#030712"/><circle cx="194" cy="62" r="13" fill="#030712"/><circle cx="228" cy="62" r="13" fill="#030712"/><circle cx="262" cy="62" r="13" fill="#030712"/><circle cx="58" cy="94" r="13" fill="#030712"/><circle cx="92" cy="94" r="13" fill="#030712"/><circle cx="126" cy="94" r="13" fill="#030712"/><circle cx="160" cy="94" r="13" fill="#030712"/><circle cx="194" cy="94" r="13" fill="#030712"/><circle cx="228" cy="94" r="13" fill="#030712"/><circle cx="262" cy="94" r="13" fill="#030712"/><circle cx="58" cy="126" r="13" fill="#030712"/><circle cx="92" cy="126" r="13" fill="#030712"/><circle cx="126" cy="126" r="13" fill="#030712"/><circle cx="160" cy="126" r="13" fill="#030712"/><circle cx="194" cy="126" r="13" fill="#030712"/><circle cx="228" cy="126" r="13" fill="#030712"/><circle cx="262" cy="126" r="13" fill="#030712"/><circle cx="160" cy="126" r="13" fill="#ff8a2b"/><circle cx="126" cy="126" r="13" fill="#0e121d"/><clipPath id="c41"><circle cx="126" cy="126" r="11"/></clipPath><image href="assets/face.jpg" x="115" y="114.12" width="22" height="25.52" preserveAspectRatio="xMidYMid slice" clip-path="url(#c41)"/><circle cx="194" cy="126" r="13" fill="#ff8a2b"/><circle cx="160" cy="94" r="13" fill="#0e121d"/><clipPath id="c43"><circle cx="160" cy="94" r="11"/></clipPath><image href="assets/face.jpg" x="149" y="82.12" width="22" height="25.52" preserveAspectRatio="xMidYMid slice" clip-path="url(#c43)"/><circle cx="92" cy="126" r="13" fill="#0e121d"/><clipPath id="c44"><circle cx="92" cy="126" r="11"/></clipPath><image href="assets/face.jpg" x="81" y="114.12" width="22" height="25.52" preserveAspectRatio="xMidYMid slice" clip-path="url(#c44)"/><circle cx="126" cy="94" r="13" fill="#ff8a2b"/><circle cx="194" cy="94" r="13" fill="#0e121d"/><clipPath id="c46"><circle cx="194" cy="94" r="11"/></clipPath><image href="assets/face.jpg" x="183" y="82.12" width="22" height="25.52" preserveAspectRatio="xMidYMid slice" clip-path="url(#c46)"/><circle cx="160" cy="62" r="13" fill="#ff8a2b"/><circle cx="228" cy="126" r="13" fill="#ff8a2b"/>
-<circle cx="194" cy="2" r="13" fill="#ff8a2b" opacity=".85"/></svg></div>
-      <h3>Charleston <span>Four</span></h3>
-      <p>Four in a row against BDB, a friend on the same phone, or anyone in the online lobby. His face is on every navy disc.</p>
-      <div class="tags"><span>4 levels</span><span>Pass &amp; play</span><span>Play online</span></div>
-    </a>
-    <a class="mini" href="blocks/" data-key="blocks" style="animation-delay:0.40s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gblocks" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#14418f"/><stop offset="1" stop-color="#08204a"/></radialGradient></defs><rect width="320" height="160" fill="url(#gblocks)"/><rect x="92" y="8" width="140" height="152" fill="#050c1c" stroke="#24375f" stroke-width="3"/><rect x="147" y="86" width="16" height="16" rx="3" fill="#2a5bd7"/><rect x="149" y="88" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="164" y="86" width="16" height="16" rx="3" fill="#2a5bd7"/><rect x="166" y="88" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="130" y="103" width="16" height="16" rx="3" fill="#cf3326"/><rect x="132" y="105" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="147" y="103" width="16" height="16" rx="3" fill="#2a5bd7"/><rect x="149" y="105" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="164" y="103" width="16" height="16" rx="3" fill="#2a5bd7"/><rect x="166" y="105" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="181" y="103" width="16" height="16" rx="3" fill="#ff8a2b"/><rect x="183" y="105" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="96" y="120" width="16" height="16" rx="3" fill="#4ade80"/><rect x="98" y="122" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="130" y="120" width="16" height="16" rx="3" fill="#cf3326"/><rect x="132" y="122" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="147" y="120" width="16" height="16" rx="3" fill="#cf3326"/><rect x="149" y="122" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="164" y="120" width="16" height="16" rx="3" fill="#f2c14e"/><rect x="166" y="122" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="181" y="120" width="16" height="16" rx="3" fill="#ff8a2b"/><rect x="183" y="122" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="198" y="120" width="16" height="16" rx="3" fill="#ff8a2b"/><rect x="200" y="122" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="96" y="137" width="16" height="16" rx="3" fill="#4ade80"/><rect x="98" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="113" y="137" width="16" height="16" rx="3" fill="#4ade80"/><rect x="115" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="130" y="137" width="16" height="16" rx="3" fill="#4ade80"/><rect x="132" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="147" y="137" width="16" height="16" rx="3" fill="#f2c14e"/><rect x="149" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="164" y="137" width="16" height="16" rx="3" fill="#f2c14e"/><rect x="166" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="181" y="137" width="16" height="16" rx="3" fill="#ff5fa2"/><rect x="183" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="198" y="137" width="16" height="16" rx="3" fill="#ff8a2b"/><rect x="200" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/><rect x="215" y="137" width="16" height="16" rx="3" fill="#ff8a2b"/><rect x="217" y="139" width="12" height="4" rx="2" fill="#fff" opacity=".25"/>
-<g transform="translate(130 12)"><rect width="34" height="34" rx="5" fill="#ff8a2b"/><clipPath id="bk"><circle cx="17" cy="17" r="15"/></clipPath><image href="assets/face.jpg" x="2" y="0.7999999999999972" width="30" height="34.8" preserveAspectRatio="xMidYMid slice" clip-path="url(#bk)"/></g>
-<rect x="250" y="40" width="44" height="34" rx="6" fill="#0d1a36" stroke="#24375f"/><text x="272" y="62" text-anchor="middle" font-family="Arial Black,Arial" font-size="11" fill="#f2c14e">QUAD</text></svg></div>
-      <h3>Break Room <span>Blocks</span></h3>
-      <p>Stack falling blocks, clear lines, and land a BDB Bucket (four at once) while he comments on every move.</p>
-      <div class="tags"><span>Hold &amp; next</span><span>BDB Bucket</span><span>Levels</span></div>
-    </a>
-    <a class="mini" href="tycoon/" data-key="tycoon" style="animation-delay:0.45s">
-      <span class="flag">Online</span><span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gtycoon" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#174a7a"/><stop offset="1" stop-color="#071a33"/></radialGradient></defs><rect width="320" height="160" fill="url(#gtycoon)"/><rect x="40" y="112" width="40" height="44" fill="#efe3cc" stroke="#151a26" stroke-width="2"/><rect x="40" y="112" width="40" height="11" fill="#cf3326" stroke="#151a26" stroke-width="2"/><rect x="80" y="112" width="40" height="44" fill="#efe3cc" stroke="#151a26" stroke-width="2"/><rect x="80" y="112" width="40" height="11" fill="#cf3326" stroke="#151a26" stroke-width="2"/><rect x="120" y="112" width="40" height="44" fill="#efe3cc" stroke="#151a26" stroke-width="2"/><rect x="120" y="112" width="40" height="11" fill="#f2c14e" stroke="#151a26" stroke-width="2"/><rect x="160" y="112" width="40" height="44" fill="#efe3cc" stroke="#151a26" stroke-width="2"/><rect x="160" y="112" width="40" height="11" fill="#f2c14e" stroke="#151a26" stroke-width="2"/><rect x="200" y="112" width="40" height="44" fill="#efe3cc" stroke="#151a26" stroke-width="2"/><rect x="200" y="112" width="40" height="11" fill="#4ade80" stroke="#151a26" stroke-width="2"/><rect x="240" y="112" width="40" height="44" fill="#efe3cc" stroke="#151a26" stroke-width="2"/><rect x="240" y="112" width="40" height="11" fill="#2a5bd7" stroke="#151a26" stroke-width="2"/><path d="M44 104 l7 -7 l7 7 v8 h-14z" fill="#4ade80" stroke="#0b3d1f" stroke-width="1.5"/><path d="M60 104 l7 -7 l7 7 v8 h-14z" fill="#4ade80" stroke="#0b3d1f" stroke-width="1.5"/><rect x="208" y="96" width="24" height="16" rx="2" fill="#cf3326" stroke="#5a0d06" stroke-width="1.5"/><g transform="rotate(-14 214 52)"><rect x="196" y="34" width="36" height="36" rx="7" fill="#fbf8f2"/><circle cx="206" cy="44" r="3.4" fill="#151a26"/><circle cx="214" cy="52" r="3.4" fill="#151a26"/><circle cx="222" cy="60" r="3.4" fill="#151a26"/></g><g transform="rotate(12 262 60)"><rect x="244" y="42" width="36" height="36" rx="7" fill="#fbf8f2"/><circle cx="254" cy="52" r="3.4" fill="#151a26"/><circle cx="270" cy="52" r="3.4" fill="#151a26"/><circle cx="254" cy="68" r="3.4" fill="#151a26"/><circle cx="270" cy="68" r="3.4" fill="#151a26"/></g><g transform="rotate(-8 70 50)"><rect x="34" y="32" width="72" height="36" rx="4" fill="#4ade80" stroke="#0b3d1f" stroke-width="2"/><circle cx="70" cy="50" r="11" fill="#0b3d1f"/><text x="70" y="55" text-anchor="middle" font-family="Arial Black,Arial" font-size="13" fill="#4ade80">$</text></g><circle cx="150" cy="56" r="34" fill="#f2c14e"/><clipPath id="ty"><circle cx="150" cy="56" r="30"/></clipPath><image href="assets/face.jpg" x="120" y="23.599999999999994" width="60" height="69.6" preserveAspectRatio="xMidYMid slice" clip-path="url(#ty)"/></svg></div>
-      <h3>BDB <span>Tycoon</span></h3>
-      <p>Buy the break room, slap a hotel on Slot Row and bankrupt your friends. Play BDB bots, friends on one phone, or an online table.</p>
-      <div class="tags"><span>2–6 players</span><span>Trade &amp; build</span><span>Online tables</span></div>
-    </a>
-    <a class="mini" href="fleet/" data-key="fleet" style="animation-delay:0.5s">
-      <span class="flag">Online</span><span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gfleet" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#0f4f7a"/><stop offset="1" stop-color="#04182e"/></radialGradient></defs><rect width="320" height="160" fill="url(#gfleet)"/><path d="M30 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M54 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M78 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M102 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M126 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M150 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M174 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M198 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M222 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M246 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M270 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M294 18 V150" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M20 18 H300" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M20 42 H300" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M20 66 H300" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M20 90 H300" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M20 114 H300" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><path d="M20 138 H300" stroke="#7fd6ff" stroke-width="1" opacity=".18"/><circle cx="58" cy="48" r="10" fill="none" stroke="#bfe8ff" stroke-width="3"/><circle cx="58" cy="48" r="18" fill="none" stroke="#bfe8ff" stroke-width="2" opacity=".5"/><circle cx="102" cy="42" r="6" fill="#eef2fb"/><circle cx="126" cy="42" r="6" fill="#eef2fb"/><circle cx="276" cy="68" r="6" fill="#cf3326"/><path d="M70 118 H230 L214 140 H88 Z" fill="#3a4a66" stroke="#151a26" stroke-width="2"/><rect x="104" y="100" width="70" height="18" rx="3" fill="#5d6f95"/><rect x="134" y="84" width="22" height="16" fill="#8fa3cc"/><path d="M190 118 V60" stroke="#eef2fb" stroke-width="3"/><rect x="191" y="60" width="44" height="30" fill="#ff8a2b"/><clipPath id="fl"><circle cx="213" cy="75" r="13"/></clipPath><image href="assets/face.jpg" x="200" y="60.96" width="26" height="30.159999999999997" preserveAspectRatio="xMidYMid slice" clip-path="url(#fl)"/><circle cx="252" cy="44" r="16" fill="#ff8a2b" opacity=".9"/><circle cx="252" cy="44" r="9" fill="#f2c14e"/><path d="M252 22 l4 10 l10 -4 l-6 9 l10 6 l-11 1 l1 11 l-8 -8 l-8 8 l1 -11 l-11 -1 l10 -6 l-6 -9 l10 4z" fill="#ffd38a" opacity=".85"/></svg></div>
-      <h3>Sink <span>BDB</span></h3>
-      <p>Hide your fleet, hunt his. Play BDB’s admiral at three levels, or challenge a friend online.</p>
-      <div class="tags"><span>3 levels</span><span>Fair-play check</span><span>Play online</span></div>
-    </a>
-    <a class="mini" href="brawl/" data-key="brawl" style="animation-delay:0.55s">
-      <span class="best" hidden>Best <b></b></span>
-      <div class="art"><svg viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><radialGradient id="gbrawl" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#3a8f3a"/><stop offset="1" stop-color="#0d2a16"/></radialGradient></defs><rect width="320" height="160" fill="url(#gbrawl)"/>
-<rect x="0" y="72" width="320" height="16" fill="#2fa8ff"/><rect x="70" y="66" width="34" height="28" rx="3" fill="#b9864a"/><rect x="216" y="66" width="34" height="28" rx="3" fill="#b9864a"/>
-<rect x="138" y="8" width="44" height="40" rx="5" fill="#aab4c8" stroke="#ff4b47" stroke-width="4"/><clipPath id="bw"><rect x="146" y="14" width="28" height="28" rx="3"/></clipPath><image href="assets/face.jpg" x="146" y="12" width="28" height="32.5" preserveAspectRatio="xMidYMid slice" clip-path="url(#bw)"/>
-<rect x="138" y="112" width="44" height="40" rx="5" fill="#aab4c8" stroke="#3d8bff" stroke-width="4"/><path d="M160 122 l4 8 l9 1 l-7 6 l2 9 l-8 -5 l-8 5 l2 -9 l-7 -6 l9 -1z" fill="#f2c14e"/>
-<g transform="rotate(-8 60 120)"><rect x="34" y="96" width="40" height="54" rx="6" fill="#0a1838" stroke="#ffd95a" stroke-width="3"/><circle cx="54" cy="120" r="11" fill="#d8452e"/><circle cx="42" cy="104" r="7" fill="#7a2bd8"/></g>
-<g transform="rotate(7 262 120)"><rect x="244" y="96" width="40" height="54" rx="6" fill="#0a1838" stroke="#c77dff" stroke-width="3"/><circle cx="264" cy="121" r="11" fill="#3fd0b8"/><circle cx="252" cy="104" r="7" fill="#7a2bd8"/></g></svg></div>
-      <h3>Break Room <span>Brawl</span></h3>
-      <p>3D card battles. Dragons, wizards, orcs and the night janitor. Build a deck, climb a thousand levels and take BDB’s cards.</p>
-      <div class="tags"><span>2,480 cards</span><span>1,000 levels</span><span>Play online</span></div>
-    </a>
-  </div>
-
-  <footer>Made for laughs. All roasts are fictional.</footer>
+  <section class="shelf">
+    <h2>Arcade <small>Best scores are saved on this device.</small></h2>
+    <div class="grid four">
+      <a class="tile" href="freethrow/" data-key="freethrow">
+        <div class="shot"><img src="assets/home/freethrow.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Free Throw Frenzy</h3>
+        <p>Sixty seconds of arcade hoops on BDB’s own backboard. You only need to beat 2.0 PPG.</p>
+        <div class="tags"><span>60 seconds</span><span>On fire streaks</span></div>
+      </a>
+      <a class="tile" href="whack/" data-key="whack">
+        <div class="shot"><img src="assets/home/whack.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Whack-a-BDB</h3>
+        <p>He keeps popping up all over the break room. Bonk him, chase the Golden BDB, and spare the scout.</p>
+        <div class="tags"><span>45 seconds</span><span>Combos</span></div>
+      </a>
+      <a class="tile" href="clockin/" data-key="clockin">
+        <div class="shot"><img src="assets/home/clockin.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Clock-In Rush</h3>
+        <p>BDB is late for his shift. Sprint across the casino floor, dodge wet-floor signs, and punch the clock every 500 m.</p>
+        <div class="tags"><span>Endless runner</span><span>Jump &amp; slide</span></div>
+      </a>
+      <a class="tile" href="pingpong/" data-key="pingpong">
+        <div class="shot"><img src="assets/home/pingpong.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Break Room Ping Pong</h3>
+        <p>Table tennis against BDB on the break-room table. Real serve rules, spin, and a lot of trash talk.</p>
+        <div class="tags"><span>3 levels</span><span>First to 11</span></div>
+      </a>
+      <a class="tile" href="fish/" data-key="fish">
+        <div class="shot"><img src="assets/home/fish.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Big Fish BDB</h3>
+        <p>BDB starts as bait. Eat smaller fish, dodge bigger ones, and grow into the big fish he always said he was.</p>
+        <div class="tags"><span>Grow &amp; eat</span><span>3 lives</span></div>
+      </a>
+      <a class="tile" href="snake/" data-key="snake">
+        <div class="shot"><img src="assets/home/snake.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Lanyard Snake</h3>
+        <p>Classic snake. BDB’s head, a lanyard body, and every snack in the break room.</p>
+        <div class="tags"><span>3 speeds</span><span>Hot streaks</span></div>
+      </a>
+      <a class="tile" href="blocks/" data-key="blocks">
+        <div class="shot"><img src="assets/home/blocks.webp" alt="" loading="lazy" width="640" height="400"><span class="best" hidden>Best <b></b></span></div>
+        <h3>Break Room Blocks</h3>
+        <p>Stack falling blocks, clear lines, and land a BDB Bucket (four at once) while he comments on every move.</p>
+        <div class="tags"><span>Hold &amp; next</span><span>BDB Bucket</span></div>
+      </a>
+    </div>
+  </section>
 </main>
+<footer class="wrap">Made for laughs. All roasts are fictional.</footer>
 <script>
-// games still being built show as "Coming soon" until their page exists
-document.querySelectorAll('.mini[data-key]').forEach(a => {
+// a game whose page is not there yet shows as "Coming soon"
+document.querySelectorAll('.tile[data-key]').forEach(a => {
   fetch(a.getAttribute('href'), {method:'HEAD', cache:'no-store'}).then(r => { if (!r.ok) soon(a); }).catch(() => {});
 });
 function soon(a){ a.classList.add('soon'); a.setAttribute('aria-disabled', 'true'); a.setAttribute('tabindex', '-1'); a.removeAttribute('href'); }
-// show this device's best score on each tile (games save under bdb-scores-<key>)
-document.querySelectorAll('.mini[data-key]').forEach(a => {
+// this device's best score on each tile (games save under bdb-scores-<key>)
+document.querySelectorAll('.tile[data-key]').forEach(a => {
   let best = null;
   try {
     const keys = Object.keys(localStorage).filter(k => k === 'bdb-scores-' + a.dataset.key || k.startsWith('bdb-scores-' + a.dataset.key + '-'));
