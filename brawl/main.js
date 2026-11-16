@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116j';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116j';
-import { createAI } from './ai.js?v=1116j';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116j';
-import { Cloud, cloudWhy } from './cloud.js?v=1116j';
-import { sayFor, sayWhen } from './talk.js?v=1116j';
-import { createAudio } from './audio.js?v=1116j';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116k';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116k';
+import { createAI } from './ai.js?v=1116k';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116k';
+import { Cloud, cloudWhy } from './cloud.js?v=1116k';
+import { sayFor, sayWhen } from './talk.js?v=1116k';
+import { createAudio } from './audio.js?v=1116k';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116j'), import('./models.js?v=1116j')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116k'), import('./models.js?v=1116k')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -170,9 +170,9 @@ function cardEl(id, o = {}){
 }
 const typeChip = t => `<span class="tchip" style="--ty:${TYPES[t].col}">${esc(TYPES[t].name)}</span>`;
 /* which types a deck has enough of to earn their bonus, and how close the others are */
-function setsHTML(deck, brief){
-  const n = typeCount(deck), bon = typeBonus(deck);
-  return Object.keys(n).sort((a, b) => n[b] - n[a]).filter((t, i) => !brief || bon[t] || (n[t] >= 2 && i < 4)).map(t => { const nx = SET_AT.find(v => v > n[t]); return `<span class="set${bon[t] ? ' on' : ''}" style="--ty:${TYPES[t].col}"><b>${n[t]}</b>${esc(TYPES[t].name)}${bon[t] ? `<em>+${Math.round((bon[t] - 1) * 100)}%</em>` : nx ? `<small>${nx - n[t]} more for +${Math.round((SET_MUL[SET_AT.indexOf(nx)] - 1) * 100)}%</small>` : ''}</span>`; }).join('');
+function setsHTML(deck, brief, pairs){      // brief: only what earns a bonus or is close. pairs: leave out a type the deck has a single card of, once there is anything better to show
+  const n = typeCount(deck), bon = typeBonus(deck), some = Object.keys(n).some(t => bon[t] || n[t] >= 2);
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).filter((t, i) => brief ? bon[t] || (n[t] >= 2 && i < 4) : !pairs || !some || bon[t] || n[t] >= 2).map(t => { const nx = SET_AT.find(v => v > n[t]); return `<span class="set${bon[t] ? ' on' : ''}" style="--ty:${TYPES[t].col}"><b>${n[t]}</b>${esc(TYPES[t].name)}${bon[t] ? `<em>+${Math.round((bon[t] - 1) * 100)}%</em>` : nx ? `<small>${nx - n[t]} more for +${Math.round((SET_MUL[SET_AT.indexOf(nx)] - 1) * 100)}%</small>` : ''}</span>`; }).join('');
 }
 
 /* ---------- dialogs ---------- */
@@ -494,11 +494,11 @@ function hub(){
     const d = curDeck(), seg = $('deckSeg'); seg.innerHTML = '';
     for (let i = 0; i < DECK_SLOTS; i++){ const n = P.decks[i].length, b = document.createElement('button'); b.type = 'button'; b.innerHTML = `Deck ${i + 1}${n === DECK_SIZE ? '' : ` <small>${n}/${DECK_SIZE}</small>`}`; b.setAttribute('aria-pressed', i === P.deck); b.onclick = () => { P.deck = i; pend = null; deckMsg = ''; slotOn = false; save(); hub(); }; seg.appendChild(b); }
     $('deckAvg').textContent = d.length ? `${d.length} of ${DECK_SIZE} cards, average ${avgCost(d)} Mana` : 'Nothing in it yet';
-    $('deckSets').innerHTML = setsHTML(d);
+    $('deckSets').innerHTML = setsHTML(d, false, true);
     const g = $('deckGrid'); g.innerHTML = '';
     d.forEach((id, i) => { const c = withInfo(cardEl(id, {lvl:lvl(id), cls:pend ? 'pickme' : ''}), id); c.onclick = e => { if (e.target.closest('.inf')) return sheet(id); if (pend) putIn(pend, i); else takeOut(i); }; g.appendChild(c); });
     for (let i = d.length; i < DECK_SIZE; i++){ const sl = document.createElement('button'); sl.type = 'button'; sl.className = 'slot' + (slotOn && i === d.length ? ' on' : ''); sl.textContent = '+'; sl.setAttribute('aria-label', 'Empty place. Pick a card for it'); sl.onclick = pickForSlot; g.appendChild(sl); }
-    $('deckFill').disabled = d.length >= DECK_SIZE; $('deckClear').disabled = !d.length; $('deckClear').textContent = clearT ? 'Press again to empty it' : 'Clear this deck';
+    $('deckFill').disabled = d.length >= DECK_SIZE; $('deckClear').disabled = !d.length; $('deckClear').textContent = clearT ? 'Tap again to clear' : 'Clear deck';
     const side = matchMedia('(min-width:1100px)').matches;
     $('deckHint').innerHTML = deckMsg ? `<span class="err">${esc(deckMsg)}</span>${pend ? ' <button type="button" class="link" id="swapX" style="padding:2px 6px">Cancel</button>' : ''}`
       : slotOn && d.length < DECK_SIZE ? `<b>Now pick a card from ${side ? 'your cards on the right' : 'your cards below'}.</b> It goes in the lit place.`
@@ -656,7 +656,7 @@ function market(){
 function deckBox(d){
   const miss = d.deck.filter(id => !lvl(id)), cost = deckCost(d), inUse = curDeck().join() === d.deck.join();
   const b = dlg(`<div class="k-eyebrow">Ready-made deck</div><h3>${esc(d.name)}</h3><p>${esc(d.blurb)}</p>
-    <div class="grid deck dk15" id="dbGrid"></div><div class="sets">${setsHTML(d.deck)}</div>
+    <div class="grid deck dk15" id="dbGrid"></div><div class="sets">${setsHTML(d.deck, false, true)}</div>
     <p class="note">Average ${avgCost(d.deck)} Mana. ${miss.length ? `You are missing ${miss.length} of the 15, so that is all you pay for.` : 'You own every card in it.'}</p>
     <div class="k-row">${miss.length ? `<button type="button" class="k-btn primary" id="dbBuy" ${P.coins < cost ? 'disabled' : ''}>Buy for ${COIN}${fmt(cost)}</button>` : `<button type="button" class="k-btn primary" id="dbUse" ${inUse ? 'disabled' : ''}>${inUse ? 'In use' : `Use as Deck ${P.deck + 1}`}</button>`}<button type="button" class="k-btn" id="dbX">Close</button></div>
     ${miss.length && P.coins < cost ? `<p class="note">You need ${fmt(cost - P.coins)} more coins.</p>` : ''}`);
@@ -1416,12 +1416,16 @@ async function netUp(){ if (!net) net = await openTransport(Q.get('net') === 'lo
 function endOnline(){ const r = room, l = lobby; room = lobby = null; if (OL){ clearInterval(OL.iv); clearInterval(OL.hiIv); clearTimeout(OL.pt); clearTimeout(OL.to); } OL = null; setTimeout(() => { try { r && r.leave(); } catch(e){} try { l && l.leave(); } catch(e){} }, 400); }
 function waitBox(title, text, extra = ''){ const b = dlg(`<div class="k-eyebrow">Online</div><h3>${esc(title)}</h3><p id="olText">${esc(text)}</p>${extra}<div class="k-row"><button type="button" class="k-btn" id="olX">Cancel</button></div>`, {lock:true}); b.querySelector('#olX').onclick = () => { endOnline(); dlgClose(); }; return b; }
 const netFail = () => { endOnline(); msgBox('No connection', 'Could not reach the matchmaking relays. Check your internet and try again.'); };
+/* Players connect straight to each other. Two networks that both refuse that (mobile data, some office and school Wi-Fi) find each other and then cannot link up:
+   the transport says so, and the player is told, instead of being left to think nobody answered. */
+const NET_TRYING = 'Found them, but a direct connection between your two networks is not getting through. Still trying.';
+const NET_CANT = 'A direct connection between your two networks did not get through. Mobile data and some office or school Wi-Fi block it. If one of you can switch to home Wi-Fi, try again.';
 $('olQuick').onclick = async () => {
   if (noDeck()) return;
   waitBox('Looking for a player', 'Waiting for someone else to hit Quick match. Send a friend the link to this page to speed it up.');
   try { await netUp(); } catch(e){ return netFail(); }
   if ($('dlg').hidden) return;
-  lobby = net.join('brawl2-lobby'); OL = {state:'look', pending:null};
+  lobby = net.join('brawl2-lobby', () => { const t = $('olText'); if (OL && OL.state === 'look' && t) t.textContent = 'Someone else is looking too, but a direct connection between your two networks is not getting through. Still looking for a player.'; }); OL = {state:'look', pending:null};
   const hello = to => lobby && lobby.send('look', {n:P.name}, to);
   lobby.onJoin(id => hello(id)); OL.iv = setInterval(() => hello(), 2500); hello();
   lobby.onMessage((t, d, from) => {
@@ -1481,7 +1485,7 @@ async function joinFriend(code){
   try { await netUp(); } catch(e){ return netFail(); }
   if ($('dlg').hidden) return;
   enterMatch(code, false, true);
-  OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('Nobody there', 'No match was found with that code. Ask your friend to start a new one.'); } }, 30000);
+  OL.to = setTimeout(() => { if (OL && !OL.opp){ const bl = OL.blocked; endOnline(); if (bl) msgBox('Could not connect', NET_CANT); else msgBox('Nobody there', 'No match was found with that code. Ask your friend to start a new one.'); } }, 30000);
 }
 function okDeck(d){ return Array.isArray(d) && d.every(c => c && typeof c.id === 'string') && !deckProblem(d.map(c => c.id), false) && d.every(c => Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL); }
 function enterMatch(code, host, keepBox, coop, skill){
@@ -1489,7 +1493,7 @@ function enterMatch(code, host, keepBox, coop, skill){
   if (OL) clearTimeout(OL.pt);
   // coop: how many BDBs the two of you are up against, 0 for a duel. skill: how good they are. od, tw, mate: the other player's deck, tower level and name, kept for a rematch
   OL = {state:'wait', code, host, opp:null, coop:coop === true ? 2 : [2, 3].includes(coop) ? coop : 0, skill:skill || 'ladder', od:null, tw:1, mate:'', again:{me:false, them:false}};
-  room = net.join('brawl2-m-' + code);
+  room = net.join('brawl2-m-' + code, () => { if (OL && !OL.opp){ OL.blocked = true; const t = $('olText'); if (t) t.textContent = NET_TRYING; } });
   if (!keepBox){ const t = $('olText'); if (t) t.textContent = 'Found someone. Setting up the match.'; }
   const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower()}, to);
   room.onJoin(id => hi(id)); hi(); OL.hiIv = setInterval(() => { if (OL && !OL.opp) hi(); }, 1500);
@@ -1645,7 +1649,7 @@ async function sendInvite(to, kind, n = 2, sk = 'ladder'){
   if (kind !== 'trade' && noDeck()) return;
   const code = rid(6);
   if (kind === 'trade') openTrade(code, to);
-  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? `Asking them to team up against ${NUM[n].toLowerCase()} BDBs. They have a minute to answer.` : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop' ? n : 0, sk); OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
+  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? `Asking them to team up against ${NUM[n].toLowerCase()} BDBs. They have a minute to answer.` : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop' ? n : 0, sk); OL.to = setTimeout(() => { if (OL && !OL.opp){ const bl = OL.blocked; endOnline(); if (bl) msgBox('Could not connect', NET_CANT); else msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
   try { const r = await Cloud.invite(to, kind, code); if (!r || r.error) throw new Error(r && r.error ? String(r.error) : 'no answer'); }
   catch(e){ if (kind === 'trade') closeTrade(); else { endOnline(); dlgClose(); } msgBox('Could not send', `The invite did not go through (${e && e.kind ? cloudWhy(e) : String(e && e.message || e).slice(0, 80)}). Try again.`); }
 }
@@ -1679,9 +1683,9 @@ async function openTrade(code, name){
   drawTrade();
   try { await netUp(); } catch(e){ TR = null; return netFail(); }
   if (!TR) return;
-  const room = TR.room = net.join('brawl2-t-' + code), hello = to => TR && room.send('th', {n:P.name}, to);
+  const room = TR.room = net.join('brawl2-t-' + code, () => { if (TR && !TR.opp){ TR.blocked = true; drawTrade(); } }), hello = to => TR && room.send('th', {n:P.name}, to);
   room.onJoin(id => hello(id)); hello(); TR.iv = setInterval(() => { if (TR && !TR.opp) hello(); }, 1500);
-  TR.to = setTimeout(() => { if (TR && !TR.opp) closeTrade(`${name} did not pick up.`); }, 70000);
+  TR.to = setTimeout(() => { if (TR && !TR.opp) closeTrade(TR.blocked ? NET_CANT : `${name} did not pick up.`); }, 70000);
   room.onLeave(id => { if (TR && id === TR.opp && !TR.done) closeTrade(`${TR.name} left the trade.`); });
   room.onMessage((t, d, from) => {
     if (!TR || !d || typeof d !== 'object') return;
@@ -1778,7 +1782,7 @@ function drawTrade(){
   const ci = q('tCoins'); ci.disabled = !linked || me.lock; ci.max = coinCap(); if (document.activeElement !== ci) ci.value = me.coins || '';
   q('tTheirCoins').textContent = fmt(th.coins);
   q('tLkMine').hidden = !me.lock; q('tLkTheirs').hidden = !th.lock; q('tSideMine').classList.toggle('lk', me.lock); q('tSideTheirs').classList.toggle('lk', th.lock);
-  q('tMsg').textContent = TR.note || (!linked ? `Waiting for ${TR.name} to join. They have a minute to answer.` : TR.okMine ? `Waiting for ${TR.name} to confirm.` : both && TR.okTheirs ? `${TR.name} has confirmed. Confirm to make the swap.` : both ? 'Both offers are locked. Confirm to make the swap.'
+  q('tMsg').textContent = TR.note || (!linked ? (TR.blocked ? NET_TRYING : `Waiting for ${TR.name} to join. They have a minute to answer.`) : TR.okMine ? `Waiting for ${TR.name} to confirm.` : both && TR.okTheirs ? `${TR.name} has confirmed. Confirm to make the swap.` : both ? 'Both offers are locked. Confirm to make the swap.'
     : me.lock ? `Your offer is locked. Waiting for ${TR.name} to lock theirs.` : th.lock ? `${TR.name} has locked. Lock yours when you are happy with the deal.` : 'Tap up to five of your cards, add any coins, then lock your offer. Hold a card to read it.');
   const pool = q('tPool'); pool.classList.toggle('off', !linked || me.lock);
   for (const c of pool.querySelectorAll('.card')) c.classList.toggle('picked', me.cards.includes(c.dataset.id));
