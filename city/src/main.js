@@ -106,7 +106,8 @@ async function boot() {
   // How the bar is shared out. Building a town or the demo city is a good part of the wait, so it
   // gets a good part of the bar; it used to be squeezed into the last few percent, where a long
   // step looked exactly like a hang.
-  const builds = config.demo || config.start === 'village' || config.start === 'town';
+  const opening = !!(ctx.startChoice && ctx.startChoice.mode === 'load' && ctx.startChoice.snapshot);
+  const builds = config.demo || config.start === 'village' || config.start === 'town' || opening;
   const moduleShare = builds ? 0.58 : 0.9;
   const buildAt = (f) => moduleShare + 0.02 + (0.955 - moduleShare) * Math.max(0, Math.min(1, f));
   let i = 0;
@@ -195,13 +196,33 @@ async function boot() {
     }
   }
 
+  // --- a saved city: stood back up in the empty world its seed generated (save/snapshot.js) ---
+  let opened = null;
+  if (opening) {
+    setLoading(buildAt(0), 'Opening your city');
+    try {
+      const { restoreCity } = await import('./save/snapshot.js');
+      opened = await restoreCity(ctx, ctx.startChoice.snapshot, (f, text) => setLoading(buildAt(f), text));
+      ctx.moduleStatus.load = { ok: true, ...opened };
+    } catch (err) {
+      console.error('[main] opening the saved city failed', err);
+      ctx.moduleStatus.load = { ok: false, error: String(err && err.stack || err) };
+      debug.errors.push(`load: ${err && err.message}`);
+    }
+  }
+
   // An empty world has no city to look at. Map origin is wherever the heightmap put it — often a
   // slope or open water — so search for the flattest dry patch and open the camera over that.
   if (!config.demo && !config.showcase) {
     // a starter town is where the camera opens; bare land opens over the flattest dry patch
-    const spot = starter || findBuildableStart(world);
-    if (spot) {
-      debug.presets.newcity = { target: { x: spot.x, z: spot.z }, distance: starter ? starter.radius : 380, yaw: 0.6, pitch: 0.62 };
+    const saved = opened && ctx.startChoice.snapshot.camera;
+    const spot = starter || (opened ? cityCentre(world) : null) || findBuildableStart(world);
+    if (saved && saved.target && Number.isFinite(saved.distance)) {
+      // a saved city opens on the view it was saved from
+      debug.presets.newcity = { target: { x: saved.target.x, z: saved.target.z }, distance: saved.distance, yaw: saved.yaw, pitch: saved.pitch };
+      config.cam = 'newcity';
+    } else if (spot) {
+      debug.presets.newcity = { target: { x: spot.x, z: spot.z }, distance: starter ? starter.radius : spot.radius || 380, yaw: 0.6, pitch: 0.62 };
       config.cam = 'newcity';
       if (config.debug) console.log('[main] new-city start', spot);
     }
@@ -219,7 +240,29 @@ async function boot() {
   document.getElementById('loading')?.classList.add('hidden');
   debug.ready = true;
   events.emit('game:ready');
+  // --- keeping the city: every start from the start screen except the demo is saved from here on ---
+  if (ctx.startChoice) {
+    try {
+      const { startSaves } = await import('./save/session.js');
+      const failed = opening && !opened;
+      // a city that did not come back whole must never be saved over the copy that is still good
+      startSaves(ctx, failed ? null : ctx.startChoice.city || null,
+        failed ? 'This city did not open properly, so it is not being saved. Your saved copy has not been touched.'
+          : config.demo ? 'The demo city is for looking around. It is not saved.' : null);
+      if (failed) events.emit('notification', { kind: 'warning', title: 'The city did not open properly', text: 'Your saved copy has not been touched. Reload the page to try again.', life: 20000 });
+      else if (opened && opened.missing) events.emit('notification', { kind: 'info', title: 'Welcome back', text: `${opened.missing} building${opened.missing === 1 ? '' : 's'} could not be put back and will regrow.`, life: 9000 });
+    } catch (err) { console.error('[main] saving could not be started', err); }
+  }
   if (config.debug) console.log('[main] ready', debug.stats());
+}
+
+/** The middle of everything built, for opening a saved city that carries no view of its own. */
+function cityCentre(world) {
+  const nodes = world.roads && world.roads.nodes;
+  if (!nodes || !nodes.size) return null;
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const n of nodes.values()) { if (n.x < x0) x0 = n.x; if (n.x > x1) x1 = n.x; if (n.z < z0) z0 = n.z; if (n.z > z1) z1 = n.z; }
+  return { x: (x0 + x1) / 2, z: (z0 + z1) / 2, radius: Math.max(320, Math.min(1400, Math.hypot(x1 - x0, z1 - z0) * 0.9)) };
 }
 
 /**

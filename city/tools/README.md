@@ -62,6 +62,48 @@ name nothing but the clock.
 Run it after any change to `src/save/`, to a module's `exportState` / `importState`, or to
 anything that decides where a zoning cell, a plot or a road surface ends up.
 
+## A local Supabase, for testing the SQL and online saving
+
+Never test against the real server: the checks create accounts and cities. A stand-in takes a few
+minutes and three pieces.
+
+1. **Postgres with pgcrypto.** `npm install embedded-postgres` brings real binaries under
+   `node_modules/@embedded-postgres/<platform>/native/bin`. It will not run as root: `initdb` and
+   `pg_ctl start -o '-p 54329'` as an ordinary user.
+2. **Make it look like Supabase**, then install both games' SQL:
+   ```
+   psql -p 54329 -U postgres -f city/tools/localdb/bootstrap.sql   # roles anon/authenticated, schema extensions, Supabase's default grants
+   psql -p 54329 -U postgres -f brawl/supabase.sql
+   psql -p 54329 -U postgres -f city/supabase.sql
+   ```
+   The default grants matter: Supabase hands every new function in `public` to the anonymous role,
+   which is exactly the mistake the private schema in `city/supabase.sql` guards against.
+3. **PostgREST** (a single static binary from its GitHub releases) with `db-anon-role = "anon"`,
+   `db-schemas = "public"`, a `jwt-secret`, and a JWT signed with that secret whose payload is
+   `{"role":"anon"}`. That JWT is `KEY` below. `node city/tools/localdb/gateway.mjs` then stands in
+   for Supabase's gateway (`/rest/v1/…` in front of PostgREST) on port 54331.
+
+### sqlcheck.mjs — the SQL on its own
+
+```
+API=http://127.0.0.1:54330 KEY=<anon jwt> node city/tools/sqlcheck.mjs
+```
+
+49 checks through PostgREST as the anonymous role: sign-up and sign-in rules, Brawl names and
+passwords, saving, limits, who may open or delete what, and what must not be reachable (the
+helper functions, and the tables themselves).
+
+### cloudcheck.mjs — online saving through the start screen
+
+```
+KEY=<anon jwt> PSQL='psql -h 127.0.0.1 -p 54329 -U postgres -d postgres' node city/tools/cloudcheck.mjs
+```
+
+Creates an account, founds a village, saves, reopens it on the same computer and on "another
+computer", deletes it, opens a rescued city and a city from a file, and runs with a server that
+has no SQL and with no server at all. 28 checks; it ends with the list of page errors, which
+should be empty.
+
 ## Checking a model from Tripo
 
 ```

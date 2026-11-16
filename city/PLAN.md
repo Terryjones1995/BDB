@@ -14,7 +14,8 @@ This file is the standing brief. Read it before working in `city/`, and keep the
 | 1 | Fable Cities running in `city/`, no build step, lighter art | **Live** (15 Nov 2026) — see "Step 1 notes" |
 | 1b | Starter cities and a random map for every new game | **Live** — see "Starting a city" |
 | 1c | First-night fixes: lag on built-in graphics, level starter towns, loading that does not freeze | **Live / going live** — see "First night live" |
-| 2 | Saving, BDB accounts, touch controls, BDB as advisor | Not started |
+| 2 | Saving and accounts | **Built** — see "Saving". Online saving needs `city/supabase.sql` run once on the server |
+| 2b | Touch controls, BDB as advisor | Not started |
 | 3 | Crime, fire and ambulance dispatch, with the Tripo buildings and vehicles | Not started (models arriving, see `ASSETS.md`) |
 | 4 | Money screen, events, the deeper rules | Not started |
 | 5 | Airport, rail, port, and deals with BDB's city | Not started |
@@ -86,7 +87,7 @@ The test for each idea: does the player make a choice, and does the city visibly
 
 | # | What | Why here |
 |---|---|---|
-| A | **Saving**: on the device and in Supabase, several cities per account, start screen lists them, rescued cities load back | Anything built is lost on leaving until this exists |
+| A | **Saving**: on the device and in Supabase, several cities per account, start screen lists them, rescued cities load back | **Done.** Anything built was lost on leaving until this existed |
 | B | **Money screen**: tax sliders, service funding, loans, weekly report | The simulation already supports most of it; quickest way to give players a real decision |
 | C | **Undo and landscaping**: Ctrl+Z; flatten, raise, lower, dig water | The two things players reached for and did not find |
 | D | **Crime, fire and medical**, with causes, incidents and vehicles that drive there; jail and courthouse | The heart of "a city that reacts" |
@@ -143,11 +144,13 @@ which is how a city gets huge without a huge download. Tripo supplies the specia
 **No build step**, like the rest of this repo: plain ES modules and an import map. Fable Cities
 needs three.js r185, so `city/vendor/three` carries its own copy; the other games stay on r160.
 
-**Accounts and cloud saves reuse Brawl's server.** Same pattern as `brawl/cloud.js` and
-`brawl/supabase.sql`: plain `fetch` to SQL functions, tables closed to direct access, and the game
-keeps working on device saves if the server is unreachable. One BDB login across the site: the
-city functions check the Brawl name and token. Note Brawl caps a save at 400 KB, so a city save
-has to be compact (see "Saving").
+**Accounts and cloud saves use Brawl's server, without touching Brawl.** Same pattern as
+`brawl/cloud.js` and `brawl/supabase.sql`: plain `fetch` to SQL functions, tables closed to direct
+access, and the game keeps working on device saves if the server is unreachable. City has its own
+tables (`city_players`, `city_cities`) and never writes to `brawl_players`, so the two games can
+change independently. It still feels like one login: a Brawl name and password sign in to City
+(the account is copied across the first time), a Brawl sign-in in the same browser is picked up
+without typing anything, and nobody else can register a Brawl player's name here. See "Saving".
 
 **Live co-building uses the transport the site already has** (`chess/net.js`, Trystero, peer to
 peer, host-authoritative the way Tycoon and Brawl do it).
@@ -243,10 +246,60 @@ city/
   (skips the start screen; `city` is the demo city, and the older `?demo=0|1` still works), `?tex=full|lite`,
   `?seed=7` (without it a `?start=` game rolls its own),
   `?time=17.5`, `?weather=rain`, `?showcase=roads` (one module's own test scene), `?debug=1`.
-- **Saving (step 2) has to be designed in.** Upstream keeps nothing. Everything procedural is
-  deterministic per seed, so a save is: seed, map size, the road graph, zones, buildings (lot,
-  level, seed), service buildings, economy and clock. Keep it compact: for scale, Microcity's
-  100 × 100 city is 671 KB as JSON and 18 KB gzipped, and Brawl's cloud save limit is 400 KB.
+- **Saving is built** (`src/save/`, and `exportState` / `importState` in each module). See
+  "Saving" below before changing anything that decides where a zoning cell, a plot or a road
+  surface ends up: a save depends on those coming out the same.
+
+## Saving
+
+**What the player sees.** The start screen has two tabs. "Your cities" lists every city, newest
+first, with where each copy is (on this device, online, or both); "New city" is the four starts.
+In the game a button in the top bar shows a dot: green is saved, amber is saving or waiting, red
+means the save failed. Pressing it saves now. The demo city is not kept.
+
+**When it saves.** On the device every 30 seconds, when the tab is hidden, and when the button is
+pressed. Online every two and a half minutes when signed in, and at once on the button. The device
+copy is written first every time and is the one the game trusts; an online save is a copy of it.
+A city that fails to open is never saved over the copy that is still good.
+
+**What a save holds** (`src/save/snapshot.js`), in the order it is restored:
+
+1. *The ground*: every heightmap sample that differs from the generated terrain
+   (`terrain/edits.js`). Not a log of operations: their blends depend on the order they happened in.
+2. *Roads*: nodes, exact curves, each road's own height profile and each junction's slope.
+3. *Zoning*: the paint per world cell, and how deep each frontage column ran.
+4. *Services, the books, residents per building, milestones, the clock.*
+5. *Buildings*: one row each, tied to its plot by the plot's geometric key.
+
+Plots are not stored; they are derived from roads, paint and ground, and with those three back
+exactly they come out the same. Loading never reshapes the ground (`groundIsFinal`): cutting a
+corridor or levelling a plot a second time would move the blends a little on every load.
+
+A starter village is about 30 KB as saved, a town about 75 KB. The server takes up to 1.5 MB per
+city and twelve cities per account.
+
+**Three things that looked harmless and were not**, all found by `tools/savecheck.mjs`:
+
+- Rounding road coordinates to the millimetre. A street of exactly eleven zoning cells came back a
+  hair short, the grid gave it ten columns, and the buildings on the eleventh had no plot.
+- Rebuilding the zoning grid from scratch on load. Which cells survive depends on the slope at the
+  moment the grid is built, and on a load every plot has already been levelled.
+- `seed | 0` when a building is created. Seeds are unsigned; one above 2^31 came back negative
+  and rolled a different building.
+
+**Online** (`city/supabase.sql`, `src/save/cloud.js`). The SQL has to be run once in the Supabase
+SQL editor. Until it is, the game says "online saving is not switched on yet" and keeps cities
+on the device; nothing else changes. The password-hash lookup and the token check live in a
+private schema (`bdb_private`): Supabase hands every function in `public` to the anonymous role
+by default, so a helper left there would have been callable from any browser.
+
+**Rescued cities.** `src/rescue.js` wrote cities out of tabs of the first build, which stored no
+ground and no road profiles. `fromRescue()` turns such a file into a snapshot that is rebuilt the
+way the city was first built: close, not exact. The start screen offers a rescued city found in
+this browser's storage, and "Load a city from a file" takes the downloaded file.
+
+**Not built yet:** visiting another mayor's city and the table of cities (the SQL for both is in
+and tested; no screen uses it), downloading a save as a file, and a change of password.
 
 ## Checking work
 
