@@ -261,7 +261,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .pur .plus{flex:none;display:grid;place-items:center;width:22px;height:22px;margin-right:-3px;border-radius:7px;border:2px solid var(--ink2);background:linear-gradient(180deg,#8dff7a,#2fbf3a);box-shadow:inset 0 2px 0 rgba(255,255,255,.5);font:400 18px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 /* who is playing */
 .who-chip{flex:none;display:inline-flex;align-items:center;gap:9px;max-width:220px;padding:3px 14px 3px 3px;border-radius:999px;border:3px solid var(--ink2);background:linear-gradient(180deg,#4a96ff,#1f5fd0);box-shadow:inset 0 3px 0 rgba(255,255,255,.35),0 3px 0 var(--ink2);color:#fff;cursor:pointer;text-align:left}
-.who-chip .av{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#12306b;border:2.5px solid #fff;font:400 19px/1 var(--f-game)}
+.who-chip .av{flex:none;width:38px;height:38px;margin:-3px 0 -3px -1px;object-fit:contain;filter:drop-shadow(0 2px 0 rgba(8,18,52,.55))}
 .who-chip .nm{display:flex;flex-direction:column;min-width:0}
 .who-chip b{font:400 16px/1.05 var(--f-game);text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who-chip small{margin-top:2px;font:800 10px/1 var(--f-body);letter-spacing:.05em;color:#d6e6ff;white-space:nowrap}
@@ -270,7 +270,8 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 @media (max-width:1040px){ .logo b{font-size:32px} .logo small{font-size:11px} .tabs button svg{display:none} }
 @media (max-width:860px){
   .top-in{flex-wrap:wrap;gap:8px;padding:8px 10px 9px}
-  .tabs{order:9;flex:1 0 100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .tabs{order:9;flex:1 1 calc(100% - 48px);min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .top-snd{order:10;align-self:center}
   .tabs button{justify-content:center;gap:6px;padding:9px 2px 10px;font-size:15px}
   .tabs button svg{display:inline}
   .logo{margin:0 4px 0 0} .logo b{font-size:27px} .logo small{font-size:9.5px;letter-spacing:.12em}
@@ -629,6 +630,30 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .abil li{position:relative;padding:6px 10px 6px 26px;border-radius:10px;background:#0a1e52;border:2px solid var(--ink2);font:600 12px/1.35 var(--f-body);color:#eef5ff}
 .abil li::before{content:"";position:absolute;left:9px;top:10px;width:8px;height:8px;transform:rotate(45deg);background:#ffd23f;box-shadow:0 0 0 1.5px var(--ink2)}
 .bnote2{margin:0;width:100%;text-align:left;font:700 12px/1.35 var(--f-body);color:#ffe9a8}
+/* the player's card on the Profile tab: tier badge, how far through the tier, six numbers worth showing off, then the small print */
+.pc-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.pc-badge{flex:none;width:88px;height:88px;object-fit:contain;filter:drop-shadow(0 5px 0 rgba(8,18,52,.5))}
+.pc-id{flex:1;min-width:0}
+.pc-id h3{margin:0;font:400 28px/1.05 var(--f-game);color:#fff;text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-tier{display:block;margin-top:5px;font:400 16px/1 var(--f-game);text-shadow:var(--stroke)}
+.pc-bar{height:12px;margin:9px 0 6px;border-radius:999px;border:2.5px solid var(--ink2);background:#0a1e52;overflow:hidden}
+.pc-bar i{display:block;height:100%;border-radius:999px;box-shadow:inset 0 2px 0 rgba(255,255,255,.45)}
+.pc-lv{margin:0;font:700 12px/1.3 var(--f-body);color:#d6e6ff}
+.pc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
+.pc-tiles div{padding:11px 6px 10px;border-radius:14px;border:2.5px solid var(--ink2);background:#0d2764;box-shadow:inset 0 3px 0 rgba(0,0,0,.28);text-align:center}
+.pc-tiles b{display:block;font:400 clamp(19px,5.6vw,26px)/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);white-space:nowrap}
+.pc-tiles small{display:block;margin-top:6px;font:700 11px/1.2 var(--f-body);color:#cfe1ff}
+.pcard .kv{padding-top:12px;border-top:2px solid rgba(8,18,52,.35)}
+.pcard .kv span:nth-child(even){font-size:17px}
+.hero small .tb{width:26px;height:26px;margin:-8px 5px -7px 0;vertical-align:middle;object-fit:contain;filter:drop-shadow(0 2px 0 rgba(8,18,52,.5))}
+/* tips in a player's first match: a note pinned above the hand */
+.coach{position:absolute;left:50%;bottom:calc(100% + 16px);z-index:8;transform:translateX(-50%);width:min(440px,calc(100vw - 28px));padding:10px 16px 12px;border-radius:16px;border:3px solid var(--ink2);background:linear-gradient(180deg,#fff8e2,#ffe49a);box-shadow:0 5px 0 var(--ink2),0 12px 26px rgba(0,0,0,.35);color:#2b1a04;font:700 14px/1.38 var(--f-body);text-align:center;text-wrap:balance}
+.coach small{display:block;margin-bottom:4px;font:400 12px/1 var(--f-game);color:#b05a00}
+.coach::after{content:"";position:absolute;left:50%;top:100%;margin:2px 0 0 -10px;border:10px solid transparent;border-top-color:var(--ink2)}
+.coach::before{content:"";position:absolute;left:50%;top:100%;z-index:1;margin:-3px 0 0 -7px;border:7px solid transparent;border-top-color:#ffe49a}
+.coach.in{animation:coachIn .3s cubic-bezier(.2,1.5,.4,1)}
+@keyframes coachIn{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(.95)}}
+@media (prefers-reduced-motion:reduce){ .coach.in{animation:none} }
 .k-box .pzrow{justify-content:center;margin:0}
 
 /* type filter: a row of chips above every card list */
@@ -950,7 +975,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
         <button type="button" class="pur" id="resTok" title="Upgrade tokens. Spend them in your Profile"><i class="ic ic-tok"></i><b id="hTok">0</b></button>
         <button type="button" class="pur" id="resTro" title="Trophies, from online wins"><i class="ic ic-tro"></i><b id="hTro">0</b></button>
       </div>
-      <button type="button" class="who-chip" id="whoChip" title="Your profile"><span class="av" id="hAv"></span><span class="nm"><b id="hName"></b><small id="hTier"></small></span></button>
+      <button type="button" class="who-chip" id="whoChip" title="Your profile"><img class="av" id="hAv" alt="" width="38" height="38"><span class="nm"><b id="hName"></b><small id="hTier"></small></span></button>
       <button type="button" class="top-snd" id="mute" aria-label="Sound" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path class="w" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.6 7.6 0 0 1 0 11"/><path class="x" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
     </div>
   </header>
@@ -1031,7 +1056,15 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
     <div id="tabProfile" hidden>
       <div class="split">
         <div>
-          <div class="panel"><span class="k-label" id="pName">Player</span><p class="note" id="accNote" style="margin:0 0 12px"></p><div class="kv" id="pStats"></div></div>
+          <div class="panel pcard">
+            <div class="pc-top">
+              <img class="pc-badge" id="pBadge" alt="" src="ui/tier-trainee.webp" width="88" height="88">
+              <div class="pc-id"><h3 id="pName">Player</h3><b class="pc-tier" id="pTier"></b><div class="pc-bar"><i id="pBar"></i></div><p class="pc-lv" id="pLv"></p></div>
+            </div>
+            <div class="pc-tiles" id="pTiles"></div>
+            <div class="kv" id="pStats"></div>
+            <p class="note" id="accNote" style="margin:12px 0 0"></p>
+          </div>
           <div class="panel">
             <span class="k-label">Save code</span>
             <p class="note" style="margin:0 0 10px">Copy this on your old device and paste it on the sign in screen of the new one.</p>
@@ -1085,6 +1118,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
   <div id="emoPanel" hidden></div>
   <div class="k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
   <div class="handbar">
+    <div class="coach" id="coach" role="status" hidden></div>
     <div class="handrow"><div class="next"><small>Next</small><div id="nextCard"></div></div><div class="hand" id="hand"></div></div>
     <div class="coffee" id="coffee"><i id="coffeeFill"></i><b id="coffeeN">5</b><span id="coffeeLbl">Mana</span></div>
   </div>
@@ -1095,6 +1129,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115z"></script>
+<script type="module" src="main.js?v=1116a"></script>
 </body>
 </html>

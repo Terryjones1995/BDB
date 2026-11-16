@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1115z';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115z';
-import { createAI } from './ai.js?v=1115z';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115z';
-import { Cloud, cloudWhy } from './cloud.js?v=1115z';
-import { sayFor, sayWhen } from './talk.js?v=1115z';
-import { createAudio } from './audio.js?v=1115z';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1116a';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116a';
+import { createAI } from './ai.js?v=1116a';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116a';
+import { Cloud, cloudWhy } from './cloud.js?v=1116a';
+import { sayFor, sayWhen } from './talk.js?v=1116a';
+import { createAudio } from './audio.js?v=1116a';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -79,7 +79,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115z'), import('./models.js?v=1115z')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116a'), import('./models.js?v=1116a')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -124,9 +124,11 @@ function noDeck(){
   BDB.sfx.bad(); dlgClose(); tab('Deck'); return true;
 }
 const coinsTxt = () => OWN ? '\u221e' : fmt(P.coins);
+const bigN = n => n >= 1e6 ? +(n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : fmt(n);      // the top bar has no room for seven digits
+const tierPic = t => `ui/tier-${t.id}.webp`;
 function top(){
-  $('hCoins').textContent = coinsTxt(); $('resCoins').title = OWN ? 'Coins never run out on this account' : 'Coins. Spend them in the Market'; $('hTro').textContent = fmt(P.trophies); $('hTok').textContent = fmt(P.tokens);
-  $('hName').textContent = P.name; $('hAv').textContent = P.name[0].toUpperCase(); $('hTier').textContent = P.ladder >= LEVELS ? 'Ladder cleared' : `${tierOf(P.ladder + 1).name}, level ${fmt(P.ladder + 1)}`;
+  $('hCoins').textContent = OWN ? coinsTxt() : bigN(P.coins); $('resCoins').title = OWN ? 'Coins never run out on this account' : 'Coins. Spend them in the Market'; $('hTro').textContent = fmt(P.trophies); $('hTok').textContent = fmt(P.tokens);
+  $('hName').textContent = P.name; $('hAv').src = tierPic(tierOf(Math.min(LEVELS, P.ladder + 1))); $('hTier').textContent = P.ladder >= LEVELS ? 'Ladder cleared' : `${tierOf(P.ladder + 1).name}, level ${fmt(P.ladder + 1)}`;
 }
 
 /* a card: the picture, what it costs, its type, its name. A build other than the standard one washes the picture in its colour. */
@@ -411,7 +413,7 @@ function hub(){
   if (curTab === 'Battle'){
     const n = nextLevel(), all = P.ladder >= LEVELS, cpu = ladderCpu(n), T = TIERS[cpu.tier], h = $('hero');
     h.style.setProperty('--tc', T.col);
-    h.innerHTML = `${PAINTED.has(cpu.map) ? `<div class="hero-map" aria-hidden="true"><img alt="" src="maps/${cpu.map}.webp"></div>` : ''}<div class="pic"><b>${n}</b></div><div><small>${all ? 'All 1,000 beaten. Run the last one back' : `Level ${fmt(n)} of ${fmt(LEVELS)}, ${esc(T.name)} tier`}</small><h2>${esc(cpu.name)}</h2><p>${esc(cpu.tag)} ${esc(MAPS[cpu.map].name)}, level ${cpuLvl(cpu)} cards.</p><div class="pzrow">${prizeChips(cpu, !all)}</div><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
+    h.innerHTML = `${PAINTED.has(cpu.map) ? `<div class="hero-map" aria-hidden="true"><img alt="" src="maps/${cpu.map}.webp"></div>` : ''}<div class="pic"><b>${n}</b></div><div><small><img class="tb" alt="" src="${tierPic(T)}">${all ? 'All 1,000 beaten. Run the last one back' : `Level ${fmt(n)} of ${fmt(LEVELS)}, ${esc(T.name)} tier`}</small><h2>${esc(cpu.name)}</h2><p>${esc(cpu.tag)} ${esc(MAPS[cpu.map].name)}, level ${cpuLvl(cpu)} cards.</p><div class="pzrow">${prizeChips(cpu, !all)}</div><button type="button" class="k-btn primary big" id="heroGo">Battle</button></div>`;
     $('heroGo').onclick = () => preCpu(cpu);
     boonsUI();
     const road = $('road'), a = Math.max(1, Math.min(n - 2, LEVELS - 11)); road.innerHTML = '';
@@ -490,9 +492,13 @@ $('deckClear').onclick = () => { if (!curDeck().length) return; if (!clearT){ cl
 function profile(){
   $('pName').textContent = P.name;
   $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. Create an account from the sign in screen to keep it online and show up for friends.' : 'Saved on this device.';
-  const s = P.stats, own = Object.keys(P.cards).length;
-  $('pStats').innerHTML = [['Coins', coinsTxt()], ['Trophies', fmt(P.trophies)], ['Ladder', `${fmt(P.ladder)} of ${fmt(LEVELS)}`], ['Tier', tierOf(nextLevel()).name], ['Wins against BDB', s.w], ['Losses against BDB', s.l], ['Online wins', s.ow], ['Online losses', s.ol],
-    ['Cards collected', `${fmt(own)} of ${fmt(CARD_IDS.length)}`], ['Cards won from BDB', s.won], ['Chests opened', s.packs], ['Card upgrades', s.up]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  const s = P.stats, own = Object.keys(P.cards).length, lv = nextLevel(), T = tierOf(lv), ti = TIERS.indexOf(T), done = P.ladder >= LEVELS, played = s.w + s.l + s.d;
+  $('pName').textContent = P.name; $('pBadge').src = tierPic(T); $('pTier').textContent = `${T.name} tier`; $('pTier').style.color = T.col;
+  $('pBar').style.width = (done ? 100 : (P.ladder - ti * 100) / 100 * 100) + '%'; $('pBar').style.background = T.col;
+  $('pLv').textContent = done ? `All ${fmt(LEVELS)} levels beaten.` : `Level ${fmt(lv)} of ${fmt(LEVELS)}.` + (ti < TIERS.length - 1 ? ` ${TIERS[ti + 1].name} starts at ${fmt((ti + 1) * 100 + 1)}.` : ' The last tier.');
+  $('pTiles').innerHTML = [[fmt(s.w), 'BDB beaten'], [played ? Math.round(s.w / played * 100) + '%' : '0%', 'Win rate'], [fmt(P.best), 'Best streak'], [fmt(s.ow), 'Online wins'], [fmt(own), `Cards of ${fmt(CARD_IDS.length)}`], [fmt(P.trophies), 'Trophies']]
+    .map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('');
+  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
   $('tokN').textContent = P.tokens;
   const pk = $('perks'); pk.innerHTML = '';
   for (const k of PERK_IDS){
@@ -644,7 +650,7 @@ function signIn(p){
   if (!P.onboarded && !Q.get('skip')) return onboard();
   P.onboarded = true; if (OWN) save();
   show('scrHub'); tab('Battle'); hallStart();
-  const j = Q.get('join'), gift = takeGifts(); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else if (!ownerHello() && !giftHello(gift) && !whatsNew()) rulesNote();
+  const j = Q.get('join'), gift = takeGifts(); if (j && okCode(j) && !signIn.joined){ signIn.joined = true; joinFriend(j); } else if (!ownerHello() && !giftHello(gift) && !whatsNew() && !rulesNote()) newsNote();
 }
 /* a present from the owner, waiting for this account: taken once, and said out loud */
 function takeGifts(){ let n = 0; for (const g of giftsFor(P.name)) if (!P.flags[g.id]){ P.flags[g.id] = 1; P.coins += g.coins || 0; n += g.coins || 0; } if (n) save(); return n; }
@@ -678,6 +684,21 @@ function whatsNew(){
     <li>The Market sells chests of cards and ${THEME_DECKS.length} ready-made decks.</li><li>Mana comes in faster every two minutes of a match: x1.5, x2, x2.5, then triple for the last two.</li></ul>
     <div class="k-row"><button type="button" class="k-btn primary" id="wnOk">Show me</button></div>`);
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
+  return true;
+}
+/* a save from before the odds, the crowns that pay, team matches at a level and real sound is told once */
+function newsNote(){
+  if (P.flags.n15) return false;
+  P.flags.n15 = 1; save();
+  const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More ways to win, ${esc(P.name)}</h3>
+    <ul class="abil"><li><b>Raise the odds.</b> Before a match, pick two or three BDBs at once. Two pay double, three pay triple.</li>
+    <li><b>Towers pay.</b> A win is worth x${CROWN_PAY[1]}, x${CROWN_PAY[2]} or x${CROWN_PAY[3]} for one, two or three towers taken.</li>
+    <li><b>Overtime</b> is two minutes at Mana x${OT_MANA}. The next tower wins it.</li>
+    <li><b>Team up</b> online against two or three BDBs at any level, and play again straight from the result screen.</li>
+    <li><b>BDB got better.</b> He starts at Medium and climbs to Legend up the ladder. Quick battles go up to Legend too.</li>
+    <li><b>Sound.</b> Music and proper effects. The speaker button at the top mutes it, and Profile has a switch for each.</li></ul>
+    <div class="k-row"><button type="button" class="k-btn primary" id="nnOk">Got it</button></div>`);
+  b.querySelector('#nnOk').onclick = dlgClose;
   return true;
 }
 /* a save from before the rebalance is told once what changed */
@@ -869,6 +890,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function begin(o){
   A.music('off');
   const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
+  B.coach = o.mode === 'cpu' && (Q.get('coach') || (!P.flags.coach && !Q.get('skip') && !Q.get('fast') && P.stats.w + P.stats.l + P.stats.d === 0)) ? {step:0, at:0} : null; B.hold = !!B.coach; coachOff();
   if (o.mode === 'host') B.ready = new Promise(res => { B.rdRes = res; });
   show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
@@ -898,7 +920,7 @@ async function begin(o){
   if (o.mode === 'guest' && room) room.send('rd', {}, OL && OL.opp);
   if (o.mode === 'host'){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Waiting for ${esc(o.mate || o.oppName)} to load in.</div></div>`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
   let n = 3;
-  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); if (B.coach) setTimeout(() => { if (B === me) coach(0); }, 700); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
   cd();
 }
 function startTicker(){ try { ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'], {type:'text/javascript'}))); ticker.onmessage = () => { if (document.hidden) hostPump(); }; } catch(e){} }
@@ -917,7 +939,8 @@ function loop(now){
   if (!B) return;
   const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
   if (B.run && !B.over){
-    if (B.mode === 'cpu'){ B.acc += dt; let n = 0; while (B.acc >= DT && n++ < 6 && !B.sim.over){ for (const a of B.ais) a.tick(); B.sim.step(); B.acc -= DT; pump(); } if (n >= 6) B.acc = 0; }
+    if (B.hold) B.acc = 0;                               // a first match waits for the player's first card
+    else if (B.mode === 'cpu'){ B.acc += dt; let n = 0; while (B.acc >= DT && n++ < 6 && !B.sim.over){ for (const a of B.ais) a.tick(); B.sim.step(); B.acc -= DT; pump(); } if (n >= 6) B.acc = 0; }
     else if (B.mode === 'host') hostPump();
   }
   if (V){ V.setTraps(myTraps()); V.frame(B.pz || (B.mode === 'cpu' && !B.run) ? 0 : dt, B.mode === 'guest' ? B.ents : B.sim.ents); stepBubbles(); }
@@ -926,6 +949,19 @@ function loop(now){
 }
 /* the traps this player is allowed to see: their own team's, and any Instant Replay that has already been sprung */
 const myTraps = () => !B ? [] : B.mode === 'guest' ? B.traps : !B.sim ? [] : B.sim.traps.filter(t => t.team === B.team || t.live > 0);
+/* ---------- a player's first match: four short tips, each shown when it is about to matter ---------- */
+const COACH = ['Tap a card, then tap your half of the field. The match starts when you do.',
+  'That cost Mana. The bar under your cards fills back up by itself, and faster as the match goes on.',
+  "BDB's troops go for your towers. Drop a troop in their way.",
+  'Every tower you take is a crown. Most crowns when time runs out wins. Take his King Tower and it is over on the spot.'];
+function coach(i, ms){
+  if (!B || !B.coach || B.over || B.coach.step > i) return;
+  B.coach.step = i + 1; B.coach.at = performance.now();
+  const el = $('coach'); el.innerHTML = `<small>Tip ${i + 1} of ${COACH.length}</small>${esc(COACH[i])}`; el.hidden = false; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+  clearTimeout(coach.t); if (ms) coach.t = setTimeout(coachOff, ms);
+  fx('pop');
+}
+function coachOff(){ clearTimeout(coach.t); const el = $('coach'); if (el) el.hidden = true; }
 function note(text){ const d = document.createElement('div'); d.className = 'bnote'; d.textContent = text; for (const o of document.querySelectorAll('.bnote')) o.remove(); $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2200); }
 function stamp(text, bad){ const d = document.createElement('div'); d.className = 'stamp' + (bad ? ' bad' : ''); d.textContent = text; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 1600); }
 
@@ -981,6 +1017,7 @@ function hearDeath(o){                                   // the view calls this 
 function onEvents(ev){
   for (const e of ev){
     hear(e);
+    if (e.e === 'tower' && !e.king && B.coach) setTimeout(() => coach(3, 10000), 1600);
     if (e.e === 'tower'){
       const mine = e.team === B.team; fx('tower', {pan:panAt(e.x || 0, e.z || 0) * .6}, BEEP.boom); A.duck(.45, 1.5);
       if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine){ fx('crown', {delay:.6}); const I = info(), n = I ? I.crowns[B.team] | 0 : 0; if (n >= 1 && n <= 2) note(`A win now pays x${CROWN_PAY[n]}`); } talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
@@ -1026,7 +1063,8 @@ function hud(force){
     if (rate > (B.said.rate || 1)){ B.said.rate = rate; stamp('Mana x' + rate); fx('hornup', null, BEEP.horn); if (B.mode === 'cpu' && rate === 2) talk(TALK.late, true); else if (B.mode === 'cpu' && rate === 3) talk(TALK.last, true); }
   }
   const t = Math.ceil(I.left); $('clockT').textContent = mmss(t);
-  if (B.run && !B.over && t <= 10 && t > 0 && B.said.tk !== t){ B.said.tk = t; fx('tock'); }      // the last ten seconds tick
+  if (B.run && !B.over && t <= 10 && t > 0 && B.said.tk !== t){ B.said.tk = t; fx('tock'); }
+  if (B.coach && B.coach.step === 2 && B.sim && performance.now() - B.coach.at > 9000 && B.sim.tick % 10 === 0 && B.sim.ents.some(o => o.team !== B.team && !o.U.twr && !o.U.bld && o.z > 1.5)) coach(2, 9000);      // the last ten seconds tick
   $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : rate > 1 ? 'Mana x' + rate : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
   $('meCr').textContent = I.crowns[B.team]; $('oppCr').textContent = I.crowns[1 - B.team];
   if (B.run && !B.over && B.mode === 'cpu' && performance.now() - lastTalk > 38000){ lastTalk = performance.now(); BDB.roast(); }
@@ -1053,7 +1091,7 @@ function tryPlay(slot, p){
   if (B.mode === 'guest'){ ok = I.el >= CARDS[c.id].cost && canPlace(MAPS[B.map], B.team, CARDS[c.id], p.x, p.z, I.pocket); if (ok) room.send('p', {slot, id:c.id, x:Math.round(p.x * 100) / 100, z:Math.round(p.z * 100) / 100}, OL.opp); }
   else ok = B.sim.play(B.team, slot, p.x, p.z);
   if (!ok){ BDB.sfx.bad(); const el = $('hand').children[slot]; if (el){ el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); } return false; }
-  select(-1); return true;
+  select(-1); if (B.coach && B.hold){ B.hold = false; B.coach.step = 1; coach(1, 8000); } return true;
 }
 const overArena = (x, y) => { const r = $('arena').getBoundingClientRect(); return y < r.bottom && y > r.top && x > r.left && x < r.right; };
 $('hand').addEventListener('pointerdown', e => {
@@ -1199,7 +1237,7 @@ function payout(base, crowns, o = {}){
   return {coins:Math.round(c), rows};
 }
 function finish(w, cr, why){
-  if (!B || B.done) return; B.done = true; B.over = true; clearInterval(pzIv); B.pz = null; $('wait').hidden = true; clearBubbles();
+  if (!B || B.done) return; B.done = true; B.over = true; if (B.coach){ P.flags.coach = 1; coachOff(); } clearInterval(pzIv); B.pz = null; $('wait').hidden = true; clearBubbles();
   const I = info(), crowns = cr || (I ? I.crowns : [0, 0]), mine = clamp(crowns[B.team] | 0, 0, 3), win = w === B.team, draw = w < 0, lines = [], got = [];
   let pack = null, tokens = 0, pay, title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
   if (win){ P.streak++; P.best = Math.max(P.best, P.streak); } else if (!draw) P.streak = 0;
@@ -1272,7 +1310,7 @@ function finish(w, cr, why){
   if (ra) ra.onclick = again;
   if (rp) rp.onclick = () => { stopBattle(); show('scrHub'); hub(); packReveal(pack, packGot, () => { dlgClose(); hub(); }); };
 }
-function stopBattle(){ A.music('menu'); cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
+function stopBattle(){ A.music('menu'); coachOff(); cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
 
 /* ---------- online ---------- */
 let net = null, lobby = null, room = null, OL = null;
