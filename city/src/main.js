@@ -7,7 +7,7 @@ import { CameraController } from './core/CameraController.js';
 import { AssetLoader } from './core/AssetLoader.js';
 import { installDebugAPI } from './core/DebugAPI.js';
 import { MODULES } from './modules/registry.js';
-import { makeRng } from './shared/random.js';
+import { makeRng, randomSeed } from './shared/random.js';
 import { detectHardware, recommendQuality } from './shared/quality.js';
 
 const loadingBar = document.getElementById('loading-bar');
@@ -26,6 +26,8 @@ async function boot() {
   if (!config.params.has('quality')) {
     try { config.quality = recommendQuality(detectHardware()).name; } catch (_) { /* keep the default preset */ }
   }
+  // a start named in the address (?start=town) still gets its own map, unless the address names the seed too
+  if (config.start && !config.seedPinned) config.seed = randomSeed();
   const events = new EventBus();
   const engine = new Engine({ canvas, config, events });
   const world = new World(config);
@@ -75,6 +77,7 @@ async function boot() {
         }
         if (choice.cityName) world.economy.cityName = choice.cityName;
         config.demo = choice.mode === 'demo';
+        config.start = choice.mode === 'village' || choice.mode === 'town' ? choice.mode : null;
         ctx.startChoice = choice;
         events.emit('game:start', choice);
       }
@@ -158,12 +161,28 @@ async function boot() {
     }
   }
 
+  // --- starter city: a small town already standing (demo/StarterTown.js) ---
+  let starter = null;
+  if (!config.demo && (config.start === 'village' || config.start === 'town')) {
+    setLoading(0.92, 'Raising the town');
+    try {
+      const { buildStarter } = await import('./demo/StarterTown.js');
+      starter = await buildStarter(ctx, config.start);
+      ctx.moduleStatus.starter = starter ? { ok: true } : { ok: false, error: 'no town was built' };
+    } catch (err) {
+      console.error('[main] starter city failed', err);
+      ctx.moduleStatus.starter = { ok: false, error: String(err && err.stack || err) };
+      debug.errors.push(`starter: ${err && err.message}`);
+    }
+  }
+
   // An empty world has no city to look at. Map origin is wherever the heightmap put it — often a
   // slope or open water — so search for the flattest dry patch and open the camera over that.
   if (!config.demo && !config.showcase) {
-    const spot = findBuildableStart(world);
+    // a starter town is where the camera opens; bare land opens over the flattest dry patch
+    const spot = starter || findBuildableStart(world);
     if (spot) {
-      debug.presets.newcity = { target: { x: spot.x, z: spot.z }, distance: 380, yaw: 0.6, pitch: 0.62 };
+      debug.presets.newcity = { target: { x: spot.x, z: spot.z }, distance: starter ? starter.radius : 380, yaw: 0.6, pitch: 0.62 };
       config.cam = 'newcity';
       if (config.debug) console.log('[main] new-city start', spot);
     }

@@ -6,7 +6,8 @@
  * by the time the registry gets here the screen has already been shown and dismissed.
  *
  * Contract (called by core):
- *   showStartScreen(ctx) -> Promise<{ mode:'new'|'demo', seed:number, cityName:string, quality?:string }>
+ *   showStartScreen(ctx) -> Promise<{ mode:'village'|'town'|'new'|'demo', seed:number, cityName:string, quality?:string }>
+ *     village / town = a starter city (demo/StarterTown.js), new = bare land, demo = the big generated city
  *   setProgress(fraction, text)   optional, mirrors the core loading bar
  *   hide()
  *
@@ -67,7 +68,10 @@ export function showStartScreen(ctx, opts = {}) {
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const restored = readStore();
   const currentQuality = config.quality || 'high';
-  const seed0 = clampSeed(restored && Number.isFinite(restored.seed) ? restored.seed : config.seed);
+  // Every new game gets its own map: a fresh random seed, unless the address names one (?seed=) or this
+  // is the reload a quality change makes, in which case the seed the player was looking at comes back.
+  const seed0 = clampSeed(restored && Number.isFinite(restored.seed) ? restored.seed
+    : (config.seedPinned ? config.seed : randomSeed()));
   const name0 = (restored && restored.cityName) || '';
 
   root = document.createElement('div');
@@ -88,6 +92,8 @@ export function showStartScreen(ctx, opts = {}) {
     seedTag: $('#fm-seed-tag'),
     qnote: $('#fm-qnote'),
     newBtn: $('#fm-new'),
+    villageBtn: $('#fm-village'),
+    townBtn: $('#fm-town'),
     demoBtn: $('#fm-demo'),
     help: $('#fm-help'),
     helpNote: $('#fm-help-note'),
@@ -169,9 +175,12 @@ export function showStartScreen(ctx, opts = {}) {
     const choice = { mode, seed, cityName, quality: currentQuality };
     if (resolveChoice) { const r = resolveChoice; resolveChoice = null; r(choice); }
   };
+  on(els.villageBtn, 'click', () => choose('village'));
+  on(els.townBtn, 'click', () => choose('town'));
   on(els.newBtn, 'click', () => choose('new'));
   on(els.demoBtn, 'click', () => choose('demo'));
-  on(els.form, 'submit', (e) => { e.preventDefault(); choose('new'); });
+  // Enter takes the recommended start: a village, the gentlest way in
+  on(els.form, 'submit', (e) => { e.preventDefault(); choose('village'); });
 
   // ---- keyboard -----------------------------------------------------------------------------
   on(root, 'keydown', (e) => {
@@ -185,7 +194,7 @@ export function showStartScreen(ctx, opts = {}) {
   on(window, 'resize', () => { if (backdrop) backdrop.resize(); });
 
   if (!preview) world.time.paused = true;
-  setTimeout(() => { if (els && els.newBtn) els.newBtn.focus({ preventScroll: true }); }, 80);
+  setTimeout(() => { if (els && els.villageBtn) els.villageBtn.focus({ preventScroll: true }); }, 80);
 
   return new Promise((resolve) => { resolveChoice = resolve; });
 }
@@ -279,13 +288,15 @@ function applyQuality(q, ctx) {
   setTimeout(() => window.location.replace(url.toString()), 380);
 }
 
+const LOAD_LABEL = { village: 'Starter village', town: 'Starter town', new: 'Empty map', demo: 'Demo city' };
+
 function enterLoading(mode, seed, cityName) {
   root.dataset.phase = 'loading';
   els.loadName.textContent = cityName;
-  els.loadMeta.textContent = mode === 'demo' ? `Demo city · seed ${seed}` : `Empty map · seed ${seed}`;
+  els.loadMeta.textContent = `${LOAD_LABEL[mode] || LOAD_LABEL.new} · seed ${seed}`;
   els.help.dataset.emph = '1';
   els.helpNote.textContent = 'Read this while it builds';
-  progress = { target: 0.03, shown: 0, text: mode === 'demo' ? 'Waking the city' : 'Shaping the land', stamp: performance.now(), timer: 0 };
+  progress = { target: 0.03, shown: 0, text: mode === 'demo' ? 'Waking the city' : mode === 'new' ? 'Shaping the land' : 'Raising the town', stamp: performance.now(), timer: 0 };
   paintProgress();
   if (backdrop) backdrop.stop();          // a still frame costs nothing while the world is built
   progress.timer = setInterval(tickProgress, 180);
@@ -381,6 +392,26 @@ function writeStore(obj) {
 
 // ------------------------------------------------------------------------------------------ view
 
+/** Thumbnails for the starter cities: drawn, because there is nothing to photograph until the town exists. */
+const thumbFrame = (inner) => `<svg viewBox="0 0 216 156" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs><linearGradient id="fm-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fb6e6"/><stop offset="1" stop-color="#cfe6f7"/></linearGradient></defs>
+  <rect width="216" height="156" fill="url(#fm-sky)"/><rect y="64" width="216" height="92" fill="#5f9a54"/>${inner}</svg>`;
+const house = (x, y, w, h, wall, roof) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${wall}"/><path d="M${x - 3} ${y}L${x + w / 2} ${y - h * 0.62}L${x + w + 3} ${y}z" fill="${roof}"/>`;
+const block = (x, y, w, h, wall) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${wall}"/><rect x="${x}" y="${y}" width="${w}" height="3" fill="rgba(0,0,0,.22)"/>`;
+const tree = (x, y) => `<rect x="${x - 1.5}" y="${y}" width="3" height="9" fill="#5a4630"/><circle cx="${x}" cy="${y - 3}" r="8" fill="#3f7d3c"/>`;
+const THUMB_VILLAGE = thumbFrame(
+  `<rect y="104" width="216" height="15" fill="#4b5057"/><rect y="111" width="216" height="1.4" fill="#e9d36b" opacity=".8"/>` +
+  house(18, 80, 30, 22, '#f1ece2', '#b5503c') + house(62, 76, 34, 26, '#e7dcc8', '#7c4a36') + house(112, 82, 28, 20, '#f4efe6', '#b5503c') +
+  house(156, 78, 36, 24, '#dfe6ea', '#56677a') + house(34, 126, 30, 20, '#f1ece2', '#7c4a36') + house(128, 128, 34, 20, '#e7dcc8', '#b5503c') +
+  tree(102, 84) + tree(202, 88) + tree(86, 138) + tree(186, 140));
+const THUMB_TOWN = thumbFrame(
+  `<rect y="100" width="216" height="13" fill="#4b5057"/><rect x="100" y="64" width="13" height="92" fill="#4b5057"/>` +
+  `<rect y="106" width="216" height="1.2" fill="#e9d36b" opacity=".8"/>` +
+  block(12, 58, 26, 40, '#d9dfe5') + block(44, 44, 22, 54, '#9fb7cc') + block(72, 66, 22, 32, '#e7dcc8') +
+  block(120, 36, 26, 62, '#7f9bb5') + block(152, 56, 24, 42, '#d9dfe5') + block(182, 68, 24, 30, '#c9b79c') +
+  house(14, 124, 26, 18, '#f1ece2', '#b5503c') + house(52, 122, 30, 20, '#e7dcc8', '#7c4a36') +
+  block(122, 118, 30, 30, '#b9c6d2') + house(164, 126, 30, 18, '#f1ece2', '#56677a') + tree(92, 132) + tree(206, 136));
+
 function markup(seed, suggested, cityName, quality) {
   const arrow = '<svg class="fm-choice__go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>';
   const q = QUALITIES.map(([id, label]) => `
@@ -447,15 +478,29 @@ function markup(seed, suggested, cityName, quality) {
           <p class="fm-qnote" id="fm-qnote"></p>
         </fieldset>
 
-        <div class="fm-choices">
-          <button class="fm-choice fm-choice--primary" id="fm-new" type="button">
+        <div class="fm-choices fm-choices--four">
+          <button class="fm-choice fm-choice--primary" id="fm-village" type="button">
+            <span class="fm-choice__thumb">${THUMB_VILLAGE}<span class="fm-choice__tag">Easiest</span></span>
+            <span class="fm-choice__body">
+              <span class="fm-choice__title">Starter village</span>
+              <span class="fm-choice__desc">A main street, a few blocks of homes and shops, power and water already on.</span>
+            </span>${arrow}
+          </button>
+          <button class="fm-choice" id="fm-town" type="button">
+            <span class="fm-choice__thumb">${THUMB_TOWN}<span class="fm-choice__tag">More to run</span></span>
+            <span class="fm-choice__body">
+              <span class="fm-choice__title">Starter town</span>
+              <span class="fm-choice__desc">Two dozen blocks with a school, police, a fire house and a clinic.</span>
+            </span>${arrow}
+          </button>
+          <button class="fm-choice" id="fm-new" type="button">
             <span class="fm-choice__thumb">
               <canvas id="fm-seedmap" width="216" height="156" aria-hidden="true"></canvas>
               <span class="fm-choice__tag" id="fm-seed-tag">Seed ${seed}</span>
             </span>
             <span class="fm-choice__body">
-              <span class="fm-choice__title">New city</span>
-              <span class="fm-choice__desc">Empty land generated from your seed. You lay the first road.</span>
+              <span class="fm-choice__title">Empty land</span>
+              <span class="fm-choice__desc">Nothing but the map. You lay the first road.</span>
             </span>${arrow}
           </button>
           <button class="fm-choice" id="fm-demo" type="button">
@@ -470,7 +515,7 @@ function markup(seed, suggested, cityName, quality) {
           </button>
         </div>
 
-        <div class="fm-foot"><span id="fm-foot-seed">Seed ${seed} · 2048 m</span><span>Built on <a href="https://github.com/rawprogress/fable-cities" target="_blank" rel="noopener">Fable Cities</a> &middot; three.js r185</span></div>
+        <div class="fm-foot"><span id="fm-foot-seed">Seed ${seed} · 2048 m</span><span>Built on <a href="https://github.com/rawprogress/fable-cities" target="_blank" rel="noopener">Fable Cities</a></span></div>
       </form>
 
       <div class="fm-load" id="fm-load">

@@ -183,6 +183,13 @@ export const CSS = /* css */`
 .fm-root[data-phase="loading"] .fm-choose{display:none}
 .fm-root[data-phase="loading"] .fm-bg{transform:scale(1.055);transition:transform 26s linear,opacity 1.1s ease}
 @media (prefers-reduced-motion:reduce){.fm-root[data-phase="loading"] .fm-bg{transform:none}}
+/* four ways to start instead of two: tighter rows so the panel does not need to scroll */
+.fm-choices--four{gap:8px}
+.fm-choices--four .fm-choice{padding:8px 12px 8px 8px;gap:12px}
+.fm-choices--four .fm-choice__thumb{flex-basis:88px;height:62px}
+.fm-choices--four .fm-choice__title{font-size:15px;margin-bottom:2px}
+.fm-choices--four .fm-choice__desc{font-size:12px;line-height:1.4}
+.fm-choice__thumb svg{display:block;width:100%;height:100%}
 .fm-root:not([data-phase="loading"]) .fm-load{display:none}
 
 /* --------------------------------------------------------------- responsive */

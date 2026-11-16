@@ -1,6 +1,8 @@
 /**
  * Runtime configuration parsed from URL parameters.
  *   ?demo=1        build the demo city on start (default 1)
+ *   ?start=town    what a new game opens on: empty | village | town | city (city = the demo city).
+ *                  Wins over ?demo=. Like ?demo=, it skips the start screen.
  *   ?seed=1337     deterministic seed for all procedural generation
  *   ?time=14.5     starting hour of day (0-24)
  *   ?cam=city      camera preset (aerial | city | street | skyline | closeup or a demo-defined preset)
@@ -21,6 +23,13 @@ export class Config {
     this.showcase = p.get('showcase') ? p.get('showcase').split(',').map((s) => s.trim()).filter(Boolean) : null;
     // demo city is on by default, except when a module showcase is requested explicitly
     this.demo = p.has('demo') ? p.get('demo') !== '0' : !this.showcase;
+    // starter cities (demo/StarterTown.js). 'city' is the demo city and 'empty' is bare land, so the two
+    // older switches and this one always agree.
+    const start = p.get('start');
+    this.start = ['empty', 'village', 'town', 'city'].includes(start) ? start : null;
+    if (this.start) this.demo = this.start === 'city';
+    // true when the address names the seed; otherwise every new game rolls its own (modules/menu)
+    this.seedPinned = p.has('seed');
     this.seed = int(p.get('seed'), 1337);
     this.time = float(p.get('time'), 14.0);
     this.cam = p.get('cam') || 'city';
@@ -37,7 +46,7 @@ export class Config {
      */
     this.menu = this.menuParam != null
       ? this.menuParam !== '0'
-      : (!p.has('demo') && !this.showcase && !this.headless);
+      : (!p.has('demo') && !this.start && !this.showcase && !this.headless);
     this.debug = p.get('debug') === '1';
     this.timeScale = float(p.get('timescale'), 1);
   }

@@ -23,6 +23,13 @@ Upstream snapshot: commit `aea8b1035030952555395de0c1de14ba693a1427` (2026-09-03
   this site ships its models. Nothing is fetched from another site.
 - **Start-up preset.** When the address does not pin `?quality=`, the game starts at the preset its
   own hardware check recommends, instead of always `high`.
+- **Starter cities and random maps.** Upstream offered empty land or one large demo city, on seed
+  1337 unless the player changed it. Here the start screen also offers a starter village and a
+  starter town (`src/demo/StarterTown.js`, new), and every new game rolls its own seed.
+- **Zoning fix.** `src/modules/zoning/ZoneGrid.js` probed each frontage cell too close to its own
+  road, which deleted most building lots along any street not lined up with the map grid. The
+  probe distance changed from 0.93 to 0.83; the demo city grew from 523 lots to 862 on the same
+  map. Details in `PLAN.md`.
 - **Naming.** Working title, a link back to All games, and `New Charleston` as the default city name.
 
 `THIRD-PARTY-NOTICES.md` is upstream's file, kept as it came. One line in it no longer applies

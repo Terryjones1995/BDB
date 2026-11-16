@@ -12,6 +12,7 @@ This file is the standing brief. Read it before working in `city/`, and keep the
 | # | Step | Status |
 |---|---|---|
 | 1 | Fable Cities running in `city/`, no build step, lighter art | **Done on branch `city`** — see "Step 1 notes" |
+| 1b | Starter cities and a random map for every new game | **Done on branch `city`** — see "Starting a city" |
 | 2 | Saving, BDB accounts, touch controls, BDB as advisor | Not started |
 | 3 | Crime, fire and ambulance dispatch, with the Tripo buildings and vehicles | Not started (models arriving, see `ASSETS.md`) |
 | 4 | Money screen, events, the deeper rules | Not started |
@@ -28,6 +29,8 @@ Every step ends with something playable on the site.
 - **City revenue**, **deals with other cities**, **building roads**.
 - It should feel like **a real live earth**.
 - **Easy game, nice UI.** In English.
+- A new game can begin from a **starter city** rather than from scratch, and **every new city gets its
+  own random map**.
 - The quality has to be **like real 3D**, in three.js.
 - Art from **Tripo** (he generates, we fit it in).
 
@@ -81,6 +84,15 @@ is committing Brawl work to `main` at the same time. Keep changes outside `city/
 **The loop, kept easy.** Roads, then zones, then services, then taxes. Buildings and people arrive
 by themselves. Five buttons to start; everything else unlocks as the city grows, so the toolbar
 never overwhelms. No way to lose in the first hour: BDB bails you out, with a roast.
+
+**Starting a city.** The start screen offers four ways in: a starter village (the recommended one), a
+starter town, empty land, or the big generated demo city. Every new game rolls a fresh random seed,
+so the map and the town on it are different each time; the seed is shown and can be typed in to get
+the same map again. The starters are built by `src/demo/StarterTown.js` through the same public
+calls a player's tools use: it finds the driest, flattest site that fits, lays a small grid with an
+avenue running out of it, zones the blocks, sets down the basics, and ages the place until people
+have moved in. Adding another starter is a new entry in its `STARTERS` table. On the test seed the
+village comes out at about 450 people in 56 buildings and the town at about 2,400 in 175.
 
 **BDB is the advisor.** The speech bubble and roast deck from `assets/kit.js` and
 `assets/roasts.js` become the advisor: one concrete next step at a time ("No fire cover east of
@@ -144,8 +156,9 @@ city/
 - **Quality.** Four presets in `src/core/Config.js`. With no `?quality=` in the address the game
   starts at what `src/shared/quality.js` recommends for the device (phones and small machines get
   `low`), and `modules/perfguard` steps down at run time if frames are slow.
-- **Address options** worth knowing: `?quality=low|medium|high|ultra`, `?demo=0|1` (empty land or
-  the generated demo city; either one skips the start screen), `?tex=full|lite`, `?seed=7`,
+- **Address options** worth knowing: `?quality=low|medium|high|ultra`, `?start=empty|village|town|city`
+  (skips the start screen; `city` is the demo city, and the older `?demo=0|1` still works), `?tex=full|lite`,
+  `?seed=7` (without it a `?start=` game rolls its own),
   `?time=17.5`, `?weather=rain`, `?showcase=roads` (one module's own test scene), `?debug=1`.
 - **Saving (step 2) has to be designed in.** Upstream keeps nothing. Everything procedural is
   deterministic per seed, so a save is: seed, map size, the road graph, zones, buildings (lot,
@@ -193,6 +206,22 @@ Measured:
   176,000 triangles). Simplifying and meshopt-compressing them is the obvious next saving; it was
   left alone in step 1 because the props module reads their geometry directly and the result could
   not be checked by eye in the sandbox.
+
+## A fix made to the base game: zoning on angled streets
+
+`src/modules/zoning/ZoneGrid.js` decides which frontage cells along a street can be built on by
+probing each cell against a 1 m raster of the roads. The probes on the kerb edge sat 0.28 m into
+the cell, which is inside the 0.6 m margin the raster adds around the cell's own road. On a street
+lined up with the map grid that never mattered; on any other heading roughly one probe in three
+was flagged, and each one deleted a whole frontage column. The probes now sit 0.68 m in.
+
+Measured on the same maps before and after: the starter village went from 271 usable cells and 5
+lots to 880 cells and 58 lots, and the demo city on seed 1337 from 523 lots and 19,753 people to
+862 lots and 33,028. Every road a player draws at an angle now fills in the way a straight one does.
+
+The cost: the demo city is about 65% bigger than upstream's, so it is heavier to draw. If it is too
+slow on real hardware, shrink its grid (`COLS` and `ROWS` in `src/demo/DemoCity.js`) rather than
+undoing the fix.
 
 ## Known gaps and risks
 

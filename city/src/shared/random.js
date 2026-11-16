@@ -39,3 +39,14 @@ export function hashString(str) {
   }
   return h >>> 0;
 }
+
+/**
+ * A fresh map seed (0-999999) for a new game. The ONE place true randomness is allowed: everything
+ * generated from the seed afterwards stays deterministic.
+ */
+export function randomSeed() {
+  const buf = new Uint32Array(1);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(buf);
+  else buf[0] = (Math.random() * 0xffffffff) >>> 0;
+  return buf[0] % 1000000;
+}
