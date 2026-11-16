@@ -443,7 +443,7 @@ export function unitsOf(ids){
   return [...out];
 }
 
-export const DECK_SIZE = 15, HAND = 5, MAX_RARE = 7, MAX_EPIC = 5, MAX_LEGEND = 3, MAX_GOD = 1, DECK_SLOTS = 3, START_COINS = 1500;
+export const DECK_SIZE = 15, HAND = 5, MAX_RARE = 7, MAX_EPIC = 5, MAX_LEGEND = 3, MAX_GOD = 1, DECK_SLOTS = 3, START_COINS = 1500, START_GIFT = 150000;      // START_COINS is the budget for the starter deck; START_GIFT lands once that deck is built
 /* How many cards of each rarity one deck may hold: 7 Rare, 5 Epic, 3 Legendary, 1 God. Commons are never limited. */
 export const RAR_CAP = {r:MAX_RARE, e:MAX_EPIC, l:MAX_LEGEND, g:MAX_GOD};
 export const capProblem = ids => { const n = {}; for (const i of ids){ const r = CARDS[i].rar; n[r] = (n[r] || 0) + 1; }

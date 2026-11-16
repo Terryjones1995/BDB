@@ -251,7 +251,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .logo small{margin:0 0 -1px 3px;font:400 13px/1 var(--f-game);letter-spacing:.16em;text-transform:uppercase;color:#fff;text-shadow:var(--stroke)}
 .logo b{position:relative;font:400 40px/.9 var(--f-game);letter-spacing:.02em;text-transform:uppercase;background:linear-gradient(180deg,#fff6b8 8%,#ffd23f 46%,#f58a10 92%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
 .logo b::before{content:attr(data-t);position:absolute;left:0;top:0;z-index:-1;color:var(--ink2);-webkit-text-fill-color:var(--ink2);-webkit-text-stroke:9px var(--ink2);text-shadow:0 5px 0 var(--ink2),0 9px 0 rgba(5,12,40,.4)}
-.tabs{display:flex;gap:8px;min-width:0}
+.tabs{flex:none;display:flex;gap:8px}
 .tabs button{display:inline-flex;align-items:center;gap:8px;font:400 17px/1 var(--f-game);letter-spacing:.02em;color:#dbe8ff;background:rgba(6,20,66,.5);border:3px solid var(--ink2);border-radius:14px;padding:10px 16px 11px;box-shadow:inset 0 2px 0 rgba(255,255,255,.14);cursor:pointer;white-space:nowrap}
 .tabs button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .tabs button:hover{background:rgba(40,90,200,.7);color:#fff}
@@ -273,22 +273,24 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .who-chip b{font:400 16px/1.05 var(--f-game);text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .who-chip small{margin-top:2px;font:800 10px/1 var(--f-body);letter-spacing:.05em;color:#d6e6ff;white-space:nowrap}
 .who-chip:active{transform:translateY(3px);box-shadow:inset 0 3px 0 rgba(255,255,255,.3),0 0 0 var(--ink2)}
-@media (max-width:1240px){ .tabs button{padding:10px 12px 11px;font-size:16px} .top-res{gap:14px} .who-chip .nm{display:none} .who-chip{padding:3px} }
-@media (max-width:1040px){ .logo b{font-size:32px} .logo small{font-size:11px} .tabs button svg{display:none} }
-@media (max-width:860px){
-  .top-in{flex-wrap:wrap;gap:8px;padding:8px 10px 9px}
-  .tabs{order:9;flex:1 1 calc(100% - 48px);min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-  .top-snd{order:10;align-self:center}
-  .tabs button{justify-content:center;gap:6px;padding:9px 2px 10px;font-size:15px}
-  .tabs button svg{display:inline}
-  .logo{margin:0 4px 0 0} .logo b{font-size:27px} .logo small{font-size:9.5px;letter-spacing:.12em}
-  .logo b::before{-webkit-text-stroke-width:7px;text-shadow:0 4px 0 var(--ink2)}
-  .top-back,.top-snd{width:32px;height:32px} .top-back svg,.top-snd svg{width:17px;height:17px}
-  .top-res{gap:10px} .pur{height:30px;min-width:0;padding:0 8px 0 24px;border-width:2.5px} .pur b{font-size:16px} .pur .ic{left:-9px;width:32px;height:32px} .pur .plus{display:none}
-  .who-chip{display:none}
-}
-@media (max-width:400px){ .tabs button svg{display:none} .logo small{display:none} .logo b{font-size:25px} .top-res{gap:9px} }
-@media (max-width:350px){ #resTro{display:none} }
+/* The top bar steps down through tighter layouts until everything in it fits: fitTop() in main.js puts f1, f2 and so on onto .top, each on top of the last.
+   f1 drops the name, f2 the tab pictures, f3 goes to two rows, f4 shortens the numbers, f5 shrinks the logo, f6 drops the trophies. */
+.top.f1 .tabs button{padding:10px 12px 11px;font-size:16px} .top.f1 .top-res{gap:14px} .top.f1 .who-chip .nm{display:none} .top.f1 .who-chip{padding:3px}
+.top.f2 .logo b{font-size:32px} .top.f2 .logo small{font-size:11px} .top.f2 .tabs button svg{display:none}
+.top.f3 .top-in{display:grid;grid-template-columns:auto auto 1fr;gap:8px;padding:8px 10px 9px}      /* the counters sit in one track of their own, so a row too wide for the screen shows up as one */
+.top.f3 .top-back{grid-area:1/1} .top.f3 .top-res{grid-area:1/3;justify-self:end;margin-left:0;gap:10px} .top.f3 .top-snd{grid-area:2/3;justify-self:end}
+.top.f3 .tabs{grid-area:2/1/3/4;margin-right:40px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;min-width:0}
+.top.f3 .tabs button{justify-content:center;gap:6px;padding:9px 2px 10px;font-size:15px}
+.top.f3 .tabs button svg{display:inline}
+.top.f3 .logo{grid-area:1/2;margin:0 4px 0 0} .top.f3 .logo b{font-size:27px} .top.f3 .logo small{font-size:9.5px;letter-spacing:.12em}
+.top.f3 .logo b::before{-webkit-text-stroke-width:7px;text-shadow:0 4px 0 var(--ink2)}
+.top.f3 .top-back,.top.f3 .top-snd{width:32px;height:32px} .top.f3 .top-back svg,.top.f3 .top-snd svg{width:17px;height:17px}
+.top.f3 .pur{height:30px;min-width:0;padding:0 8px 0 24px;border-width:2.5px} .top.f3 .pur b{font-size:16px} .top.f3 .pur .ic{left:-9px;width:32px;height:32px} .top.f3 .pur .plus{display:none}
+.top.f3 .who-chip{display:none}
+.top.f4 .pur b[data-s]{font-size:0} .top.f4 .pur b[data-s]::after{content:attr(data-s);font-size:16px}      /* 152,340 becomes 152K: the full number is still what a screen reader hears */
+.top.f5 .logo small{display:none} .top.f5 .logo b{font-size:25px} .top.f5 .top-res{gap:9px}
+.top.f6 #resTro{display:none}
+@media (max-width:400px){ .top.f3 .tabs button svg{display:none} }
 .login{background:linear-gradient(180deg,#2f79e6,#1d50b4);border:4px solid var(--ink2);box-shadow:inset 0 4px 0 rgba(255,255,255,.3),0 8px 0 var(--ink2),0 30px 60px rgba(0,0,0,.4)}
 .login h1{font-family:var(--f-game);font-size:44px;color:#fff;text-shadow:var(--stroke)}
 .login h1 span{color:#ffd23f}
@@ -431,17 +433,43 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .login.nocloud .acc{display:none}
 .login .err{color:#ffd9d4}
 .who:empty{display:none}
-.trade{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;text-align:left}
-.trade > div{background:#12357c;border:3px solid var(--ink2);border-radius:14px;padding:10px;min-width:0}
-.tg{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:12px 8px;padding:8px 2px 4px;min-height:92px;align-content:start}
-.tg .card .nm,.tpool .card .nm{display:none}
-.tg .card img,.tpool .card img{top:8%;height:84%}
-.tcoin{display:flex;align-items:center;gap:8px;margin-top:8px;font:400 20px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
-.tcoin .field{width:110px;padding:7px 9px;font-size:15px}
-.tcoin em{margin-left:auto;font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;font-style:normal;background:#2fbf3a;color:#fff;border-radius:7px;padding:4px 7px;text-shadow:none}
-.tpool{grid-template-columns:repeat(auto-fill,minmax(56px,1fr));max-height:190px;overflow:auto;width:100%}
-#dlgBox:has(.trade){width:min(660px,100%);max-width:min(660px,100%)}
-.tpool p,.tg p{grid-column:1/-1;margin:0}
+/* a trade: what each side puts in, your cards to pick from, and the three buttons always in reach. The list of cards takes whatever height is left and scrolls on its own. */
+#dlgBox:has(.trd){width:min(700px,100%);max-width:min(700px,100%);height:min(800px,calc(100dvh - 32px));padding:14px 16px 16px;overflow:hidden}
+.trd{display:flex;flex-direction:column;gap:10px;width:100%;height:100%;min-height:0;text-align:left}
+.trd h3{margin:0;text-align:center;font-size:26px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trade{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:none;width:100%}
+.tside{background:#12357c;border:3px solid var(--ink2);border-radius:14px;padding:6px 10px 10px;min-width:0}
+.tside.lk{border-color:#8dff7a;box-shadow:0 0 0 3px rgba(141,255,122,.22)}
+.thd{display:flex;align-items:center;gap:8px;min-height:34px}
+.thd .k-label{margin:0}
+.thd em{font:800 10px/1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;font-style:normal;background:#2fbf3a;color:#fff;border-radius:7px;padding:4px 7px}
+.tcoin{display:flex;align-items:center;gap:6px;margin-left:auto;font:400 19px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.tcoin .coin{margin:0}
+.tcoin .field{width:104px;padding:5px 8px;font-size:16px}
+.tg{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;padding:10px 5px 2px}
+.tslot{aspect-ratio:3/4;border-radius:11px;border:2px dashed rgba(180,205,255,.38);background:rgba(4,12,40,.35)}
+.tg .card .nm,.tg .card .cnt,.tg .card .ty{display:none} .tg .card :is(img,.tint){top:8%;height:84%}
+.tg .card .cost{transform:scale(.78);transform-origin:20% 20%} .tg .card .lv{font-size:9px;padding:2px 4px 1px;right:-4px;top:-6px}
+.tg .card.have::after{content:"You have it";position:absolute;z-index:5;left:50%;bottom:4px;transform:translateX(-50%);font:800 8px/1 var(--f-body);letter-spacing:.04em;white-space:nowrap;background:#ffd23f;color:#3a2300;border-radius:5px;padding:3px 4px}
+#tMsg{margin:0;text-align:center;flex:none;min-height:2.9em}
+.tfind{display:flex;align-items:center;gap:10px;flex:none;width:100%}
+.tfind .field{flex:1;min-width:0;padding:8px 10px;font-size:16px}
+.tfind .note{margin:0;white-space:nowrap}
+.tpool{flex:1 1 0;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:18px 12px;padding:16px 12px 12px;align-content:start;background:rgba(4,12,40,.35);border:3px solid var(--ink2);border-radius:14px}
+.tpool .card .nm{font-size:10.5px;padding:4px 2px 4px}
+.tpool.off .card{opacity:.55}
+.tpool .card.picked{outline:4px solid #8dff7a;outline-offset:2px;opacity:1}
+.tpool .card.picked::after{content:"Offered";position:absolute;z-index:6;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-10deg);font:400 11px/1 var(--f-game);letter-spacing:.02em;white-space:nowrap;background:linear-gradient(180deg,#ffe066,#f59a1c);color:#fff;text-shadow:var(--stroke);border:2px solid var(--ink2);border-radius:6px;padding:4px 7px}
+.tpool p,.tpool #tMore{grid-column:1/-1;margin:0;justify-self:center}
+.trd .k-row{flex:none;flex-wrap:nowrap;gap:8px;width:100%;margin:0}
+.trd .k-row .k-btn{flex:1 1 auto;min-width:0;white-space:nowrap}
+@media (max-width:560px){
+  #dlgBox:has(.trd){height:calc(100dvh - 24px);padding:10px 10px 12px}
+  .trd{gap:8px} .trd h3{font-size:22px}
+  .trade{grid-template-columns:1fr;gap:8px} .tg{gap:8px;padding-top:8px}
+  .tpool{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 9px;padding:14px 9px 10px}
+  .trd .k-row .k-btn{padding-left:8px;padding-right:8px;font-size:15px}
+}
 .dragcard{position:fixed;left:0;top:0;z-index:60;width:88px;pointer-events:none;transition:opacity .14s;will-change:transform;filter:drop-shadow(0 16px 12px rgba(0,0,0,.5))}
 .dragcard.over{opacity:.55}
 .dragcard.gone{opacity:0;transition:opacity .15s}
@@ -476,6 +504,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .skip{display:flex;align-items:center;gap:12px;margin:0 0 12px}
 .skip .k-btn{flex:none;padding:8px 14px;font-size:15px}
 .skip .note{margin:0}
+@media (max-width:520px){ .skip{flex-direction:column-reverse;align-items:stretch;gap:8px} }      /* on a phone: what skipping costs, then the button under it at full width */
 .quick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
 .quick .k-btn{padding:10px 2px 8px;font-size:15px;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
 .quick small{font:800 11px/1 var(--f-body);color:#fff7c2;text-shadow:none;display:flex;align-items:center}
@@ -617,8 +646,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .card .ty{position:absolute;right:5px;top:6px;z-index:3;width:13px;height:13px;border-radius:50%;background:var(--ty);box-shadow:0 0 0 2px var(--ink2),inset 0 3px 0 rgba(255,255,255,.45)}
 .card:has(.lv) .ty{top:17px}
 .card .cnt{position:absolute;left:4px;bottom:29px;z-index:3;font:400 13px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
-.tg .card img,.tpool .card img,.tg .card .tint,.tpool .card .tint{top:8%;height:84%}
-.tg .card .cnt,.tpool .card .cnt,.tg .card .ty,.tpool .card .ty{display:none}
+
 .tchip,.rchip{display:inline-flex;align-items:center;gap:5px;font:400 12px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);padding:4px 9px 3px;border-radius:999px;border:2px solid var(--ink2);white-space:nowrap}
 .tchip{background:color-mix(in srgb,var(--ty) 62%,#0a1430);box-shadow:inset 0 2px 0 rgba(255,255,255,.28)}
 .tchip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ty);box-shadow:0 0 0 1.5px #fff}
@@ -660,7 +688,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
   .bt-top{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
   .handbar{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
   #btTools{left:max(8px,env(safe-area-inset-left))} .crowns{right:max(8px,env(safe-area-inset-right))}
-  @media (max-width:860px){ .top-in{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))} }
+  .top.f3 .top-in{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
 }
 /* the league table: everyone with an account, best first */
 .lg{display:grid;grid-template-columns:22px 26px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 10px 6px 6px;border-radius:12px;background:#12357c;border:2px solid var(--ink2);margin-bottom:6px}
@@ -766,6 +794,7 @@ img.pav{border:0;border-radius:0;box-shadow:none;background:none;object-fit:cont
 .tier .prog{grid-column:1/-1;height:9px;border-width:1.5px}
 .tier .prog i{background:var(--tc)}
 .tier.on,.tier.done{opacity:1}
+@media (max-width:520px){ .tier{grid-template-columns:auto minmax(0,1fr)} .tier img{grid-row:span 2;width:26px;height:26px} .tier span{grid-column:2} }      /* on a phone the levels go under the name, so the name is not cut short */
 .quick .k-btn em{font:800 10px/1 var(--f-body);font-style:normal;color:#fff;text-shadow:none;opacity:.92}
 
 /* ----- the market ----- */
@@ -1026,7 +1055,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 
 <!-- hub -->
 <section class="scr" id="scrHub" hidden>
-  <header class="top">
+  <header class="top" id="topBar">
     <div class="top-in">
       <a class="top-back" href="../" aria-label="All games" title="All games"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></a>
       <div class="logo" aria-label="Break Room Brawl"><small>Break Room</small><b data-t="Brawl">Brawl</b></div>
@@ -1201,6 +1230,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116g"></script>
+<script type="module" src="main.js?v=1116h"></script>
 </body>
 </html>

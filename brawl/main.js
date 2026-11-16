@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
-import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116g';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116g';
-import { createAI } from './ai.js?v=1116g';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116g';
-import { Cloud, cloudWhy } from './cloud.js?v=1116g';
-import { sayFor, sayWhen } from './talk.js?v=1116g';
-import { createAudio } from './audio.js?v=1116g';
+import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116h';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116h';
+import { createAI } from './ai.js?v=1116h';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116h';
+import { Cloud, cloudWhy } from './cloud.js?v=1116h';
+import { sayFor, sayWhen } from './talk.js?v=1116h';
+import { createAudio } from './audio.js?v=1116h';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116g'), import('./models.js?v=1116g')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116h'), import('./models.js?v=1116h')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -127,10 +127,34 @@ function noDeck(){
 const coinsTxt = () => OWN ? '\u221e' : fmt(P.coins);
 const bigN = n => n >= 1e6 ? +(n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : fmt(n);      // the top bar has no room for seven digits
 const tierPic = t => `ui/tier-${t.id}.webp`;
+const kN = n => n >= 1e6 ? bigN(n) : n >= 1e5 ? Math.floor(n / 1e3) + 'K' : n >= 1e4 ? Math.floor(n / 100) / 10 + 'K' : fmt(n);      // and less still on a narrow phone: 152K, 48.2K
 function top(){
-  $('hCoins').textContent = OWN ? coinsTxt() : bigN(P.coins); $('resCoins').title = OWN ? 'Coins never run out on this account' : 'Coins. Spend them in the Market'; $('hTro').textContent = fmt(P.trophies); $('hTok').textContent = fmt(P.tokens);
+  const num = (id, full, short) => { const el = $(id); el.textContent = full; if (short !== full) el.dataset.s = short; else delete el.dataset.s; };
+  num('hCoins', OWN ? coinsTxt() : bigN(P.coins), OWN ? coinsTxt() : kN(P.coins)); num('hTro', fmt(P.trophies), kN(P.trophies)); $('hTok').textContent = fmt(P.tokens);
+  $('resCoins').title = OWN ? 'Coins never run out on this account' : `${fmt(P.coins)} coins. Spend them in the Market`;
   $('hName').textContent = P.name; $('hAv').src = tierPic(tierOf(Math.min(LEVELS, P.ladder + 1))); $('hTier').textContent = P.ladder >= LEVELS ? 'Ladder cleared' : `${tierOf(P.ladder + 1).name}, level ${fmt(P.ladder + 1)}`;
+  fitTop();
 }
+/* The top bar holds a logo, four tabs, three counters, a name and two round buttons, and how wide the counters are depends on how rich the player is.
+   No list of screen widths gets that right for everyone, so start with the roomiest layout and step down until the row fits (the steps are in the stylesheet). */
+const FIT_STEPS = 6;
+let fitKey = '';
+function fitTop(force){
+  const el = $('topBar'), row = el.firstElementChild; if (!row.clientWidth) return;      // the hub is not on screen: it is fitted when it comes back
+  const key = [innerWidth, $('hCoins').textContent, $('hTok').textContent, $('hTro').textContent, $('hName').textContent, $('hTier').textContent].join('|');
+  if (key === fitKey && !force) return; fitKey = key;
+  const fits = () => {                                                                    // nothing in the row reaches past the row's own right-hand padding
+    const lim = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight) + .5;
+    for (const c of row.children) if (c.offsetParent && c.getBoundingClientRect().right > lim) return false;
+    return true;
+  };
+  for (let n = 0; n <= FIT_STEPS; n++){
+    for (let k = 1; k <= FIT_STEPS; k++) el.classList.toggle('f' + k, k <= n);
+    if (fits()) break;
+  }
+}
+addEventListener('resize', () => fitTop());
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => fitTop(true));      // the game font is wider than the one that stands in for it while it loads
 
 /* a card: the picture, what it costs, its type, its name. A build other than the standard one washes the picture in its colour. */
 const artOf = c => `art/${c.art}.webp`, hex = n => '#' + n.toString(16).padStart(6, '0');
@@ -460,7 +484,7 @@ function hub(){
     // too strong for where you are? The tier's boss can be challenged at any time: beat him and every level under him is cleared
     const boss = Math.ceil(n / 100) * 100, gapN = boss - n; $('skipRow').hidden = all || gapN < 1;
     if (gapN >= 1){ $('skipNote').textContent = `Level ${fmt(boss)}, ${ladderCpu(boss).name}. Beat him and the ${gapN} ${gapN > 1 ? 'levels' : 'level'} before him ${gapN > 1 ? 'are' : 'is'} cleared, for half their coins and none of their chests or cards.`; $('skipGo').onclick = () => preCpu(ladderCpu(boss)); }
-    $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><img alt="" src="${tierPic(t)}" loading="lazy"><b>${esc(t.name)}</b><span>${i * 100 + 1} to ${(i + 1) * 100}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
+    $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><img alt="" src="${tierPic(t)}" loading="lazy"><b>${esc(t.name)}</b><span>${fmt(i * 100 + 1)} to ${fmt((i + 1) * 100)}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
     $('bDeckLbl').textContent = deckOK() ? `Deck ${P.deck + 1}, average ${avgCost(curDeck())} Mana` : `Deck ${P.deck + 1} is not finished: ${curDeck().length} of ${DECK_SIZE} cards`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
     $('bSets').innerHTML = setsHTML(curDeck(), true);
@@ -478,7 +502,7 @@ function hub(){
     const side = matchMedia('(min-width:1100px)').matches;
     $('deckHint').innerHTML = deckMsg ? `<span class="err">${esc(deckMsg)}</span>${pend ? ' <button type="button" class="link" id="swapX" style="padding:2px 6px">Cancel</button>' : ''}`
       : slotOn && d.length < DECK_SIZE ? `<b>Now pick a card from ${side ? 'your cards on the right' : 'your cards below'}.</b> It goes in the lit place.`
-      : `Click a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Rare, Epic, Legendary and God cards do not apply to this account' : `, and no more than ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
+      : `Tap a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Rare, Epic, Legendary and God cards do not apply to this account' : `, and no more than ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
     const sx = $('swapX'); if (sx) sx.onclick = () => { pend = null; deckMsg = ''; hub(); };
     lists.own.draw();
   } else if (curTab === 'Market') market();
@@ -498,7 +522,7 @@ function pickForSlot(){
 function addCard(id){
   const d = curDeck().slice(), C = CARDS[id], same = d.findIndex(x => CARDS[x].base === C.base);
   if (same >= 0) d[same] = id;                                       // another build of a character already in the deck takes that one's place
-  else if (d.length >= DECK_SIZE){ pend = pend === id ? null : id; deckMsg = pend ? `The deck is full. Click the card in it that ${C.name} should replace.` : ''; BDB.sfx.tick(); return hub(); }
+  else if (d.length >= DECK_SIZE){ pend = pend === id ? null : id; deckMsg = pend ? `The deck is full. Tap the card in it that ${C.name} should replace.` : ''; BDB.sfx.tick(); return hub(); }
   else d.push(id);
   const bad = limitProblem(d); if (bad){ deckMsg = bad; pend = null; BDB.sfx.bad(); return hub(); }
   fx('place', null, BDB.sfx.tick); setDeck(d);
@@ -683,7 +707,7 @@ function packReveal(p, got, done, again){
 }
 
 /* ---------- sign in ---------- */
-function show(scr){ for (const s of ['scrLogin', 'scrOnb', 'scrHub', 'scrBattle']) $(s).hidden = s !== scr; }
+function show(scr){ for (const s of ['scrLogin', 'scrOnb', 'scrHub', 'scrBattle']) $(s).hidden = s !== scr; if (scr === 'scrHub') fitTop(true); }
 function loginScreen(){
   show('scrLogin'); P = null;
   const w = $('whoList'); w.innerHTML = '';
@@ -872,13 +896,14 @@ function onboard(){
     $('onDone').onclick = () => {
       const deck = [hero, ...picks], bad = deckProblem(deck);
       if (bad || spent() > START_COINS) return say(bad || 'That deck costs more than you have.');
-      P.cards = {}; for (const id of deck) P.cards[id] = 1; P.decks = Array.from({length:DECK_SLOTS}, (_, i) => i ? [] : deck.slice()); P.deck = 0; P.coins = START_COINS - spent(); save(); BDB.sfx.big(); step4();
+      P.cards = {}; for (const id of deck) P.cards[id] = 1; P.decks = Array.from({length:DECK_SLOTS}, (_, i) => i ? [] : deck.slice()); P.deck = 0; P.coins = START_COINS - spent() + START_GIFT; save(); BDB.sfx.big(); fx('coin', {delay:.35}); step4();      // the deck is built: here is a proper purse to start on
     };
     draw();
   };
   const step4 = () => {
-    box.innerHTML = `<div class="k-eyebrow">You are in</div><h2>${P.coins ? `${fmt(P.coins)} coins left over` : 'Every coin spent'}</h2><p class="note" style="max-width:540px;margin:0 auto 6px">Win on the ladder for coins, chests and BDB's own cards. Spend coins in the Market on chests, ready-made decks and upgrades. There are ${fmt(CARD_IDS.length)} cards to collect.</p>
-      <div class="bigcoin"><span class="coin"></span>${fmt(P.coins)}</div>
+    const over = P.coins - START_GIFT;
+    box.innerHTML = `<div class="k-eyebrow">You are in</div><h2>${fmt(START_GIFT)} coins to start</h2><p class="note" style="max-width:540px;margin:0 auto 6px">A welcome gift${over > 0 ? `, on top of the ${fmt(over)} you had left over` : ''}. Spend it in the Market on chests, ready-made decks and upgrades. Win on the ladder for more coins, chests and BDB's own cards. There are ${fmt(CARD_IDS.length)} cards to collect.</p>
+      <div class="pilepic"></div><div class="bigcoin">${fmt(P.coins)}</div>
       <div class="k-row"><button type="button" class="k-btn primary big" id="onFight">Fight level 1</button><button type="button" class="k-btn big" id="onShop">See the Market</button></div>`;
     const done = t => { P.onboarded = true; save(); show('scrHub'); tab(t); hallStart(); const gift = takeGifts(); return ownerHello() || giftHello(gift); };
     $('onShop').onclick = () => done('Market'); $('onFight').onclick = () => { if (!done('Battle')) preCpu(ladderCpu(1)); };
@@ -1625,8 +1650,10 @@ setInterval(() => {
 
 /* ---------- trading: each side offers cards and coins, both lock, both confirm ---------- */
 let TR = null;
+const TRADE_MAX = 5, COIN_CAP = 1e6, POOL_PAGE = 150;
+const coinCap = () => Math.min(COIN_CAP, P.coins);
 async function openTrade(code, name){
-  TR = {code, name, opp:null, mine:{cards:[], coins:0, lock:false}, theirs:{cards:[], coins:0, lock:false}, okMine:false, okTheirs:false, done:false};
+  TR = {code, name, opp:null, mine:{cards:[], coins:0, lock:false}, theirs:{cards:[], coins:0, lock:false}, okMine:false, okTheirs:false, done:false, find:'', max:0, note:''};
   drawTrade();
   try { await netUp(); } catch(e){ TR = null; return netFail(); }
   if (!TR) return;
@@ -1639,17 +1666,33 @@ async function openTrade(code, name){
     if (t === 'th'){ if (!TR.opp){ TR.opp = from; TR.name = clean(d.n, 20) || TR.name; clearInterval(TR.iv); clearTimeout(TR.to); hello(from); sendOffer(); drawTrade(); } return; }
     if (from !== TR.opp || TR.done) return;
     if (t === 'to'){
-      const cs = Array.isArray(d.cards) ? d.cards.filter(c => c && CARDS[c.id] && Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL).slice(0, 5).map(c => ({id:c.id, lvl:c.lvl})) : [], coins = Math.max(0, Math.min(1e6, d.coins | 0));
-      if (JSON.stringify(cs) !== JSON.stringify(TR.theirs.cards) || coins !== TR.theirs.coins){ TR.okMine = TR.okTheirs = false; if (TR.mine.lock){ TR.mine.lock = false; sendOffer(); } }      // their offer changed: nothing is agreed any more
-      TR.theirs = {cards:cs, coins, lock:!!d.lock}; drawTrade();
-    } else if (t === 'tc'){ if (TR.mine.lock && TR.theirs.lock && !TR.okTheirs){ TR.okTheirs = true; finishTrade(); drawTrade(); } }
+      const cs = Array.isArray(d.cards) ? d.cards.filter(c => c && CARDS[c.id] && Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL).slice(0, TRADE_MAX).map(c => ({id:c.id, lvl:c.lvl})) : [], coins = Math.max(0, Math.min(COIN_CAP, d.coins | 0));
+      if (JSON.stringify(cs) !== JSON.stringify(TR.theirs.cards) || coins !== TR.theirs.coins){      // their offer changed: nothing is agreed any more
+        const was = TR.mine.lock; TR.okMine = TR.okTheirs = false;
+        if (was){ TR.mine.lock = false; sendOffer(); }
+        TR.theirs = {cards:cs, coins, lock:!!d.lock};
+        if (was) return tradeNote(`${TR.name} changed their offer, so yours is unlocked again. Look it over and lock.`);
+      }
+      TR.theirs = {cards:cs, coins, lock:!!d.lock}; if (!TR.theirs.lock) TR.okMine = TR.okTheirs = false;      // they unlocked: a confirm either way is off
+      drawTrade();
+    } else if (t === 'tc'){
+      if (!TR.mine.lock || !TR.theirs.lock || TR.okTheirs) return;
+      // a confirm only counts for the two offers as they stand on this side too. If they differ, both go back to unlocked rather than swap something nobody agreed to
+      if (d.g !== undefined && (d.g !== offerSig(TR.theirs) || d.t !== offerSig(myOffer()))){ TR.mine.lock = false; TR.okMine = false; sendOffer(); return tradeNote('The two offers changed while you were confirming. Check them and lock again.'); }
+      TR.okTheirs = true; finishTrade(); drawTrade();
+    }
     else if (t === 'tx') closeTrade(`${TR.name} called it off.`);
   });
 }
-function sendOffer(){ if (TR && TR.opp) TR.room.send('to', {cards:TR.mine.cards.map(id => ({id, lvl:lvl(id)})), coins:TR.mine.coins, lock:TR.mine.lock}, TR.opp); }
+const offerSig = o => o.cards.map(c => c.id + ':' + c.lvl).join(',') + '|' + o.coins, myOffer = () => ({cards:TR.mine.cards.map(id => ({id, lvl:lvl(id)})), coins:TR.mine.coins});
+function sendOffer(){ if (TR && TR.opp) TR.room.send('to', {...myOffer(), lock:TR.mine.lock}, TR.opp); }
 function changed(){ TR.mine.lock = false; TR.okMine = TR.okTheirs = false; sendOffer(); drawTrade(); }
-function closeTrade(msg){ const t = TR; TR = null; if (t){ clearInterval(t.iv); clearTimeout(t.to); if (t.room){ if (t.opp && !t.done) t.room.send('tx', {}, t.opp); setTimeout(() => { try { t.room.leave(); } catch(e){} }, t.done ? 3500 : 400); } } dlgClose(); if (msg) msgBox('Trade', msg); hub(); }
-const sayOk = () => { const t = TR; if (!t || !t.opp) return; const go = () => { try { t.room.send('tc', {}, t.opp); } catch(e){} }; go(); setTimeout(go, 500); setTimeout(go, 1500); };
+function closeTrade(msg){ const t = TR; TR = null; if (t){ clearInterval(t.iv); clearTimeout(t.to); clearTimeout(t.nt); if (t.room){ if (t.opp && !t.done) t.room.send('tx', {}, t.opp); setTimeout(() => { try { t.room.leave(); } catch(e){} }, t.done ? 3500 : 400); } } dlgClose(); if (msg) msgBox('Trade', msg); hub(); }
+const sayOk = () => {
+  const t = TR; if (!t || !t.opp) return;
+  const d = {g:offerSig(myOffer()), t:offerSig(t.theirs)};      // what I give and what I get, as I see them
+  const go = () => { try { if (t.done || (TR === t && t.okMine)) t.room.send('tc', d, t.opp); } catch(e){} }; go(); setTimeout(go, 500); setTimeout(go, 1500);      // said three times: a swap that only one side made is the worst outcome
+};
 function finishTrade(){
   if (!TR || TR.done || !TR.okMine || !TR.okTheirs) return;
   TR.done = true;
@@ -1660,26 +1703,65 @@ function finishTrade(){
   const got = TR.theirs.cards.map(c => CARDS[c.id].name).concat(TR.theirs.coins ? [fmt(TR.theirs.coins) + ' coins'] : []).join(', ') || 'nothing';
   closeTrade(`Done. You got ${got} from ${TR.name}.${short.length ? ` Deck ${short.join(' and ')} lost a card in the trade: top ${short.length > 1 ? 'them' : 'it'} up on the Deck tab.` : ''}`);
 }
+/* a line under the two offers that says what just happened, for a few seconds */
+function tradeNote(msg){ if (!TR) return; TR.note = msg; clearTimeout(TR.nt); const t = TR; TR.nt = setTimeout(() => { if (TR === t){ t.note = ''; drawTrade(); } }, 5000); drawTrade(); }
+function tradePick(id){
+  const me = TR.mine; if (!TR.opp || TR.okMine) return;
+  if (me.lock){ BDB.sfx.bad(); return tradeNote('Your offer is locked. Unlock it to change it.'); }
+  if (me.cards.includes(id)) me.cards = me.cards.filter(x => x !== id);
+  else { if (me.cards.length >= TRADE_MAX){ BDB.sfx.bad(); return tradeNote('Five cards is the most one trade can carry.'); } if (!P.cards[id]) return; me.cards.push(id); }
+  TR.note = ''; BDB.sfx.tick(); changed();
+}
+/* your cards to pick from: spare ones first, dearest first, and a search box because a collection runs to hundreds */
+function tradePool(){
+  const box = $('dlgBox'), pool = box.querySelector('#tPool'); if (!pool || !TR) return;
+  const used = new Set(P.decks.flat()), q = (TR.find || '').trim().toLowerCase(), mine = Object.keys(P.cards).filter(id => CARDS[id]);
+  const all = mine.filter(id => !q || CARDS[id].name.toLowerCase().includes(q) || TYPES[CARDS[id].type].name.toLowerCase().includes(q)).sort((a, c) => used.has(a) - used.has(c) || CARDS[c].price - CARDS[a].price || (a < c ? -1 : 1));
+  const show = all.slice(0, TR.max || POOL_PAGE);
+  pool.textContent = '';
+  for (const id of show) pool.appendChild(cardEl(id, {lvl:lvl(id), cls:(used.has(id) ? 'inuse' : '') + (TR.mine.cards.includes(id) ? ' picked' : '')}));
+  if (!all.length) pool.innerHTML = `<p class="note">${q ? 'None of your cards match that.' : 'You have no cards to offer.'}</p>`;
+  else if (all.length > show.length){ const m = document.createElement('button'); m.type = 'button'; m.className = 'k-btn'; m.id = 'tMore'; m.textContent = `Show ${Math.min(POOL_PAGE, all.length - show.length)} more`; pool.appendChild(m); }
+  box.querySelector('#tCount').textContent = q ? `${fmt(all.length)} of ${fmt(mine.length)}` : `${fmt(mine.length)} cards`;
+}
+/* The pop-up is built once and then kept up to date in place. Rebuilding it on every change threw away the scroll position and whatever was being typed,
+   and swallowed any tap that was half way down when the other side's offer arrived. */
+function buildTrade(){
+  const b = dlg(`<div class="trd"><h3 id="tHead"></h3>
+    <div class="trade"><div class="tside" id="tSideMine"><div class="thd"><span class="k-label">You give</span><em id="tLkMine" hidden>Locked</em><label class="tcoin"><span class="coin"></span><input class="field" id="tCoins" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="Coins you give"></label></div><div class="tg" id="tMine"></div></div>
+      <div class="tside" id="tSideTheirs"><div class="thd"><span class="k-label">You get</span><em id="tLkTheirs" hidden>Locked</em><span class="tcoin"><span class="coin"></span><b id="tTheirCoins">0</b></span></div><div class="tg" id="tTheirs"></div></div></div>
+    <p class="note" id="tMsg" role="status"></p>
+    <div class="tfind"><input class="field" id="tFind" type="search" placeholder="Search your cards" autocomplete="off" aria-label="Search your cards"><span class="note" id="tCount"></span></div>
+    <div class="grid tpool" id="tPool"></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="tLock">Lock offer</button><button type="button" class="k-btn primary" id="tOk">Confirm trade</button><button type="button" class="k-btn ghost" id="tX">Cancel</button></div></div>`, {lock:true});
+  const q = id => b.querySelector('#' + id), me = TR.mine;
+  const coins = () => { const v = Math.max(0, Math.min(coinCap(), Math.round(+q('tCoins').value || 0))); if (v === me.coins) return false; me.coins = v; return true; };
+  q('tFind').value = TR.find; q('tFind').oninput = e => { TR.find = e.target.value; TR.max = 0; tradePool(); q('tPool').scrollTop = 0; };
+  q('tPool').onclick = e => { if (e.target.closest('#tMore')){ TR.max = (TR.max || POOL_PAGE) + POOL_PAGE; return tradePool(); } const c = e.target.closest('.card'); if (c) tradePick(c.dataset.id); };
+  q('tMine').onclick = e => { const c = e.target.closest('.card'); if (c) tradePick(c.dataset.id); };
+  q('tCoins').onchange = () => { if (TR.opp && !me.lock && coins()) changed(); else drawTrade(); };
+  q('tLock').onclick = () => { if (!TR.opp || TR.okMine) return; if (!me.lock) coins(); me.lock = !me.lock; TR.okMine = TR.okTheirs = false; TR.note = ''; BDB.sfx.tick(); sendOffer(); drawTrade(); };
+  q('tOk').onclick = () => { if (!(me.lock && TR.theirs.lock) || TR.okMine) return; TR.okMine = true; TR.note = ''; sayOk(); finishTrade(); drawTrade(); };
+  q('tX').onclick = () => closeTrade();
+  tradePool();
+}
 function drawTrade(){
   if (!TR) return;
-  const linked = !!TR.opp, me = TR.mine, th = TR.theirs, both = me.lock && th.lock;
-  const b = dlg(`<div class="k-eyebrow">Trade</div><h3>You and ${esc(TR.name)}</h3>
-    <div class="trade"><div><span class="k-label">You give</span><div class="tg" id="tMine"></div><label class="tcoin"><span class="coin"></span><input class="field" id="tCoins" type="number" min="0" max="${P.coins}" value="${me.coins}" ${linked ? '' : 'disabled'}></label></div>
-      <div><span class="k-label">You get</span><div class="tg" id="tTheirs"></div><div class="tcoin"><span class="coin"></span><b>${fmt(th.coins)}</b>${th.lock ? '<em>Locked</em>' : ''}</div></div></div>
-    <p class="note" id="tMsg">${!linked ? `Waiting for ${esc(TR.name)} to join. They have a minute to answer.` : TR.okMine ? `Waiting for ${esc(TR.name)} to confirm.` : both ? 'Both offers are locked. Confirm to make the swap.' : me.lock ? `Your offer is locked. Waiting for ${esc(TR.name)} to lock theirs.` : 'Tap up to five of your cards to offer them, set any coins, then lock your offer.'}</p>
-    <span class="k-label">Your cards</span><p class="note" style="margin:0">Spare ones first. A card marked In deck can go too: the deck it leaves is a card short until you top it up.</p><div class="grid tpool" id="tPool"></div>
-    <div class="k-row"><button type="button" class="k-btn ${me.lock ? '' : 'primary'}" id="tLock" ${linked && !TR.okMine ? '' : 'disabled'}>${me.lock ? 'Unlock' : 'Lock my offer'}</button><button type="button" class="k-btn primary" id="tOk" ${both && !TR.okMine ? '' : 'disabled'}>Confirm trade</button><button type="button" class="k-btn ghost" id="tX">Cancel</button></div>`, {lock:true});
-  const mineEl = b.querySelector('#tMine'), thEl = b.querySelector('#tTheirs'), pool = b.querySelector('#tPool');
-  for (const id of me.cards){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => { if (TR.okMine) return; me.cards = me.cards.filter(x => x !== id); changed(); }; mineEl.appendChild(c); }
-  for (const c of th.cards) thEl.appendChild(cardEl(c.id, {div:true, lvl:c.lvl}));
-  if (!me.cards.length) mineEl.innerHTML = '<p class="note">Nothing yet.</p>'; if (!th.cards.length) thEl.innerHTML = '<p class="note">Nothing yet.</p>';
-  const used = new Set(P.decks.flat()), sp = Object.keys(P.cards).filter(id => !me.cards.includes(id)).sort((a, c) => used.has(a) - used.has(c) || CARDS[c].price - CARDS[a].price).slice(0, 120);
-  for (const id of sp){ const c = cardEl(id, {lvl:lvl(id), cls:used.has(id) ? 'inuse' : ''}); c.onclick = () => { if (!linked || TR.okMine) return; if (me.cards.length >= 5){ BDB.sfx.bad(); return; } me.cards.push(id); changed(); }; pool.appendChild(c); }
-  if (!sp.length) pool.innerHTML = '<p class="note">You have no cards left to offer.</p>';
-  b.querySelector('#tCoins').onchange = e => { me.coins = Math.max(0, Math.min(P.coins, Math.round(+e.target.value || 0))); changed(); };
-  b.querySelector('#tLock').onclick = () => { me.lock = !me.lock; TR.okMine = TR.okTheirs = false; sendOffer(); drawTrade(); };
-  b.querySelector('#tOk').onclick = () => { if (!(me.lock && th.lock)) return; TR.okMine = true; sayOk(); finishTrade(); drawTrade(); };
-  b.querySelector('#tX').onclick = () => closeTrade();
+  const box = $('dlgBox'); if ($('dlg').hidden || !box.querySelector('.trd')) buildTrade();
+  const q = id => box.querySelector('#' + id), linked = !!TR.opp, me = TR.mine, th = TR.theirs, both = me.lock && th.lock;
+  q('tHead').textContent = `Trade with ${TR.name}`;
+  const slots = (el, list, card) => { el.textContent = ''; for (let i = 0; i < TRADE_MAX; i++){ if (list[i]) el.appendChild(card(list[i])); else { const e = document.createElement('i'); e.className = 'tslot'; el.appendChild(e); } } };
+  slots(q('tMine'), me.cards, id => cardEl(id, {lvl:lvl(id), now:true}));
+  slots(q('tTheirs'), th.cards, c => cardEl(c.id, {div:true, lvl:c.lvl, now:true, cls:lvl(c.id) >= c.lvl ? 'have' : ''}));
+  const ci = q('tCoins'); ci.disabled = !linked || me.lock; ci.max = coinCap(); if (document.activeElement !== ci) ci.value = me.coins || '';
+  q('tTheirCoins').textContent = fmt(th.coins);
+  q('tLkMine').hidden = !me.lock; q('tLkTheirs').hidden = !th.lock; q('tSideMine').classList.toggle('lk', me.lock); q('tSideTheirs').classList.toggle('lk', th.lock);
+  q('tMsg').textContent = TR.note || (!linked ? `Waiting for ${TR.name} to join. They have a minute to answer.` : TR.okMine ? `Waiting for ${TR.name} to confirm.` : both && TR.okTheirs ? `${TR.name} has confirmed. Confirm to make the swap.` : both ? 'Both offers are locked. Confirm to make the swap.'
+    : me.lock ? `Your offer is locked. Waiting for ${TR.name} to lock theirs.` : th.lock ? `${TR.name} has locked. Lock yours when you are happy with the deal.` : 'Tap up to five of your cards, add any coins, then lock your offer. Hold a card to read it.');
+  const pool = q('tPool'); pool.classList.toggle('off', !linked || me.lock);
+  for (const c of pool.querySelectorAll('.card')) c.classList.toggle('picked', me.cards.includes(c.dataset.id));
+  const lk = q('tLock'); lk.textContent = me.lock ? 'Unlock' : 'Lock offer'; lk.classList.toggle('primary', !me.lock); lk.disabled = !linked || TR.okMine;
+  q('tOk').disabled = !both || TR.okMine;
 }
 
 /* ---------- start ---------- */
