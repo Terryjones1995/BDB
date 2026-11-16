@@ -46,7 +46,7 @@ export const RIGS = {
   prepper:K('Survivalist', 1.45, 'Shoot2', {rh:'shotgun', lh:'riot'}), funbear:K('Animatronic_Normal', 1.55, 'Chop2', {rh:'guitar'}), afterhours:K('Animatronic_Creepy', 1.6, 'Dual', {walk:'Run'}),
   courier:K('Driver', 1.35, 'Punch', {walk:'Run'}), trailboss:K('Hiker', 1.6, 'Punch'), internA:K('Protagonist_A', 1.3, 'Punch', {walk:'Run'}), internB:K('Protagonist_B', 1.3, 'Kick', {walk:'Run'}),
   captain:K('Superhero', 1.55, 'Punch', {walk:'Idle'}), helpers:K('Helper_A', 1.15, 'Throw', {rh:'candy', at:.6}), giggles:K('Clown', 1.5, 'Throw', {rh:'clownBomb', at:.6}), mascot:K('MonsterCostume', 2.3, 'Punch', {at:.7}),
-  bdb:K('Barbarian', 2.7, 'Spin2', {rh:'axe2', tint:0x2a5bd7, k:.35, at:.75, bighead:true}), 
+  bdb:C('BDB', 2.7, {hold:'ball', at:.75}), 
   /* the second and third waves of heroes made for this game */
   whitemane:R('HorseKnight', 1.95, {walk:'Run', lift:.3, at:.6}), brynja:R('Valkyrie', 1.5, {walk:'Idle', lift:.3, at:.6}), kingbellow:R('King', 2.2, {lift:.3, at:.8}), kguard:K('Knight', 1.25, 'Chop1', {rh:'sword', lh:'shield'}),
   akaoni:R('Samurai', 1.6, {lift:.3, at:.5}), redbeard:R('Pirate', 1.65, {lift:.3}), tatters:R('Mummy', 1.9, {lift:.3, at:.8}), jackhollow:R('Scarecrow', 1.65, {lift:.35, at:.5}), miasma:R('PlagueDoctor', 1.6, {lift:.45, at:.8}),
@@ -95,6 +95,13 @@ const PROPS = {
     add('hCap', () => new THREE.BoxGeometry(.37, .37, .09), 'gold', 0xf2c14e, .68, .3); add('hCap', () => new THREE.BoxGeometry(.37, .37, .09), 'gold', 0xf2c14e, .68, -.3);
     add('hGlow', () => new THREE.BoxGeometry(.335, .08, .4), 'glow', 0xbfeaff, .68, 0, true);
     return {g, top:.68};
+  },
+  ball(grad){                                // a basketball, palmed
+    const g = new THREE.Group(), geo = (k, f) => pg[k] || (pg[k] = f());
+    const skin = pm.ball || (pm.ball = new THREE.MeshToonMaterial({color:0xf08a1c, gradientMap:grad})), seam = pm.seam || (pm.seam = new THREE.MeshBasicMaterial({color:0x2a1608}));
+    const b = new THREE.Mesh(geo('bBall', () => new THREE.SphereGeometry(.21, 18, 14)), skin); b.position.y = .2; b.castShadow = true; b.frustumCulled = false; g.add(b);
+    for (const r of [[0, 0, 0], [Math.PI / 2, 0, 0], [0, 0, Math.PI / 2]]){ const t = new THREE.Mesh(geo('bSeam', () => new THREE.TorusGeometry(.212, .012, 6, 28)), seam); t.position.y = .2; t.rotation.set(r[0], r[1], r[2]); t.userData.noInk = true; t.frustumCulled = false; g.add(t); }
+    return {g, top:.2};
   }
 };
 /* where a raised right arm points, in the body's own space (its right is -X, up is +Y, forward is +Z): out past a big head, then up */

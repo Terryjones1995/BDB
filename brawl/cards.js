@@ -517,12 +517,12 @@ export function rollCard(rar, type, rnd = Math.random){
 }
 /* Packs: the dearer the pack, the more cards and the better the odds. min: the rarity the last card is guaranteed to reach. */
 export const PACKS = [
-  {id:'bronze',  name:'Bronze Pack',  price:150,  n:3, odds:{c:86, r:13, e:1,  l:0, g:0},   min:null, col:'#c98a4b', blurb:'Three cards. Mostly Commons, now and then a surprise.'},
-  {id:'silver',  name:'Silver Pack',  price:450,  n:4, odds:{c:68, r:27, e:4.5, l:.5, g:0}, min:'r',  col:'#c5cede', blurb:'Four cards. One Rare or better, guaranteed.'},
-  {id:'gold',    name:'Gold Pack',    price:1200, n:5, odds:{c:48, r:37, e:13, l:2, g:0},   min:'e',  col:'#ffd23f', blurb:'Five cards. One Epic or better, guaranteed.'},
-  {id:'diamond', name:'Diamond Pack', price:3000, n:6, odds:{c:26, r:42, e:25, l:7, g:.2},   min:'e',  two:'e', col:'#7fe3ff', blurb:'Six cards. Two Epics or better, guaranteed.'},
-  {id:'mythic',  name:'Mythic Pack',  price:7500, n:8, odds:{c:8,  r:40, e:38, l:13, g:1},  min:'l',  two:'e', col:'#ff5fd2', blurb:'Eight cards. A Legendary, guaranteed, and an Epic to go with it.'},
-  {id:'divine',  name:'Divine Pack',  price:30000, n:5, odds:{c:0, r:12, e:46, l:40, g:2},  min:'g',  two:'l', col:'#dff4ff', blurb:'Five cards. A God, guaranteed, with a Legendary beside it.'}
+  {id:'bronze',  name:'Bronze Chest',  price:150,  n:3, odds:{c:86, r:13, e:1,  l:0, g:0},   min:null, col:'#c98a4b', blurb:'Three cards. Mostly Commons, now and then a surprise.'},
+  {id:'silver',  name:'Silver Chest',  price:450,  n:4, odds:{c:68, r:27, e:4.5, l:.5, g:0}, min:'r',  col:'#c5cede', blurb:'Four cards. One Rare or better, guaranteed.'},
+  {id:'gold',    name:'Gold Chest',    price:1200, n:5, odds:{c:48, r:37, e:13, l:2, g:0},   min:'e',  col:'#ffd23f', blurb:'Five cards. One Epic or better, guaranteed.'},
+  {id:'diamond', name:'Diamond Chest', price:3000, n:6, odds:{c:26, r:42, e:25, l:7, g:.2},   min:'e',  two:'e', col:'#7fe3ff', blurb:'Six cards. Two Epics or better, guaranteed.'},
+  {id:'mythic',  name:'Mythic Chest',  price:7500, n:8, odds:{c:8,  r:40, e:38, l:13, g:1},  min:'l',  two:'e', col:'#ff5fd2', blurb:'Eight cards. A Legendary, guaranteed, and an Epic to go with it.'},
+  {id:'divine',  name:'Divine Chest',  price:30000, n:5, odds:{c:0, r:12, e:46, l:40, g:2},  min:'g',  two:'l', col:'#dff4ff', blurb:'Five cards. A God, guaranteed, with a Legendary beside it.'}
 ];
 export const TYPE_PACK = {price:700, n:4, odds:{c:55, r:33, e:10, l:2, g:0}, min:'r'};      // four cards, all one type, one Rare or better
 export function openPack(pack, type = null, rnd = Math.random){

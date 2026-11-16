@@ -257,7 +257,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .pur .ic{position:absolute;left:-12px;top:50%;width:42px;height:42px;transform:translateY(-50%);background:center/contain no-repeat;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4))}
 .pur:hover .ic{transform:translateY(-50%) scale(1.1) rotate(-6deg)}
 .pur .ic-coin{background-image:url(ui/coin.webp)} .pur .ic-tok{background-image:url(ui/token.webp)}
-.pur .ic-tro{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cg stroke='%230a1430' stroke-width='3' stroke-linejoin='round'%3E%3Cpath d='M12 9H4.5c0 9 3.5 13 9.5 14M36 9h7.5c0 9-3.5 13-9.5 14' fill='none' stroke-width='4.5'/%3E%3Cpath d='M12 9H4.5c0 9 3.5 13 9.5 14M36 9h7.5c0 9-3.5 13-9.5 14' fill='none' stroke='%23ffb52e' stroke-width='2'/%3E%3Cpath d='M11 5h26c0 15-3.5 23-13 25C14.500 28 11 20 11 5z' fill='%23ffd23f'/%3E%3Cpath d='M20 29.500h8V36h-8z' fill='%23f08a12'/%3E%3Cpath d='M14 36h20v7H14z' fill='%23c0621a'/%3E%3C/g%3E%3Cpath d='M15.500 8.500h6c0 9 .5 14 2.500 18-5-2-8-8-8.500-18z' fill='%23fff3a6' opacity='.75'/%3E%3C/svg%3E")}
+.pur .ic-tro{background-image:url(ui/trophy.webp)}
 .pur .plus{flex:none;display:grid;place-items:center;width:22px;height:22px;margin-right:-3px;border-radius:7px;border:2px solid var(--ink2);background:linear-gradient(180deg,#8dff7a,#2fbf3a);box-shadow:inset 0 2px 0 rgba(255,255,255,.5);font:400 18px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 /* who is playing */
 .who-chip{flex:none;display:inline-flex;align-items:center;gap:9px;max-width:220px;padding:3px 14px 3px 3px;border-radius:999px;border:3px solid var(--ink2);background:linear-gradient(180deg,#4a96ff,#1f5fd0);box-shadow:inset 0 3px 0 rgba(255,255,255,.35),0 3px 0 var(--ink2);color:#fff;cursor:pointer;text-align:left}
@@ -365,8 +365,8 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .clock.hot b{color:#ff6b5e}
 .crowns{position:absolute;right:8px;top:40%;z-index:6;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;pointer-events:none}
 .crowns div{position:relative;width:52px;height:50px;display:grid;place-items:center}
-.crowns svg{position:absolute;inset:0;width:100%;height:100%;filter:drop-shadow(0 3px 0 var(--ink2))}
-.crowns b{position:relative;font:400 24px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);padding-top:12px}
+.crowns img{position:absolute;left:50%;top:50%;width:118%;height:118%;max-width:none;object-fit:contain;transform:translate(-50%,-50%);filter:drop-shadow(0 3px 0 rgba(4,10,30,.6))}
+.crowns b{position:relative;font:400 24px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);padding-top:22px}
 #btTools{top:38%;left:8px;transform:translateY(-50%)}
 #btTools button{width:42px;height:42px;border-radius:13px;border:3px solid var(--ink2);background:linear-gradient(180deg,#3a4a78,#1c2648);color:#fff;box-shadow:inset 0 2px 0 rgba(255,255,255,.2),0 3px 0 var(--ink2);font-size:14px}
 #emoPanel{left:60px;top:26%;background:linear-gradient(180deg,#2f79e6,#1a48a6);border:3px solid var(--ink2);box-shadow:0 6px 0 var(--ink2)}
@@ -698,6 +698,12 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .foil b{position:absolute;left:50%;bottom:15px;transform:translateX(-50%);z-index:3;display:flex;align-items:baseline;gap:4px;padding:4px 10px 2px;border-radius:999px;background:var(--ink2);font:400 17px/1 var(--f-game);color:#fff;white-space:nowrap}
 .foil b small{font:800 10px/1 var(--f-body);color:#cfe1ff}
 button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
+/* a chest of cards. (The class is still .foil from when these were foil packs: the wrapper and its crimped edges go, the picture fills it.) */
+.foil{aspect-ratio:1;width:min(100%,150px);background:none;box-shadow:none;border-radius:0}
+.foil::before,.foil::after{display:none}
+.foil img{left:0;top:0;width:100%;height:100%;filter:drop-shadow(0 6px 0 rgba(4,10,30,.45))}
+.foil b{left:auto;right:-6px;bottom:0;transform:none;border:2.5px solid #fff3;padding:4px 9px 2px}
+.foil.big{width:190px}
 .foil.big{width:150px;margin:6px auto 2px}
 .foil.shake{animation:shake 1.15s ease-in-out infinite}
 @keyframes shake{0%,100%{transform:none}18%{transform:rotate(-5deg) translateY(-4px)}36%{transform:rotate(4deg)}54%{transform:rotate(-3deg) translateY(-2px)}72%{transform:rotate(2deg)}}
@@ -792,10 +798,9 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res.win .res-top::before{content:"";position:absolute;left:50%;top:58%;width:900px;height:900px;z-index:-1;transform:translate(-50%,-50%);background:repeating-conic-gradient(from 6deg,rgba(255,255,255,.3) 0 9deg,rgba(255,255,255,0) 9deg 18deg);-webkit-mask:radial-gradient(circle,#000 0,transparent 62%);mask:radial-gradient(circle,#000 0,transparent 62%)}
 .res-top h3{margin:8px 0 10px;font:400 clamp(40px,11vw,58px)/1 var(--f-game);color:#fff;letter-spacing:.02em;text-shadow:-3px 0 var(--ink2),3px 0 var(--ink2),0 -3px var(--ink2),0 3px var(--ink2),-2px -2px var(--ink2),2px -2px var(--ink2),-2px 2px var(--ink2),2px 2px var(--ink2),0 7px 0 var(--ink2)}
 .res-crowns{display:flex;justify-content:center;gap:10px}
-.res-crowns i{width:44px;height:32px;background:#1b2550;opacity:.55;clip-path:polygon(0 100%,0 16%,25% 60%,50% 0,75% 60%,100% 16%,100% 100%)}
-.res-crowns i.on{opacity:1;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);filter:drop-shadow(0 3px 0 var(--ink2))}
+.res-crowns i{width:54px;height:54px;background:url(ui/crown.webp) center/contain no-repeat;filter:grayscale(1) brightness(.45);opacity:.6}
 .res-crowns span{display:flex;flex-direction:column;align-items:center;gap:5px}
-.res-crowns span.on i{opacity:1;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);filter:drop-shadow(0 3px 0 var(--ink2))}
+.res-crowns span.on i{opacity:1;filter:drop-shadow(0 3px 0 rgba(4,10,30,.55))}
 .res-crowns span:nth-child(2) i{transform:translateY(-7px) scale(1.18)}
 .res-crowns.paid{margin-bottom:2px}
 .res-crowns b{font:400 13px/1 var(--f-game);color:#5a2c00;opacity:.45}
@@ -803,7 +808,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res-crowns span.on i{animation:crpop .5s cubic-bezier(.2,1.6,.4,1) both;animation-delay:calc(.25s + var(--i) * .22s)}
 @keyframes crpop{from{opacity:0;scale:.2}to{opacity:1;scale:1}}
 @media (prefers-reduced-motion:reduce){ .res-crowns span.on i{animation:none} }
-.res.loss .res-crowns span.on i{background:linear-gradient(180deg,#eef3ff,#b8c4e0 45%,#8493b8)}
+.res.loss .res-crowns span.on i{filter:grayscale(1) brightness(1.25) drop-shadow(0 3px 0 rgba(4,10,30,.55))}
 /* how the coins add up, line by line */
 .res-sum{margin:16px 22px 0;padding:10px 14px;border-radius:14px;background:#0a1e52;border:3px solid var(--ink2);text-align:left}
 .res-sum div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;font:700 13px/1.3 var(--f-body);color:#dbe8ff}
@@ -867,7 +872,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .crpay{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;padding:8px 10px;border-radius:14px;background:rgba(10,30,82,.6);border:2px solid var(--ink2)}
 .crpay > span{font:800 10px/1.1 var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:#a9c4f5}
 .crpay div{display:flex;align-items:center;gap:2px}
-.crpay i{width:15px;height:11px;background:linear-gradient(180deg,#fff7c2,#ffd23f 45%,#f08a12);clip-path:polygon(0 100%,0 16%,25% 60%,50% 0,75% 60%,100% 16%,100% 100%)}
+.crpay i{width:20px;height:20px;margin:-3px -2px;background:url(ui/crown.webp) center/contain no-repeat}
 .crpay b{margin-left:4px;font:400 15px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 /* teaming up: how good the BDBs are, then how many */
 .tm{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;padding:12px 10px;border-radius:16px;background:rgba(10,30,82,.6);border:3px solid var(--ink2)}
@@ -895,6 +900,9 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 @keyframes tpl{to{box-shadow:inset 0 5px 0 rgba(0,0,0,.5),0 0 0 3px rgba(255,214,70,.5),0 0 22px rgba(255,214,70,.6)}}
 @media (max-width:759px){ .hand .card :is(img,.tint){top:-12%;height:108%} .grid.deck .card :is(img,.tint),.grid.eight .card :is(img,.tint){top:-12%;height:108%} .hand .card .cnt{bottom:6px} .sayb{font-size:12px;max-width:140px} }
 @media (prefers-reduced-motion:reduce){ .foil.shake,.coffee.tpl,.pull.on::before{animation:none} .pull .flip{transition:none} .burst{display:none} }
+/* the Mana drop is a picture of the crystal now, wherever a cost or the Mana count is shown */
+.card .cost::before,.next .card .cost::before,.coffee b::before{left:50%;top:52%;width:116%;height:116%;border-radius:0;transform:translate(-50%,-50%);background:url(ui/mana.webp) center/contain no-repeat;box-shadow:none}
+.card .cost::after,.next .card .cost::after{display:none}
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
@@ -909,7 +917,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
     <div class="face" aria-hidden="true"></div>
     <div class="k-eyebrow">BDB Entertainment presents</div>
     <h1>Break Room <span>Brawl</span></h1>
-    <p class="sub">Over 2,400 cards in twelve types, and a ladder a thousand levels long. Build a 15 card deck, flood the lanes and knock down BDB's towers. Win coins, open packs, take his cards.</p>
+    <p class="sub">Over 2,400 cards in twelve types, and a ladder a thousand levels long. Build a 15 card deck, flood the lanes and knock down BDB's towers. Win coins, open chests, take his cards.</p>
     <div class="rowx"><input class="field" id="newName" maxlength="20" placeholder="Player name" autocomplete="username" spellcheck="false"></div>
     <div class="rowx acc"><input class="field" id="newPass" type="password" maxlength="72" placeholder="Password" autocomplete="current-password"></div>
     <div class="rowx acc"><button type="button" class="k-btn primary" id="accIn" style="flex:1">Sign in</button><button type="button" class="k-btn" id="accNew" style="flex:1">Create account</button></div>
@@ -955,7 +963,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
         <div class="panel">
           <span class="k-label" id="tierLbl">The ladder</span>
           <div class="road" id="road"></div>
-          <p class="note" style="margin:2px 0 10px">A thousand levels, ten tiers. The first win on a level pays in full and you take one of his cards. Packs and upgrade tokens are marked on the way.</p>
+          <p class="note" style="margin:2px 0 10px">A thousand levels, ten tiers. The first win on a level pays in full and you take one of his cards. Chests and upgrade tokens are marked on the way.</p>
           <div class="skip" id="skipRow" hidden><button type="button" class="k-btn" id="skipGo">Skip to the boss</button><span class="note" id="skipNote"></span></div>
           <div class="tiers" id="tiers"></div>
         </div>
@@ -997,12 +1005,12 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 
     <div id="tabMarket" hidden>
       <div class="panel shelf">
-        <span class="k-label">Card packs</span>
-        <p class="note" style="margin:0 0 14px">The dearer the pack, the more cards in it and the better they are. Tap a pack to see its odds.</p>
+        <span class="k-label">Chests</span>
+        <p class="note" style="margin:0 0 14px">The dearer the chest, the more cards in it and the better they are. Tap a chest to see its odds.</p>
         <div class="packs" id="packRow"></div>
       </div>
       <div class="panel">
-        <span class="k-label">Type packs</span>
+        <span class="k-label">Type chests</span>
         <p class="note" style="margin:0 0 6px">Building around one type? Four cards of that type, one of them Rare or better.</p>
         <div class="tpacks" id="tpackRow"></div>
       </div>
@@ -1015,7 +1023,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
       </div>
       <div class="split">
         <div class="panel"><span class="k-label">Today's deals</span><div class="grid priced" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down 30%. New ones every day.</p></div>
-        <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Every win pays coins, and harder fights pay more. The first win on a ladder level pays in full, replays pay half, and a loss still pays a little. Spend coins on packs, decks, single cards, or upgrades for the cards you have. Every level adds 8% health and damage, up to level 10. A card you pull twice goes up a level for free.</p></div>
+        <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Every win pays coins, and harder fights pay more. The first win on a ladder level pays in full, replays pay half, and a loss still pays a little. Spend coins on chests, decks, single cards, or upgrades for the cards you have. Every level adds 8% health and damage, up to level 10. A card you pull twice goes up a level for free.</p></div>
       </div>
       <div class="panel"><span class="k-label" id="shopLbl">All cards</span><div class="filters" id="shopF"></div><div class="grid priced" id="shopGrid"></div><div class="more-row"><button type="button" class="k-btn" id="shopMore">Show more</button></div></div>
     </div>
@@ -1064,8 +1072,8 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
     <div class="chip me"><span class="dot" id="meDot"></span><span class="nm2" id="meName">You</span></div>
   </div>
   <div class="crowns" aria-hidden="true">
-    <div><svg viewBox="0 0 52 50"><path d="M5 40 L3 14 L16 25 L26 6 L36 25 L49 14 L47 40 Z" fill="#f0564c" stroke="#0a1430" stroke-width="3" stroke-linejoin="round"/><rect x="5" y="38" width="42" height="8" rx="3" fill="#b8241c" stroke="#0a1430" stroke-width="3"/></svg><b id="oppCr">0</b></div>
-    <div><svg viewBox="0 0 52 50"><path d="M5 40 L3 14 L16 25 L26 6 L36 25 L49 14 L47 40 Z" fill="#4f9bff" stroke="#0a1430" stroke-width="3" stroke-linejoin="round"/><rect x="5" y="38" width="42" height="8" rx="3" fill="#1c5fd0" stroke="#0a1430" stroke-width="3"/></svg><b id="meCr">0</b></div>
+    <div><img alt="" src="ui/crown-r.webp"><b id="oppCr">0</b></div>
+    <div><img alt="" src="ui/crown-b.webp"><b id="meCr">0</b></div>
   </div>
   <div id="btTools"><button type="button" id="btQuit" aria-label="Quit match">✕</button><button type="button" id="btPause" aria-label="Pause">❚❚</button><button type="button" id="btEmo" aria-label="Emotes and chat">💬</button><button type="button" id="btView" aria-label="Reset view" title="Reset view">⟲</button></div>
   <div class="insp" id="insp" hidden></div>
@@ -1082,6 +1090,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1115x"></script>
+<script type="module" src="main.js?v=1115y"></script>
 </body>
 </html>

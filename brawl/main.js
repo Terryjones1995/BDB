@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1115x';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115x';
-import { createAI } from './ai.js?v=1115x';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115x';
-import { Cloud, cloudWhy } from './cloud.js?v=1115x';
-import { sayFor, sayWhen } from './talk.js?v=1115x';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1115y';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115y';
+import { createAI } from './ai.js?v=1115y';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115y';
+import { Cloud, cloudWhy } from './cloud.js?v=1115y';
+import { sayFor, sayWhen } from './talk.js?v=1115y';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -70,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115x'), import('./models.js?v=1115x')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115y'), import('./models.js?v=1115y')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -384,8 +384,7 @@ $('tabbar').onclick = e => { const b = e.target.closest('button'); if (b) tab(b.
 $('toDeck').onclick = () => tab('Deck');
 const avgCost = d => d.length ? (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.length).toFixed(1) : '0';
 const PACK = Object.fromEntries(PACKS.map(p => [p.id, p]));
-const PACK_ART = {bronze:'scarlet', silver:'bell', gold:'kingbellow', diamond:'infernus', mythic:'isolde', divine:'zeus'};
-const TYPE_ART = {dragon:'jade', fire:'phoenix', frost:'isolde', arcane:'genie', dark:'baron', shadow:'kitsune', beast:'pridelord', nature:'elderbark', horde:'gorak', order:'kingbellow', tech:'brassbolt', crew:'manager'};
+const chestPic = p => `ui/chest-${p.type ? 't-' + p.type : p.id}.webp`;      // a chest of cards: one picture for each of the six, and one in each type's colour
 const nextLevel = () => Math.min(LEVELS, P.ladder + 1), NUM = ['No', 'One', 'Two', 'Three'];
 /* what a win is worth, as a row of chips. first: the first-win extras are still there to be won */
 function prizeChips(cpu, first, n = 1){
@@ -417,13 +416,13 @@ function hub(){
     $('tierLbl').textContent = `The ladder: ${fmt(P.ladder)} of ${fmt(LEVELS)}`;
     // too strong for where you are? The tier's boss can be challenged at any time: beat him and every level under him is cleared
     const boss = Math.ceil(n / 100) * 100, gapN = boss - n; $('skipRow').hidden = all || gapN < 1;
-    if (gapN >= 1){ $('skipNote').textContent = `Level ${fmt(boss)}, ${ladderCpu(boss).name}. Beat him and the ${gapN} ${gapN > 1 ? 'levels' : 'level'} before him ${gapN > 1 ? 'are' : 'is'} cleared, for half their coins and none of their packs or cards.`; $('skipGo').onclick = () => preCpu(ladderCpu(boss)); }
+    if (gapN >= 1){ $('skipNote').textContent = `Level ${fmt(boss)}, ${ladderCpu(boss).name}. Beat him and the ${gapN} ${gapN > 1 ? 'levels' : 'level'} before him ${gapN > 1 ? 'are' : 'is'} cleared, for half their coins and none of their chests or cards.`; $('skipGo').onclick = () => preCpu(ladderCpu(boss)); }
     $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><b>${esc(t.name)}</b><span>${i * 100 + 1} to ${(i + 1) * 100}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
     $('bDeckLbl').textContent = deckOK() ? `Deck ${P.deck + 1}, average ${avgCost(curDeck())} Mana` : `Deck ${P.deck + 1} is not finished: ${curDeck().length} of ${DECK_SIZE} cards`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
     $('bSets').innerHTML = setsHTML(curDeck(), true);
     const qr = $('quickRow'); qr.innerHTML = '';
-    for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small>${COIN}${sk.coins}</small><em>${sk.pack ? 'card and a pack' : sk.card ? 'and a card' : 'coins'}</em>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
+    for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small>${COIN}${sk.coins}</small><em>${sk.pack ? 'card and a chest' : sk.card ? 'and a card' : 'coins'}</em>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
   } else if (curTab === 'Deck'){
     const d = curDeck(), seg = $('deckSeg'); seg.innerHTML = '';
     for (let i = 0; i < DECK_SLOTS; i++){ const n = P.decks[i].length, b = document.createElement('button'); b.type = 'button'; b.innerHTML = `Deck ${i + 1}${n === DECK_SIZE ? '' : ` <small>${n}/${DECK_SIZE}</small>`}`; b.setAttribute('aria-pressed', i === P.deck); b.onclick = () => { P.deck = i; pend = null; deckMsg = ''; slotOn = false; save(); hub(); }; seg.appendChild(b); }
@@ -484,7 +483,7 @@ function profile(){
   $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. Create an account from the sign in screen to keep it online and show up for friends.' : 'Saved on this device.';
   const s = P.stats, own = Object.keys(P.cards).length;
   $('pStats').innerHTML = [['Coins', coinsTxt()], ['Trophies', fmt(P.trophies)], ['Ladder', `${fmt(P.ladder)} of ${fmt(LEVELS)}`], ['Tier', tierOf(nextLevel()).name], ['Wins against BDB', s.w], ['Losses against BDB', s.l], ['Online wins', s.ow], ['Online losses', s.ol],
-    ['Cards collected', `${fmt(own)} of ${fmt(CARD_IDS.length)}`], ['Cards won from BDB', s.won], ['Packs opened', s.packs], ['Card upgrades', s.up]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+    ['Cards collected', `${fmt(own)} of ${fmt(CARD_IDS.length)}`], ['Cards won from BDB', s.won], ['Chests opened', s.packs], ['Card upgrades', s.up]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
   $('tokN').textContent = P.tokens;
   const pk = $('perks'); pk.innerHTML = '';
   for (const k of PERK_IDS){
@@ -533,16 +532,16 @@ function market(){
   const pr = $('packRow'); pr.innerHTML = '';
   for (const p of PACKS){
     const el = document.createElement('div'); el.className = 'pack'; el.style.setProperty('--pc', p.col);
-    el.innerHTML = `<button type="button" class="foil" aria-label="What is in the ${esc(p.name)}"><img alt="" loading="lazy" src="art/${PACK_ART[p.id]}.webp"><b>${p.n}<small>cards</small></b></button><h4>${esc(p.name)}</h4><p>${esc(p.blurb)}</p><button type="button" class="k-btn primary buy">${COIN}${fmt(p.price)}</button>`;
+    el.innerHTML = `<button type="button" class="foil" aria-label="What is in the ${esc(p.name)}"><img alt="" loading="lazy" src="${chestPic(p)}"><b>${p.n}<small>cards</small></b></button><h4>${esc(p.name)}</h4><p>${esc(p.blurb)}</p><button type="button" class="k-btn primary buy">${COIN}${fmt(p.price)}</button>`;
     el.querySelector('.foil').onclick = () => packInfo(p);
     const b = el.querySelector('.buy'); b.disabled = P.coins < p.price; b.onclick = () => buyPack(p);
     pr.appendChild(el);
   }
   const tp = $('tpackRow'); tp.innerHTML = '';
   for (const t of TYPE_IDS){
-    const b = document.createElement('button'), p = {...TYPE_PACK, id:'type-' + t, name:TYPES[t].name + ' Pack', col:TYPES[t].col, art:TYPE_ART[t], blurb:`Four ${TYPES[t].name} cards. One Rare or better, guaranteed.`};
+    const b = document.createElement('button'), p = {...TYPE_PACK, id:'type-' + t, type:t, name:TYPES[t].name + ' Chest', col:TYPES[t].col, blurb:`Four ${TYPES[t].name} cards. One Rare or better, guaranteed.`};
     b.type = 'button'; b.className = 'tpack'; b.style.setProperty('--pc', p.col);
-    b.innerHTML = `<img alt="" loading="lazy" src="art/${p.art}.webp"><b>${esc(TYPES[t].name)}</b><span>${COIN}${fmt(p.price)}</span>`;
+    b.innerHTML = `<img alt="" loading="lazy" src="${chestPic(p)}"><b>${esc(TYPES[t].name)}</b><span>${COIN}${fmt(p.price)}</span>`;
     b.onclick = () => packInfo(p, t);
     tp.appendChild(b);
   }
@@ -583,9 +582,9 @@ function deckBox(d){
 /* what a pack can hold, with the real odds, and the button that opens one */
 function packInfo(p, type){
   const tot = RAR_IDS.reduce((a, r) => a + p.odds[r], 0), share = r => { const v = p.odds[r] / tot * 100; return (v && v < 1 ? v.toFixed(1) : Math.round(v)) + '%'; };
-  const b = dlg(`<div class="k-eyebrow">What is inside</div><div class="foil big" style="--pc:${p.col}"><img alt="" src="art/${p.art || PACK_ART[p.id]}.webp"><b>${p.n}<small>cards</small></b></div><h3>${esc(p.name)}</h3><p>${esc(p.blurb)}</p>
+  const b = dlg(`<div class="k-eyebrow">What is inside</div><div class="foil big" style="--pc:${p.col}"><img alt="" src="${chestPic(p)}"><b>${p.n}<small>cards</small></b></div><h3>${esc(p.name)}</h3><p>${esc(p.blurb)}</p>
     <div class="oddsx">${RAR_IDS.filter(r => r !== 'g' || p.odds.g > 0).map(r => `<div class="r-${r}"><b>${share(r)}</b><span>${RAR[r].name}</span></div>`).join('')}</div>
-    <p class="note">That is the chance for each card. ${p.min ? `The last card is always ${RAR[p.min].name} or better${p.two ? `, and the one before it ${RAR[p.two].name} or better` : ''}. ` : ''}Builds are random, no pack holds the same character twice, and a card you already own goes up a level.</p>
+    <p class="note">That is the chance for each card. ${p.min ? `The last card is always ${RAR[p.min].name} or better${p.two ? `, and the one before it ${RAR[p.two].name} or better` : ''}. ` : ''}Builds are random, no chest holds the same character twice, and a card you already own goes up a level.</p>
     <div class="k-row"><button type="button" class="k-btn primary" id="pkBuy" ${P.coins < p.price ? 'disabled' : ''}>Open for ${COIN}${fmt(p.price)}</button><button type="button" class="k-btn" id="pkX">Close</button></div>
     ${P.coins < p.price ? `<p class="note">You need ${fmt(p.price - P.coins)} more coins.</p>` : ''}`);
   b.querySelector('#pkX').onclick = dlgClose; b.querySelector('#pkBuy').onclick = () => buyPack(p, type);
@@ -598,8 +597,8 @@ function buyPack(p, type){
 }
 /* tear the pack open, then the cards turn over one at a time, best last */
 function packReveal(p, got, done, again){
-  const b = dlg(`<div class="k-eyebrow">${esc(p.name)}</div><div class="opener" id="opn" style="--pc:${p.col}"><button type="button" class="foil big shake" id="opnPack" aria-label="Open the pack"><img alt="" src="art/${p.art || PACK_ART[p.id]}.webp"><b>${got.length}<small>cards</small></b></button></div>
-    <p class="note" id="opnLine">Tap the pack to tear it open.</p><div class="k-row" id="opnRow"></div>`, {lock:true});
+  const b = dlg(`<div class="k-eyebrow">${esc(p.name)}</div><div class="opener" id="opn" style="--pc:${p.col}"><button type="button" class="foil big shake" id="opnPack" aria-label="Open the chest"><img alt="" src="${chestPic(p)}"><b>${got.length}<small>cards</small></b></button></div>
+    <p class="note" id="opnLine">Tap the chest to open it.</p><div class="k-row" id="opnRow"></div>`, {lock:true});
   const stage = b.querySelector('#opn'), line = b.querySelector('#opnLine'), row = b.querySelector('#opnRow'), fast = BDB.reduced || Q.get('fast');
   const finish2 = () => {
     const fresh2 = got.filter(g => g.tag === 'New').length;
@@ -642,7 +641,7 @@ function signIn(p){
 function takeGifts(){ let n = 0; for (const g of giftsFor(P.name)) if (!P.flags[g.id]){ P.flags[g.id] = 1; P.coins += g.coins || 0; n += g.coins || 0; } if (n) save(); return n; }
 function giftHello(n){
   if (!n) return false;
-  const b = dlg(`<div class="k-eyebrow">A present</div><h3>${fmt(n)} coins, ${esc(P.name)}</h3><div class="bigcoin"><span class="coin"></span>+${fmt(n)}</div><p>From the owner of the game. They are in your account now. Packs and ready-made decks are in the Market.</p>
+  const b = dlg(`<div class="k-eyebrow">A present</div><h3>${fmt(n)} coins, ${esc(P.name)}</h3><div class="bigcoin"><span class="coin"></span>+${fmt(n)}</div><p>From the owner of the game. They are in your account now. Chests and ready-made decks are in the Market.</p>
     <div class="k-row"><button type="button" class="k-btn primary" id="gfShop">Go to the Market</button><button type="button" class="k-btn" id="gfX">Close</button></div>`);
   b.querySelector('#gfX').onclick = dlgClose; b.querySelector('#gfShop').onclick = () => { dlgClose(); tab('Market'); };
   BDB.sfx.big(); return true;
@@ -666,8 +665,8 @@ function whatsNew(){
   P.flags.told = 1; P.flags.bal1 = 1; save();
   const b = dlg(`<div class="k-eyebrow">Big update</div><h3>Welcome back, ${esc(P.name)}</h3>
     <p>The game has been rebuilt around your save. Your cards came across as their new versions, and any character that left the game was paid out at 150 coins.</p>
-    <ul class="abil"><li>Every character now has one rarity and one of twelve types. Stack a type in your deck and it fights harder.</li><li>The ladder is 1,000 levels, with packs, cards and tower upgrades along the way.</li>
-    <li>The Market sells card packs and ${THEME_DECKS.length} ready-made decks.</li><li>Mana comes in faster every two minutes of a match: x1.5, x2, x2.5, then triple for the last two.</li></ul>
+    <ul class="abil"><li>Every character now has one rarity and one of twelve types. Stack a type in your deck and it fights harder.</li><li>The ladder is 1,000 levels, with chests, cards and tower upgrades along the way.</li>
+    <li>The Market sells chests of cards and ${THEME_DECKS.length} ready-made decks.</li><li>Mana comes in faster every two minutes of a match: x1.5, x2, x2.5, then triple for the last two.</li></ul>
     <div class="k-row"><button type="button" class="k-btn primary" id="wnOk">Show me</button></div>`);
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
   return true;
@@ -682,7 +681,7 @@ function rulesNote(){
     <li>Flyers pay for their wings with less health, damage and speed. Nothing with a sword can reach them, and they had been winning far too much.</li>
     <li>A card level adds ${Math.round(LVL_STEP * 100)}% now, not 8%. Every two levels a card changes colour: bronze, silver, gold, diamond.</li>
     <li>${OWN ? 'Decks are limited to 7 Rare, 5 Epic, 3 Legendary and 1 God. Not yours: this account has no limits.' : `A deck holds at most ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and 1 God.${short ? ' A deck of yours was over that and has lost cards: fill it back up on the Deck tab.' : ''}`}</li>
-    <li>New on the Battle tab: a daily reward, a win streak that pays extra coins, a pack for every ten towers you take, and a way to skip to the tier boss.</li>
+    <li>New on the Battle tab: a daily reward, a win streak that pays extra coins, a chest for every ten towers you take, and a way to skip to the tier boss.</li>
     <li>BDB plays quicker at the bottom of the ladder and saves up for proper pushes at the top.</li></ul>
     <div class="k-row"><button type="button" class="k-btn primary" id="rnOk">Got it</button></div>`);
   b.querySelector('#rnOk').onclick = dlgClose;
@@ -760,7 +759,7 @@ function onboard(){
         <select class="field" id="obK" aria-label="Kind"><option value="">Any kind</option><option value="unit">Troops</option><option value="build">Buildings</option><option value="spell">Spells</option><option value="trap">Traps</option></select></div>
       <div class="grid priced" id="obPool"></div><p class="err" id="obErr"></p>
       <div class="k-row"><button type="button" class="k-btn" id="onBack">Back</button><button type="button" class="k-btn primary big" id="onDone">Start playing</button></div>
-      <p class="note">Epic and Legendary cards come from packs, the ladder and the Market once you are in.</p>`;
+      <p class="note">Epic and Legendary cards come from chests, the ladder and the Market once you are in.</p>`;
     const say = t => { $('obErr').textContent = t; if (t) BDB.sfx.bad(); };
     const draw = () => {
       const left = START_COINS - spent(), dk = $('obDeck'), pl = $('obPool'), bases = new Set([hero, ...picks].map(id => CARDS[id].base));
@@ -797,7 +796,7 @@ function onboard(){
     draw();
   };
   const step4 = () => {
-    box.innerHTML = `<div class="k-eyebrow">You are in</div><h2>${P.coins ? `${fmt(P.coins)} coins left over` : 'Every coin spent'}</h2><p class="note" style="max-width:540px;margin:0 auto 6px">Win on the ladder for coins, packs and BDB's own cards. Spend coins in the Market on packs, ready-made decks and upgrades. There are ${fmt(CARD_IDS.length)} cards to collect.</p>
+    box.innerHTML = `<div class="k-eyebrow">You are in</div><h2>${P.coins ? `${fmt(P.coins)} coins left over` : 'Every coin spent'}</h2><p class="note" style="max-width:540px;margin:0 auto 6px">Win on the ladder for coins, chests and BDB's own cards. Spend coins in the Market on chests, ready-made decks and upgrades. There are ${fmt(CARD_IDS.length)} cards to collect.</p>
       <div class="bigcoin"><span class="coin"></span>${fmt(P.coins)}</div>
       <div class="k-row"><button type="button" class="k-btn primary big" id="onFight">Fight level 1</button><button type="button" class="k-btn big" id="onShop">See the Market</button></div>`;
     const done = t => { P.onboarded = true; save(); show('scrHub'); tab(t); hallStart(); const gift = takeGifts(); return ownerHello() || giftHello(gift); };
@@ -1202,7 +1201,7 @@ function finish(w, cr, why){
   const theirN = crowns[1 - B.team] | 0, crownRow = n => Array.from({length:3}, (_, i) => `<span class="${i < n ? 'on' : ''}${i === n - 1 ? ' now' : ''}" style="--i:${i}"><i></i>${win ? `<b>x${CROWN_PAY[i + 1]}</b>` : ''}</span>`).join('');
   const rw = [`<div class="rw"><div class="rw-pic"><span class="coin"></span></div><b>+${fmt(coins)}</b><small>Coins</small></div>`]
     .concat(got.map((g, i) => `<div class="rw cardz" data-i="${i}"><div class="rw-pic"></div><b>${esc(CARDS[g.id].name)}</b><small>${esc(g.tag === 'New' ? 'New card' : g.tag)}</small></div>`))
-    .concat(pack ? [`<div class="rw"><div class="rw-pic"><div class="foil" style="--pc:${pack.col}"><img alt="" src="art/${PACK_ART[pack.id]}.webp"></div></div><b>${esc(pack.name)}</b><small>${pack.n} cards inside</small></div>`] : [])
+    .concat(pack ? [`<div class="rw"><div class="rw-pic"><div class="foil" style="--pc:${pack.col}"><img alt="" src="${chestPic(pack)}"></div></div><b>${esc(pack.name)}</b><small>${pack.n} cards inside</small></div>`] : [])
     .concat(tokens ? [`<div class="rw"><div class="rw-pic"><span class="tokbig"></span></div><b>+${tokens}</b><small>Upgrade ${tokens > 1 ? 'tokens' : 'token'}</small></div>`] : []);
   const b = dlg(`<div class="res ${win ? 'win' : draw ? 'draw' : 'loss'}">
     <div class="res-top"><div class="res-crowns${win ? ' paid' : ''}" aria-hidden="true">${crownRow(mine)}</div><h3>${title}</h3>

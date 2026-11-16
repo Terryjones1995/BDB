@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115x';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1115y';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
