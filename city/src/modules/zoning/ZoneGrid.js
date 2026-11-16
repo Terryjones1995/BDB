@@ -267,7 +267,14 @@ export class ZoneGrid {
     const q = c.corners;
     if (this._occ) {
       if (this._occupied(c.x, c.z)) { st.blockedRoad++; return true; }
-      const S = 0.93;
+      // How far in from each edge the cell is probed. The road raster is stamped 0.6 m wider than the
+      // road, and `_occupied` can flag a point anywhere inside that margin when it falls badly on the
+      // 1 m lattice. At 0.93 the probes on the kerb edge sat 0.28 m into the cell, so inside the margin
+      // of the cell's OWN road: along a street that is not lined up with the lattice roughly one probe
+      // in three was flagged, each one deleting a whole frontage column, and off-axis streets grew
+      // towns with most of their lots missing. At 0.83 the probes are 0.68 m in, clear of the margin,
+      // so a cell is only ever blocked by a road it really overlaps.
+      const S = 0.83;
       for (let e = 0; e < 4; e++) {
         const ax = q[e * 2], az = q[e * 2 + 1];
         const bx = q[((e + 1) % 4) * 2], bz = q[((e + 1) % 4) * 2 + 1];
