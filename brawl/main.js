@@ -1,11 +1,11 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115v';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115v';
-import { createAI } from './ai.js?v=1115v';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115v';
-import { Cloud, cloudWhy } from './cloud.js?v=1115v';
-import { sayFor, sayWhen } from './talk.js?v=1115v';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus } from './cards.js?v=1115w';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115w';
+import { createAI } from './ai.js?v=1115w';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115w';
+import { Cloud, cloudWhy } from './cloud.js?v=1115w';
+import { sayFor, sayWhen } from './talk.js?v=1115w';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -70,7 +70,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115v'), import('./models.js?v=1115v')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115w'), import('./models.js?v=1115w')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -1182,12 +1182,12 @@ function finish(w, cr, why){
   } else {
     const n = B.coop | 0, O = TEAM_ODDS[n];
     if (n){ lines.push(win ? `You and ${B.mate || 'your friend'} beat ${NUM[n].toLowerCase()} BDBs.` : draw ? 'Nobody blinked.' : `${NUM[n]} BDBs were too many this time.`);
-      pay = payout(win ? 120 : draw ? 50 : 30, mine, {...up, label:win ? `${n === 3 ? '2 v 3' : '2 v 2'} won` : draw ? 'A draw' : 'Showing up', pay:O.pay, payLabel:'Outnumbered, 2 v 3'}); }
+      pay = payout(win ? B.base || 120 : draw ? 50 : 30, mine, {...up, label:win ? `${n === 3 ? '2 v 3' : '2 v 2'} won, ${teamSkName(B.skill)}` : draw ? 'A draw' : 'Showing up', pay:O.pay, payLabel:'Outnumbered, 2 v 3'}); }
     else {
       if (win){ P.trophies += 30; P.stats.ow++; lines.push('+30 trophies.'); } else if (!draw){ P.trophies = Math.max(0, P.trophies - 20); P.stats.ol++; lines.push('-20 trophies.'); }
       pay = payout(win ? 150 : draw ? 50 : 25, mine, {...up, label:win ? 'Online win' : draw ? 'A draw' : 'Showing up'});
     }
-    endOnline();
+    if (OL) OL.again = {me:false, them:false};      // the room stays open on the result screen, so either player can ask for another one
   }
   // every tower taken also counts towards the bounty pack
   if (mine > 0){ P.bounty = Math.min(999, P.bounty + mine); lines.push(P.bounty >= BOUNTY ? `Tower bounty full: a ${PACK[bountyPack()].name} is waiting on the Battle tab.` : `Tower bounty ${P.bounty} of ${BOUNTY}.`); }
@@ -1211,9 +1211,14 @@ function finish(w, cr, why){
     <div class="res-loot">${rw.join('')}</div>
     <dl class="res-sum">${pay.rows.map(r => `<div><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join('')}<div class="tot"><dt>Coins</dt><dd>+${fmt(coins)}</dd></div></dl>
     ${lines.length || tokens ? `<p class="note">${lines.map(esc).join(' ')}${tokens ? ' Spend tokens on tower and Mana upgrades in your Profile.' : ''}</p>` : ''}
-    <div class="res-btns">${pack ? `<button type="button" class="k-btn primary big" id="rsPack">Open the ${esc(pack.name)}</button>` : wasCpu ? `<button type="button" class="k-btn primary big" id="rsAgain">${c.rand ? 'Another one' : nextUp ? 'Next level' : 'Rematch'}</button>` : ''}<button type="button" class="k-btn${wasCpu || pack ? '' : ' primary big'}" id="rsBack">Back to menu</button></div></div>`, {lock:true});
+    ${!wasCpu && OL && OL.host && B.coop ? `<div class="res-team" id="rsTeam"><span>Next match</span><div class="k-seg">${TEAM_SK.map(([k, nm]) => `<button type="button" data-sk="${k}" aria-pressed="${k === OL.skill}">${esc(nm)}</button>`).join('')}</div><div class="k-seg">${[2, 3].map(k => `<button type="button" data-co="${k}" aria-pressed="${k === OL.coop}">2 v ${k}${k === 3 ? ', x2' : ''}</button>`).join('')}</div></div>` : ''}
+    <p class="note" id="rsNote2" hidden></p>
+    <div class="res-btns">${pack ? `<button type="button" class="k-btn primary big" id="rsPack">Open the ${esc(pack.name)}</button>` : wasCpu ? `<button type="button" class="k-btn primary big" id="rsAgain">${c.rand ? 'Another one' : nextUp ? 'Next level' : 'Rematch'}</button>` : `<button type="button" class="k-btn primary big" id="rsAgain2">Play again</button>`}<button type="button" class="k-btn" id="rsBack">Back to menu</button></div></div>`, {lock:true});
   for (const el of b.querySelectorAll('.rw.cardz')){ const g = got[+el.dataset.i], cd = cardEl(g.id, {lvl:g.lvl, now:true}); cd.onclick = () => sheet(g.id); el.querySelector('.rw-pic').appendChild(cd); }
-  const leave = () => { dlgClose(); stopBattle(); show('scrHub'); hub(); };
+  const leave = () => { if (!wasCpu){ if (room && OL && OL.opp) room.send('bye', {}, OL.opp); endOnline(); } dlgClose(); stopBattle(); show('scrHub'); hub(); };
+  const a2 = b.querySelector('#rsAgain2'), tm = b.querySelector('#rsTeam');
+  if (a2){ a2.onclick = playAgain; againUI(); }
+  if (tm) tm.onclick = e => { const q = e.target.closest('button'); if (!q || !OL || q.disabled) return; if (q.dataset.sk) OL.skill = q.dataset.sk; else if (q.dataset.co) OL.coop = +q.dataset.co; for (const o of q.parentNode.children) o.setAttribute('aria-pressed', o === q); BDB.sfx.tick(); };
   const again = () => { leave(); preCpu(c.rand ? randomCpu(c.skill, myTower()) : ladderCpu(nextUp ? c.level + 1 : c.level), odds); };      // the same odds as last time, until you change them
   b.querySelector('#rsBack').onclick = leave;
   const ra = b.querySelector('#rsAgain'), rp = b.querySelector('#rsPack');
@@ -1243,21 +1248,48 @@ $('olQuick').onclick = async () => {
     else if (t === 'ok' && OL.pending === from && d.c === OL.code) enterMatch(OL.code, true);
   });
 };
+/* Teaming up: how good the BDBs are (the host's place on the ladder, or one of the quick-battle levels) and how many of them there are. */
+const TEAM_SK = [['ladder', 'Ladder'], ...SKILLS.map(k => [k.id, k.name])];
+const teamBase = sk => { const k = SKILLS.find(q => q.id === sk); return k ? k.coins : Math.max(120, levelPrize(Math.max(1, P.ladder)).coins); };
+const teamSkName = sk => { const k = SKILLS.find(q => q.id === sk); return k ? k.name : 'Ladder'; };
+function teamOpts(sk = 'ladder'){
+  return `<div class="tm"><span class="k-label">Team up against BDBs</span>
+    <div class="k-seg tm-sk" role="group" aria-label="How good the BDBs are">${TEAM_SK.map(([k, n]) => `<button type="button" data-sk="${k}" aria-pressed="${k === sk}">${esc(n)}</button>`).join('')}</div>
+    <p class="note tm-note"></p>
+    <div class="k-row"><button type="button" class="k-btn primary" data-co="2">2 v 2</button><button type="button" class="k-btn primary" data-co="3">2 v 3, coins x2</button></div></div>`;
+}
+/* wires a block made by teamOpts: go(n, skill) is called with the number of BDBs and the level picked */
+function teamBind(root, go){
+  const seg = root.querySelector('.tm-sk'), note = root.querySelector('.tm-note'), cur = () => seg.querySelector('[aria-pressed="true"]').dataset.sk;
+  const say = () => { const sk = cur(), k = SKILLS.find(q => q.id === sk); note.textContent = k ? `${k.name}: decks dealt at random, a win pays ${fmt(k.coins)} coins before towers.` : `BDBs from your place on the ladder, a win pays ${fmt(teamBase('ladder'))} coins before towers.`; };
+  seg.onclick = e => { const q = e.target.closest('button[data-sk]'); if (!q) return; for (const o of seg.children) o.setAttribute('aria-pressed', o === q); BDB.sfx.tick(); say(); };
+  for (const q of root.querySelectorAll('button[data-co]')) q.onclick = () => go(+q.dataset.co, cur());
+  say(); return cur;
+}
+/* the BDBs a pair is up against. Ladder: from the host's place on it, scouting the two decks the way a ladder BDB does (cards and towers within two levels of the pair's).
+   A quick-battle level: decks dealt at random, cards that many levels above or below the pair's. */
+function teamCpus(n, sk, team){
+  if (SKILLS.some(q => q.id === sk)){ const lead = randomCpu(sk, team); return [lead, ...backupCpus(lead, n, team)]; }
+  const lead = ladderCpu(Math.max(1, P.ladder));
+  return [lead, ...backupCpus(lead, n)].map(c => ({...c, lvl:Math.min(MAX_LVL, Math.max(lead.lvl, team - CPU_GAP)), tower:Math.max(lead.tower, team - CPU_GAP), soft:team > lead.lvl + 1 ? 1 : lead.soft}));
+}
 $('olFriend').onclick = () => {
   if (noDeck()) return;
-  const b = dlg(`<div class="k-eyebrow">Online</div><h3>Play a friend</h3><p>Start a match and send your friend the code, or type in the code they sent you. Team up and you share a side against two BDBs, or against three for double the coins.</p>
-    <div class="k-row"><button type="button" class="k-btn primary" id="frNew">Start 1v1</button><button type="button" class="k-btn primary" id="frCo">Team up, 2 v 2</button><button type="button" class="k-btn primary" id="frCo3">Team up, 2 v 3</button></div>
-    <div class="rowx" style="width:100%"><input class="field" id="frCode" maxlength="12" placeholder="Friend's code" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="k-btn" id="frJoin">Join</button></div><div class="err" id="frErr"></div>
+  const b = dlg(`<div class="k-eyebrow">Online</div><h3>Play a friend</h3><p>Start a match and send your friend the code, or type in the code they sent you.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" id="frNew">Start a 1 v 1</button></div>
+    ${teamOpts()}
+    <span class="k-label">Or join theirs</span>
+    <div class="rowx" style="width:100%;margin-top:0"><input class="field" id="frCode" maxlength="12" placeholder="Friend's code" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" class="k-btn" id="frJoin">Join</button></div><div class="err" id="frErr"></div>
     <div class="k-row"><button type="button" class="k-btn" id="frX">Close</button></div>`);
   b.querySelector('#frX').onclick = dlgClose;
-  const startFr = async coop => {
+  const startFr = async (coop, sk) => {
     const code = rid(5), url = location.origin + location.pathname + '?join=' + code;
     const w = waitBox('Waiting for your friend', 'Send them this code, or the link.', `<div class="codebox">${code.toUpperCase()}</div><div class="k-row"><button type="button" class="k-btn" id="frCopy">Copy link</button></div>`);
     w.querySelector('#frCopy').onclick = async () => { try { await navigator.clipboard.writeText(url); w.querySelector('#frCopy').textContent = 'Copied'; } catch(e){ prompt('Copy this link', url); } };
     try { await netUp(); } catch(e){ return netFail(); }
-    if (!$('dlg').hidden) enterMatch(code, true, true, coop);
+    if (!$('dlg').hidden) enterMatch(code, true, true, coop, sk);
   };
-  b.querySelector('#frNew').onclick = () => startFr(0); b.querySelector('#frCo').onclick = () => startFr(2); b.querySelector('#frCo3').onclick = () => startFr(3);
+  b.querySelector('#frNew').onclick = () => startFr(0); teamBind(b, (n, sk) => startFr(n, sk));
   b.querySelector('#frJoin').onclick = () => { const c = b.querySelector('#frCode').value.trim().toLowerCase(); if (!okCode(c)){ b.querySelector('#frErr').textContent = 'That code does not look right.'; return; } joinFriend(c); };
 };
 async function joinFriend(code){
@@ -1269,34 +1301,32 @@ async function joinFriend(code){
   OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('Nobody there', 'No match was found with that code. Ask your friend to start a new one.'); } }, 30000);
 }
 function okDeck(d){ return Array.isArray(d) && d.every(c => c && typeof c.id === 'string') && !deckProblem(d.map(c => c.id), false) && d.every(c => Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL); }
-function enterMatch(code, host, keepBox, coop){
+function enterMatch(code, host, keepBox, coop, skill){
   if (lobby){ clearInterval(OL && OL.iv); const l = lobby; lobby = null; setTimeout(() => { try { l.leave(); } catch(e){} }, 300); }
   if (OL) clearTimeout(OL.pt);
-  OL = {state:'wait', code, host, opp:null, coop:coop === true ? 2 : [2, 3].includes(coop) ? coop : 0};      // coop: how many BDBs the two of you are up against, 0 for a duel
+  // coop: how many BDBs the two of you are up against, 0 for a duel. skill: how good they are. od, tw, mate: the other player's deck, tower level and name, kept for a rematch
+  OL = {state:'wait', code, host, opp:null, coop:coop === true ? 2 : [2, 3].includes(coop) ? coop : 0, skill:skill || 'ladder', od:null, tw:1, mate:'', again:{me:false, them:false}};
   room = net.join('brawl2-m-' + code);
   if (!keepBox){ const t = $('olText'); if (t) t.textContent = 'Found someone. Setting up the match.'; }
   const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower()}, to);
   room.onJoin(id => hi(id)); hi(); OL.hiIv = setInterval(() => { if (OL && !OL.opp) hi(); }, 1500);
-  room.onLeave(id => { if (OL && id === OL.opp) oppLeft(); });
+  room.onLeave(id => { if (OL && id === OL.opp){ OL.gone = true; oppLeft(); } });      // gone for good, as opposed to quitting a match and staying for the result
   room.onMessage((t, d, from) => {
     if (!OL || !d || typeof d !== 'object') return;
     if (t === 'hi'){
       if (!OL.host || OL.opp || !okDeck(d.d)) return;
       OL.opp = from; clearInterval(OL.hiIv);
-      const map = pick(MAP_IDS), name = clean(d.n, 20) || 'Player', od = d.d.map(c => ({id:c.id, lvl:c.lvl})), tw = Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1;
-      // teamed up, the BDBs come from the host's place on the ladder and scout the two decks in front of them the way a ladder BDB does: cards and towers within two levels of the pair's
-      const team = Math.round((myTower() + tw) / 2), lead = OL.coop ? ladderCpu(Math.max(1, P.ladder)) : null;
-      const cpus = lead ? [lead, ...backupCpus(lead, OL.coop)].map(c => ({...c, lvl:Math.min(MAX_LVL, Math.max(lead.lvl, team - CPU_GAP)), tower:Math.max(lead.tower, team - CPU_GAP), soft:team > lead.lvl + 1 ? 1 : lead.soft})) : null;
-      const units = unitsOf([...curDeck(), ...od.map(c => c.id), ...(cpus ? cpus.flatMap(c => c.deck) : [])]);
-      room.send('go', {map, n:P.name, co:OL.coop, uk:units}, from); dlgClose();
-      begin({mode:'host', map, coop:OL.coop, cpus, teamTower:team, mate:name, oppName:OL.coop ? NUM[OL.coop] + ' BDBs' : name, oppDeck:od, oppTower:tw, units});
+      OL.mate = clean(d.n, 20) || 'Player'; OL.od = d.d.map(c => ({id:c.id, lvl:c.lvl})); OL.tw = Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1;
+      dlgClose(); hostStart();
     } else if (t === 'go'){
-      if (OL.host || OL.opp || !MAPS[d.map]) return;
-      OL.opp = from; clearInterval(OL.hiIv); clearTimeout(OL.to); dlgClose();
+      const again = OL.opp === from && B && B.done;                           // the host started another one from the result screen
+      if (OL.host || (OL.opp && !again) || !MAPS[d.map]) return;
+      OL.opp = from; clearInterval(OL.hiIv); clearTimeout(OL.to); dlgClose(); if (again) stopBattle();
       const uk = Array.isArray(d.uk) ? d.uk.filter(k => typeof k === 'string' && Object.hasOwn(UNITS, k)).slice(0, 260) : [];
-      const co = d.co === 3 ? 3 : d.co ? 2 : 0;
-      begin({mode:'guest', map:d.map, coop:co, mate:clean(d.n, 20) || 'Player', oppName:co ? NUM[co] + ' BDBs' : clean(d.n, 20) || 'Player', units:[...new Set([...uk, ...unitsOf(curDeck())])]});
+      const co = d.co === 3 ? 3 : d.co ? 2 : 0; OL.coop = co; OL.skill = TEAM_SK.some(q => q[0] === d.sk) ? d.sk : 'ladder'; OL.mate = clean(d.n, 20) || 'Player'; OL.again = {me:false, them:false};
+      begin({mode:'guest', map:d.map, coop:co, skill:OL.skill, base:clamp(d.pb | 0, 30, 5000), mate:OL.mate, oppName:co ? NUM[co] + ' BDBs' : OL.mate, units:[...new Set([...uk, ...unitsOf(curDeck())])]});
     } else if (from !== OL.opp || !B) return;
+    else if (t === 'ag'){ if (!B.done) return; OL.again.them = !!d.on; if (OL.host && d.on && OL.again.me) hostStart(); else againUI(); }      // they want another one
     else if (t === 'rd'){ if (B.mode === 'host' && B.rdRes) B.rdRes(); }
     else if (t === 's' && B.mode === 'guest') snap(d);
     else if (t === 'p' && B.mode === 'host'){ const s = d.slot, h = B.sim.players[1].hand; if (B.run && B.sim && Number.isInteger(s) && s >= 0 && s < HAND && h[s] && h[s].id === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.play(1, s, d.x, d.z); }
@@ -1305,6 +1335,29 @@ function enterMatch(code, host, keepBox, coop){
     else if (t === 'pz' && B.mode === 'guest'){ B.pz = d.on ? {by:d.by === 1 ? 1 : 0, left:Math.max(0, Math.min(3600, +d.left || 0)), ask:[0, 1, 2].includes(d.ask) ? d.ask : 0} : null; if (!B.pz) $('wait').hidden = true; pzUI(); }
     else if (t === 'bye') oppLeft();
   });
+}
+/* the host sets a match up and tells the other player: the first one, and every one after it from the result screen */
+function hostStart(){
+  if (!OL || !OL.host || !OL.opp || !OL.od || !room) return;
+  if (B){ dlgClose(); stopBattle(); }
+  OL.again = {me:false, them:false};
+  const map = pick(MAP_IDS), team = Math.round((myTower() + OL.tw) / 2), cpus = OL.coop ? teamCpus(OL.coop, OL.skill, team) : null, base = OL.coop ? teamBase(OL.skill) : 150;
+  const units = unitsOf([...curDeck(), ...OL.od.map(c => c.id), ...(cpus ? cpus.flatMap(c => c.deck) : [])]);
+  room.send('go', {map, n:P.name, co:OL.coop, sk:OL.skill, pb:base, uk:units}, OL.opp);
+  begin({mode:'host', map, coop:OL.coop, skill:OL.skill, base, cpus, teamTower:team, mate:OL.mate, oppName:OL.coop ? NUM[OL.coop] + ' BDBs' : OL.mate, oppDeck:OL.od, oppTower:OL.tw, units});
+}
+/* the result screen of an online match: who wants another one */
+function againUI(){
+  const b = $('rsAgain2'), n = $('rsNote2'); if (!b || !n || !B) return;
+  const gone = !OL || !OL.opp || OL.gone, who = (B.mate || B.oppName || 'They');
+  b.disabled = gone || OL.again.me; b.textContent = gone ? 'Play again' : OL.again.me ? `Waiting for ${who}` : OL.again.them ? `Play again: ${who} is in` : 'Play again';
+  n.textContent = gone ? `${who} has left.` : OL.again.them && !OL.again.me ? `${who} wants another one.` : ''; n.hidden = !n.textContent;
+  for (const q of document.querySelectorAll('#rsTeam button')) q.disabled = gone || OL.again.me;
+}
+function playAgain(){
+  if (!OL || !OL.opp || OL.gone || !room || !B || !B.done) return;
+  OL.again.me = true; room.send('ag', {on:1}, OL.opp);
+  if (OL.host && OL.again.them) hostStart(); else againUI();
 }
 function snap(d){
   const s = d.s; if (!s || !Array.isArray(s.e) || !Array.isArray(s.h) || !B || B.done || typeof s.n !== 'string') return;
@@ -1315,7 +1368,8 @@ function snap(d){
 }
 const STANDIN = {react:1.3, hold:6.5, derp:.04, smart:.75, el:1};      // who plays a teammate's cards once they have gone
 function oppLeft(){
-  if (!B || B.done) return;
+  if (B && B.done){ endOnline(); againUI(); return; }      // they left from the result screen: no rematch to be had
+  if (!B) return;
   if (B.coop && B.mode === 'host' && B.sim && B.run && !B.sim.over){      // your teammate dropped out: a stand-in takes their hand and the match goes on
     B.ais.push(createAI(B.sim, 0, STANDIN, Math.random, 1)); endOnline(); note(`${B.mate || 'Your teammate'} left. A stand-in has their cards.`); return;
   }
@@ -1362,31 +1416,39 @@ function renderHall(){
 $('hall').onclick = e => {
   const q = e.target.closest('button[data-k]'); if (!q || B) return; const to = q.parentNode.dataset.n;
   if (q.dataset.k !== 'coop') return sendInvite(to, q.dataset.k);
-  const b = dlg(`<div class="k-eyebrow">Team up</div><h3>You and ${esc(to)}</h3><p>You share a side against BDBs from your place on the ladder. Three of them is a handicap match: it pays double.</p>
-    <div class="k-row"><button type="button" class="k-btn primary" data-n="2">2 v 2</button><button type="button" class="k-btn primary" data-n="3">2 v 3, coins x2</button><button type="button" class="k-btn" id="tuX">Cancel</button></div>`);
+  if (noDeck()) return;
+  const b = dlg(`<div class="k-eyebrow">Team up</div><h3>You and ${esc(to)}</h3><p>You share a side. Three BDBs is a handicap match: it pays double.</p>${teamOpts()}<div class="k-row"><button type="button" class="k-btn" id="tuX">Cancel</button></div>`);
   b.querySelector('#tuX').onclick = dlgClose;
-  for (const k of b.querySelectorAll('button[data-n]')) k.onclick = () => { dlgClose(); sendInvite(to, 'coop', +k.dataset.n); };
+  teamBind(b, (n, sk) => { dlgClose(); sendInvite(to, 'coop', n, sk); });
 };
-async function sendInvite(to, kind, n = 2){
+async function sendInvite(to, kind, n = 2, sk = 'ladder'){
   if (kind !== 'trade' && noDeck()) return;
   const code = rid(6);
   if (kind === 'trade') openTrade(code, to);
-  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? `Asking them to team up against ${NUM[n].toLowerCase()} BDBs. They have a minute to answer.` : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop' ? n : 0); OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
-  try { const r = await Cloud.invite(to, kind, code); if (!r || r.error) throw 0; } catch(e){ if (kind === 'trade') closeTrade(); else { endOnline(); dlgClose(); } msgBox('Could not send', 'The invite did not go through. Try again.'); }
+  else { waitBox(`Waiting for ${to}`, kind === 'coop' ? `Asking them to team up against ${NUM[n].toLowerCase()} BDBs. They have a minute to answer.` : 'Asking them for a 1v1. They have a minute to answer.'); try { await netUp(); } catch(e){ return netFail(); } if ($('dlg').hidden) return; enterMatch(code, true, true, kind === 'coop' ? n : 0, sk); OL.to = setTimeout(() => { if (OL && !OL.opp){ endOnline(); msgBox('No answer', `${to} did not pick up. Try again in a bit.`); } }, 70000); }
+  try { const r = await Cloud.invite(to, kind, code); if (!r || r.error) throw new Error(r && r.error ? String(r.error) : 'no answer'); }
+  catch(e){ if (kind === 'trade') closeTrade(); else { endOnline(); dlgClose(); } msgBox('Could not send', `The invite did not go through (${e && e.kind ? cloudWhy(e) : String(e && e.message || e).slice(0, 80)}). Try again.`); }
 }
+/* An invite that arrives while you are reading something else waits its turn (for most of the minute the other side waits). In a match or a trade it lapses. */
+let heldInv = null;
 function gotInvite(iv){
   const what = {duel:'wants a 1v1', coop:'wants to team up against BDBs', trade:'wants to trade cards'}[iv.kind], from = clean(iv.from, 20);
   if (!what || !okCode(iv.code) || !from) return;
-  if (B || TR || !$('dlg').hidden || $('scrHub').hidden){ Cloud.inviteDone(iv.id); return; }        // busy: it lapses
+  if (B || TR){ Cloud.inviteDone(iv.id); return; }
+  if (!$('dlg').hidden || $('scrHub').hidden){ heldInv = {iv, at:Date.now()}; return; }
   const b = dlg(`<div class="k-eyebrow">Invite</div><h3>${esc(from)}</h3><p>${what}.</p><div class="k-row"><button type="button" class="k-btn primary" id="ivY">Accept</button><button type="button" class="k-btn" id="ivN">Not now</button></div>`, {lock:true});
   BDB.sfx.big();
   b.querySelector('#ivY').onclick = () => { Cloud.inviteDone(iv.id); dlgClose(); if (iv.kind === 'trade') openTrade(iv.code, from); else joinFriend(iv.code); };
   b.querySelector('#ivN').onclick = () => { Cloud.inviteDone(iv.id); dlgClose(); };
 }
+setInterval(() => {
+  if (!heldInv) return; const h = heldInv;
+  if (B || TR || Date.now() - h.at > 50000){ heldInv = null; Cloud.inviteDone(h.iv.id); }
+  else if (P && $('dlg').hidden && !$('scrHub').hidden){ heldInv = null; gotInvite(h.iv); }
+}, 1000);
 
-/* ---------- trading: each side offers spare cards and coins, both lock, both confirm ---------- */
+/* ---------- trading: each side offers cards and coins, both lock, both confirm ---------- */
 let TR = null;
-const spare = () => { const used = new Set(P.decks.flat()); return Object.keys(P.cards).filter(id => !used.has(id)); };
 async function openTrade(code, name){
   TR = {code, name, opp:null, mine:{cards:[], coins:0, lock:false}, theirs:{cards:[], coins:0, lock:false}, okMine:false, okTheirs:false, done:false};
   drawTrade();
@@ -1404,21 +1466,23 @@ async function openTrade(code, name){
       const cs = Array.isArray(d.cards) ? d.cards.filter(c => c && CARDS[c.id] && Number.isInteger(c.lvl) && c.lvl >= 1 && c.lvl <= MAX_LVL).slice(0, 5).map(c => ({id:c.id, lvl:c.lvl})) : [], coins = Math.max(0, Math.min(1e6, d.coins | 0));
       if (JSON.stringify(cs) !== JSON.stringify(TR.theirs.cards) || coins !== TR.theirs.coins){ TR.okMine = TR.okTheirs = false; if (TR.mine.lock){ TR.mine.lock = false; sendOffer(); } }      // their offer changed: nothing is agreed any more
       TR.theirs = {cards:cs, coins, lock:!!d.lock}; drawTrade();
-    } else if (t === 'tc'){ if (TR.mine.lock && TR.theirs.lock){ TR.okTheirs = true; finishTrade(); drawTrade(); } }
+    } else if (t === 'tc'){ if (TR.mine.lock && TR.theirs.lock && !TR.okTheirs){ TR.okTheirs = true; finishTrade(); drawTrade(); } }
     else if (t === 'tx') closeTrade(`${TR.name} called it off.`);
   });
 }
 function sendOffer(){ if (TR && TR.opp) TR.room.send('to', {cards:TR.mine.cards.map(id => ({id, lvl:lvl(id)})), coins:TR.mine.coins, lock:TR.mine.lock}, TR.opp); }
 function changed(){ TR.mine.lock = false; TR.okMine = TR.okTheirs = false; sendOffer(); drawTrade(); }
-function closeTrade(msg){ const t = TR; TR = null; if (t){ clearInterval(t.iv); clearTimeout(t.to); if (t.room){ if (t.opp && !t.done) t.room.send('tx', {}, t.opp); setTimeout(() => { try { t.room.leave(); } catch(e){} }, 400); } } dlgClose(); if (msg) msgBox('Trade', msg); hub(); }
+function closeTrade(msg){ const t = TR; TR = null; if (t){ clearInterval(t.iv); clearTimeout(t.to); if (t.room){ if (t.opp && !t.done) t.room.send('tx', {}, t.opp); setTimeout(() => { try { t.room.leave(); } catch(e){} }, t.done ? 3500 : 400); } } dlgClose(); if (msg) msgBox('Trade', msg); hub(); }
+const sayOk = () => { const t = TR; if (!t || !t.opp) return; const go = () => { try { t.room.send('tc', {}, t.opp); } catch(e){} }; go(); setTimeout(go, 500); setTimeout(go, 1500); };
 function finishTrade(){
   if (!TR || TR.done || !TR.okMine || !TR.okTheirs) return;
   TR.done = true;
   for (const id of TR.mine.cards) delete P.cards[id];
   for (const c of TR.theirs.cards) P.cards[c.id] = Math.max(lvl(c.id), c.lvl);
+  const short = []; P.decks = P.decks.map((d, i) => { const k = d.filter(id => P.cards[id]); if (k.length < d.length) short.push(i + 1); return k; });      // a card that was traded away leaves every deck it was in
   P.coins += TR.theirs.coins - TR.mine.coins; P.stats.tr = (P.stats.tr || 0) + 1; save(); BDB.sfx.big();
   const got = TR.theirs.cards.map(c => CARDS[c.id].name).concat(TR.theirs.coins ? [fmt(TR.theirs.coins) + ' coins'] : []).join(', ') || 'nothing';
-  closeTrade(`Done. You got ${got} from ${TR.name}.`);
+  closeTrade(`Done. You got ${got} from ${TR.name}.${short.length ? ` Deck ${short.join(' and ')} lost a card in the trade: top ${short.length > 1 ? 'them' : 'it'} up on the Deck tab.` : ''}`);
 }
 function drawTrade(){
   if (!TR) return;
@@ -1426,19 +1490,19 @@ function drawTrade(){
   const b = dlg(`<div class="k-eyebrow">Trade</div><h3>You and ${esc(TR.name)}</h3>
     <div class="trade"><div><span class="k-label">You give</span><div class="tg" id="tMine"></div><label class="tcoin"><span class="coin"></span><input class="field" id="tCoins" type="number" min="0" max="${P.coins}" value="${me.coins}" ${linked ? '' : 'disabled'}></label></div>
       <div><span class="k-label">You get</span><div class="tg" id="tTheirs"></div><div class="tcoin"><span class="coin"></span><b>${fmt(th.coins)}</b>${th.lock ? '<em>Locked</em>' : ''}</div></div></div>
-    <p class="note" id="tMsg">${!linked ? `Waiting for ${esc(TR.name)} to join.` : TR.okMine ? `Waiting for ${esc(TR.name)} to confirm.` : both ? 'Both offers are locked. Confirm to make the swap.' : me.lock ? `Your offer is locked. Waiting for ${esc(TR.name)} to lock theirs.` : 'Tap spare cards to add them, set any coins, then lock your offer.'}</p>
-    <span class="k-label">Your spare cards (not in a deck)</span><div class="grid tpool" id="tPool"></div>
+    <p class="note" id="tMsg">${!linked ? `Waiting for ${esc(TR.name)} to join. They have a minute to answer.` : TR.okMine ? `Waiting for ${esc(TR.name)} to confirm.` : both ? 'Both offers are locked. Confirm to make the swap.' : me.lock ? `Your offer is locked. Waiting for ${esc(TR.name)} to lock theirs.` : 'Tap up to five of your cards to offer them, set any coins, then lock your offer.'}</p>
+    <span class="k-label">Your cards</span><p class="note" style="margin:0">Spare ones first. A card marked In deck can go too: the deck it leaves is a card short until you top it up.</p><div class="grid tpool" id="tPool"></div>
     <div class="k-row"><button type="button" class="k-btn ${me.lock ? '' : 'primary'}" id="tLock" ${linked && !TR.okMine ? '' : 'disabled'}>${me.lock ? 'Unlock' : 'Lock my offer'}</button><button type="button" class="k-btn primary" id="tOk" ${both && !TR.okMine ? '' : 'disabled'}>Confirm trade</button><button type="button" class="k-btn ghost" id="tX">Cancel</button></div>`, {lock:true});
   const mineEl = b.querySelector('#tMine'), thEl = b.querySelector('#tTheirs'), pool = b.querySelector('#tPool');
   for (const id of me.cards){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => { if (TR.okMine) return; me.cards = me.cards.filter(x => x !== id); changed(); }; mineEl.appendChild(c); }
   for (const c of th.cards) thEl.appendChild(cardEl(c.id, {div:true, lvl:c.lvl}));
   if (!me.cards.length) mineEl.innerHTML = '<p class="note">Nothing yet.</p>'; if (!th.cards.length) thEl.innerHTML = '<p class="note">Nothing yet.</p>';
-  const sp = spare().filter(id => !me.cards.includes(id)).sort((a, c) => CARDS[c].price - CARDS[a].price).slice(0, 40);
-  for (const id of sp){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => { if (!linked || TR.okMine || me.cards.length >= 5) return; me.cards.push(id); changed(); }; pool.appendChild(c); }
-  if (!sp.length) pool.innerHTML = '<p class="note">No spare cards. Cards in any of your three decks cannot be traded.</p>';
+  const used = new Set(P.decks.flat()), sp = Object.keys(P.cards).filter(id => !me.cards.includes(id)).sort((a, c) => used.has(a) - used.has(c) || CARDS[c].price - CARDS[a].price).slice(0, 120);
+  for (const id of sp){ const c = cardEl(id, {lvl:lvl(id), cls:used.has(id) ? 'inuse' : ''}); c.onclick = () => { if (!linked || TR.okMine) return; if (me.cards.length >= 5){ BDB.sfx.bad(); return; } me.cards.push(id); changed(); }; pool.appendChild(c); }
+  if (!sp.length) pool.innerHTML = '<p class="note">You have no cards left to offer.</p>';
   b.querySelector('#tCoins').onchange = e => { me.coins = Math.max(0, Math.min(P.coins, Math.round(+e.target.value || 0))); changed(); };
   b.querySelector('#tLock').onclick = () => { me.lock = !me.lock; TR.okMine = TR.okTheirs = false; sendOffer(); drawTrade(); };
-  b.querySelector('#tOk').onclick = () => { if (!(me.lock && th.lock)) return; TR.okMine = true; TR.room.send('tc', {}, TR.opp); finishTrade(); drawTrade(); };
+  b.querySelector('#tOk').onclick = () => { if (!(me.lock && th.lock)) return; TR.okMine = true; sayOk(); finishTrade(); drawTrade(); };
   b.querySelector('#tX').onclick = () => closeTrade();
 }
 

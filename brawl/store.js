@@ -1,7 +1,7 @@
 /* Break Room Brawl: player accounts.
    A player is a named save on this device (localStorage), with a save code to carry it to another device, and an online copy when they have an account (cloud.js).
    Everything that reads a save goes through sanitize(), so a bad or old save can never break the game: it is repaired or brought up to date instead. */
-import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, RAR_CAP, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115v';
+import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, RAR_CAP, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1115w';
 
 const KEY = 'brawl-accounts-v2';
 function sum(s){ let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
@@ -13,7 +13,7 @@ const OWNERS = ['1vpdqid'];
 export const isOwner = name => OWNERS.includes(sum(id(name)));
 /* Presents from the owner: a one-off for a named account, again known by the fingerprint of its name. Handed over once, the next time that account signs in.
    id is the flag that marks it as taken (letters and digits, twelve at most). */
-const GIFTS = {'1jqxccf':[{id:'g1', coins:150000}]};
+const GIFTS = {'1jqxccf':[{id:'g1', coins:150000}], '1i58gqb':[{id:'g1', coins:150000}]};
 export const giftsFor = name => GIFTS[sum(id(name))] || [];
 
 function read(){ try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && typeof d.list === 'object') return d; } catch(e){} return {last:null, list:{}}; }
