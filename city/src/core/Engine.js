@@ -369,6 +369,12 @@ export class Engine {
     this.smaaPass.enabled = !!q.smaa;
     this.composer.addPass(this.smaaPass);
     this.postEnabled = true;
+    /**
+     * While true the frame loop still ticks every module but draws nothing. The loading screen
+     * covers the canvas for the whole of boot, so drawing the half-built world behind it only cost
+     * time: each frame, and a blocking shader compile every time a module added a new material.
+     */
+    this.renderPaused = false;
     this.post = {
       /** Depth attachment of renderTarget1 only. NOTE: EffectComposer renders the RenderPass into
        *  its *clone* (readBuffer), so this texture is NOT the scene depth on most frames.
@@ -663,6 +669,32 @@ export class Engine {
     });
   }
 
+  /**
+   * Compile every program the scene needs before the first frame is drawn, without blocking the
+   * page: the driver compiles in parallel (KHR_parallel_shader_compile) while this only polls.
+   * The render target matters. Programs are keyed on tone mapping and output colour space, both of
+   * which depend on where the frame is going; the scene is drawn into the composer's buffer, so a
+   * warm-up against the screen compiles a whole set of variants that are never used.
+   * Never rejects and never waits longer than `timeoutMs`: a warm-up is an optimisation only.
+   */
+  async warmUp(timeoutMs = 25000) {
+    const r = this.renderer;
+    if (typeof r.compileAsync !== 'function') return false;
+    const prev = r.getRenderTarget();
+    let done = false;
+    try {
+      this.camera.updateMatrixWorld();
+      r.setRenderTarget(this.postEnabled && this.composer ? this.composer.readBuffer : null);
+      const compiling = r.compileAsync(this.scene, this.camera).then(() => { done = true; });
+      r.setRenderTarget(prev);
+      await Promise.race([compiling, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    } catch (err) {
+      console.warn('[engine] shader warm-up failed', err);
+      try { r.setRenderTarget(prev); } catch (_) { /* nothing to restore */ }
+    }
+    return done;
+  }
+
   start() {
     if (this._running) return;
     this._running = true;
@@ -699,11 +731,13 @@ export class Engine {
     if (this._materialsDirty || this.frame % 180 === 0) this._scanMaterials();
     this._refreshEnvSpec();
 
-    try {
-      if (this.postEnabled) this.composer.render(dt);
-      else this.renderer.render(this.scene, this.camera);
-    } catch (err) {
-      this._reportError('render', err);
+    if (!this.renderPaused) {
+      try {
+        if (this.postEnabled) this.composer.render(dt);
+        else this.renderer.render(this.scene, this.camera);
+      } catch (err) {
+        this._reportError('render', err);
+      }
     }
 
     for (const cb of this._afterRenderCallbacks) {

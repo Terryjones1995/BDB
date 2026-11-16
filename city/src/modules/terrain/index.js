@@ -13,6 +13,7 @@ import { TerrainChunks } from './TerrainChunks.js';
 import { Water } from './Water.js';
 import { Vegetation } from './Vegetation.js';
 import { clamp, smoothstep, lerp } from '../../shared/math.js';
+import { packEdits, unpackEdits } from './edits.js';
 
 export const name = 'terrain';
 
@@ -34,6 +35,8 @@ export async function init(ctx) {
 
   // --- heightmap & shared ground rules ---
   const hm = new Heightmap({ size: world.size, spacing: 2, seed: world.seed }).generate();
+  // the ground exactly as generated, kept so a save can store only what has been changed since (edits.js)
+  const pristine = hm.data.slice();
   const half = hm.half;
   const ground = makeGroundControl(hm, world.seed);
   const { controlAt, forestMask } = ground;
@@ -117,7 +120,19 @@ export async function init(ctx) {
   engine.registerMaterial(material);
   engine.registerMaterial(horizonMaterial);
   const tC = performance.now();
-  const chunks = new TerrainChunks({ heightmap: hm, material, horizonMaterial, controlAt, chunkSize: 256, lodDistances: [125, 420, 1000], castShadow: true, horizon: true });
+  // What the terrain costs depends on who is paying. Measured in the starter town at Medium, the
+  // terrain was two thirds of every frame's triangles: the two horizon rings alone are about
+  // 490,000, and because every hilly chunk cast shadows, much of it was drawn again in each shadow
+  // cascade. Built-in graphics get closer level-of-detail rings, no terrain shadows (buildings and
+  // trees still shade the ground) and, on Low, a horizon at half the density.
+  const tier = q.name === 'low' ? { lod: 0.7, horizon: 0.5, shadows: false }
+    : q.name === 'medium' ? { lod: 0.85, horizon: 1, shadows: false }
+    : { lod: 1, horizon: 1, shadows: true };
+  const chunks = new TerrainChunks({
+    heightmap: hm, material, horizonMaterial, controlAt, chunkSize: 256,
+    lodDistances: [125, 420, 1000].map((d) => Math.round(d * tier.lod)),
+    castShadow: tier.shadows, horizon: true, horizonDetail: tier.horizon,
+  });
   scene.add(chunks.group);
   timing.chunks = Math.round(performance.now() - tC);
 
@@ -243,6 +258,24 @@ export async function init(ctx) {
       pushDirty(hm.conformDisc(x, z, r, y, falloff), x - r - falloff, z - r - falloff, x + r + falloff, z + r + falloff);
       vegetation.clearCircle(x, z, r + 1.5);
     },
+    /**
+     * Saving: every heightmap sample that no longer matches the generated ground, packed.
+     * → `{ bytes: Uint8Array, count }`. See edits.js for the format.
+     */
+    exportEdits: () => packEdits(hm, pristine),
+    /**
+     * Loading: put saved samples back. The changed tiles are queued like any other edit, so the
+     * mesh, the normals, the water and the trees all follow. → number of samples restored.
+     */
+    importEdits: (bytes) => {
+      if (!bytes || !bytes.length) return 0;
+      const { count, tiles } = unpackEdits(hm, bytes);
+      const sp = hm.spacing, h = hm.half;
+      for (const t of tiles) pushDirty(t, -h + t.i0 * sp, -h + t.j0 * sp, -h + t.i1 * sp, -h + t.j1 * sp);
+      return count;
+    },
+    /** How many edits are still waiting to be meshed (0 = the ground on screen is the ground in memory). */
+    pendingEdits: () => S.dirty.length,
     /** Remove trees/undergrowth inside a rect, circle, oriented rect or along a polyline (corridor width). */
     clearVegetation: (x0, z0, x1, z1) => vegetation.clearRect(x0, z0, x1, z1),
     clearVegetationRect: (x0, z0, x1, z1) => vegetation.clearRect(x0, z0, x1, z1),
@@ -304,11 +337,11 @@ export async function init(ctx) {
     terrain.api.setInfoTint(on);
   });
 
-  // first LOD pass so the very first frame is correct, then pre-compile the programs (avoids a
-  // multi-hundred-ms hitch on the first frame that shows terrain, water and the six tree kinds)
+  // first LOD pass so the very first frame is correct. Programs are compiled once, for the whole
+  // scene, at the end of boot (Engine.warmUp): a compile here targeted the screen, and so built
+  // variants the composer never draws with.
   chunks.update(camera);
   vegetation.update(camera, 0, 0, world.env);
-  try { engine.renderer.compile(scene, camera); } catch (e) { /* compile is an optimisation only */ }
   events.emit('terrain:ready', terrain);
   timing.total = Math.round(performance.now() - t0);
   if (ctx.config.debug) console.log('[terrain] ready', terrain.api.stats());

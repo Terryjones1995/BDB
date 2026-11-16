@@ -195,7 +195,11 @@ export class ServicesModel {
     // terrace the whole lot (building + lawn + kerb) if the terrain module offers it: the pad then
     // sits flush on level ground and the visuals need no retaining wall
     const tapi = world.terrain.api;
-    if (tapi) {
+    if (opts.groundIsFinal) {
+      // loading a save: the pad is already level in the saved ground; levelling it again would
+      // push its blend a little further out on every load
+      rec.flattened = true;
+    } else if (tapi) {
       try {
         const yaw = rec.yaw, c = Math.abs(Math.cos(yaw)), s = Math.abs(Math.sin(yaw));
         const hw = (def.w + 15) / 2, hd = (def.d + 15) / 2;
@@ -216,6 +220,29 @@ export class ServicesModel {
     this._rasterise(def.id);
     this._bump('service:added', rec);
     return rec;
+  }
+
+  /** Saving: [type, x, z, yaw, name, builtDay, efficiency] per service building. */
+  exportState() {
+    return this.list.map((r) => [r.type, Math.round(r.x * 100) / 100, Math.round(r.z * 100) / 100, r.yaw || 0, r.name, r.builtDay || 0, r.efficiency == null ? 1 : r.efficiency]);
+  }
+
+  /**
+   * Loading: set every saved service down again, free and silent. Roads and buildings are not
+   * checked: the spot was legal when it was built, and the plots around it may not be back yet.
+   * → number restored.
+   */
+  restoreState(rows, groundIsFinal = false) {
+    let n = 0;
+    for (const row of rows || []) {
+      const [type, x, z, yaw, name, builtDay, efficiency] = row;
+      const rec = this.place(type, x, z, { free: true, silent: true, yaw: yaw || 0, name: name || undefined, ignoreRoads: true, ignoreBuildings: true, groundIsFinal });
+      if (!rec) continue;
+      rec.builtDay = builtDay || 0;
+      if (Number.isFinite(efficiency)) rec.efficiency = efficiency;
+      n++;
+    }
+    return n;
   }
 
   remove(id) {

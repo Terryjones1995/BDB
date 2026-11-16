@@ -215,6 +215,13 @@ function detailParts(e) {
   return e.detail;
 }
 
+/**
+ * While a save is being loaded the ground is already the ground that was saved, every plot
+ * levelled. Levelling again would not be a no-op: the blend around each plot would creep a
+ * little further out on every load. So during a load the plot is only measured.
+ */
+let groundIsFinal = false;
+
 function flattenLot(lot, y) {
   const t = ctxRef.world.terrain;
   if (!t || !t.api || typeof t.api.flattenRect !== 'function') return false;
@@ -230,6 +237,7 @@ function flattenLot(lot, y) {
   if (Math.abs(fx) > Math.abs(fz)) { if (fx > 0) x1 -= inset; else x0 += inset; } else { if (fz > 0) z1 -= inset; else z0 += inset; }
   x0 += 0.6; x1 -= 0.6; z0 += 0.6; z1 -= 0.6;
   if (x1 - x0 < 4 || z1 - z0 < 4) return false;
+  if (groundIsFinal) return true;                    // it was levelled when it was first built
   try { t.api.flattenRect(x0, z0, x1, z1, y, 3); return true; } catch (err) { return false; }
 }
 
@@ -275,7 +283,9 @@ function spawn(lot, opts = {}) {
   if (lot.buildingId != null && entries.has(lot.buildingId)) return entries.get(lot.buildingId).b;
   const type = TYPES.includes(lot.type) ? lot.type : 'res-low';
   const id = nextId++;
-  const seed = Number.isFinite(opts.seed) ? opts.seed | 0 : hash2(baseSeed, id);
+  // `>>> 0`, not `| 0`: seeds are unsigned, and a saved one above 2^31 would come back negative and
+  // roll a different building
+  const seed = Number.isFinite(opts.seed) ? opts.seed >>> 0 : hash2(baseSeed, id);
   const level = Math.max(1, Math.min(5, Math.round(opts.level || 1)));
   const site = siteLevel(lot);
   const state = opts.state === 'construction' || (opts.state == null && opts.built !== true) ? 'construction' : 'built';
@@ -318,6 +328,63 @@ function remove(id) {
   bump();
   emit('building:removed', e.b);
   return true;
+}
+
+// ------------------------------------------------------------------------------------------------
+// saving and loading
+
+/**
+ * One row per building: [id, lotKey, type, level, seed, state, progress, age, builtAt, x, z].
+ * A building is tied to its lot by the lot's geometric key (ZoneGrid._makeLot): lot ids are handed
+ * out afresh on every load, the key is not.
+ */
+function exportState() {
+  const list = [];
+  for (const e of entries.values()) {
+    const b = e.b;
+    list.push([b.id, e.lot ? e.lot.key || null : null, b.type, b.level, b.seed, b.state === 'construction' ? 0 : 1,
+      Math.round(b.progress * 1000) / 1000, Math.round(b.age), b.builtAt, Math.round(b.x * 100) / 100, Math.round(b.z * 100) / 100]);
+  }
+  return { list, nextId };
+}
+
+/**
+ * Put saved buildings back on their lots. A lot is found by its key; failing that, by a free lot
+ * of the same type whose centre is within 4 m (a key embeds rounded coordinates, so a centimetre
+ * of drift can change it).
+ * → `{ restored, missing, ids }` where `ids` maps each saved id to the building now standing.
+ */
+function restoreState(state, lots) {
+  const out = { restored: 0, missing: 0, ids: new Map() };
+  const list = state && Array.isArray(state.list) ? state.list : [];
+  const byKey = new Map();
+  for (const l of lots || []) if (l && l.key) byKey.set(l.key, l);
+  groundIsFinal = !!state.groundIsFinal;
+  try {
+  for (const row of list) {
+    const [id, key, type, level, seed, built, progress, age, builtAt, x, z] = row;
+    let lot = key ? byKey.get(key) : null;
+    if (!lot || byLot.has(lot.id) || lot.type !== type) {
+      lot = null;
+      let bestD = 4 * 4;
+      for (const l of lots || []) {
+        if (!l || l.type !== type || byLot.has(l.id)) continue;
+        const d = (l.x - x) * (l.x - x) + (l.z - z) * (l.z - z);
+        if (d < bestD) { bestD = d; lot = l; }
+      }
+    }
+    if (!lot) { out.missing++; continue; }
+    const b = spawn(lot, { seed, level, state: built ? 'built' : 'construction', progress });
+    if (!b) { out.missing++; continue; }
+    b.age = age || 0;
+    if (built) b.builtAt = builtAt != null ? builtAt : 0;
+    out.ids.set(id, b);
+    out.restored++;
+  }
+  } finally { groundIsFinal = false; }
+  if (Number.isFinite(state.nextId) && state.nextId > nextId) nextId = state.nextId;
+  refreshDetail(true);
+  return out;
 }
 
 function setLevel(id, level) {
@@ -445,9 +512,8 @@ function fastForward(gameSeconds) {
   bulk = true;
   try { advance(Math.min(gameSeconds, 400 * DAY)); } finally { bulk = false; }
   refreshDetail(true);
-  // Warm up the programs for every pool that a whole city just created, so the first frames the
-  // player (or a screenshot) sees are not one long shader-compile stall.
-  try { ctxRef.renderer.compile(ctxRef.scene, ctxRef.camera); } catch (err) { /* non-fatal */ }
+  // No shader warm-up here: it ran synchronously on every call and compiled the screen variants,
+  // which the composer does not draw with. Boot warms the whole scene once (Engine.warmUp).
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -612,6 +678,8 @@ export async function init(ctx) {
     spawn,
     remove,
     fastForward,
+    exportState,
+    restoreState,
     get: (id) => (entries.has(id) ? entries.get(id).b : null),
     at: buildingAt,
     levelUp: (id) => { const e = entries.get(id); return e ? setLevel(id, e.b.level + 1) : null; },

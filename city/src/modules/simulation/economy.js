@@ -114,6 +114,50 @@ export class Economy {
     e.period = 'week'; // income / expenses / net are per game week (§4)
   }
 
+  /**
+   * Saving: what the economy knows that is not in `world.economy` — who lives and works in each
+   * building, and where the running week stands. `occ` rows are [buildingId, occ, households, age
+   * in hours]; the age matters because a home only counts towards vacancy once it has settled.
+   */
+  exportState() {
+    const occ = [];
+    for (const [id, st] of this._occ) occ.push([id, Math.round(st.occ * 100) / 100, st.hh || 0, Math.max(0, this.hourCount - (st.since || 0))]);
+    return {
+      occ, hourCount: this.hourCount, minuteInHour: this._minuteInHour, hourlyNet: this._hourlyNet,
+      weekKey: this._weekKey, weekStart: this._weekStart, period: this._period,
+      lastReport: this._lastReport, prevReport: this._prevReport,
+      demandTarget: this._demandTarget, happinessTarget: this._happinessTarget, newCityBonus: this._newCityBonus,
+    };
+  }
+
+  /** Loading. `ids` maps a saved building id to the building standing now (buildings.restoreState). */
+  importState(state, ids) {
+    if (!state) return;
+    this._occ.clear();
+    this.hourCount = Number.isFinite(state.hourCount) ? state.hourCount : 0;
+    for (const [id, occ, hh, age] of state.occ || []) {
+      const b = ids && ids.get(id);
+      const cls = b ? zoneClass(b.type) : null;
+      if (!b || !cls) continue;
+      // covVersion -1 makes the next hour work out service cover for this building afresh
+      this._occ.set(b.id, { occ: +occ || 0, hh: +hh || 0, homes: 0, cls, cap: 0, cov: new Float32Array(SERVICE_IDS.length), covVersion: -1, seen: this.hourCount, since: this.hourCount - (+age || 0), x: b.x, z: b.z });
+    }
+    this._minuteInHour = state.minuteInHour | 0;
+    this._hourlyNet = +state.hourlyNet || 0;
+    this._weekKey = state.weekKey != null ? state.weekKey : null;
+    this._weekStart = state.weekStart || null;
+    this._period = state.period ? { ...this._emptyPeriod(), ...state.period } : this._emptyPeriod();
+    this._lastReport = state.lastReport || null;
+    this._prevReport = state.prevReport || null;
+    if (state.demandTarget) this._demandTarget = { ...state.demandTarget };
+    if (Number.isFinite(state.happinessTarget)) this._happinessTarget = state.happinessTarget;
+    if (Number.isFinite(state.newCityBonus)) this._newCityBonus = state.newCityBonus;
+    // every building and service is new to this session: do not let the version check skip the first sync
+    this._lastBuildingsVersion = -1;
+    this._lastServicesVersion = -1;
+    this.recomputeRates();
+  }
+
   _emptyPeriod() {
     return { income: 0, expenses: 0, taxes: { residential: 0, commercial: 0, industrial: 0, office: 0 }, services: 0, roads: 0, admin: 0, hours: 0 };
   }

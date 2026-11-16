@@ -9,6 +9,9 @@ import { buildSegmentPieces, buildJunctionPieces, layoutFor } from './RoadMesher
 
 const TILE = 256;
 const CAST_SHADOW = new Set(['barrier', 'barrier_base', 'guardrail', 'curb', 'granite']);
+// A 15 cm kerb throws a shadow nobody can see from a city-builder camera, but it is most of the road
+// geometry that gets drawn again in every shadow cascade. Low and Medium leave these out.
+const FINE_SHADOW = new Set(['curb', 'granite']);
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _s = new THREE.Vector3();
@@ -24,6 +27,7 @@ export class RoadRenderer {
     this.network = network;
     this.materials = materials;
     this.quality = ctx.engine.quality.density;
+    this.cheapShadows = ctx.engine.quality.name === 'low' || ctx.engine.quality.name === 'medium';
     this.group = new THREE.Group();
     this.group.name = 'roads';
     ctx.scene.add(this.group);
@@ -136,7 +140,7 @@ export class RoadRenderer {
         mesh = new THREE.Mesh(geo, this.materials.get(mat));
         mesh.name = 'roads/' + mat;
         mesh.receiveShadow = true;
-        mesh.castShadow = CAST_SHADOW.has(mat);
+        mesh.castShadow = CAST_SHADOW.has(mat) && !(this.cheapShadows && FINE_SHADOW.has(mat));
         mesh.matrixAutoUpdate = false;
         // large static geometry shows up in planar water reflections; the fading skirt is kept out of the
         // GTAO pre-pass (it would leave an AO halo along the fade) — the main camera renders that layer too
@@ -187,14 +191,15 @@ export class RoadRenderer {
       const g = 0.80 + 0.40 * h;
       mesh.setColorAt(i, _c.setRGB(g * (1 + 0.05 * h2), g, g * (1 - 0.10 * h2)));
     };
-    this.lamps = this._syncInstanced(this.lamps, M.lampGeometry.street, [M.lampMetal, M.lampGlow], lamps, 'roads/lamps', placeLamp);
-    this.masts = this._syncInstanced(this.masts, M.lampGeometry.mast, [M.lampMetal, M.mastGlow], masts, 'roads/masts', placeLamp);
+    // lamp posts are thin: their shadows are the first thing to go (street trees keep theirs)
+    this.lamps = this._syncInstanced(this.lamps, M.lampGeometry.street, [M.lampMetal, M.lampGlow], lamps, 'roads/lamps', placeLamp, !this.cheapShadows);
+    this.masts = this._syncInstanced(this.masts, M.lampGeometry.mast, [M.lampMetal, M.mastGlow], masts, 'roads/masts', placeLamp, !this.cheapShadows);
     this.stats.trees = trees.length;
     this.stats.posts = posts.length;
     this.stats.lamps = lamps.length + masts.length;
   }
 
-  _syncInstanced(mesh, geometry, material, items, name, fill) {
+  _syncInstanced(mesh, geometry, material, items, name, fill, castShadow = true) {
     if (!items.length) {
       if (mesh) { this.group.remove(mesh); mesh.dispose(); }
       return null;
@@ -204,7 +209,7 @@ export class RoadRenderer {
       const cap = Math.ceil(items.length * 1.25) + 16;
       mesh = new THREE.InstancedMesh(geometry, material, cap);
       mesh.name = name;
-      mesh.castShadow = true;
+      mesh.castShadow = castShadow;
       mesh.receiveShadow = true;
       mesh.layers.enable(this.engine.LAYER_REFLECTED);
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);

@@ -41,6 +41,57 @@ export const api = {
   setTax(type, rate) { return economy.setTax(type, rate); },
   getTax(type) { return ctx.world.economy.taxRate[type]; },
 
+  // ---- saving and loading -------------------------------------------------------------------
+  /**
+   * Everything the simulation needs to carry on where it stopped: the city's books and mood
+   * (`world`), who lives and works where (`economy`), the milestones already awarded, the clock,
+   * and the service buildings.
+   */
+  exportState() {
+    const w = ctx.world, t = w.time;
+    let books = {};
+    try { books = JSON.parse(JSON.stringify(w.economy)); } catch (_) { books = { money: w.economy.money, cityName: w.economy.cityName, taxRate: { ...w.economy.taxRate } }; }
+    return {
+      world: books,
+      economy: economy.exportState(),
+      milestones: { index: milestones.index, reached: milestones.reached.slice(), hour: milestones.hour, hadResidents: !!milestones._hadResidents },
+      time: { hour: t.hour, minute: t.minute, day: t.day, weekday: t.weekday, month: t.month, year: t.year, totalDays: t.totalDays, elapsedGameSeconds: t.elapsedGameSeconds || 0 },
+      services: services.exportState(),
+    };
+  },
+  /** Loading, step 1: the service buildings. Done before the plots are filled, as when they were built. */
+  restoreServices(rows, groundIsFinal = false) { return services.restoreState(rows, groundIsFinal); },
+  /**
+   * Loading, step 2: books, mood, residents, milestones and the clock. `ids` maps a saved building
+   * id to the building standing now (buildings.restoreState).
+   */
+  importState(state, ids) {
+    if (!state) return false;
+    const w = ctx.world, e = w.economy;
+    for (const [k, v] of Object.entries(state.world || {})) {
+      if (v == null) continue;
+      // nested tables are filled in place: other modules hold on to these objects
+      if (typeof v === 'object' && !Array.isArray(v) && e[k] && typeof e[k] === 'object' && !Array.isArray(e[k])) Object.assign(e[k], v);
+      else e[k] = v;
+    }
+    economy.importState(state.economy, ids);
+    const m = state.milestones;
+    if (m) {
+      milestones.index = Number.isFinite(m.index) ? m.index : -1;
+      milestones.reached = Array.isArray(m.reached) ? m.reached.slice() : [];
+      milestones.hour = m.hour | 0;
+      milestones._hadResidents = !!m.hadResidents;
+      if (typeof milestones._update === 'function') milestones._update();
+    }
+    if (state.time) {
+      Object.assign(w.time, state.time);
+      clock.resetPending();
+      ctx.events.emit('time:set', w.time.hour);
+    }
+    ctx.events.emit('economy:changed', e);
+    return true;
+  },
+
   /** Step the simulation by whole game minutes (deterministic, no rendering involved). */
   tick(minutes = 1) {
     const n = Math.max(0, Math.floor(minutes));

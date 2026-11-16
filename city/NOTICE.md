@@ -30,6 +30,19 @@ Upstream snapshot: commit `aea8b1035030952555395de0c1de14ba693a1427` (2026-09-03
   road, which deleted most building lots along any street not lined up with the map grid. The
   probe distance changed from 0.93 to 0.83; the demo city grew from 523 lots to 862 on the same
   map. Details in `PLAN.md`.
+- **Hardware guess and automatic resolution.** Plain "Intel Graphics" now maps to Low. Below Low
+  the performance guard lowers the drawing resolution in two steps. A pixel-ratio change is now
+  passed to the EffectComposer, which upstream left at its old size.
+- **Cheaper frames on Low and Medium.** No terrain, kerb or lamp-post shadows; closer terrain
+  detail rings; on Low a horizon at half density.
+- **Loading.** The scene is not drawn while the loading screen covers it, shaders are compiled
+  once at the end against the render target the composer actually uses (upstream's two warm-ups
+  compiled screen variants that were never drawn with), and the city builders run their long
+  steps in slices and report progress.
+- **Roads and the ground.** Each road stamps its own surface a second time after all corridor
+  blends, so a neighbouring road's blend cannot leave ground on it.
+- **Sound.** Bird calls are a sixth of the level and a third as frequent.
+- **Rescue.** `src/rescue.js` can be loaded into an open tab to write the running city to a file.
 - **Naming.** Working title, a link back to All games, and `New Charleston` as the default city name.
 
 `THIRD-PARTY-NOTICES.md` is upstream's file, kept as it came. One line in it no longer applies

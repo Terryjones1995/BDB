@@ -99,6 +99,18 @@ export class ZoneGrid {
           // A single 8 m cell can never hold a lot (2×2 minimum) — the land belongs to whichever road
           // won the corner. Dropping those slivers squares the block off instead of fringing it.
           if (run < 2) run = 0;
+          // Loading a save: take the depth each column had when it was saved. Which cells survive
+          // depends on the slope of the ground at the moment the grid is built, and that moment is
+          // different on a load: the plots have all been levelled by then, when the city grew they
+          // had not. A different set of cells means different plots, and buildings with no plot.
+          if (this._pinned) {
+            const saved = this._pinned.get(fr.seg + '|' + fr.side);
+            const want = saved && i < saved.length ? saved.charCodeAt(i) - 48 : -1;
+            if (want >= 0 && want <= DEPTH) {
+              run = 0;
+              while (run < want && fr.cells[i * DEPTH + run]) { const c = fr.cells[i * DEPTH + run]; c.blocked = false; c.dropped = false; run++; }
+            }
+          }
           for (let k = 0; k < DEPTH; k++) {
             const j = i * DEPTH + k;
             const c = fr.cells[j];
@@ -462,6 +474,44 @@ export class ZoneGrid {
     }
     if (changed.length) this.rebuildLots();
     return changed;
+  }
+
+  /**
+   * Saving: the paint as plain data. `ids` names each zone index used, so a save still reads
+   * correctly if the table of zone types is reordered later; `cells` is cx, cz, index, repeated.
+   */
+  exportPaint() {
+    this.ensure();
+    const ids = ZONE_BY_INDEX.map((z) => (z ? z.id : null));
+    const cells = [];
+    for (const [key, ti] of this.paint) {
+      const cx = key % 65536, cz = (key - cx) / 65536;
+      cells.push(cx, cz, ti);
+    }
+    // how deep each frontage column runs, one digit per column, per side of each road
+    const depths = [];
+    for (const fr of this.frames) {
+      let s = '';
+      for (let i = 0; i < fr.count; i++) { let d = 0; while (d < DEPTH && fr.cells[i * DEPTH + d]) d++; s += d; }
+      depths.push([fr.seg, fr.side, s]);
+    }
+    return { ids, cells, depths };
+  }
+
+  /** Loading: replace the paint. Cells and lots are rebuilt from it. → number of cells painted. */
+  importPaint(data) {
+    this.paint.clear();
+    const cells = data && Array.isArray(data.cells) ? data.cells : [];
+    const ids = data && Array.isArray(data.ids) ? data.ids : [];
+    for (let i = 0; i + 2 < cells.length; i += 3) {
+      const ti = ids.length ? zoneIndexOf(ids[cells[i + 2]]) : cells[i + 2];
+      if (ti > 0) this.paint.set(this.key(cells[i] | 0, cells[i + 1] | 0), ti);
+    }
+    this.buckets = new Map();          // nothing to inherit paint from: the saved cells are the truth
+    this._pinned = data && Array.isArray(data.depths) ? new Map(data.depths.map(([seg, side, s]) => [seg + '|' + side, String(s)])) : null;
+    this.dirty = true;
+    try { this.rebuild(); } finally { this._pinned = null; }
+    return this.paint.size;
   }
 
   paintRect(x0, z0, x1, z1, type) {
