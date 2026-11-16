@@ -727,6 +727,33 @@ export const PERKS = {
   coin: {name:'Signing Bonus',  max:10, per:.06, text:r => `Wins pay ${Math.round(r * 6)}% more coins.`}
 };
 export const PERK_IDS = Object.keys(PERKS);
+/* Three jobs a day: an easy one, a middling one and a hard one. k: what counts towards it. pay: coins at the bottom of the ladder (it rises half as much again with every tier). */
+export const JOBS = {
+  play:  {tier:0, k:'play',   need:25, pay:100, text:'Play 25 cards'},
+  spell: {tier:0, k:'spell',  need:6,  pay:100, text:'Cast 6 spells'},
+  chest: {tier:0, k:'chest',  need:1,  pay:100, text:'Open a chest'},
+  up:    {tier:0, k:'up',     need:2,  pay:120, text:'Upgrade 2 cards'},
+  win2:  {tier:1, k:'win',    need:2,  pay:200, text:'Win 2 matches'},
+  tow4:  {tier:1, k:'tower',  need:4,  pay:200, text:'Take 4 towers'},
+  lad2:  {tier:1, k:'ladder', need:2,  pay:220, text:'Clear 2 new ladder levels'},
+  quick: {tier:1, k:'quick',  need:1,  pay:220, text:'Win a quick battle on Medium or harder'},
+  win4:  {tier:2, k:'win',    need:4,  pay:400, text:'Win 4 matches'},
+  odds:  {tier:2, k:'odds',   need:1,  pay:350, text:'Beat two or three BDBs on your own'},
+  king:  {tier:2, k:'king',   need:1,  pay:350, text:'Win by taking the King Tower'},
+  hard:  {tier:2, k:'hard',   need:1,  pay:400, text:'Win a quick battle on Insane or Legend', vet:1},
+  online:{tier:2, k:'online', need:1,  pay:350, text:'Win a match online', net:1}
+};
+export const JOB_IDS = Object.keys(JOBS);
+/* o.online: has an account, so online jobs can come up. o.cleared: nothing left on the ladder. o.rookie: still in the first tier, so nothing that needs a deck built to beat Insane */
+export function rollJobs(rnd, o = {}){
+  const out = [];
+  for (let t = 0; t < 3; t++){
+    const pool = JOB_IDS.filter(id => { const J = JOBS[id]; return J.tier === t && (!J.net || o.online) && !(J.vet && o.rookie) && !(id === 'lad2' && o.cleared) && !out.some(q => JOBS[q].k === J.k); });
+    out.push(pool[Math.floor(rnd() * pool.length)]);
+  }
+  return out;
+}
+export const jobPay = (id, ladder = 0) => Math.round(JOBS[id].pay * (1 + Math.floor(Math.min(ladder, LEVELS - 1) / 100) * .5) / 10) * 10;
 /* old saves held a card for every rarity of a character and used older names: where each of those went */
 export const OLD_BASE = {skels:'bonecrew', bench:'ironclad', shooters:'longshots', gobs:'orclings', bats:'gloombats', airball:'arrows', slime:'slime', hoop:'cannon', mascot:'mascot', barista:'hexa', golem:'clanker', ref:'nightbolt',
   coffee:'fireball', vending:'crypt', trainer:'tonic', fast:'gorehorn', dragon:'emberwing', ghost:'lostsoul', clockout:'freeze', overtime:'rage', buzzer:'magmaw', witch:'gravewitch', fivestar:'bdb', jumbo:'lich', bell:'bell',

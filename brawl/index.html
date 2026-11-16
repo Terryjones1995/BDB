@@ -454,13 +454,14 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 @media (min-width:900px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)} .bgrid .hero,.bgrid .boons,.bgrid .c3{grid-column:1/-1} .bgrid .c3{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px} .bgrid .c3 .panel{margin:0} }
 @media (min-width:1280px){ .bgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,.8fr)} .bgrid .hero,.bgrid .boons{grid-column:1/3} .bgrid .c3{grid-column:3;grid-row:1/4;display:block} .bgrid .c3 .panel{margin-bottom:16px} }
 /* standing rewards: the daily one, the win streak, the tower bounty */
-.boons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.boons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .boon{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:12px 14px;border-radius:18px;border:3px solid var(--ink2);background:linear-gradient(180deg,#2c6ad6,#1a429e);box-shadow:inset 0 3px 0 rgba(255,255,255,.24),0 5px 0 var(--ink2)}
 .boon.go{background:linear-gradient(180deg,#3c8a3a,#1f5a2a)}
 .boon .ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font:400 24px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);border:3px solid var(--ink2);box-shadow:inset 0 3px 0 rgba(255,255,255,.35)}
 .boon .ic.day{background:linear-gradient(180deg,#ffd23f,#d98a10)}
 .boon .ic.fire{background:linear-gradient(180deg,#ff8a3c,#c9281c)}
 .boon .ic.fire.cold{background:linear-gradient(180deg,#6f83b5,#3a4a78)}
+.boon .ic.job{background:linear-gradient(180deg,#58c8ff,#1f78d6)}
 .boon .ic.pack{background:linear-gradient(180deg,color-mix(in srgb,var(--pc,#c5cede) 82%,#fff),color-mix(in srgb,var(--pc,#c5cede) 60%,#0a1430))}
 .boon b{display:block;font:400 17px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .boon small{display:block;margin-top:3px;font:700 12px/1.35 var(--f-body);color:#d6e4ff}
@@ -468,6 +469,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .boon .pips{display:flex;gap:4px;margin-top:7px}
 .boon .pips i{flex:1;height:6px;border-radius:3px;background:rgba(6,18,58,.6)}
 .boon .pips i.on{background:#ffd23f}
+.boon .pips i.due{background:#7ee06a}
 .boon .bar{height:8px;margin-top:7px;border-radius:4px;background:rgba(6,18,58,.6);overflow:hidden}
 .boon .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#ffd23f,#ff9d3c)}
 @media (max-width:1000px){ .boons{grid-template-columns:1fr} }
@@ -659,6 +661,17 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
   #btTools{left:max(8px,env(safe-area-inset-left))} .crowns{right:max(8px,env(safe-area-inset-right))}
   @media (max-width:860px){ .top-in{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))} }
 }
+/* today's jobs, in their own window */
+.jobs{display:grid;gap:9px;margin:4px 0 12px}
+.job{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 12px;border-radius:14px;border:2.5px solid var(--ink2);background:#0d2764;box-shadow:inset 0 3px 0 rgba(0,0,0,.28);text-align:left}
+.job b{display:block;font:400 16px/1.15 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.job .bar{height:8px;margin:7px 0 5px;border-radius:4px;background:rgba(3,10,36,.7);overflow:hidden}
+.job .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#58c8ff,#7ee06a)}
+.job small{display:block;font:700 12px/1 var(--f-body);color:#cfe1ff}
+.job .pay{display:inline-flex;align-items:center;gap:5px;font:400 17px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);white-space:nowrap}
+.job .k-btn{padding:9px 14px 8px;font-size:16px;white-space:nowrap}
+.job.done{background:linear-gradient(180deg,#2f7d34,#1b5226)}
+.job.got{opacity:.62} .job.got .bar i{background:#ffd23f}
 .hero small .tb{width:26px;height:26px;margin:-8px 5px -7px 0;vertical-align:middle;object-fit:contain;filter:drop-shadow(0 2px 0 rgba(8,18,52,.5))}
 /* tips in a player's first match: a note pinned above the hand */
 .coach{position:absolute;left:50%;bottom:calc(100% + 16px);z-index:8;transform:translateX(-50%);width:min(440px,calc(100vw - 28px));padding:10px 16px 12px;border-radius:16px;border:3px solid var(--ink2);background:linear-gradient(180deg,#fff8e2,#ffe49a);box-shadow:0 5px 0 var(--ink2),0 12px 26px rgba(0,0,0,.35);color:#2b1a04;font:700 14px/1.38 var(--f-body);text-align:center;text-wrap:balance}
@@ -710,7 +723,8 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .node.lock{opacity:.6;cursor:default}
 .node.boss::before{content:"";position:absolute;top:-12px;left:50%;width:28px;height:15px;transform:translateX(-50%);background:#ffd23f;clip-path:polygon(0 100%,0 15%,26% 62%,50% 0,74% 62%,100% 15%,100% 100%);filter:drop-shadow(0 2px 0 var(--ink2))}
 .tiers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px}
-.tier{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:baseline;padding:7px 9px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--ink2);opacity:.55}
+.tier{display:grid;grid-template-columns:auto 1fr auto;gap:4px 7px;align-items:center;padding:7px 9px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--ink2);opacity:.55}
+.tier img{width:22px;height:22px;margin:-3px 0;object-fit:contain}
 .tier b{font:400 14px/1.1 var(--f-game);color:var(--tc);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tier span{font:800 10px/1 var(--f-body);color:#a9c4f5}
 .tier .prog{grid-column:1/-1;height:9px;border-width:1.5px}
@@ -1148,6 +1162,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116b"></script>
+<script type="module" src="main.js?v=1116c"></script>
 </body>
 </html>

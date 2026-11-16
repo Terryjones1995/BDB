@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1116b';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116b';
-import { createAI } from './ai.js?v=1116b';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116b';
-import { Cloud, cloudWhy } from './cloud.js?v=1116b';
-import { sayFor, sayWhen } from './talk.js?v=1116b';
-import { createAudio } from './audio.js?v=1116b';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116c';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116c';
+import { createAI } from './ai.js?v=1116c';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116c';
+import { Cloud, cloudWhy } from './cloud.js?v=1116c';
+import { sayFor, sayWhen } from './talk.js?v=1116c';
+import { createAudio } from './audio.js?v=1116c';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -66,6 +66,7 @@ const BEEP = {drop:() => tone(190, .14, 'triangle', .09, -90), spell:() => tone(
   god:() => { tone(55, 1.6, 'sawtooth', .1, -18); tone(82, 1.2, 'square', .05, -40, .05); [262, 392, 523, 784, 1046, 1568].forEach((f, i) => tone(f, .9, 'triangle', .07, 0, .1 + i * .11)); tone(1800, .25, 'sawtooth', .04, -1500, .02); }};
 /* Recorded effects and music come from audio.js. Until they have loaded (or if they never do) the beeps above stand in. */
 const A = createAudio({muted:() => BDB.sfx.muted});
+const buzz = p => { try { if (navigator.vibrate && A.prefs.fx && !BDB.sfx.muted) navigator.vibrate(p); } catch(e){} };
 const fx = (name, o, beep) => { if (A.play(name, o || undefined)) return true; if (beep) beep(); return false; };
 const SND = {drop:() => fx('drop', null, BEEP.drop), spell:() => fx('spell', null, BEEP.spell), boom:() => fx('boom', null, BEEP.boom), horn:() => fx('horn', null, BEEP.horn), trapSet:() => fx('trapset', null, BEEP.trapSet), trap:() => fx('trap', null, BEEP.trap),
   negate:() => fx('whistle', null, BEEP.negate), rip:() => fx('chest', null, BEEP.rip), legend:() => { A.duck(.35, 2.4); fx('legend', null, BEEP.legend); }, crack:() => fx('thunder', null, BEEP.crack), god:() => { A.duck(.25, 3.2); fx('god', null, BEEP.god); }};
@@ -79,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116b'), import('./models.js?v=1116b')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116c'), import('./models.js?v=1116c')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -176,21 +177,52 @@ function claimDaily(){
   const st = dailyState(); if (!st.ready) return;
   const r = DAILY[st.day - 1]; P.daily = {day:today(), n:st.day};
   if (r.coins) P.coins += r.coins; if (r.token) P.tokens += r.token;
-  if (r.pack){ const got = openPack(PACK[r.pack]).map(grant); P.stats.packs++; save(); packReveal(PACK[r.pack], got, () => { dlgClose(); hub(); }); }
+  if (r.pack){ const got = openPack(PACK[r.pack]).map(grant); P.stats.packs++; jobTick('chest'); save(); packReveal(PACK[r.pack], got, () => { dlgClose(); hub(); }); }
   else { save(); BDB.sfx.big(); fx('coins', {delay:.45}); hub(); const b = dlg(`<div class="k-eyebrow">Daily reward, day ${st.day} of 7</div><h3>${esc(rewardText(r).replace(/^./, c => c.toUpperCase()))}</h3><p class="note">Come back tomorrow for day ${st.day % 7 + 1}: ${esc(rewardText(DAILY[st.day % 7]))}. Miss a day and it starts again from day 1.</p><div class="k-row"><button type="button" class="k-btn primary" id="dyX">Good</button></div>`); b.querySelector('#dyX').onclick = dlgClose; }
 }
 function claimBounty(){
   if (P.bounty < BOUNTY) return;
-  const pk = PACK[bountyPack()]; P.bounty -= BOUNTY; P.bn++; P.stats.packs++;
+  const pk = PACK[bountyPack()]; P.bounty -= BOUNTY; P.bn++; P.stats.packs++; jobTick('chest');
   const got = openPack(pk).map(grant); save(); packReveal(pk, got, () => { dlgClose(); hub(); });
+}
+/* ---------- today's jobs: three things to do. Each pays coins, and all three pay a chest on top ---------- */
+function jobs(){                                         // today's list, dealt the first time it is asked for each day (the same three however often the page is reloaded)
+  const d = today();
+  if (P.jobs.day !== d || P.jobs.list.length !== 3){
+    let h = 2166136261; for (const ch of d + '|' + P.name){ h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    const rnd = () => { h = h + 0x6D2B79F5 | 0; let t = Math.imul(h ^ h >>> 15, 1 | h); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    P.jobs = {day:d, list:rollJobs(rnd, {online:!!Cloud.session(), cleared:P.ladder >= LEVELS, rookie:P.ladder < 100}).map(id => ({id, n:0, got:0})), all:0};
+  }
+  return P.jobs.list;
+}
+function jobTick(k, n = 1){                              // something happened that a job may be counting
+  const out = []; if (!P || !P.onboarded || !P.jobs) return out;
+  for (const j of jobs()){ const J = JOBS[j.id]; if (J.k !== k || j.n >= J.need) continue; j.n = Math.min(J.need, j.n + n); if (j.n >= J.need){ out.push(J.text); if (B && !B.done && !$('scrBattle').hidden){ note('Job done: ' + J.text); fx('ok'); } } }
+  return out;                                            // the jobs this finished, for whoever wants to say so
+}
+function jobsBox(){
+  const L = jobs(), pk = PACK[bountyPack()], left = L.filter(j => !j.got).length;
+  const b = dlg(`<div class="k-eyebrow">Today's jobs</div><h3>${left ? 'Three jobs, three pay packets' : 'All three done'}</h3>
+    <div class="jobs">${L.map((j, i) => { const J = JOBS[j.id], done = j.n >= J.need; return `<div class="job${j.got ? ' got' : done ? ' done' : ''}"><div><b>${esc(J.text)}</b><div class="bar"><i style="width:${j.n / J.need * 100}%"></i></div><small>${j.got ? 'Collected' : `${j.n} of ${J.need}`}</small></div>${done && !j.got ? `<button type="button" class="k-btn primary" data-i="${i}">${COIN}${fmt(jobPay(j.id, P.ladder))}</button>` : `<span class="pay">${COIN}${fmt(jobPay(j.id, P.ladder))}</span>`}</div>`; }).join('')}</div>
+    <p class="note">${P.jobs.all ? `The ${esc(pk.name)} for all three is already yours. New jobs tomorrow.` : `Collect all three and a ${esc(pk.name)} comes with the last one. New jobs every day.`}</p>
+    <div class="k-row"><button type="button" class="k-btn" id="jbX">Close</button></div>`);
+  b.querySelector('#jbX').onclick = dlgClose;
+  for (const q of b.querySelectorAll('button[data-i]')) q.onclick = () => {
+    const j = L[+q.dataset.i]; if (!j || j.got || j.n < JOBS[j.id].need) return;
+    j.got = 1; P.coins += jobPay(j.id, P.ladder); fx('coins', null, BDB.sfx.big);
+    if (L.every(x => x.got) && !P.jobs.all){ P.jobs.all = 1; P.stats.packs++; const got = openPack(pk).map(grant); save(); hub(); return packReveal(pk, got, () => { dlgClose(); hub(); }); }
+    save(); hub(); jobsBox();
+  };
 }
 function boonsUI(){
   const el = $('boons'); if (!el) return;
   const d = dailyState(), bp = PACK[bountyPack()], full = P.bounty >= BOUNTY, sb = Math.round((streakMul(P.streak + 1) - 1) * 100);
+  const J = jobs(), jGot = J.filter(j => j.got).length, jDue = J.find(j => !j.got && j.n >= JOBS[j.id].need), jNext = J.find(j => j.n < JOBS[j.id].need);
   el.innerHTML = `<div class="boon${d.ready ? ' go' : ''}"><div class="ic day">${d.day}</div><div><b>Daily reward</b><small>${d.ready ? `Day ${d.day} of 7: ${esc(rewardText(DAILY[d.day - 1]))}.` : `Taken today. Tomorrow is day ${d.day}: ${esc(rewardText(DAILY[d.day - 1]))}.`}</small><div class="pips">${DAILY.map((_, i) => `<i${i < d.done ? ' class="on"' : ''}></i>`).join('')}</div></div>${d.ready ? '<button type="button" class="k-btn primary" id="dayGo">Claim</button>' : ''}</div>
+    <div class="boon${jDue ? ' go' : ''}"><div class="ic job">${jGot}</div><div><b>Today's jobs</b><small>${jDue ? `${esc(JOBS[jDue.id].text)}: done. ${fmt(jobPay(jDue.id, P.ladder))} coins to collect.` : jNext ? `${esc(JOBS[jNext.id].text)}: ${jNext.n} of ${JOBS[jNext.id].need}.` : 'All three done. New jobs tomorrow.'}</small><div class="pips">${J.map(j => `<i${j.got ? ' class="on"' : j.n >= JOBS[j.id].need ? ' class="due"' : ''}></i>`).join('')}</div></div><button type="button" class="k-btn${jDue ? ' primary' : ''}" id="jobGo">${jDue ? 'Collect' : 'See'}</button></div>
     <div class="boon"><div class="ic fire${P.streak ? '' : ' cold'}">${P.streak}</div><div><b>Win streak</b><small>${P.streak ? `${P.streak} in a row${P.best > P.streak ? `, best ${P.best}` : ''}. ${sb ? `The next win pays ${sb}% more coins.` : ''}` : 'Win two in a row and every win after pays extra coins, up to half as much again.'}</small></div></div>
     <div class="boon${full ? ' go' : ''}"><div class="ic pack" style="--pc:${bp.col}">${Math.min(P.bounty, BOUNTY)}</div><div><b>Tower bounty</b><small>${full ? `Ten towers down. A ${esc(bp.name)} is yours.` : `${P.bounty} of ${BOUNTY} enemy towers taken. Ten earns a ${esc(bp.name)}.`}</small><div class="bar"><i style="width:${Math.min(100, P.bounty / BOUNTY * 100)}%"></i></div></div>${full ? '<button type="button" class="k-btn primary" id="bntGo">Open</button>' : ''}</div>`;
-  const dg = $('dayGo'), bg = $('bntGo'); if (dg) dg.onclick = claimDaily; if (bg) bg.onclick = claimBounty;
+  const dg = $('dayGo'), bg = $('bntGo'); if (dg) dg.onclick = claimDaily; if (bg) bg.onclick = claimBounty; $('jobGo').onclick = jobsBox;
 }
 
 /* ---------- card sheet: what it is, what it does, buy, upgrade, put in deck ---------- */
@@ -348,7 +380,7 @@ function sheet(id){
   if (!P || !P.onboarded || (B && !B.done)){ /* mid-match, or just looking: the facts and nothing to buy */ }
   else if (!L){ btn(`Buy ${COIN}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); fx('coins', null, BDB.sfx.good); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
   else {
-    if (L < MAX_LVL){ btn(`Upgrade ${COIN}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; save(); fx('upgrade', null, BDB.sfx.big); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
+    if (L < MAX_LVL){ btn(`Upgrade ${COIN}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; jobTick('up'); save(); fx('upgrade', null, BDB.sfx.big); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
     if (!curDeck().includes(id)) btn('Put in deck', L < MAX_LVL ? '' : 'primary', () => { close(); if (curTab !== 'Deck') tab('Deck'); addCard(id); });
     else btn('Take out of deck', '', () => { close(); takeOut(curDeck().indexOf(id)); });
   }
@@ -428,7 +460,7 @@ function hub(){
     // too strong for where you are? The tier's boss can be challenged at any time: beat him and every level under him is cleared
     const boss = Math.ceil(n / 100) * 100, gapN = boss - n; $('skipRow').hidden = all || gapN < 1;
     if (gapN >= 1){ $('skipNote').textContent = `Level ${fmt(boss)}, ${ladderCpu(boss).name}. Beat him and the ${gapN} ${gapN > 1 ? 'levels' : 'level'} before him ${gapN > 1 ? 'are' : 'is'} cleared, for half their coins and none of their chests or cards.`; $('skipGo').onclick = () => preCpu(ladderCpu(boss)); }
-    $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><b>${esc(t.name)}</b><span>${i * 100 + 1} to ${(i + 1) * 100}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
+    $('tiers').innerHTML = TIERS.map((t, i) => { const got = clamp(P.ladder - i * 100, 0, 100); return `<div class="tier${got >= 100 ? ' done' : got > 0 || i === cpu.tier ? ' on' : ''}" style="--tc:${t.col}"><img alt="" src="${tierPic(t)}" loading="lazy"><b>${esc(t.name)}</b><span>${i * 100 + 1} to ${(i + 1) * 100}</span><div class="prog"><i style="width:${got}%"></i></div></div>`; }).join('');
     $('bDeckLbl').textContent = deckOK() ? `Deck ${P.deck + 1}, average ${avgCost(curDeck())} Mana` : `Deck ${P.deck + 1} is not finished: ${curDeck().length} of ${DECK_SIZE} cards`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
     $('bSets').innerHTML = setsHTML(curDeck(), true);
@@ -619,7 +651,7 @@ function packInfo(p, type){
 }
 function buyPack(p, type){
   if (P.coins < p.price) return;
-  P.coins -= p.price; P.stats.packs++;
+  P.coins -= p.price; P.stats.packs++; jobTick('chest');
   const got = openPack(p, type).map(grant); save();
   packReveal(p, got, () => { dlgClose(); hub(); }, () => buyPack(p, type));
 }
@@ -1032,7 +1064,7 @@ function onEvents(ev){
     hear(e);
     if (e.e === 'tower' && !e.king && B.coach) setTimeout(() => coach(3, 10000), 1600);
     if (e.e === 'tower'){
-      const mine = e.team === B.team; fx('tower', {pan:panAt(e.x || 0, e.z || 0) * .6}, BEEP.boom); A.duck(.45, 1.5);
+      const mine = e.team === B.team; fx('tower', {pan:panAt(e.x || 0, e.z || 0) * .6}, BEEP.boom); A.duck(.45, 1.5); buzz(mine ? [50, 40, 110] : [25, 35, 25]);
       if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine){ fx('crown', {delay:.6}); const I = info(), n = I ? I.crowns[B.team] | 0 : 0; if (n >= 1 && n <= 2) note(`A win now pays x${CROWN_PAY[n]}`); } talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
     } else if (e.e === 'king'){ if (e.team !== B.team && B.mode === 'cpu') talk(TALK.king); }
     else if (e.e === 'ot'){ stamp('Overtime'); note(`Two minutes, Mana x${OT_MANA}. The next tower wins`); fx('hornot', null, BEEP.horn); A.hurry(true); if (B.mode === 'cpu') talk(TALK.ot, true); }
@@ -1104,6 +1136,7 @@ function tryPlay(slot, p){
   if (B.mode === 'guest'){ ok = I.el >= CARDS[c.id].cost && canPlace(MAPS[B.map], B.team, CARDS[c.id], p.x, p.z, I.pocket); if (ok) room.send('p', {slot, id:c.id, x:Math.round(p.x * 100) / 100, z:Math.round(p.z * 100) / 100}, OL.opp); }
   else ok = B.sim.play(B.team, slot, p.x, p.z);
   if (!ok){ BDB.sfx.bad(); const el = $('hand').children[slot]; if (el){ el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); } return false; }
+  buzz(10); jobTick('play'); if (CARDS[c.id] && CARDS[c.id].kind === 'spell') jobTick('spell');
   select(-1); if (B.coach && B.hold){ B.hold = false; B.coach.step = 1; coach(1, 8000); } return true;
 }
 const overArena = (x, y) => { const r = $('arena').getBoundingClientRect(); return y < r.bottom && y > r.top && x > r.left && x < r.right; };
@@ -1288,10 +1321,16 @@ function finish(w, cr, why){
   }
   // every tower taken also counts towards the bounty pack
   if (mine > 0){ P.bounty = Math.min(999, P.bounty + mine); lines.push(P.bounty >= BOUNTY ? `Tower bounty full: a ${PACK[bountyPack()].name} is waiting on the Battle tab.` : `Tower bounty ${P.bounty} of ${BOUNTY}.`); }
-  const packGot = pack ? openPack(pack).map(grant) : null; if (pack) P.stats.packs++;
+  const packGot = pack ? openPack(pack).map(grant) : null; const jd = [], jt = (k, n) => jd.push(...jobTick(k, n));
+  if (pack){ P.stats.packs++; jt('chest'); }
+  if (mine > 0) jt('tower', mine);
+  if (win){ jt('win'); if (mine >= 3) jt('king');
+    if (B.mode === 'cpu'){ const c = B.cpu; if (c.rand){ if (c.skill !== 'easy') jt('quick'); if (c.skill === 'insane' || c.skill === 'legend') jt('hard'); } else if (B.first) jt('ladder'); if ((B.odds || 1) > 1) jt('odds'); }
+    else jt('online'); }
+  for (const t of jd) lines.push(`Job done: ${t}. Collect it on the Battle tab.`);
   if (why) lines.unshift(why);
   const coins = pay.coins; P.coins += coins; save();
-  A.music('off'); fx(win ? 'win' : draw ? 'draw' : 'lose', null, win ? BDB.sfx.big : BDB.sfx.bad); if (win && coins > 0) fx('coins', {delay:2.6});
+  A.music('off'); fx(win ? 'win' : draw ? 'draw' : 'lose', null, win ? BDB.sfx.big : BDB.sfx.bad); buzz(win ? [30, 50, 30, 50, 120] : draw ? 60 : 180); if (win && coins > 0) fx('coins', {delay:2.6});
   setTimeout(() => { if (!B || B.done) A.music('menu'); }, 3800);
   const many = B.mode === 'cpu' && B.odds > 1;
   const line = B.mode === 'cpu' ? pick(win ? (many ? TALK.winMany : TALK.win) : draw ? ["A draw. We'll both tell people we won."] : many ? TALK.loseMany : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : draw ? 'A draw. BDB is counting it as a win for him anyway.' : 'BDB says he could have won that one. He could not.');
@@ -1615,7 +1654,7 @@ window.__game = {
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
   ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach
