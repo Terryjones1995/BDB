@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115y';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115y';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115y';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1115z';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1115z';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1115z';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -624,6 +624,7 @@ export function createView(el, opt = {}){
     recs.delete(r.e.id);
   }
   function die(r){
+    if (opt.onDie) opt.onDie(r.e);
     const U = r.e.U, h = r.m.h * .5 + (r.m.fly || 0);
     if (U.twr){
       burst(r.x, 1.5, r.z, 70, 0xffb547, {spd:7, up:8, life:1.1, spread:1.6}); burst(r.x, 1, r.z, 26, 0x8b93a6, {smoke:true, spd:3, up:3, life:1.6, grav:-.5, spread:1.5});

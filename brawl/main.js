@@ -1,11 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1115y';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115y';
-import { createAI } from './ai.js?v=1115y';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115y';
-import { Cloud, cloudWhy } from './cloud.js?v=1115y';
-import { sayFor, sayWhen } from './talk.js?v=1115y';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName } from './cards.js?v=1115z';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1115z';
+import { createAI } from './ai.js?v=1115z';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1115z';
+import { Cloud, cloudWhy } from './cloud.js?v=1115z';
+import { sayFor, sayWhen } from './talk.js?v=1115z';
+import { createAudio } from './audio.js?v=1115z';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -57,12 +58,20 @@ function tone(f, d, type = 'sine', v = .05, slide = 0, at = 0){
     o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f + slide), t + d);
     g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + .02); } catch(e){}
 }
-const SND = {drop:() => tone(190, .14, 'triangle', .09, -90), spell:() => tone(520, .3, 'sine', .06, 400), boom:() => tone(95, .4, 'sawtooth', .08, -55), horn:() => { tone(233, .5, 'square', .04); tone(311, .5, 'square', .03); },
+const BEEP = {drop:() => tone(190, .14, 'triangle', .09, -90), spell:() => tone(520, .3, 'sine', .06, 400), boom:() => tone(95, .4, 'sawtooth', .08, -55), horn:() => { tone(233, .5, 'square', .04); tone(311, .5, 'square', .03); },
   trapSet:() => tone(150, .1, 'triangle', .07, -50), trap:() => { tone(880, .07, 'square', .045); tone(1320, .16, 'square', .045, 0, .07); tone(110, .3, 'sawtooth', .06, -40, .05); }, negate:() => { tone(1700, .09, 'sine', .07); tone(1500, .32, 'sine', .07, -700, .1); },
   rip:() => { tone(900, .16, 'sawtooth', .05, -700); tone(140, .3, 'triangle', .08, -60, .08); [660, 880, 1175].forEach((f, i) => tone(f, .22, 'triangle', .05, 0, .16 + i * .07)); },
   legend:() => { [392, 523, 659, 784, 1046].forEach((f, i) => tone(f, .5, 'triangle', .07, 0, i * .09)); tone(98, .9, 'sawtooth', .06, -30); },
   crack:() => { tone(1500, .07, 'sawtooth', .035, -1200); tone(80, .22, 'sawtooth', .05, -35, .03); },
   god:() => { tone(55, 1.6, 'sawtooth', .1, -18); tone(82, 1.2, 'square', .05, -40, .05); [262, 392, 523, 784, 1046, 1568].forEach((f, i) => tone(f, .9, 'triangle', .07, 0, .1 + i * .11)); tone(1800, .25, 'sawtooth', .04, -1500, .02); }};
+/* Recorded effects and music come from audio.js. Until they have loaded (or if they never do) the beeps above stand in. */
+const A = createAudio({muted:() => BDB.sfx.muted});
+const fx = (name, o, beep) => { if (A.play(name, o || undefined)) return true; if (beep) beep(); return false; };
+const SND = {drop:() => fx('drop', null, BEEP.drop), spell:() => fx('spell', null, BEEP.spell), boom:() => fx('boom', null, BEEP.boom), horn:() => fx('horn', null, BEEP.horn), trapSet:() => fx('trapset', null, BEEP.trapSet), trap:() => fx('trap', null, BEEP.trap),
+  negate:() => fx('whistle', null, BEEP.negate), rip:() => fx('chest', null, BEEP.rip), legend:() => { A.duck(.35, 2.4); fx('legend', null, BEEP.legend); }, crack:() => fx('thunder', null, BEEP.crack), god:() => { A.duck(.25, 3.2); fx('god', null, BEEP.god); }};
+{ const k = BDB.sfx, was = {tick:k.tick, good:k.good, bad:k.bad, big:k.big, pop:k.pop};      // the menus' own clicks, in the same voice as everything else
+  k.tick = () => fx('tap', null, was.tick); k.good = () => fx('ok', null, was.good); k.bad = () => fx('bad', null, was.bad); k.big = () => fx('big', null, was.big); k.pop = () => fx('pop', null, was.pop); }
+A.music('menu');      // nothing plays until the first touch: browsers insist on that
 
 /* ---------- the 3D view (menus work without it: card art is a set of pictures) ---------- */
 let V = null, MD = null, ready3d = false;
@@ -70,9 +79,9 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1115y'), import('./models.js?v=1115y')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1115z'), import('./models.js?v=1115z')]);
     await md.preload(); MD = md;
-    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
+    V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
     V.loadProps('field');
   } catch(e){ console.warn('3D view unavailable', e); V = null; }
@@ -140,7 +149,7 @@ function setsHTML(deck, brief){
 }
 
 /* ---------- dialogs ---------- */
-function dlg(html, o = {}){ const w = $('dlg'), b = $('dlgBox'); b.innerHTML = html; w.hidden = false; dlg.lock = !!o.lock; return b; }
+function dlg(html, o = {}){ const w = $('dlg'), b = $('dlgBox'); if (w.hidden) fx('open'); b.innerHTML = html; w.hidden = false; dlg.lock = !!o.lock; return b; }
 const dlgClose = () => { $('dlg').hidden = true; $('dlgBox').innerHTML = ''; };
 function backdrop(w, close){ let d = false; w.addEventListener('pointerdown', e => { d = e.target === w; }); w.addEventListener('click', e => { if (d && e.target === w) close(); d = false; }); }
 backdrop($('sheet'), () => { $('sheet').hidden = true; });
@@ -166,7 +175,7 @@ function claimDaily(){
   const r = DAILY[st.day - 1]; P.daily = {day:today(), n:st.day};
   if (r.coins) P.coins += r.coins; if (r.token) P.tokens += r.token;
   if (r.pack){ const got = openPack(PACK[r.pack]).map(grant); P.stats.packs++; save(); packReveal(PACK[r.pack], got, () => { dlgClose(); hub(); }); }
-  else { save(); BDB.sfx.big(); hub(); const b = dlg(`<div class="k-eyebrow">Daily reward, day ${st.day} of 7</div><h3>${esc(rewardText(r).replace(/^./, c => c.toUpperCase()))}</h3><p class="note">Come back tomorrow for day ${st.day % 7 + 1}: ${esc(rewardText(DAILY[st.day % 7]))}. Miss a day and it starts again from day 1.</p><div class="k-row"><button type="button" class="k-btn primary" id="dyX">Good</button></div>`); b.querySelector('#dyX').onclick = dlgClose; }
+  else { save(); BDB.sfx.big(); fx('coins', {delay:.45}); hub(); const b = dlg(`<div class="k-eyebrow">Daily reward, day ${st.day} of 7</div><h3>${esc(rewardText(r).replace(/^./, c => c.toUpperCase()))}</h3><p class="note">Come back tomorrow for day ${st.day % 7 + 1}: ${esc(rewardText(DAILY[st.day % 7]))}. Miss a day and it starts again from day 1.</p><div class="k-row"><button type="button" class="k-btn primary" id="dyX">Good</button></div>`); b.querySelector('#dyX').onclick = dlgClose; }
 }
 function claimBounty(){
   if (P.bounty < BOUNTY) return;
@@ -335,9 +344,9 @@ function sheet(id){
   const btn = (t, cls, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn ' + cls; b.innerHTML = t; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); return b; };
   const close = () => { $('sheet').hidden = true; }, short = n => { box.querySelector('#shNote').textContent = `You need ${fmt(n - P.coins)} more coins.`; };
   if (!P || !P.onboarded || (B && !B.done)){ /* mid-match, or just looking: the facts and nothing to buy */ }
-  else if (!L){ btn(`Buy ${COIN}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); BDB.sfx.good(); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
+  else if (!L){ btn(`Buy ${COIN}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); fx('coins', null, BDB.sfx.good); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
   else {
-    if (L < MAX_LVL){ btn(`Upgrade ${COIN}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; save(); BDB.sfx.big(); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
+    if (L < MAX_LVL){ btn(`Upgrade ${COIN}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; save(); fx('upgrade', null, BDB.sfx.big); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
     if (!curDeck().includes(id)) btn('Put in deck', L < MAX_LVL ? '' : 'primary', () => { close(); if (curTab !== 'Deck') tab('Deck'); addCard(id); });
     else btn('Take out of deck', '', () => { close(); takeOut(curDeck().indexOf(id)); });
   }
@@ -380,7 +389,7 @@ function listUI(key, source, label){
 /* ---------- hub ---------- */
 let curTab = 'Battle', deckType = '', deckAll = false;
 function tab(t){ curTab = t; for (const k of ['Battle', 'Deck', 'Market', 'Profile']) $('tab' + k).hidden = k !== t; for (const b of $('tabbar').children) b.setAttribute('aria-selected', b.dataset.tab === t); if (t !== 'Deck'){ pend = null; deckMsg = ''; clearT = 0; slotOn = false; } hub(); $('hubBody').scrollTop = 0; }
-$('tabbar').onclick = e => { const b = e.target.closest('button'); if (b) tab(b.dataset.tab); };
+$('tabbar').onclick = e => { const b = e.target.closest('button'); if (b){ if (b.dataset.tab !== curTab) fx('tab'); tab(b.dataset.tab); } };
 $('toDeck').onclick = () => tab('Deck');
 const avgCost = d => d.length ? (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.length).toFixed(1) : '0';
 const PACK = Object.fromEntries(PACKS.map(p => [p.id, p]));
@@ -458,10 +467,10 @@ function addCard(id){
   else if (d.length >= DECK_SIZE){ pend = pend === id ? null : id; deckMsg = pend ? `The deck is full. Click the card in it that ${C.name} should replace.` : ''; BDB.sfx.tick(); return hub(); }
   else d.push(id);
   const bad = limitProblem(d); if (bad){ deckMsg = bad; pend = null; BDB.sfx.bad(); return hub(); }
-  BDB.sfx.tick(); setDeck(d);
+  fx('place', null, BDB.sfx.tick); setDeck(d);
 }
-function takeOut(i){ if (i < 0) return; const d = curDeck().slice(); d.splice(i, 1); BDB.sfx.tick(); setDeck(d); }
-function putIn(id, i){ const d = curDeck().slice(); d[i] = id; const bad = limitProblem(d); if (bad){ deckMsg = bad; pend = null; BDB.sfx.bad(); return hub(); } BDB.sfx.good(); setDeck(d); }
+function takeOut(i){ if (i < 0) return; const d = curDeck().slice(); d.splice(i, 1); fx('card', null, BDB.sfx.tick); setDeck(d); }
+function putIn(id, i){ const d = curDeck().slice(); d[i] = id; const bad = limitProblem(d); if (bad){ deckMsg = bad; pend = null; BDB.sfx.bad(); return hub(); } fx('place', null, BDB.sfx.good); setDeck(d); }
 /* fill the empty places from what the player owns: two spells, something for the air, a few cheap troops and a big one first, then the best of the rest */
 function fillDeck(){
   const d = curDeck().slice(), have = new Set(d.map(i => CARDS[i].base)), RW = {c:1, r:2, e:3.2, l:4.6, g:6}, score = id => RW[CARDS[id].rar] + lvl(id) * .35;
@@ -490,10 +499,10 @@ function profile(){
     const K = PERKS[k], r = P.perks[k], cost = r + 1, max = r >= K.max, can = !max && P.tokens >= cost, row = document.createElement('div'); row.className = 'perk' + (max ? ' max' : '');
     row.innerHTML = `<div><h4>${esc(K.name)}</h4><p>${r ? esc(K.text(r)) : 'Not bought yet.'}${max ? '' : ' Next level: ' + esc(K.text(r + 1))}</p><div class="pips">${Array.from({length:K.max}, (_, i) => `<i${i < r ? ' class="on"' : ''}></i>`).join('')}</div></div>
       <button type="button" class="k-btn${can ? ' primary' : ''}" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `${cost} ${cost > 1 ? 'tokens' : 'token'}`}</button>`;
-    row.querySelector('button').onclick = () => { if (P.tokens < cost || P.perks[k] >= K.max) return; P.tokens -= cost; P.perks[k]++; save(); BDB.sfx.big(); hub(); };
+    row.querySelector('button').onclick = () => { if (P.tokens < cost || P.perks[k] >= K.max) return; P.tokens -= cost; P.perks[k]++; save(); fx('upgrade', null, BDB.sfx.big); hub(); };
     pk.appendChild(row);
   }
-  $('codeOut').value = Accounts.code(P); gfxUI();
+  $('codeOut').value = Accounts.code(P); gfxUI(); sndSet();
 }
 /* graphics quality: Auto finds the level this device can hold; the player can pin one */
 function gfxUI(){
@@ -614,7 +623,7 @@ function packReveal(p, got, done, again){
       if (!b.isConnected) return;
       if (i >= got.length) return finish2();
       const g = got[i], el = els[i++], r = CARDS[g.id].rar; el.classList.add('on'); el.querySelector('small').textContent = g.tag;
-      r === 'l' ? SND.legend() : r === 'e' ? BDB.sfx.big() : r === 'r' ? BDB.sfx.good() : BDB.sfx.pop();
+      r === 'g' ? SND.god() : r === 'l' ? SND.legend() : r === 'e' ? fx('epic', null, BDB.sfx.big) : r === 'r' ? fx('rare', null, BDB.sfx.good) : fx('place', null, BDB.sfx.pop);
       setTimeout(next, fast ? 30 : r === 'l' ? 1500 : r === 'e' ? 950 : 430);
     };
     setTimeout(next, fast ? 0 : 520);
@@ -718,8 +727,14 @@ $('codeGo').onclick = () => { try { signIn(Accounts.fromCode($('codeIn').value))
 $('codeCopy').onclick = async () => { try { await navigator.clipboard.writeText($('codeOut').value); $('codeCopy').textContent = 'Copied'; } catch(e){ $('codeOut').select(); } setTimeout(() => { $('codeCopy').textContent = 'Copy code'; }, 1500); };
 $('signOut').onclick = () => { Cloud.flush(); Cloud.signOut(); Accounts.signOut(); clearInterval(hallT); loginScreen(); };
 $('wipe').onclick = () => confirmBox('Delete this player?', `${P.name}'s cards, coins and decks will be gone from this device.`, 'Delete', () => { Accounts.remove(P.name); loginScreen(); });
-const sndUI = () => { const on = !BDB.sfx.muted; $('mute').setAttribute('aria-pressed', on); $('mute').title = on ? 'Sound is on' : 'Sound is off'; };
-$('mute').onclick = () => { BDB.sfx.toggle(); sndUI(); if (!BDB.sfx.muted) BDB.sfx.tick(); };
+const sndUI = () => { const on = !BDB.sfx.muted; $('mute').setAttribute('aria-pressed', on); $('mute').title = on ? 'Sound is on' : 'Sound is off'; sndSet(); };
+function sndSet(){
+  const seg = $('sndSeg'); if (!seg) return; const p = A.prefs;
+  for (const b of seg.children) b.setAttribute('aria-pressed', !!p[b.dataset.k]);
+  $('sndNote').textContent = BDB.sfx.muted ? 'Everything is muted by the speaker button at the top of the screen.' : p.music && p.fx ? 'In the menus the music is the match next door, heard through the wall.' : p.music ? 'Music only.' : p.fx ? 'Effects only.' : 'Both are off.';
+}
+$('sndSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k; A.set(k, !A.prefs[k]); if (k === 'fx') BDB.sfx.tick(); sndSet(); };
+$('mute').onclick = () => { BDB.sfx.toggle(); A.refresh(); sndUI(); if (!BDB.sfx.muted) BDB.sfx.tick(); };
 sndUI();
 $('resCoins').onclick = () => tab('Market'); $('resTok').onclick = () => tab('Profile'); $('resTro').onclick = () => tab('Profile'); $('whoChip').onclick = () => tab('Profile');
 
@@ -852,6 +867,7 @@ function preCpu(cpu, odds = 1){
 let B = null, raf = 0, lastT = 0, ticker = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function begin(o){
+  A.music('off');
   const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
   if (o.mode === 'host') B.ready = new Promise(res => { B.rdRes = res; });
   show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
@@ -882,7 +898,7 @@ async function begin(o){
   if (o.mode === 'guest' && room) room.send('rd', {}, OL && OL.opp);
   if (o.mode === 'host'){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Waiting for ${esc(o.mate || o.oppName)} to load in.</div></div>`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
   let n = 3;
-  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; BDB.sfx.tick(); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
   cd();
 }
 function startTicker(){ try { ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'], {type:'text/javascript'}))); ticker.onmessage = () => { if (document.hidden) hostPump(); }; } catch(e){} }
@@ -933,20 +949,50 @@ function stepBubbles(){
   }
 }
 const clearBubbles = () => { for (const b of bubbles) b.d.remove(); bubbles.length = 0; };
+/* what the fight sounds like. Shots and blows are placed left or right by where they happen on the screen. */
+const SHOT = {arrow:'arrow', bolt:'arrow', sting:'arrow', leaf:'arrow', bullet:'gun', shell:'gun', fire:'fire', zap:'zap', vial:'throw', potion:'throw', spit:'throw', ball:'throw', rock:'throw', bomb:'throw'};      // anything else is magic
+const BOOM = {rage:'rage', heal:'heal', grave:'raise', tornado:'wind', fire:'fire', ward:'spell', zap:'thunder', rain:'rain', quake:'quake', poison:'poison', tox:'poison', meteor:'boombig', freeze:'freeze', snap:'freeze'};
+const LAND = {fire:'fire', frost:'freeze', roar:'rage', shield:'clang', summon:'raise'};
+const entOf = id => !B ? null : B.mode === 'guest' ? B.prev.get(id) : B.sim ? B.sim.ents.find(o => o.id === id) : null;
+const panAt = (x, z) => { if (!V) return 0; try { return clamp(V.screenOf(x, 1, z).x / innerWidth * 2 - 1, -1, 1) * .55; } catch(e){ return 0; } };
+function hear(e){
+  const k = e.e;
+  if (k === 'atk'){ const o = entOf(e.id); if (!o) return; const r = o.U.role;
+    fx(e.big ? 'crit' : r === 'swarm' || r === 'flock' ? 'tapx' : r === 'killer' ? 'slash' : r === 'giant' || r === 'tank' ? 'thud' : 'hit', {pan:panAt(o.x, o.z)}); }
+  else if (k === 'shot'){ const o = entOf(e.id); if (o) fx(o.U.twr ? 'shotx' : SHOT[e.k] || 'magic', {pan:panAt(o.x, o.z)}); }
+  else if (k === 'boom'){ if (e.k !== 'bolt') fx(BOOM[e.k] || 'boom', {pan:panAt(e.x, e.z), vol:e.k === 'fire' ? 2 : 1}, e.k === 'rage' ? null : BEEP.boom); }
+  else if (k === 'bolt'){ const p = e.pts && e.pts[0]; fx('thunder', p ? {pan:panAt(p[0], p[1])} : null, e.q ? BEEP.crack : null); }
+  else if (k === 'chain') fx('zap');
+  else if (k === 'godfall'){ fx('thunder'); fx('boombig', {delay:.15}); }
+  else if (k === 'land') fx(LAND[e.k] || 'dropbig', {pan:panAt(e.x, e.z), vol:e.k === 'shield' ? .5 : 1});
+  else if (k === 'heal' || k === 'wish' || k === 'revive') fx('heal');
+  else if (k === 'mana') fx('coin');
+  else if (k === 'raise') fx('raise', {pan:panAt(e.x, e.z)});
+  else if (k === 'summon') fx('raise');
+  else if (k === 'warp' || k === 'morph') fx('warp');
+  else if (k === 'leap' || k === 'charge' || k === 'dodge') fx('throw', {rate:k === 'charge' ? .8 : 1, vol:1.3});
+  else if (k === 'reflect' || k === 'shbreak' || k === 'trapx') fx('clang', {vol:k === 'shbreak' ? 1 : .6});
+}
+function hearDeath(o){                                   // the view calls this as a troop or a building goes
+  if (!B || !o || !o.U || o.U.twr) return;
+  const U = o.U, p = {pan:panAt(o.x, o.z)};
+  if (U.bld) fx('crash', p); else if (/^skel/.test(o.key)) fx('bones', p); else { fx('poof', p); if (U.role === 'giant' || U.role === 'tank') fx('thud', p); }
+}
 function onEvents(ev){
   for (const e of ev){
+    hear(e);
     if (e.e === 'tower'){
-      const mine = e.team === B.team; SND.boom();
-      if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine){ BDB.sfx.big(); const I = info(), n = I ? I.crowns[B.team] | 0 : 0; if (n >= 1 && n <= 2) note(`A win now pays x${CROWN_PAY[n]}`); } talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
+      const mine = e.team === B.team; fx('tower', {pan:panAt(e.x || 0, e.z || 0) * .6}, BEEP.boom); A.duck(.45, 1.5);
+      if (!e.king){ stamp(mine ? 'Tower down' : 'Crown!', mine); if (!mine){ fx('crown', {delay:.6}); const I = info(), n = I ? I.crowns[B.team] | 0 : 0; if (n >= 1 && n <= 2) note(`A win now pays x${CROWN_PAY[n]}`); } talk(B.mode === 'cpu' ? (mine ? TALK.heScores : TALK.youScore) : (mine ? TALK.pvpDown : TALK.pvpUp), true); if (B.mode === 'cpu' && Math.random() < .6) setTimeout(() => showEmote(mine ? pick([0, 2, 3]) : pick([1, 4]), false), 900); }
     } else if (e.e === 'king'){ if (e.team !== B.team && B.mode === 'cpu') talk(TALK.king); }
-    else if (e.e === 'ot'){ stamp('Overtime'); note(`Two minutes, Mana x${OT_MANA}. The next tower wins`); SND.horn(); if (B.mode === 'cpu') talk(TALK.ot, true); }
+    else if (e.e === 'ot'){ stamp('Overtime'); note(`Two minutes, Mana x${OT_MANA}. The next tower wins`); fx('hornot', null, BEEP.horn); A.hurry(true); if (B.mode === 'cpu') talk(TALK.ot, true); }
     else if (e.e === 'drop' || e.e === 'spell'){
       const c = CARDS[e.id];
       if ((e.rar === 'l' || e.rar === 'g') && c){ const god = e.rar === 'g'; if (god) SND.god(); else SND.legend(); const d = document.createElement('div'); d.className = 'legend-banner' + (god ? ' god' : ''); d.innerHTML = `<small>${god ? 'A God takes the field' : 'Legendary'}</small><b>${esc(c.name)}</b>`; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2000); if (e.team !== B.team && B.mode === 'cpu') talk(TALK.legend); }
-      else e.e === 'drop' ? SND.drop() : SND.spell();
+      else if (e.e === 'spell') fx('spell', {pan:panAt(e.x, e.z)}, BEEP.spell);
+      else fx(c && c.U && c.U.bld ? 'build' : c && c.U && (c.U.role === 'giant' || c.U.role === 'tank') ? 'dropbig' : 'drop', {pan:panAt(e.x, e.z), rate:e.team === B.team ? 1 : .92}, BEEP.drop);
       if (c && e.e === 'drop' && e.u && c.kind === 'unit' && (c.rar !== 'c' || Math.random() < .6)){ const uid = e.u, line = sayFor(c.base, c.type), mine = e.team === B.team, big = c.rar === 'l' || c.rar === 'e' || c.rar === 'g'; setTimeout(() => { if (B && !B.over) bubble(uid, line, mine, big); }, 420); }
-    } else if (e.e === 'boom' && e.k !== 'rage') SND.boom();
-    else if (e.e === 'bolt' && e.q) SND.crack();
+    }
     else if (e.e === 'grow'){ if (Math.random() < .45) bubble(e.id, sayWhen('kill'), true); }
     else if (e.e === 'revive'){ bubble(e.id, sayWhen('low'), true); }
     else if (e.e === 'trapset'){ if (e.team === B.team) SND.trapSet(); else { note(B.mode === 'cpu' ? 'He set a trap' : 'They set a trap'); if (B.mode === 'cpu') talk(TALK.trapSet); } }
@@ -956,7 +1002,7 @@ function onEvents(ev){
     } else if (e.e === 'negate'){ const mine = e.team !== B.team; SND.negate(); stamp(mine ? 'Waved off!' : 'No basket!', !mine); if (e.burn && e.pid === B.me) note(`You lose ${e.burn} Mana`); if (B.mode === 'cpu') talk(mine ? TALK.foulOnHim : TALK.foulOnYou, true); }
     else if (e.e === 'trapx'){ note(e.team === B.team ? 'Your trap was cleared' : 'You cleared a trap'); }
     else if (e.e === 'shbreak'){ if (e.twr) note(e.team === B.team ? 'Your tower shield broke' : 'His tower shield broke'); }
-    else if (e.e === 'over' && !B.over){ B.over = true; if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
+    else if (e.e === 'over' && !B.over){ B.over = true; A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
   }
 }
 const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim; if (!s) return null; const p = s.players[B.me]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT}; };
@@ -977,9 +1023,10 @@ function hud(force){
   $('coffee').classList.toggle('dbl', rate > 1 && rate < 3); $('coffee').classList.toggle('tpl', rate >= 3); $('coffee').classList.toggle('bonus', !!bonus); const nt = B.run ? myTraps().filter(t => !t.live && t.team === B.team).length : 0;
   $('coffeeLbl').textContent = (rate > 1 ? 'Mana x' + rate : 'Mana') + (bonus ? ', charging +30%' : '') + (nt ? `, ${nt} trap${nt > 1 ? 's' : ''} set` : '');
   if (B.run && I.phase === 'play'){
-    if (rate > (B.said.rate || 1)){ B.said.rate = rate; stamp('Mana x' + rate); SND.horn(); if (B.mode === 'cpu' && rate === 2) talk(TALK.late, true); else if (B.mode === 'cpu' && rate === 3) talk(TALK.last, true); }
+    if (rate > (B.said.rate || 1)){ B.said.rate = rate; stamp('Mana x' + rate); fx('hornup', null, BEEP.horn); if (B.mode === 'cpu' && rate === 2) talk(TALK.late, true); else if (B.mode === 'cpu' && rate === 3) talk(TALK.last, true); }
   }
   const t = Math.ceil(I.left); $('clockT').textContent = mmss(t);
+  if (B.run && !B.over && t <= 10 && t > 0 && B.said.tk !== t){ B.said.tk = t; fx('tock'); }      // the last ten seconds tick
   $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : rate > 1 ? 'Mana x' + rate : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
   $('meCr').textContent = I.crowns[B.team]; $('oppCr').textContent = I.crowns[1 - B.team];
   if (B.run && !B.over && B.mode === 'cpu' && performance.now() - lastTalk > 38000){ lastTalk = performance.now(); BDB.roast(); }
@@ -1013,7 +1060,7 @@ $('hand').addEventListener('pointerdown', e => {
   const c = e.target.closest('.card'); if (!c || !B || B.over || e.button === 2) return;
   const i = +c.dataset.slot; e.preventDefault();
   if (B.sel === i && !aim){ select(-1); return; }
-  select(i); BDB.sfx.tick();
+  select(i); fx('card', null, BDB.sfx.tick);
   aim = {pid:e.pointerId, x:e.clientX, y:e.clientY, moved:false, card:c, id:c.dataset.id, lx:e.clientX, tilt:0};
   try { c.setPointerCapture(e.pointerId); } catch(er){}
 });
@@ -1193,7 +1240,8 @@ function finish(w, cr, why){
   const packGot = pack ? openPack(pack).map(grant) : null; if (pack) P.stats.packs++;
   if (why) lines.unshift(why);
   const coins = pay.coins; P.coins += coins; save();
-  win ? BDB.sfx.big() : BDB.sfx.bad();
+  A.music('off'); fx(win ? 'win' : draw ? 'draw' : 'lose', null, win ? BDB.sfx.big : BDB.sfx.bad); if (win && coins > 0) fx('coins', {delay:2.6});
+  setTimeout(() => { if (!B || B.done) A.music('menu'); }, 3800);
   const many = B.mode === 'cpu' && B.odds > 1;
   const line = B.mode === 'cpu' ? pick(win ? (many ? TALK.winMany : TALK.win) : draw ? ["A draw. We'll both tell people we won."] : many ? TALK.loseMany : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : draw ? 'A draw. BDB is counting it as a win for him anyway.' : 'BDB says he could have won that one. He could not.');
   const c = B.cpu, wasCpu = B.mode === 'cpu', ladder = wasCpu && !c.rand, nextUp = ladder && win && c.level < LEVELS && c.level + 1 <= P.ladder + 1, odds = B.odds || 1;
@@ -1224,7 +1272,7 @@ function finish(w, cr, why){
   if (ra) ra.onclick = again;
   if (rp) rp.onclick = () => { stopBattle(); show('scrHub'); hub(); packReveal(pack, packGot, () => { dlgClose(); hub(); }); };
 }
-function stopBattle(){ cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
+function stopBattle(){ A.music('menu'); cancelAnimationFrame(raf); clearInterval(pzIv); if (ticker){ ticker.terminate(); ticker = null; } B = null; aim = null; floorAim = false; $('wait').hidden = true; clearBubbles(); for (const e of document.querySelectorAll('.emote,.stamp,.legend-banner,.bnote')) e.remove(); }
 
 /* ---------- online ---------- */
 let net = null, lobby = null, room = null, OL = null;
@@ -1434,6 +1482,7 @@ function gotInvite(iv){
   const what = {duel:'wants a 1v1', coop:'wants to team up against BDBs', trade:'wants to trade cards'}[iv.kind], from = clean(iv.from, 20);
   if (!what || !okCode(iv.code) || !from) return;
   if (B || TR){ Cloud.inviteDone(iv.id); return; }
+  fx('invite');
   if (!$('dlg').hidden || $('scrHub').hidden){ heldInv = {iv, at:Date.now()}; return; }
   const b = dlg(`<div class="k-eyebrow">Invite</div><h3>${esc(from)}</h3><p>${what}.</p><div class="k-row"><button type="button" class="k-btn primary" id="ivY">Accept</button><button type="button" class="k-btn" id="ivN">Not now</button></div>`, {lock:true});
   BDB.sfx.big();
@@ -1515,7 +1564,7 @@ window.__game = {
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
   ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach

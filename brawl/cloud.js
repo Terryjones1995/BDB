@@ -1,7 +1,7 @@
 /* Break Room Brawl: online accounts, cloud saves, who's online and invites, through the SQL functions in supabase.sql.
    Everything is a plain fetch to Supabase's REST endpoint; no SDK. Every call can fail (offline, server not set up yet):
    callers catch that and the game carries on with the copy saved on this device. */
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1115y';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1115z';
 
 const base = (new URLSearchParams(location.search).get('api') || SUPABASE_URL || '').replace(/\/+$/, '');
 const SKEY = 'brawl-session';
