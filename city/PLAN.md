@@ -219,9 +219,10 @@ Measured on the same maps before and after: the starter village went from 271 us
 lots to 880 cells and 58 lots, and the demo city on seed 1337 from 523 lots and 19,753 people to
 862 lots and 33,028. Every road a player draws at an angle now fills in the way a straight one does.
 
-The cost: the demo city is about 65% bigger than upstream's, so it is heavier to draw. If it is too
-slow on real hardware, shrink its grid (`COLS` and `ROWS` in `src/demo/DemoCity.js`) rather than
-undoing the fix.
+The cost: the demo city has about 65% more buildings than upstream's. In a full boot on `low` that
+came to 3.75 million triangles against 3.36 million before (11% more) and the same 855 draw calls,
+with no errors. If it is still too slow on real hardware, shrink its grid (`COLS` and `ROWS` in
+`src/demo/DemoCity.js`) rather than undoing the fix.
 
 ## Known gaps and risks
 
