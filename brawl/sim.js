@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1116e';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1116f';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -38,6 +38,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   const crowns = [0, 0];
   const emit = o => events.push(o);
 
+  const tally = decks.map(() => ({}));                     // per player: damage done to the other side, by the kind of troop that did it
   const players = decks.map((d, i) => {
     const q = d.map(c => ({id:c.id, lvl:c.lvl || 1}));
     const bon = typeBonus(d.map(c => c.id));                                   // enough cards of one type and that type fights harder
@@ -117,6 +118,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const thru = how === 'hit' && src && src.U.pierce;                        // some attacks go straight through armour and shields
     if (o.U.armor && how !== 'dot' && !thru) dmg = Math.max(dmg * .3, dmg - o.U.armor * lvlMul(o.lvl));     // armour takes a flat bite out of every hit: hordes bounce off
     if (o.sh > 0 && !thru){ const a = Math.min(o.sh, dmg); o.sh -= a; dmg -= a; if (o.sh <= 0){ o.sh = 0; o.wd = 0; emit({e:'shbreak', id:o.id}); } if (dmg <= 0) return; }
+    if (src && !src.U.twr && src.team !== o.team && tally[src.pid]) tally[src.pid][src.key] = (tally[src.pid][src.key] || 0) + Math.min(dmg, o.hp);      // who did the work, for the result screen
     o.hp -= dmg;
     if (o.key === 'king' && !o.active){ o.active = true; emit({e:'king', team:o.team}); }
     if (o.hp <= 0){ kill(o, src); return; }
@@ -215,7 +217,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (w){ w.hp = Math.min(w.max, w.hp + tr.heal); emit({e:'heal', id:w.id, r:2.4}); }
     }
   }
-  function finish(w){ if (over) return; over = true; winner = w; phase = 'over'; emit({e:'over', w, cr:crowns.slice()}); }
+  /* each player's troop that did the most damage in the match: [unit key, damage], or null if nothing of theirs landed a blow */
+  const mvp = () => tally.map(t => { let k = null, v = 0; for (const q in t) if (t[q] > v){ v = t[q]; k = q; } return k ? [k, Math.round(v)] : null; });
+  function finish(w){ if (over) return; over = true; winner = w; phase = 'over'; emit({e:'over', w, cr:crowns.slice(), mv:mvp()}); }
 
   /* ---------- targeting ---------- */
   const ok = (e, o) => o && o.hp > 0 && o.dep <= 0 && !o.hid && !(o.U.fly && !e.U.air) && !(e.U.only === 'b' && !o.U.bld);
@@ -595,7 +599,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
 
   return {
-    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, encode, pocket, sides,
+    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, encode, pocket, sides, mvp,
     canPlace:(team, card, x, z) => canPlace(map, team, card, x, z, pocket(team)),
     drain(){ const ev = events; events = []; return ev; },
     get tick(){ return tick; }, get phase(){ return phase; }, get over(){ return over; }, get winner(){ return winner; },

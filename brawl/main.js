@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116e';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116e';
-import { createAI } from './ai.js?v=1116e';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116e';
-import { Cloud, cloudWhy } from './cloud.js?v=1116e';
-import { sayFor, sayWhen } from './talk.js?v=1116e';
-import { createAudio } from './audio.js?v=1116e';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116f';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116f';
+import { createAI } from './ai.js?v=1116f';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116f';
+import { Cloud, cloudWhy } from './cloud.js?v=1116f';
+import { sayFor, sayWhen } from './talk.js?v=1116f';
+import { createAudio } from './audio.js?v=1116f';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116e'), import('./models.js?v=1116e')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116f'), import('./models.js?v=1116f')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -178,7 +178,7 @@ function claimDaily(){
   const r = DAILY[st.day - 1]; P.daily = {day:today(), n:st.day};
   if (r.coins) P.coins += r.coins; if (r.token) P.tokens += r.token;
   if (r.pack){ const got = openPack(PACK[r.pack]).map(grant); P.stats.packs++; jobTick('chest'); save(); packReveal(PACK[r.pack], got, () => { dlgClose(); hub(); }); }
-  else { save(); BDB.sfx.big(); fx('coins', {delay:.45}); hub(); const b = dlg(`<div class="k-eyebrow">Daily reward, day ${st.day} of 7</div><h3>${esc(rewardText(r).replace(/^./, c => c.toUpperCase()))}</h3><p class="note">Come back tomorrow for day ${st.day % 7 + 1}: ${esc(rewardText(DAILY[st.day % 7]))}. Miss a day and it starts again from day 1.</p><div class="k-row"><button type="button" class="k-btn primary" id="dyX">Good</button></div>`); b.querySelector('#dyX').onclick = dlgClose; }
+  else { save(); BDB.sfx.big(); fx('coins', {delay:.45}); hub(); const b = dlg(`<div class="k-eyebrow">Daily reward, day ${st.day} of 7</div>${r.coins ? '<div class="pilepic" aria-hidden="true"></div>' : ''}<h3>${esc(rewardText(r).replace(/^./, c => c.toUpperCase()))}</h3><p class="note">Come back tomorrow for day ${st.day % 7 + 1}: ${esc(rewardText(DAILY[st.day % 7]))}. Miss a day and it starts again from day 1.</p><div class="k-row"><button type="button" class="k-btn primary" id="dyX">Good</button></div>`); b.querySelector('#dyX').onclick = dlgClose; }
 }
 function claimBounty(){
   if (P.bounty < BOUNTY) return;
@@ -701,10 +701,10 @@ function signIn(p){
 function takeGifts(){ let n = 0; for (const g of giftsFor(P.name)) if (!P.flags[g.id]){ P.flags[g.id] = 1; P.coins += g.coins || 0; n += g.coins || 0; } if (n) save(); return n; }
 function giftHello(n){
   if (!n) return false;
-  const b = dlg(`<div class="k-eyebrow">A present</div><h3>${fmt(n)} coins, ${esc(P.name)}</h3><div class="bigcoin"><span class="coin"></span>+${fmt(n)}</div><p>From the owner of the game. They are in your account now. Chests and ready-made decks are in the Market.</p>
+  const b = dlg(`<div class="k-eyebrow">A present</div><h3>${fmt(n)} coins, ${esc(P.name)}</h3><div class="pilepic" aria-hidden="true"></div><div class="bigcoin">+${fmt(n)}</div><p>From the owner of the game. They are in your account now. Chests and ready-made decks are in the Market.</p>
     <div class="k-row"><button type="button" class="k-btn primary" id="gfShop">Go to the Market</button><button type="button" class="k-btn" id="gfX">Close</button></div>`);
   b.querySelector('#gfX').onclick = dlgClose; b.querySelector('#gfShop').onclick = () => { dlgClose(); tab('Market'); };
-  BDB.sfx.big(); return true;
+  BDB.sfx.big(); fx('coins', {delay:.4}); return true;
 }
 /* the owner is told once what the account came with */
 function ownerHello(){
@@ -1047,8 +1047,8 @@ const clearBubbles = () => { for (const b of bubbles) b.d.remove(); bubbles.leng
 const SHOT = {arrow:'arrow', bolt:'arrow', sting:'arrow', leaf:'arrow', bullet:'gun', shell:'gun', fire:'fire', zap:'zap', vial:'throw', potion:'throw', spit:'throw', ball:'throw', rock:'throw', bomb:'throw'};      // anything else is magic
 const BOOM = {rage:'rage', heal:'heal', grave:'raise', tornado:'wind', fire:'fire', ward:'spell', zap:'thunder', rain:'rain', quake:'quake', poison:'poison', tox:'poison', meteor:'boombig', freeze:'freeze', snap:'freeze'};
 const LAND = {fire:'fire', frost:'freeze', roar:'rage', shield:'clang', summon:'raise'};
-const entOf = id => !B ? null : B.mode === 'guest' ? B.prev.get(id) : B.sim ? B.sim.ents.find(o => o.id === id) : null;
-const panAt = (x, z) => { if (!V) return 0; try { return clamp(V.screenOf(x, 1, z).x / innerWidth * 2 - 1, -1, 1) * .55; } catch(e){ return 0; } };
+const entOf = id => !B ? null : B.mode === 'guest' ? B.prev.get(id) : B.sim ? B.sim.byId.get(id) || B.sim.ents.find(o => o.id === id) : null;
+const panAt = (x, z) => { if (!V) return 0; try { return clamp(V.panOf(x, z), -1, 1) * .55; } catch(e){ return 0; } };
 function hear(e){
   const k = e.e;
   if (k === 'atk'){ const o = entOf(e.id); if (!o) return; const r = o.U.role;
@@ -1097,7 +1097,7 @@ function onEvents(ev){
     } else if (e.e === 'negate'){ const mine = e.team !== B.team; SND.negate(); stamp(mine ? 'Waved off!' : 'No basket!', !mine); if (e.burn && e.pid === B.me) note(`You lose ${e.burn} Mana`); if (B.mode === 'cpu') talk(mine ? TALK.foulOnHim : TALK.foulOnYou, true); }
     else if (e.e === 'trapx'){ note(e.team === B.team ? 'Your trap was cleared' : 'You cleared a trap'); }
     else if (e.e === 'shbreak'){ if (e.twr) note(e.team === B.team ? 'Your tower shield broke' : 'His tower shield broke'); }
-    else if (e.e === 'over' && !B.over){ B.over = true; A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
+    else if (e.e === 'over' && !B.over){ B.over = true; B.mv = e.mv; A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
   }
 }
 const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim; if (!s) return null; const p = s.players[B.me]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT}; };
@@ -1348,9 +1348,12 @@ function finish(w, cr, why){
   const many = B.mode === 'cpu' && B.odds > 1;
   const line = B.mode === 'cpu' ? pick(win ? (many ? TALK.winMany : TALK.win) : draw ? ["A draw. We'll both tell people we won."] : many ? TALK.loseMany : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : draw ? 'A draw. BDB is counting it as a win for him anyway.' : 'BDB says he could have won that one. He could not.');
   const c = B.cpu, wasCpu = B.mode === 'cpu', ladder = wasCpu && !c.rand, nextUp = ladder && win && c.level < LEVELS && c.level + 1 <= P.ladder + 1, odds = B.odds || 1;
+  // the troop that did the most damage for this player: from the sim where it ran here, from the last event where it ran on the host
+  const mvs = B.sim && B.sim.mvp ? B.sim.mvp() : B.mv, mv = Array.isArray(mvs) && Array.isArray(mvs[B.me]) && UNITS[mvs[B.me][0]] ? mvs[B.me] : null;
+  const mvCard = mv ? myDeck().map(d => CARDS[d.id]).find(q => q && q.U && q.U.key === mv[0]) || CARD_IDS.map(id => CARDS[id]).find(q => q.U && q.U.key === mv[0]) : null;
   // the result: who took how many towers and what each was worth, what BDB has to say about it, everything won laid out in one even row, and how the coins add up
   const theirN = crowns[1 - B.team] | 0, crownRow = n => Array.from({length:3}, (_, i) => `<span class="${i < n ? 'on' : ''}${i === n - 1 ? ' now' : ''}" style="--i:${i}"><i></i>${win ? `<b>x${CROWN_PAY[i + 1]}</b>` : ''}</span>`).join('');
-  const rw = [`<div class="rw"><div class="rw-pic"><span class="coin"></span></div><b>+${fmt(coins)}</b><small>Coins</small></div>`]
+  const rw = [`<div class="rw"><div class="rw-pic"><span class="coin${coins >= 300 ? ' pile' : ''}"></span></div><b>+${fmt(coins)}</b><small>Coins</small></div>`]
     .concat(got.map((g, i) => `<div class="rw cardz" data-i="${i}"><div class="rw-pic"></div><b>${esc(CARDS[g.id].name)}</b><small>${esc(g.tag === 'New' ? 'New card' : g.tag)}</small></div>`))
     .concat(pack ? [`<div class="rw"><div class="rw-pic"><div class="foil" style="--pc:${pack.col}"><img alt="" src="${chestPic(pack)}"></div></div><b>${esc(pack.name)}</b><small>${pack.n} cards inside</small></div>`] : [])
     .concat(tokens ? [`<div class="rw"><div class="rw-pic"><span class="tokbig"></span></div><b>+${tokens}</b><small>Upgrade ${tokens > 1 ? 'tokens' : 'token'}</small></div>`] : []);
@@ -1358,6 +1361,7 @@ function finish(w, cr, why){
     <div class="res-top"><div class="res-crowns${win ? ' paid' : ''}" aria-hidden="true">${crownRow(mine)}</div><h3>${title}</h3>
       <div class="res-score"><span>${esc(P.name)}<b>${mine}</b></span><em>towers</em><span><b>${theirN}</b>${esc(B.oppName || 'BDB')}</span></div></div>
     <div class="res-say"><span class="av"></span><p>${esc(line)}</p></div>
+    ${mv ? `<div class="res-mvp">${mvCard ? `<img alt="" src="${artOf(mvCard)}">` : ''}<p><b>${esc(UNITS[mv[0]].name)}</b> did the most damage for you: ${fmt(mv[1])}.</p></div>` : ''}
     <div class="res-loot">${rw.join('')}</div>
     <dl class="res-sum">${pay.rows.map(r => `<div><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join('')}<div class="tot"><dt>Coins</dt><dd>+${fmt(coins)}</dd></div></dl>
     ${lines.length || tokens ? `<p class="note">${lines.map(esc).join(' ')}${tokens ? ' Spend tokens on tower and Mana upgrades in your Profile.' : ''}</p>` : ''}

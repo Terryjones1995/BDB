@@ -24,7 +24,7 @@ const SPRITE = {tap:[0.1, 0.0544, 0.06], tab:[0.2944, 0.1101, 0.066], ok:[0.5445
   hornup:[69.3829, 1.5838, 0.175], crown:[71.1067, 1.6544, 0.234], win:[72.9012, 2.8281, 0.411], lose:[75.8693, 2.4645, 0.261], draw:[78.4737, 0.8506, 0.091]};
 
 const LOOP = 92.08193, LEAD = 0.3;            // the music repeats every LOOP seconds; the file has LEAD seconds of the loop's end in front of it
-const MASTER = 2, MUSIC = .17, MENU = .55;  // MENU: how much of the music's level the menus keep (it is also muffled there)
+const MASTER = 2, MUSIC = .17, MENU = .6;  // MENU: how much of the music's level the menus keep (it is also muffled there)
 /* the least time between two sounds of the same family: a crowd of skeletons all hitting on one tick should be a few taps, not a wall of noise */
 const GAP = {tap:.03, tab:.05, card:.03, coin:.035, hit:.06, tapx:.045, thud:.1, slash:.08, crit:.12, clang:.14, arrow:.05, gun:.07, magic:.06, fire:.07, zap:.09, throw:.07, shotx:.1,
   poof:.06, bones:.05, crash:.15, boom:.1, boombig:.2, thunder:.18, drop:.04, dropbig:.08, heal:2.2, raise:.35, freeze:.3, warp:.15, poison:.5, wind:.6, rage:.4, quake:.3, rain:.3, spell:.08, tock:.5};
@@ -109,7 +109,7 @@ export function createAudio({muted = () => false, base = 'snd/'} = {}){
     if (!musBuf){ loadMusic(); return; }
     if (ctx.state !== 'running' || (mode === want && cur)) return;
     if (want === 'battle'){ filt.frequency.cancelScheduledValues(ctx.currentTime); filt.frequency.setValueAtTime(20000, ctx.currentTime); glide(musBus.gain, MUSIC, .05); start(.27, 0); }      // from the top: the pick-up hit, then the downbeat
-    else { if (!cur) start(6 + Math.random() * 70, .9); glide(filt.frequency, 520, .35); glide(musBus.gain, MUSIC * MENU, .5); }
+    else { if (!cur) start(6 + Math.random() * 70, .9); glide(filt.frequency, 900, .35); glide(musBus.gain, MUSIC * MENU, .5); }      // 900 Hz: muffled, but still a tune on a phone's small speaker
     mode = want;
   }
   function music(m){ want = m; if (m !== 'battle') hurry(false); apply(); }

@@ -37,7 +37,7 @@ const S = {
   midnight:"Tip of the hat.|Third punch. Count them.|The arm does what it wants.|Arrows? Keep trying.|Midnight. Your time is up.|I feed. You fade.",
   /* ----- Dark Arts ----- */
   bonehorde:"Twelve of us. Mind the gap.|Everybody rattle.|We brought the whole graveyard.|Surround it. No, the other it.|Many hands. No skin.|He is big. We are more.",
-  bonelegion:"Fifteen. Count them. Quickly.|Shoulder to shoulder. Mostly shoulder.|The dead have a quorum.|Form up. Fall apart. Form up.|There is always one more of us.|Bring a bigger broom.",
+  bonelegion:"Twenty. Count them. Quickly.|Shoulder to shoulder. Mostly shoulder.|The dead have a quorum.|Form up. Fall apart. Form up.|There is always one more of us.|Bring a bigger broom.",
   bonecrew:"Night shift, reporting.|Four of us. One brain. Enough.|Rattle rattle, your tower is next.|We work for exposure.|No skin in the game.|Dead tired and still showing up.",
   boneknight:"Knock me down. I get up. Once.|Death was a suggestion.|I have a bone to pick. Several.|Round two is on the house.|You hit like a living person.|Back from break.",
   bonearchers:"No lungs. Never hold our breath.|Dead eye. Literally.|Two bolts with your name spelled wrong.|We aim with what is left.|Ribs out, bolts in.|Hollow inside. Steady hands.",

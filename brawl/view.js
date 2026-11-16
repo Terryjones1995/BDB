@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1116e';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1116e';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1116e';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1116f';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1116f';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1116f';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -1016,6 +1016,7 @@ export function createView(el, opt = {}){
     d.className = 'dmg' + (r.rel ? '' : ' me') + (amt >= 250 ? ' big' : ''); d.textContent = Math.round(amt); const b = el.getBoundingClientRect(); d.style.left = (p.x - b.left) + 'px'; d.style.top = (p.y - b.top) + 'px';
     el.appendChild(d); dmgEls.push(d); setTimeout(() => { d.remove(); dmgEls.splice(dmgEls.indexOf(d), 1); }, 750);
   }
+  function panOf(x, z){ tv.set(x, 1, z); root.localToWorld(tv); tv.project(camera); return tv.x; }      // where across the picture a spot on the field is, -1 (left edge) to 1: for placing its sound, without measuring the page
   function screenOf(x, y, z){ tv.set(x, y, z); root.localToWorld(tv); tv.project(camera); const b = renderer.domElement.getBoundingClientRect(); return {x:b.left + (tv.x + 1) / 2 * b.width, y:b.top + (1 - tv.y) / 2 * b.height}; }
 
   /* ---------- frame ---------- */
@@ -1082,5 +1083,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get gl(){ return renderer; } };
+  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, panOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get gl(){ return renderer; } };
 }
