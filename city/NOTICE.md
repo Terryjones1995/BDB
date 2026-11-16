@@ -42,6 +42,10 @@ Upstream snapshot: commit `aea8b1035030952555395de0c1de14ba693a1427` (2026-09-03
 - **Roads and the ground.** Each road stamps its own surface a second time after all corridor
   blends, so a neighbouring road's blend cannot leave ground on it.
 - **Sound.** Bird calls are a sixth of the level and a third as frequent.
+- **Saving.** New: `src/save/` (snapshot, codec, device store, Supabase client, autosave),
+  `exportState` / `importState` in the terrain, roads, zoning, buildings and simulation modules,
+  a "Your cities" tab on the start screen, a save button in the top bar, and `supabase.sql`.
+  Upstream kept nothing between visits.
 - **Rescue.** `src/rescue.js` can be loaded into an open tab to write the running city to a file.
 - **Naming.** Working title, a link back to All games, and `New Charleston` as the default city name.
 

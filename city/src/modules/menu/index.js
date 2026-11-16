@@ -25,6 +25,12 @@ import { injectStyles } from './styles.js';
 import { suggestName, randomSeed } from './names.js';
 import { makeHeightSource } from './heightsource.js';
 import { paintRelief } from './Minimap.js';
+import { Store, newCityId } from '../../save/store.js';
+import { Cloud, cloudWhy, cloudSays } from '../../save/cloud.js';
+import { unpack } from '../../save/codec.js';
+import { fromRescue, whyNotLoadable } from '../../save/snapshot.js';
+import { ago } from '../../save/session.js';
+import { RESCUE_KEY } from '../../rescue-key.js';
 
 export const name = 'menu';
 
@@ -104,6 +110,9 @@ export function showStartScreen(ctx, opts = {}) {
     pct: $('#fm-pct'),
     applyTxt: $('#fm-apply-txt'),
     foot: $('#fm-foot-seed'),
+    tabCities: $('#fm-tab-cities'), tabNew: $('#fm-tab-new'), count: $('#fm-count'),
+    account: $('#fm-account'), cityList: $('#fm-citylist'), citiesNote: $('#fm-cities-note'),
+    fileBtn: $('#fm-file'), fileInput: $('#fm-file-input'),
   };
 
   // ---- backdrop + seed preview ------------------------------------------------------------
@@ -172,9 +181,22 @@ export function showStartScreen(ctx, opts = {}) {
     world.time.paused = wasPaused;
     if (preview) { setTimeout(hide, 60); }
     else { enterLoading(mode, seed, cityName); watchCoreProgress(events); }
-    const choice = { mode, seed, cityName, quality: currentQuality };
+    // every start but the demo city is a city that will be kept, and so needs a name of its own in the saves
+    const city = mode === 'demo' ? null : { id: newCityId(), start: mode === 'new' ? 'empty' : mode, owner: '', cloudRev: 0, cloudAt: null };
+    const choice = { mode, seed, cityName, quality: currentQuality, city };
     if (resolveChoice) { const r = resolveChoice; resolveChoice = null; r(choice); }
   };
+  /** Open a saved city: `snap` is the unpacked snapshot, `city` what the saves need to know about it. */
+  const openCity = (snap, city) => {
+    if (!root || root.dataset.phase !== 'choose') return;
+    world.time.paused = wasPaused;
+    const cityName = String(snap.name || 'City').slice(0, 40);
+    if (preview) { setTimeout(hide, 60); }
+    else { enterLoading('load', snap.seed, cityName); watchCoreProgress(events); }
+    const choice = { mode: 'load', seed: snap.seed, cityName, quality: currentQuality, snapshot: snap, city };
+    if (resolveChoice) { const r = resolveChoice; resolveChoice = null; r(choice); }
+  };
+  setupCities({ on, openCity, world });
   on(els.villageBtn, 'click', () => choose('village'));
   on(els.townBtn, 'click', () => choose('town'));
   on(els.newBtn, 'click', () => choose('new'));
@@ -194,7 +216,7 @@ export function showStartScreen(ctx, opts = {}) {
   on(window, 'resize', () => { if (backdrop) backdrop.resize(); });
 
   if (!preview) world.time.paused = true;
-  setTimeout(() => { if (els && els.villageBtn) els.villageBtn.focus({ preventScroll: true }); }, 80);
+  setTimeout(() => { if (els && els.villageBtn && root.dataset.tab !== 'cities') els.villageBtn.focus({ preventScroll: true }); }, 80);
 
   return new Promise((resolve) => { resolveChoice = resolve; });
 }
@@ -288,7 +310,249 @@ function applyQuality(q, ctx) {
   setTimeout(() => window.location.replace(url.toString()), 380);
 }
 
-const LOAD_LABEL = { village: 'Starter village', town: 'Starter town', new: 'Empty map', demo: 'Demo city' };
+// ---------------------------------------------------------------------------- your cities
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtN = (n) => Math.round(n || 0).toLocaleString('en-US');
+
+/**
+ * The "Your cities" tab: cities saved on this device, cities saved online, a city rescued out of
+ * an old tab, and the account that ties them together. Nothing here is needed to play: with no
+ * storage and no server the tab is simply empty and "New city" works as before.
+ */
+function setupCities({ on, openCity, world }) {
+  let rows = [];            // what the list shows: { id, name, summary, when, where, source, meta }
+  let touched = false;      // the player picked a tab themselves: stop choosing one for them
+  let busyId = null;
+  const note = (text, bad) => { if (els && els.citiesNote) { els.citiesNote.textContent = text || ''; els.citiesNote.dataset.bad = bad ? '1' : ''; } };
+  const setTab = (tab, byPlayer) => {
+    if (!root) return;
+    if (byPlayer) touched = true;
+    root.dataset.tab = tab;
+    els.tabCities.setAttribute('aria-selected', String(tab === 'cities'));
+    els.tabNew.setAttribute('aria-selected', String(tab === 'new'));
+  };
+  setTab('new', false);
+  on(els.tabCities, 'click', () => setTab('cities', true));
+  on(els.tabNew, 'click', () => setTab('new', true));
+
+  // ---- the rescued city, if this browser holds one
+  const rescueRow = () => {
+    let doc = null;
+    try { doc = JSON.parse(localStorage.getItem(RESCUE_KEY)); } catch (_) { /* nothing stored */ }
+    const snap = doc ? fromRescue(doc) : null;
+    if (!snap) return null;
+    return { id: 'rescue', name: snap.name, summary: snap.summary, when: Date.parse(snap.savedAt) || 0, where: 'rescued from an open tab', source: 'rescue', snap };
+  };
+
+  const paint = () => {
+    if (!els || !els.cityList) return;
+    els.count.textContent = rows.length ? String(rows.length) : '';
+    if (!rows.length) {
+      els.cityList.innerHTML = '<p class="fm-empty">No saved cities yet. Start one under <b>New city</b> and it will be kept here.</p>';
+      return;
+    }
+    els.cityList.innerHTML = rows.map((r) => {
+      const s = r.summary || {};
+      const facts = [`${fmtN(s.population)} people`, r.when ? ago(r.when) : null, r.where].filter(Boolean).join(' · ');
+      return `<div class="fm-city" role="listitem" data-id="${esc(r.id)}"${busyId === r.id ? ' data-busy="1"' : ''}>
+        <button class="fm-city__open" type="button" data-open="${esc(r.id)}">
+          <span class="fm-city__name">${esc(r.name)}</span>
+          <span class="fm-city__meta">${esc(facts)}</span>
+        </button>
+        <button class="fm-city__del" type="button" data-del="${esc(r.id)}" aria-label="Delete ${esc(r.name)}" title="Delete">&times;</button>
+      </div>`;
+    }).join('');
+  };
+
+  /** Device and online lists merged: one row per city, pointing at whichever copy is newer. */
+  const refresh = async () => {
+    const out = [];
+    const r = rescueRow();
+    if (r) out.push(r);
+    const device = await Store.list().catch(() => []);
+    const byId = new Map();
+    const sess = Cloud.session();
+    const me = sess ? sess.name.toLowerCase() : null;
+    for (const m of device) {
+      // on a shared computer, a city that belongs to another account is not listed for this one
+      if (me && m.owner && m.owner !== me) continue;
+      byId.set(m.id, { id: m.id, name: m.name, summary: m.summary, when: m.updatedAt, where: 'on this device', source: 'device', meta: m });
+    }
+    if (Cloud.state === 'ready' && sess) {
+      try {
+        const res = await Cloud.list();
+        for (const c of (res && res.cities) || []) {
+          const d = byId.get(c.id);
+          const when = Date.parse(c.updated_at) || 0;
+          const online = { id: c.id, name: c.name, summary: { population: c.population, money: c.money, happiness: c.happiness, day: c.day }, when, where: 'online', source: 'cloud', cloud: c, meta: d ? d.meta : null };
+          // the device copy wins while it has changes that have not gone up; otherwise a higher revision online wins
+          if (!d) byId.set(c.id, online);
+          else if (!d.meta.dirty && c.rev > (d.meta.cloudRev || 0)) byId.set(c.id, online);
+          else d.where = d.meta.dirty ? 'on this device, not yet online' : 'on this device and online';
+        }
+      } catch (e) { note(cloudWhy(e), true); }
+    }
+    rows = out.concat([...byId.values()].sort((a, b) => (b.when || 0) - (a.when || 0)));
+    paint();
+    if (!touched && rows.length) setTab('cities', false);
+  };
+
+  // ---- the account line
+  const paintAccount = () => {
+    if (!els || !els.account) return;
+    const sess = Cloud.session();
+    if (Cloud.state === 'unknown') { els.account.innerHTML = '<p class="fm-account__line">Looking for online saves…</p>'; return; }
+    if (Cloud.state !== 'ready') {
+      els.account.innerHTML = `<p class="fm-account__line">${Cloud.state === 'setup' || Cloud.state === 'off'
+        ? 'Cities are kept on this device. Online saving is not switched on yet.'
+        : 'Cities are kept on this device. The account server cannot be reached right now. <button class="fm-link" type="button" id="fm-retry">Try again</button>'}</p>`;
+      return;
+    }
+    if (sess) {
+      els.account.innerHTML = `<p class="fm-account__line">Signed in as <b>${esc(sess.name)}</b>. Your cities are kept online too. <button class="fm-link" type="button" id="fm-signout">Sign out</button></p>`;
+      return;
+    }
+    els.account.innerHTML = `<p class="fm-account__line">Sign in to keep your cities online and open them on any computer. A Brawl account works here too.</p>
+      <div class="fm-signin">
+        <input class="fm-input" id="fm-acc-name" type="text" maxlength="20" autocomplete="username" spellcheck="false" placeholder="Name" aria-label="Account name">
+        <input class="fm-input" id="fm-acc-pass" type="password" maxlength="72" autocomplete="current-password" placeholder="Password" aria-label="Password">
+        <button class="fm-btn" type="button" id="fm-acc-in">Sign in</button>
+        <button class="fm-btn fm-btn--quiet" type="button" id="fm-acc-new">Create account</button>
+      </div>`;
+  };
+  const sign = async (create) => {
+    const name = (root.querySelector('#fm-acc-name') || {}).value || '', pass = (root.querySelector('#fm-acc-pass') || {}).value || '';
+    if (name.trim().length < 2 || pass.length < 4) { note(cloudSays('bad_input'), true); return; }
+    note(create ? 'Creating your account…' : 'Signing in…');
+    try {
+      const r = create ? await Cloud.register(name, pass) : await Cloud.login(name, pass);
+      if (r && r.token) { note(''); paintAccount(); await claim(); await refresh(); }
+      else note(cloudSays(r && r.error), true);
+    } catch (e) { note(cloudWhy(e), true); }
+  };
+  /** Cities made on this device before anyone signed in belong to whoever signs in first. */
+  const claim = async () => {
+    const sess = Cloud.session();
+    if (!sess) return;
+    const me = sess.name.toLowerCase();
+    for (const m of await Store.list().catch(() => [])) if (!m.owner) await Store.patch(m.id, { owner: me, dirty: true }).catch(() => {});
+    // and anything waiting on this device goes up now, quietly, so it is there from any computer
+    for (const m of await Store.list().catch(() => [])) {
+      if (m.owner !== me || !m.dirty) continue;
+      const rec = await Store.get(m.id);
+      if (!rec || rec.data.length > Cloud.limits.bytes) continue;
+      try {
+        const r = await Cloud.save(rec);
+        if (r && r.ok) await Store.patch(m.id, { cloudRev: r.rev, cloudAt: r.updated_at, dirty: false });
+      } catch (_) { break; }      // offline: the game will try again while playing
+    }
+  };
+
+  on(els.account, 'click', (e) => {
+    const t = e.target;
+    if (t.id === 'fm-signout') { Cloud.signOut(); paintAccount(); refresh(); }
+    else if (t.id === 'fm-retry') { Cloud.state = 'unknown'; paintAccount(); connect(); }
+    else if (t.id === 'fm-acc-in') sign(false);
+    else if (t.id === 'fm-acc-new') sign(true);
+  });
+  on(els.account, 'keydown', (e) => { if (e.key === 'Enter' && (e.target.id === 'fm-acc-name' || e.target.id === 'fm-acc-pass')) { e.preventDefault(); e.stopPropagation(); sign(false); } });
+
+  // ---- opening and deleting
+  const open = async (row) => {
+    if (busyId) return;
+    busyId = row.id;
+    paint();
+    note(`Opening ${row.name}…`);
+    try {
+      let snap = null, city = null;
+      if (row.source === 'rescue') {
+        snap = row.snap;
+        city = { id: newCityId(), start: snap.start || 'empty', owner: '', cloudRev: 0, cloudAt: null, rescued: true };
+      } else if (row.source === 'cloud') {
+        const res = await Cloud.load(row.id);
+        if (!res || res.error) throw new Error(cloudSays(res && res.error));
+        snap = await unpack(res.data);
+        const sess = Cloud.session();
+        city = { id: row.id, start: res.start || snap.start || 'empty', owner: sess ? sess.name.toLowerCase() : '', cloudRev: res.rev || 0, cloudAt: res.updated_at || null };
+        // keep a copy here straight away: the next save only has to add to it
+        await Store.put({ id: row.id, name: res.name, seed: res.seed, start: city.start, owner: city.owner, updatedAt: Date.parse(res.updated_at) || Date.now(),
+          summary: snap.summary, data: res.data, cloudRev: city.cloudRev, cloudAt: city.cloudAt, dirty: false }).catch(() => {});
+      } else {
+        const rec = await Store.get(row.id);
+        if (!rec) throw new Error('That city is no longer on this device.');
+        snap = await unpack(rec.data);
+        city = { id: rec.id, start: rec.start || snap.start || 'empty', owner: rec.owner || '', cloudRev: rec.cloudRev || 0, cloudAt: rec.cloudAt || null };
+      }
+      const why = whyNotLoadable(snap, world);
+      if (why) throw new Error(`This city cannot be opened: ${why}.`);
+      note('');
+      openCity(snap, city);
+    } catch (err) {
+      busyId = null;
+      paint();
+      note(err && err.kind ? cloudWhy(err) : (err && err.message) || 'That city could not be opened.', true);
+    }
+  };
+  let confirmId = null;
+  on(els.cityList, 'click', async (e) => {
+    const openBtn = e.target.closest('[data-open]'), delBtn = e.target.closest('[data-del]');
+    if (openBtn) { const row = rows.find((r) => r.id === openBtn.dataset.open); if (row) open(row); return; }
+    if (!delBtn) return;
+    const row = rows.find((r) => r.id === delBtn.dataset.del);
+    if (!row) return;
+    if (confirmId !== row.id) {            // first press asks, second press does it
+      confirmId = row.id;
+      note(`Delete ${row.name} for good? Press × again to confirm.`, true);
+      setTimeout(() => { if (confirmId === row.id) { confirmId = null; note(''); } }, 6000);
+      return;
+    }
+    confirmId = null;
+    note(`Deleting ${row.name}…`);
+    try {
+      if (row.source === 'rescue') localStorage.removeItem(RESCUE_KEY);
+      else {
+        await Store.remove(row.id).catch(() => {});
+        if (Cloud.state === 'ready' && Cloud.session() && (row.source === 'cloud' || (row.meta && row.meta.cloudRev))) await Cloud.remove(row.id).catch(() => {});
+      }
+      note(`${row.name} was deleted.`);
+    } catch (_) { note('That city could not be deleted.', true); }
+    refresh();
+  });
+
+  // ---- a city from a file: a save, or a rescue file from the first build
+  on(els.fileBtn, 'click', () => els.fileInput.click());
+  on(els.fileInput, 'change', async () => {
+    const file = els.fileInput.files && els.fileInput.files[0];
+    els.fileInput.value = '';
+    if (!file) return;
+    note(`Reading ${file.name}…`);
+    try {
+      if (file.size > 40 * 1024 * 1024) throw new Error('That file is too big to be a city.');
+      const raw = await unpack((await file.text()).trim());
+      const snap = raw && raw.format === 'bdb-city-rescue' ? fromRescue(raw) : raw;
+      const why = whyNotLoadable(snap, world);
+      if (why) throw new Error(`That file cannot be opened: ${why}.`);
+      note('');
+      openCity(snap, { id: newCityId(), start: snap.start || 'empty', owner: '', cloudRev: 0, cloudAt: null });
+    } catch (err) { note((err && err.message) || 'That file is not a saved city.', true); }
+  });
+
+  // ---- go: what is on this device first (instant), then the server
+  paintAccount();
+  paint();
+  refresh();
+  function connect() {
+    Cloud.probe().then(async () => {
+      if (!root) return;
+      if (Cloud.state === 'ready') { await Cloud.adoptBrawl(); await claim(); }
+      paintAccount();
+      await refresh();
+    }).catch(() => { paintAccount(); });
+  }
+  connect();
+}
+
+const LOAD_LABEL = { village: 'Starter village', town: 'Starter town', new: 'Empty map', demo: 'Demo city', load: 'Your city' };
 
 function enterLoading(mode, seed, cityName) {
   root.dataset.phase = 'loading';
@@ -296,7 +560,7 @@ function enterLoading(mode, seed, cityName) {
   els.loadMeta.textContent = `${LOAD_LABEL[mode] || LOAD_LABEL.new} · seed ${seed}`;
   els.help.dataset.emph = '1';
   els.helpNote.textContent = 'Read this while it builds';
-  progress = { target: 0.03, shown: 0, text: mode === 'demo' ? 'Waking the city' : mode === 'new' ? 'Shaping the land' : 'Raising the town', stamp: performance.now(), timer: 0 };
+  progress = { target: 0.03, shown: 0, text: mode === 'demo' ? 'Waking the city' : mode === 'new' ? 'Shaping the land' : mode === 'load' ? 'Opening your city' : 'Raising the town', stamp: performance.now(), timer: 0 };
   paintProgress();
   if (backdrop) backdrop.stop();          // a still frame costs nothing while the world is built
   progress.timer = setInterval(tickProgress, 180);
@@ -452,8 +716,24 @@ function markup(seed, suggested, cityName, quality) {
 
     <div class="fm-panel">
       <form id="fm-form" class="fm-choose" novalidate>
-        <div class="fm-panel__hd"><h2>Start a world</h2><span>Step 1 of 1</span></div>
+        <div class="fm-panel__hd">
+          <div class="fm-tabs" role="tablist" aria-label="Start">
+            <button class="fm-tab" id="fm-tab-cities" type="button" role="tab" aria-controls="fm-cities">Your cities<b id="fm-count"></b></button>
+            <button class="fm-tab" id="fm-tab-new" type="button" role="tab" aria-controls="fm-new-pane">New city</button>
+          </div>
+        </div>
 
+        <div class="fm-pane fm-pane--cities" id="fm-cities" role="tabpanel">
+          <div class="fm-account" id="fm-account"></div>
+          <div class="fm-citylist" id="fm-citylist" role="list"></div>
+          <div class="fm-cities__foot">
+            <button class="fm-link" id="fm-file" type="button">Load a city from a file</button>
+            <input id="fm-file-input" type="file" accept=".json,.txt,application/json,text/plain" hidden>
+          </div>
+          <p class="fm-cities__note" id="fm-cities-note" role="status" aria-live="polite"></p>
+        </div>
+
+        <div class="fm-pane fm-pane--new" id="fm-new-pane" role="tabpanel">
         <div class="fm-fields">
           <div class="fm-field">
             <label for="fm-name">Name your city</label>
@@ -513,6 +793,7 @@ function markup(seed, suggested, cityName, quality) {
               <span class="fm-choice__desc">Thousands of residents, live traffic and services. Good for a look around.</span>
             </span>${arrow}
           </button>
+        </div>
         </div>
 
         <div class="fm-foot"><span id="fm-foot-seed">Seed ${seed} · 2048 m</span><span>Built on <a href="https://github.com/rawprogress/fable-cities" target="_blank" rel="noopener">Fable Cities</a></span></div>

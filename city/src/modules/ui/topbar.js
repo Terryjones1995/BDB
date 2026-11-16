@@ -158,11 +158,29 @@ export function createTopBar(hud) {
   const bellBtn = h('button.fc-ibtn.fc-bell', { 'aria-label': 'Notifications', onClick: () => hud.toasts.centre.toggle() }, svg(icon('bell')), bellBadge);
   tooltip.attach(bellBtn, () => ({ icon: 'bell', title: 'Notifications', key: 'N', desc: hud.toasts.unread ? `${hud.toasts.unread} unread. Milestones, budget reports and warnings collect here.` : 'Milestones, budget reports and warnings collect here.' }));
   hud.toasts.onChange(({ unread }) => { setText(bellBadge, unread > 9 ? '9+' : String(unread)); setClass(bellBtn, 'has-unread', unread > 0); });
+  // ---- saving: one button that says whether the city is safe, and saves it when pressed ----
+  const saves = () => (world.saves && world.saves.api) || null;
+  const saveDot = h('i.fc-save-dot');
+  const saveBtn = h('button.fc-ibtn.fc-save', { 'aria-label': 'Save the city', onClick: async () => {
+    const s = saves();
+    if (!s) return;
+    const st = s.status();
+    if (!st.kept) { hud.toasts.push({ kind: 'info', title: st.title, text: st.lines.join(' '), life: 6000 }); return; }
+    const after = await s.saveNow('manual');
+    hud.toasts.push({ kind: after.level === 'bad' ? 'warning' : 'info', title: after.title, text: after.lines.join(' '), life: 6000 });
+  } }, svg(icon('save')), saveDot);
+  const paintSave = (st) => { saveBtn.dataset.level = st ? st.level : 'off'; };
+  events.on('save:status', paintSave);
+  paintSave(saves() ? saves().status() : null);
+  tooltip.attach(saveBtn, () => {
+    const st = saves() ? saves().status() : { title: 'Not saved', lines: ['Saving starts once the city has loaded.'], kept: false };
+    return { icon: 'save', title: st.title, desc: st.lines.join(' ') + (st.kept ? ' Click to save now.' : '') };
+  });
   const settingsBtn = h('button.fc-ibtn', { 'aria-label': 'Settings', onClick: () => hud.settings.toggle() }, svg(icon('settings')));
   tooltip.attach(settingsBtn, { icon: 'settings', title: 'Settings', key: 'O', desc: 'Graphics quality, weather, time of day and interface options.' });
   const keysBtn = h('button.fc-ibtn', { 'aria-label': 'Keyboard shortcuts', onClick: () => hud.shortcuts.toggle() }, svg(icon('keyboard')));
   tooltip.attach(keysBtn, { icon: 'keyboard', title: 'Keyboard shortcuts', key: '?', desc: 'Everything you can do without touching the mouse.' });
-  const right = h('div.fc-panel.fc-top-right', moneyEl, h('div.fc-divider'), popEl, h('div.fc-divider'), happyEl, h('div.fc-divider'), bellBtn, settingsBtn, keysBtn);
+  const right = h('div.fc-panel.fc-top-right', moneyEl, h('div.fc-divider'), popEl, h('div.fc-divider'), happyEl, h('div.fc-divider'), saveBtn, bellBtn, settingsBtn, keysBtn);
 
   const el = h('div.fc-top', left, center, right);
   hud.root.appendChild(el);
@@ -233,5 +251,5 @@ export function createTopBar(hud) {
   refreshStats();
   refreshSpeedLabels();
   refreshTime();
-  return { el, refreshStats, refreshTime, refreshSpeedLabels, cityName, settingsBtn, keysBtn, bellBtn, speedEl, speedBtns };
+  return { el, refreshStats, refreshTime, refreshSpeedLabels, cityName, settingsBtn, keysBtn, bellBtn, saveBtn, speedEl, speedBtns };
 }
