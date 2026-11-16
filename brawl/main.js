@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1116o';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116o';
-import { createAI } from './ai.js?v=1116o';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116o';
-import { Cloud, cloudWhy } from './cloud.js?v=1116o';
-import { sayFor, sayWhen } from './talk.js?v=1116o';
-import { createAudio } from './audio.js?v=1116o';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1116p';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116p';
+import { createAI } from './ai.js?v=1116p';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116p';
+import { Cloud, cloudWhy } from './cloud.js?v=1116p';
+import { sayFor, sayWhen } from './talk.js?v=1116p';
+import { createAudio } from './audio.js?v=1116p';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116o'), import('./models.js?v=1116o')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116p'), import('./models.js?v=1116p')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -1680,7 +1680,7 @@ function leagueUI(){
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 function renderHall(){
   const box = $('hall'); if (!box || !P) return;
-  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; hallHTML = ''; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on your Profile to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
+  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; hallHTML = ''; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'With an account you can see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>${Cloud.on ? '<div class="k-row" style="justify-content:flex-start;margin-top:10px"><button type="button" class="k-btn primary" id="hallAcc">Create an account</button></div>' : ''}`; const q = $('hallAcc'); if (q) q.onclick = () => $('accMake').click(); return; }
   const on = (HALL.online || []).map(o => ({name:clean(o.name, 20), status:o.status, tr:o.trophies | 0})).filter(o => o.name), names = new Set(on.map(o => o.name));
   const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
   $('hallLbl').textContent = `Who's on: ${on.length}`;
