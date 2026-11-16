@@ -64,6 +64,7 @@ textarea.field{font:600 12px/1.4 ui-monospace,Menlo,monospace;min-height:84px;re
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .filters .field{flex:1 1 130px;padding:9px 10px;font-size:13px;min-width:0}
 .filters select.field{flex:0 1 150px}
+@media (max-width:520px){ #ownF,#shopF{display:grid;grid-template-columns:1fr 1fr} :is(#ownF,#shopF) :is(.tfilter,input.field){grid-column:1/-1} :is(#ownF,#shopF) select.field{width:100%} }      /* on a phone: the types, the search box, then the four pickers two by two */
 .more-row{text-align:center;margin-top:12px}
 .card{position:relative;display:block;width:100%;aspect-ratio:3/4;padding:0;border:2px solid var(--rc,#9fb3d9);border-radius:12px;overflow:hidden;cursor:pointer;color:var(--ink);
   background:radial-gradient(ellipse 90% 70% at 50% 38%,color-mix(in srgb,var(--rc,#9fb3d9) 34%,#0a1838),#081330 78%);box-shadow:0 3px 0 rgba(0,0,0,.4);font-family:var(--f-body);-webkit-touch-callout:none}
@@ -760,6 +761,7 @@ img.pav{border:0;border-radius:0;box-shadow:none;background:none;object-fit:cont
 .tfilter button[aria-pressed="true"]{background:color-mix(in srgb,var(--ty,#f59a1c) 80%,#0a1430);color:#fff;text-shadow:var(--stroke);box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2);transform:translateY(-2px)}
 .tfilter button[aria-pressed="true"]::before{background:#fff}
 @media (min-width:860px){ .tfilter{flex-wrap:wrap;overflow:visible} }
+@media (max-width:859px){ .tfilter{padding-right:30px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 34px),transparent)} }      /* a row that scrolls sideways fades out at the right, so it reads as having more in it */
 #tdeckF{margin-bottom:10px}
 
 /* the next fight: the tier's colour, the level number, what a win is worth */
@@ -809,7 +811,9 @@ img.pav{border:0;border-radius:0;box-shadow:none;background:none;object-fit:cont
 .pack h4{margin:8px 0 0;font:400 19px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
 .pack p{margin:0;font:600 11.5px/1.35 var(--f-body);color:#e4efff;min-height:47px}
 .pack .buy{width:100%;padding:10px 4px 8px;font-size:17px;display:flex;align-items:center;justify-content:center}
-@media (max-width:900px){ .packs{display:flex;overflow-x:auto;gap:14px;padding:4px 4px 10px;scroll-snap-type:x proximity} .pack{flex:0 0 146px;scroll-snap-align:start} }
+/* on a phone all six chests sit in two rows of three: a sideways strip hid the four dearest ones off the edge with nothing to say they were there */
+@media (max-width:900px){ .packs{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 12px} }
+@media (max-width:520px){ .packs{gap:16px 9px} .pack{gap:5px} .pack h4{margin-top:4px;font-size:16px} .pack h4 span,.pack p{display:none} .pack .buy{padding:8px 2px 6px;font-size:15px} .foil b{right:-3px;padding:3px 7px 1px;font-size:14px} .foil b small{font-size:9px} }
 /* a foil pack: crimped at both ends, a sheen across it, whoever is on the front standing out of the wrapper */
 .foil{position:relative;display:block;width:min(100%,134px);aspect-ratio:5/7;padding:0;border:0;cursor:pointer;border-radius:11px;isolation:isolate;font-family:var(--f-body);
   background:linear-gradient(112deg,rgba(255,255,255,0) 28%,rgba(255,255,255,.6) 43%,rgba(255,255,255,0) 58%),radial-gradient(ellipse 90% 60% at 50% 42%,color-mix(in srgb,var(--pc) 55%,#fff),var(--pc) 58%,color-mix(in srgb,var(--pc) 52%,#12103a));
@@ -849,10 +853,21 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .tdeck .fan .card :is(img,.tint){top:6%;height:88%}
 .tdeck h4{margin:0 0 3px;font:400 20px/1.1 var(--f-game);text-shadow:var(--stroke)}
 .tdeck p{margin:0 0 10px;font:600 12px/1.4 var(--f-body);color:#dbe8ff;min-height:50px}
-.tdeck .foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tdeck{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start}      /* it is a button, and a button centres what is in it: pin the picture to the top and the price to the bottom instead */
+.tdeck .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
 .tdeck .pr{display:inline-flex;align-items:center;font:400 18px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
 .tdeck.own .pr{color:#8dff7a}
 .tdeck:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ink2)}
+/* on a phone the ready-made decks go two to a row: one to a row was eight screens of scrolling before the rest of the Market */
+@media (max-width:520px){
+  .tdecks{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .tdeck{padding:8px 9px 10px;border-radius:15px;contain-intrinsic-size:auto 178px}
+  .tdeck .fan{height:86px;margin:4px 0 8px}
+  .tdeck .fan .card{width:44px;margin-left:-22px;top:6px;transform:translateX(calc(var(--i) * 22px)) rotate(calc(var(--i) * 7deg)) translateY(calc(var(--i) * var(--i) * 2px))}
+  .tdeck h4{font-size:16px;margin-bottom:8px}
+  .tdeck p{display:none}
+  .tdeck .foot{flex-direction:column;align-items:flex-start;gap:6px} .tdeck .pr{font-size:16px}
+}
 .oddsx{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:6px;width:100%}
 .oddsx div{padding:9px 4px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--rc)}
 .oddsx b{display:block;font:400 21px/1 var(--f-game);color:var(--rc);margin-bottom:4px}
@@ -1148,8 +1163,8 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
         <div class="more-row" id="tdeckMore"><button type="button" class="k-btn" id="tdeckMoreB">Show all decks</button></div>
       </div>
       <div class="split">
-        <div class="panel"><span class="k-label">Today's deals</span><div class="grid priced" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down 30%. New ones every day.</p></div>
-        <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Every win pays coins, and harder fights pay more. The first win on a ladder level pays in full, replays pay half, and a loss still pays a little. Spend coins on chests, decks, single cards, or upgrades for the cards you have. Every level adds 8% health and damage, up to level 10. A card you pull twice goes up a level for free.</p></div>
+        <div class="panel"><span class="k-label">Today's deals</span><div class="grid priced" id="dealGrid"></div><p class="note" style="margin:10px 0 0">Six cards marked down <span id="dealPct">30</span>%. New ones every day.</p></div>
+        <div class="panel"><span class="k-label">How coins work</span><p class="note" style="margin:0">Every win pays coins, and harder fights pay more. The first win on a ladder level pays in full, replays pay half, and a loss still pays a little. Spend coins on chests, decks, single cards, or upgrades for the cards you have. Every level adds <span id="lvPct">3</span>% health and damage, up to level <span id="lvMax">10</span>. A card you pull twice goes up a level for free.</p></div>
       </div>
       <div class="panel"><span class="k-label" id="shopLbl">All cards</span><div class="filters" id="shopF"></div><div class="grid priced" id="shopGrid"></div><div class="more-row"><button type="button" class="k-btn" id="shopMore">Show more</button></div></div>
     </div>
@@ -1240,6 +1255,6 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="sheet" hidden><div class="k-box" id="sheetBox"></div></div>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116i"></script>
+<script type="module" src="main.js?v=1116j"></script>
 </body>
 </html>

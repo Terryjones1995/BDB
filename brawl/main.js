@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116i';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116i';
-import { createAI } from './ai.js?v=1116i';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116i';
-import { Cloud, cloudWhy } from './cloud.js?v=1116i';
-import { sayFor, sayWhen } from './talk.js?v=1116i';
-import { createAudio } from './audio.js?v=1116i';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116j';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116j';
+import { createAI } from './ai.js?v=1116j';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116j';
+import { Cloud, cloudWhy } from './cloud.js?v=1116j';
+import { sayFor, sayWhen } from './talk.js?v=1116j';
+import { createAudio } from './audio.js?v=1116j';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116i'), import('./models.js?v=1116i')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116j'), import('./models.js?v=1116j')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -619,7 +619,7 @@ function market(){
   const pr = $('packRow'); pr.innerHTML = '';
   for (const p of PACKS){
     const el = document.createElement('div'); el.className = 'pack'; el.style.setProperty('--pc', p.col);
-    el.innerHTML = `<button type="button" class="foil" aria-label="What is in the ${esc(p.name)}"><img alt="" loading="lazy" src="${chestPic(p)}"><b>${p.n}<small>cards</small></b></button><h4>${esc(p.name)}</h4><p>${esc(p.blurb)}</p><button type="button" class="k-btn primary buy">${COIN}${fmt(p.price)}</button>`;
+    el.innerHTML = `<button type="button" class="foil" aria-label="What is in the ${esc(p.name)}"><img alt="" loading="lazy" src="${chestPic(p)}"><b>${p.n}<small>cards</small></b></button><h4>${esc(p.name).replace(/ Chest$/, '<span> Chest</span>')}</h4><p>${esc(p.blurb)}</p><button type="button" class="k-btn primary buy">${COIN}${fmt(p.price)}</button>`;
     el.querySelector('.foil').onclick = () => packInfo(p);
     const b = el.querySelector('.buy'); b.disabled = P.coins < p.price; b.onclick = () => buyPack(p);
     pr.appendChild(el);
@@ -1788,6 +1788,7 @@ function drawTrade(){
 
 /* ---------- start ---------- */
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) $('sheet').hidden = true; });
+$('lvPct').textContent = Math.round(LVL_STEP * 100); $('lvMax').textContent = MAX_LVL; $('dealPct').textContent = Math.round((1 - DEAL) * 100);      // the numbers in the Market's small print come from the rules, so they cannot drift from them
 listUI('own', () => Object.keys(P.cards), 'Your cards');
 listUI('shop', () => CARD_IDS, 'All cards');
 window.__game = {
