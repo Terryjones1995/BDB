@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116d';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116d';
-import { createAI } from './ai.js?v=1116d';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116d';
-import { Cloud, cloudWhy } from './cloud.js?v=1116d';
-import { sayFor, sayWhen } from './talk.js?v=1116d';
-import { createAudio } from './audio.js?v=1116d';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116e';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116e';
+import { createAI } from './ai.js?v=1116e';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116e';
+import { Cloud, cloudWhy } from './cloud.js?v=1116e';
+import { sayFor, sayWhen } from './talk.js?v=1116e';
+import { createAudio } from './audio.js?v=1116e';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116d'), import('./models.js?v=1116d')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116e'), import('./models.js?v=1116e')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -940,7 +940,7 @@ async function begin(o){
   show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
-  const w = $('wait'); w.hidden = false; w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Bringing both decks onto the field.</div></div>`;
+  const w = $('wait'), tip = `<p class="tip"><em>Tip</em>${esc(pick(TIPS))}</p>`; w.hidden = false; w.innerHTML = vsCard(o, tip + '<p class="ld">Bringing both decks onto the field.</p>');
   if (MD && V && o.units) try { await Promise.all([MD.needModels(o.units, Q.get('fast') ? 60000 : 25000), V.needFloor(o.map)]); } catch(e){}
   if (B !== me) return;                                   // they backed out while it loaded
   if (V) V.reset(B.team, o.map);
@@ -963,9 +963,9 @@ async function begin(o){
   hud(true);
   cancelAnimationFrame(raf); lastT = performance.now(); raf = requestAnimationFrame(loop);
   if (o.mode === 'guest' && room) room.send('rd', {}, OL && OL.opp);
-  if (o.mode === 'host'){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<div class="note">Waiting for ${esc(o.mate || o.oppName)} to load in.</div></div>`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
+  if (o.mode === 'host'){ const ld = w.querySelector('.ld'); if (ld) ld.textContent = `Waiting for ${o.mate || o.oppName} to load in.`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
   let n = 3;
-  const cd = () => { if (B !== me) return; if (n > 0){ w.innerHTML = `<div>${esc(MAPS[o.map].name)}<b>${n}</b></div>`; fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); if (B.coach) setTimeout(() => { if (B === me) coach(0); }, 700); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  const cd = () => { if (B !== me) return; if (n > 0){ if (n === 3) w.innerHTML = vsCard(o, '<b class="cnt"></b>'); const q = w.querySelector('.cnt'); if (q){ q.textContent = n; q.classList.remove('tk'); void q.offsetWidth; q.classList.add('tk'); } fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); if (B.coach) setTimeout(() => { if (B === me) coach(0); }, 700); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
   cd();
 }
 function startTicker(){ try { ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'], {type:'text/javascript'}))); ticker.onmessage = () => { if (document.hidden) hostPump(); }; } catch(e){} }
@@ -1007,6 +1007,19 @@ function coach(i, ms){
   fx('pop');
 }
 function coachOff(){ clearTimeout(coach.t); const el = $('coach'); if (el) el.hidden = true; }
+/* while a match loads and counts down: who is playing whom, where, and one thing worth knowing */
+const TIPS = ['A full Mana bar is wasted Mana. Spend it.', 'Spells do far less to towers than to troops.', 'Take one of his towers and your troops can land on that side of his half.',
+  'Swords cannot reach flyers. Bring something that shoots.', `${SET_AT[0]} cards of one type in a deck fight ${Math.round((SET_MUL[0] - 1) * 100)}% harder. ${SET_AT[1]} of them, ${Math.round((SET_MUL[1] - 1) * 100)}%.`,
+  'He cannot see your traps until one goes off.', `Every tower you take raises what a win pays: x${CROWN_PAY[1]}, x${CROWN_PAY[2]}, then x${CROWN_PAY[3]}.`, 'Mana comes in faster every two minutes.',
+  'In overtime the next tower wins it.', 'Drag a card over the field to see where it will land before you let go.', 'Tap any troop on the field to see what it is and what it does.'];
+function vsCard(o, below){
+  const T = tierOf(nextLevel()), solo = o.mode === 'cpu', bdb = solo || o.coop, c = o.cpu;
+  const sub = solo ? (c.rand ? `${(SKILLS.find(k => k.id === c.skill) || {name:'Quick'}).name} quick battle` : `Level ${fmt(c.level)}, ${TIERS[c.tier].name} tier`) + (o.odds > 1 ? `. ${o.odds} against 1` : '') : o.coop ? `${teamSkName(o.skill)}, ${o.coop} against 2` : 'Online, even cards';
+  return `<div class="vs2"><div class="plate opp"><span class="pav${bdb ? ' bdb' : ''}">${bdb ? '' : esc(o.oppName[0].toUpperCase())}</span><div><strong>${esc(o.oppName)}</strong><small>${esc(sub)}</small></div></div>
+    <div class="vsb" aria-hidden="true">VS</div>
+    <div class="plate me"><img class="pav" alt="" src="${tierPic(T)}"><div><strong>${esc(o.coop && o.mate ? `${P.name} and ${o.mate}` : P.name)}</strong><small>${esc(T.name)} tier</small></div></div>
+    <div class="where">${esc(MAPS[o.map].name)}</div>${below}</div>`;
+}
 function note(text){ const d = document.createElement('div'); d.className = 'bnote'; d.textContent = text; for (const o of document.querySelectorAll('.bnote')) o.remove(); $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 2200); }
 function stamp(text, bad){ const d = document.createElement('div'); d.className = 'stamp' + (bad ? ' bad' : ''); d.textContent = text; $('scrBattle').appendChild(d); setTimeout(() => d.remove(), 1600); }
 
