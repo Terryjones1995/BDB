@@ -1281,5 +1281,14 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
 <script type="module" src="main.js?v=1116p"></script>
+<script>
+/* If the copy of the game kept on this device ever goes bad and the game does not start, throw the copy away and load again. Once, so a real outage does not loop. */
+setTimeout(function(){
+  if (window.__game || !('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+  try { if (sessionStorage.getItem('brawl-heal')) return; sessionStorage.setItem('brawl-heal', '1'); } catch(e){ return; }
+  navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(r){ return r.unregister(); })); })
+    .then(function(){ return window.caches ? caches.delete('brawl-1') : 0; }).then(function(){ location.reload(); }).catch(function(){});
+}, (+(/[?&]heal=(\d+)/.exec(location.search) || [0, 20])[1] || 20) * 1000);
+</script>
 </body>
 </html>
