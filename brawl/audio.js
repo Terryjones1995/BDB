@@ -1,7 +1,7 @@
 /* Break Room Brawl: sound. One file holds every effect (snd/sfx.mp3), one holds the music (snd/battle.mp3).
    Nothing here knows about the game: main.js decides what an event should sound like and calls play().
    Where each sound came from is in snd/CREDITS.md. */
-const TAG = new URL(import.meta.url).searchParams.get('v') || '';
+const TAG = '538cb38b';      // the two sound files, by what is in them (written by the build script): a new release of the game does not make anyone download the same sounds again
 
 /* name: [where it starts in the file, how long it is, the volume that puts it at its intended loudness]. Built by a script; do not edit by hand. */
 const SPRITE = {tap:[0.1, 0.0544, 0.06], tab:[0.2944, 0.1101, 0.066], ok:[0.5445, 0.2946, 0.103], big:[0.9791, 0.7135, 0.186], bad:[1.8326, 0.2289, 0.164], pop:[2.2015, 0.1188, 0.168],

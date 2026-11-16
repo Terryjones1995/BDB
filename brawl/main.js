@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116l';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116l';
-import { createAI } from './ai.js?v=1116l';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116l';
-import { Cloud, cloudWhy } from './cloud.js?v=1116l';
-import { sayFor, sayWhen } from './talk.js?v=1116l';
-import { createAudio } from './audio.js?v=1116l';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116n';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116n';
+import { createAI } from './ai.js?v=1116n';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116n';
+import { Cloud, cloudWhy } from './cloud.js?v=1116n';
+import { sayFor, sayWhen } from './talk.js?v=1116n';
+import { createAudio } from './audio.js?v=1116n';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116l'), import('./models.js?v=1116l')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116n'), import('./models.js?v=1116n')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -1838,3 +1838,15 @@ if (sess0 && !Q.get('fresh')){                                   // signed in be
     .catch(() => { const p = Accounts.get(sess0.name); if (p) signIn(p); else { loginScreen(); $('loginErr').textContent = 'Could not reach the account server.'; } });
 } else if (last && !Q.get('fresh')) signIn(last); else loginScreen();
 initView();
+/* a copy of the game kept on the device (sw.js): it opens at once, and still opens with no signal. Not on a developer's machine unless asked for,
+   so an edit is never hidden behind an old copy. */
+if ('serviceWorker' in navigator && Q.get('nosw')){             // the way out, should a copy ever go bad: open the game once with ?nosw=1
+  navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+  if (window.caches) caches.delete('brawl-1').catch(() => {});
+} else if ('serviceWorker' in navigator && (location.protocol === 'https:' || Q.get('sw'))){
+  // once it is running, hand it the list of what this visit loaded before it was in charge, so the very first visit is enough to open with no signal
+  const shell = () => navigator.serviceWorker.ready.then(r => { if (r.active) r.active.postMessage({keep:[...new Set([location.origin + location.pathname, ...performance.getEntriesByType('resource').map(q => q.name).filter(u => u.startsWith(location.origin + '/'))])]}); });
+  const reg = () => navigator.serviceWorker.register('sw.js').then(() => { shell(); for (const t of [5, 15, 40]) setTimeout(shell, t * 1000); }).catch(() => {});      // and again a little later: the 3D side loads after the page has
+  try { performance.setResourceTimingBufferSize(600); } catch(e){}
+  if (document.readyState === 'complete') reg(); else addEventListener('load', reg);
+}
