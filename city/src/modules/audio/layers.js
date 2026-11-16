@@ -260,12 +260,17 @@ export class WaterLayer extends Layer {
  * lowpass, stereo pan and a send into a short outdoor early-reflection reverb. Crows/gulls use a
  * pulse-train through two formant filters plus noise instead. Eight species with their own grammar.
  */
+// Birds were by far the loudest thing in the mix: a call every half second at full level. They are
+// scenery, so they now sit well under everything else: about a sixth of the level, a third as often.
+const BIRD_GAIN = 0.09;   // was 0.55
+const BIRD_RATE = 0.7;    // most calls per second, was 2.2
+
 export class BirdLayer extends Layer {
   constructor(ctx, buffers, rng, dest) {
     super(ctx, dest);
     this.rng = rng;
     this.buffers = buffers;
-    setVal(this.out.gain, 0.5);
+    setVal(this.out.gain, BIRD_GAIN);
     this.hp = ctx.createBiquadFilter(); this.hp.type = 'highpass'; setVal(this.hp.frequency, 500); setVal(this.hp.Q, 0.5);
     this.dry = ctx.createGain(); setVal(this.dry.gain, 1);
     this.dry.connect(this.hp); this.hp.connect(this.out);
@@ -294,9 +299,9 @@ export class BirdLayer extends Layer {
     const a = day * dawn * dusk * temp * weather * altFade * (1 - 0.45 * s.urban) * (1 - 0.35 * s.wind) * habitat;
     this.activity = clamp01(a);
     // explicit group amplitude (not just call rate) so the layer sits under the city hum from the air
-    setT(this.out.gain, 0.55 * Math.pow(altFade, 0.9) * (1 - 0.55 * clamp01(s.urban)), t, 0.7);
+    setT(this.out.gain, BIRD_GAIN * Math.pow(altFade, 0.9) * (1 - 0.55 * clamp01(s.urban)), t, 0.7);
     for (let i = this.voices.length - 1; i >= 0; i--) if (this.voices[i].end < t) this.voices.splice(i, 1);
-    const rate = this.activity * 2.2; // calls per second
+    const rate = this.activity * BIRD_RATE; // calls per second
     if (rate < 0.02) { this.nextTime = Math.max(this.nextTime, t + 0.5); return (this.level = 0); }
     if (this.nextTime < t) this.nextTime = t + 0.05;
     let guard = 0;
@@ -304,7 +309,7 @@ export class BirdLayer extends Layer {
       this.scheduleCall(this.nextTime, s);
       this.nextTime += (-Math.log(1 - this.rng()) / rate) * 0.85 + 0.05;
     }
-    return (this.level = this.activity * 0.22);
+    return (this.level = this.activity * 0.22 * (BIRD_GAIN / 0.55));
   }
 
   scheduleCall(t0, s) {
