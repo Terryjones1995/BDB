@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Contact sheet of one model from four angles. Open as  index.html?m=<url of a .glb>  (see ../README.md). --><style>html,body{margin:0;background:#2a2f36}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"../../vendor/three/build/three.module.min.js","three/addons/":"../../vendor/three/addons/"}}</script></head>
+<body><script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+const q = new URLSearchParams(location.search), W = +q.get('w') || 1200, H = +q.get('h') || 800;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.setPixelRatio(1); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x3a4048);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x555a60, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(2, 4, 3); scene.add(sun);
+const grid = new THREE.GridHelper(4, 16, 0x8a929c, 0x565d66); scene.add(grid);
+const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+loader.load(q.get('m'), (g) => {
+  const obj = g.scene; scene.add(obj);
+  const box = new THREE.Box3().setFromObject(obj), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const r = Math.max(size.x, size.y, size.z);
+  // 2x2 contact sheet: front-left 3/4, right side, top, rear-right 3/4 (model's +z is drawn as "front")
+  const views = [[-0.9, 0.55, 1.25], [1.7, 0.25, 0], [0, 2.2, 0.001], [0.95, 0.6, -1.2]];
+  renderer.setScissorTest(true);
+  views.forEach((v, i) => {
+    const cam = new THREE.PerspectiveCamera(32, (W / 2) / (H / 2), 0.01, 100);
+    const d = new THREE.Vector3(...v).normalize().multiplyScalar(r * 1.9);
+    cam.position.copy(c).add(d); cam.lookAt(c);
+    const x = (i % 2) * W / 2, y = (1 - Math.floor(i / 2)) * H / 2;
+    renderer.setViewport(x, y, W / 2, H / 2); renderer.setScissor(x, y, W / 2, H / 2); renderer.render(scene, cam);
+  });
+  window.__done = { size: size.toArray().map(n => +n.toFixed(3)), min: box.min.toArray().map(n => +n.toFixed(3)) };
+}, undefined, (e) => { window.__done = { error: String(e && e.message || e) }; });
+</script></body></html>
