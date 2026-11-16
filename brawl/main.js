@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116k';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116k';
-import { createAI } from './ai.js?v=1116k';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116k';
-import { Cloud, cloudWhy } from './cloud.js?v=1116k';
-import { sayFor, sayWhen } from './talk.js?v=1116k';
-import { createAudio } from './audio.js?v=1116k';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay } from './cards.js?v=1116l';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116l';
+import { createAI } from './ai.js?v=1116l';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116l';
+import { Cloud, cloudWhy } from './cloud.js?v=1116l';
+import { sayFor, sayWhen } from './talk.js?v=1116l';
+import { createAudio } from './audio.js?v=1116l';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116k'), import('./models.js?v=1116k')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1116l'), import('./models.js?v=1116l')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -176,7 +176,7 @@ function setsHTML(deck, brief, pairs){      // brief: only what earns a bonus or
 }
 
 /* ---------- dialogs ---------- */
-function dlg(html, o = {}){ const w = $('dlg'), b = $('dlgBox'); if (w.hidden) fx('open'); b.innerHTML = html; w.hidden = false; dlg.lock = !!o.lock; return b; }
+function dlg(html, o = {}){ const w = $('dlg'), b = $('dlgBox'); if (w.hidden) fx('open'); b.innerHTML = html; w.hidden = false; dlg.lock = !!o.lock; $('hubToast').hidden = true; return b; }
 const dlgClose = () => { $('dlg').hidden = true; $('dlgBox').innerHTML = ''; };
 function backdrop(w, close){ let d = false; w.addEventListener('pointerdown', e => { d = e.target === w; }); w.addEventListener('click', e => { if (d && e.target === w) close(); d = false; }); }
 backdrop($('sheet'), () => { $('sheet').hidden = true; });
@@ -547,7 +547,8 @@ $('deckClear').onclick = () => { if (!curDeck().length) return; if (!clearT){ cl
 /* ---------- profile: the numbers, and the upgrades bought with tokens from the ladder ---------- */
 function profile(){
   $('pName').textContent = P.name;
-  $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. Create an account from the sign in screen to keep it online and show up for friends.' : 'Saved on this device.';
+  $('accNote').textContent = Cloud.session() ? 'Signed in. Your save is kept online, so it follows you to any device.' : Cloud.on ? 'This player is saved on this device only. An account keeps it online, lets you sign in anywhere, and puts you on your friends\' list.' : 'Saved on this device.';
+  $('accMakeRow').hidden = !Cloud.on || !!Cloud.session();
   const s = P.stats, own = Object.keys(P.cards).length, lv = nextLevel(), T = tierOf(lv), ti = TIERS.indexOf(T), done = P.ladder >= LEVELS, played = s.w + s.l + s.d;
   $('pName').textContent = P.name; $('pBadge').src = tierPic(T); $('pTier').textContent = `${T.name} tier`; $('pTier').style.color = T.col;
   $('pBar').style.width = (done ? 100 : (P.ladder - ti * 100) / 100 * 100) + '%'; $('pBar').style.background = T.col;
@@ -710,7 +711,7 @@ function packReveal(p, got, done, again){
 }
 
 /* ---------- sign in ---------- */
-function show(scr){ for (const s of ['scrLogin', 'scrOnb', 'scrHub', 'scrBattle']) $(s).hidden = s !== scr; if (scr === 'scrHub') fitTop(true); }
+function show(scr){ for (const s of ['scrLogin', 'scrOnb', 'scrHub', 'scrBattle']) $(s).hidden = s !== scr; if (scr === 'scrHub') fitTop(true); else $('hubToast').hidden = true; }
 function loginScreen(){
   show('scrLogin'); P = null;
   const w = $('whoList'); w.innerHTML = '';
@@ -718,7 +719,7 @@ function loginScreen(){
   $('loginErr').textContent = '';
 }
 function signIn(p){
-  P = p; OWN = isOwner(P.name); ownGift = -1; ownerPerks(); Accounts.save(P);
+  P = p; OWN = isOwner(P.name); ownGift = -1; hallWas = null; ownerPerks(); Accounts.save(P);
   if (!P.onboarded && !Q.get('skip')) return onboard();
   P.onboarded = true; if (OWN) save();
   show('scrHub'); tab('Battle'); hallStart();
@@ -812,6 +813,25 @@ async function accSign(create){
   } catch(e){ err(cloudWhy(e)); }
 }
 $('accIn').onclick = () => accSign(false); $('accNew').onclick = () => accSign(true);
+/* a player who started on this device only can turn into an account without leaving: a password is all it takes, and everything they have goes with them */
+$('accMake').onclick = () => {
+  const b = dlg(`<div class="k-eyebrow">Account</div><h3>Keep ${esc(P.name)} online</h3><p>Pick a password. Everything this player has goes with it. After that, sign in with this name and password on any device, and your friends can see when you are on.</p>
+    <input class="field" id="amPass" type="password" placeholder="Password" autocomplete="new-password" maxlength="60" aria-label="Password"><div class="err" id="amErr"></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="amGo">Create account</button><button type="button" class="k-btn" id="amX">Cancel</button></div>`);
+  const err = t => { const e = b.querySelector('#amErr'); if (e) e.textContent = t; }, go = b.querySelector('#amGo');
+  b.querySelector('#amX').onclick = dlgClose;
+  go.onclick = async () => {
+    const pw = b.querySelector('#amPass').value; if (pw.length < 4) return err('Use a password with at least four characters.');
+    err('Creating your account.'); go.disabled = true;
+    try {
+      const r = await Cloud.register(P.name, pw, P);
+      if (r.error){ go.disabled = false; return err(r.error === 'taken' ? 'Someone already has an account under that name. If it is yours, use Switch player and sign in.' : 'That did not work. Try again in a moment.'); }
+      P.name = r.name; save(); dlgClose(); hallStart(); hub(); BDB.sfx.big();
+      msgBox('Account made', `Sign in as ${P.name} with that password on any device. You are on your friends' list from now on.`);
+    } catch(e){ go.disabled = false; err(cloudWhy(e)); }
+  };
+  b.querySelector('#amPass').onkeydown = e => { if (e.key === 'Enter') go.click(); };
+};
 $('newPass').addEventListener('keydown', e => { if (e.key === 'Enter') accSign(false); });
 if (!Cloud.on){ document.querySelector('.login').classList.add('nocloud'); $('newGo').textContent = 'Play'; $('newGo').classList.add('primary'); }
 $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newGo').click(); });
@@ -1586,7 +1606,13 @@ function vsLine(name){
 }
 
 /* ---------- who's on: everyone signed in shows up, and everyone you see becomes a friend ---------- */
-let hallT = 0, hallGen = 0, hallHTML = '', HALL = {online:[], invites:[]}; const seenInv = new Set();
+let hallT = 0, hallGen = 0, hallHTML = '', hallWas = null, toastT = 0, HALL = {online:[], invites:[]}; const seenInv = new Set();
+/* a line at the bottom of the menus for a few seconds. Tapping it goes where it points. */
+function hubToast(text, go){
+  const t = $('hubToast'); if (B || TR || $('scrHub').hidden || !$('dlg').hidden) return;
+  t.textContent = text; t.hidden = false; t.onclick = () => { t.hidden = true; if (go) go(); };
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 5500); fx('pop');
+}
 function hallStart(){
   clearTimeout(hallT); const gen = ++hallGen; renderHall();
   if (!Cloud.session()) return;
@@ -1596,6 +1622,8 @@ function hallStart(){
       const r = await Cloud.ping(B ? 'battle' : TR ? 'trading' : 'menu'); if (!r || r.error || !Array.isArray(r.online)) return;
       HALL = r; let fresh2 = false; for (const o of r.online){ const nm = clean(o.name, 20); if (nm && !P.friends[nm]) fresh2 = true; if (nm) P.friends[nm] = Date.now(); }
       if (fresh2) save();
+      const now = new Set(r.online.map(o => clean(o.name, 20)).filter(Boolean)), came = hallWas ? [...now].filter(n => !hallWas.has(n)) : []; hallWas = now;      // who has come on since the last look (nobody, the first time)
+      if (came.length) hubToast(came.length === 1 ? `${came[0]} is on` : came.length === 2 ? `${came[0]} and ${came[1]} are on` : `${came[0]} and ${came.length - 1} more are on`, () => { if (curTab !== 'Battle') tab('Battle'); $('hall').scrollIntoView({block:'center', behavior:'smooth'}); });
       renderHall();
       for (const iv of r.invites || []) if (iv && !seenInv.has(iv.id)){ seenInv.add(iv.id); gotInvite(iv); }
     } catch(e){}
@@ -1628,7 +1656,7 @@ function leagueUI(){
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 function renderHall(){
   const box = $('hall'); if (!box || !P) return;
-  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; hallHTML = ''; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on the sign in screen to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
+  if (!Cloud.session()){ $('hallLbl').textContent = "Who's on"; hallHTML = ''; box.innerHTML = `<p class="note" style="margin:0">${Cloud.on ? 'Create an account on your Profile to see who is online, challenge them and trade cards. Everyone you play alongside is added as a friend automatically.' : 'Accounts are not set up on this copy of the game.'}</p>`; return; }
   const on = (HALL.online || []).map(o => ({name:clean(o.name, 20), status:o.status, tr:o.trophies | 0})).filter(o => o.name), names = new Set(on.map(o => o.name));
   const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
   $('hallLbl').textContent = `Who's on: ${on.length}`;
