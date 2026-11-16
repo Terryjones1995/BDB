@@ -46,6 +46,61 @@ export function baseQualityName(engine) {
 }
 
 /**
+ * Change the drawing-buffer ratio everywhere it is cached. `renderer.setPixelRatio` alone resizes
+ * only the canvas: the EffectComposer copies the ratio once, at construction, and sizes every pass
+ * target from that copy, so the scene would still be rendered at the old resolution and merely
+ * shown smaller. The caller follows up with `engine.resize()`.
+ */
+function setDrawingRatio(engine, pr) {
+  engine.renderer.setPixelRatio(pr);
+  if (engine.composer && typeof engine.composer.setPixelRatio === 'function') engine.composer.setPixelRatio(pr);
+}
+
+/**
+ * Below `low` there is no cheaper preset, and on built-in graphics `low` is often still not
+ * enough. What is left is the drawing buffer: fewer pixels cost less in every pass, and the HUD is
+ * HTML, so it stays sharp. Each step also pulls the shadow distance in, which takes geometry out
+ * of the shadow passes. Steps apply on top of whatever preset is running, in order.
+ */
+export const FLOOR_STEPS = [
+  { scale: 0.8, shadowDistance: 450, bloom: true },
+  { scale: 0.65, shadowDistance: 320, bloom: false },
+];
+
+/**
+ * Apply floor step `index`, or -1 to return to the running preset's own resolution.
+ * → `{ index, scale, changed:[string] }`.
+ */
+export function applyFloorStep(engine, index) {
+  const q = ownQuality(engine);
+  const step = index >= 0 ? FLOOR_STEPS[Math.min(index, FLOOR_STEPS.length - 1)] : null;
+  const preset = QUALITY[q.name] || QUALITY.low;
+  const scale = step ? step.scale : 1;
+  const changed = [];
+  const pr = Math.min(window.devicePixelRatio || 1, preset.pixelRatio) * scale;
+  if (Math.abs(engine.renderer.getPixelRatio() - pr) > 1e-3) {
+    setDrawingRatio(engine, pr);
+    changed.push(`resolution ${Math.round(scale * 100)}%`);
+  }
+  const post = engine.post || {};
+  const bloom = !!preset.bloom && (!step || step.bloom);
+  if (post.bloom && !!post.bloom.enabled !== bloom) { post.bloom.enabled = bloom; changed.push(`bloom ${bloom ? 'on' : 'off'}`); }
+  const far = step ? Math.min(step.shadowDistance, preset.shadowDistance) : preset.shadowDistance;
+  const csm = engine.csm;
+  if (csm && csm.maxFar !== far) {
+    csm.maxFar = far;
+    csm.updateFrustums();
+    engine.setShadowTuning({});
+    changed.push(`shadowDistance ${far}m`);
+  }
+  q.bloom = bloom; q.shadowDistance = far;
+  q.__floor = step ? Math.min(index, FLOOR_STEPS.length - 1) : -1;
+  q.__scale = scale;
+  engine.resize();
+  return { index: q.__floor, scale, changed };
+}
+
+/**
  * Move the live renderer knobs to `presetName`.
  * → `{ from, to, changed:[string] }`. Safe to call with the preset already in effect (no-op).
  */
@@ -61,7 +116,7 @@ export function applyRuntimePreset(engine, presetName) {
   if (target.pixelRatio !== q.pixelRatio) {
     const pr = Math.min(window.devicePixelRatio || 1, target.pixelRatio);
     if (Math.abs(engine.renderer.getPixelRatio() - pr) > 1e-3) {
-      engine.renderer.setPixelRatio(pr);
+      setDrawingRatio(engine, pr);
       changed.push(`pixelRatio ${engine.renderer.getPixelRatio().toFixed(2)}`);
     }
   }

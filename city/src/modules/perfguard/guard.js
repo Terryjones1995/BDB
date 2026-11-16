@@ -31,7 +31,7 @@ export const GUARD_DEFAULTS = {
   warmupMs: 6000,     // ignore the first frames of the session
   evaluateMs: 250,    // how often the median is recomputed (cost control)
   spikeMs: 400,       // frames longer than this are hitches, not signal — dropped
-  maxSteps: 2,        // hard limit on automatic downgrades per session
+  maxSteps: 3,        // hard limit on automatic downgrades per session (medium → low → 80% → 65%)
 };
 
 export function createGuard(options = {}) {

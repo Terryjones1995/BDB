@@ -77,6 +77,11 @@ export const GPU_TIERS = [
   [/adreno\s*[67]\d\d|mali-g(7[1-9]|[89]\d|\d{3})/i, 2, 'recent mobile GPU'],
   // ── 1: weak integrated / older mobile ─────────────────────────────────────────────────────
   [/intel.*\b(hd|uhd)\s*graphics|hd\s*graphics\s*\d|iris\s*(plus|pro)|intel.*gma/i, 1, 'Intel HD/UHD/Iris Plus'],
+  // Plain "Intel(R) Graphics" is what the built-in chip of recent Intel desktop and thin-laptop
+  // processors reports (Arrow Lake-S 0x7D67, Meteor Lake-U 0x7D45). The faster built-in parts say
+  // "Iris Xe" or "Arc" and were matched above, so anything Intel that reaches this line is the small
+  // one. Seen on a 14-core desktop, where the old core-count guess gave it Medium and a slideshow.
+  [/\bintel\b.*\bgraphics\b/i, 1, 'Intel built-in graphics'],
   [/adreno|mali|powervr|videocore|apple\s*a\d+\s*gpu|tegra/i, 1, 'mobile GPU'],
   [/geforce\s*(gt|gtx\s*[5-8]\d\d)|radeon\s*hd|firepro/i, 1, 'legacy discrete GPU'],
 ];

@@ -20,11 +20,22 @@ const setLoading = (fraction, text) => {
   try { menuModule?.setProgress?.(fraction, text); } catch (_) { /* the menu must never block boot */ }
 };
 
+/**
+ * The half-size textures exist to spare phones the download and the memory. A desktop on the low
+ * preset has both to spare, and sharper textures cost it nothing per frame, so it gets the full set.
+ */
+function shortOnMemory(hw) {
+  if (!hw) return true;
+  return !!hw.mobile || (hw.memoryGB != null && hw.memoryGB <= 4);
+}
+
 async function boot() {
   const canvas = document.getElementById('game');
   const config = new Config();
-  if (!config.params.has('quality')) {
-    try { config.quality = recommendQuality(detectHardware()).name; } catch (_) { /* keep the default preset */ }
+  let hardware = null;
+  try { hardware = detectHardware(); } catch (_) { /* detection is a convenience, never a requirement */ }
+  if (!config.params.has('quality') && hardware) {
+    try { config.quality = recommendQuality(hardware).name; } catch (_) { /* keep the default preset */ }
   }
   // a start named in the address (?start=town) still gets its own map, unless the address names the seed too
   if (config.start && !config.seedPinned) config.seed = randomSeed();
@@ -33,7 +44,7 @@ async function boot() {
   const world = new World(config);
   const assets = new AssetLoader(engine.renderer, events);
   assets.textureSet = config.get('tex') === 'full' || config.get('tex') === 'lite'
-    ? config.get('tex') : (engine.quality.name === 'low' ? 'lite' : 'full');
+    ? config.get('tex') : (engine.quality.name === 'low' && shortOnMemory(hardware) ? 'lite' : 'full');
   const input = new Input(canvas);
   const cameraController = new CameraController(engine.camera, input, world, canvas);
 
