@@ -101,6 +101,7 @@ export function createSettings(hud) {
     const built = perf.baseQuality;
     const bits = [];
     if (perf.quality !== built) bits.push(`running ${perf.quality} (world built at ${built})`);
+    if (perf.resolutionScale < 1) bits.push(`drawing at ${Math.round(perf.resolutionScale * 100)}% resolution to stay smooth`);
     if (g.steps) bits.push(`lowered ${g.steps}\u00d7 automatically`);
     if (!perf.enabled) bits.push('auto disabled by URL');
     else if (perf.auto && !g.steps) bits.push(`watching for a sustained drop below ${g.targetFps} fps`);

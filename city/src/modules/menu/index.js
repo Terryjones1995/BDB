@@ -115,7 +115,7 @@ export function showStartScreen(ctx, opts = {}) {
   const onSeedChanged = (seed, immediate) => {
     els.seedTag.textContent = `Seed ${seed}`;
     els.foot.textContent = `Seed ${seed} · 2048 m`;
-    if (!els.nameInput.value) els.nameInput.placeholder = suggestName(seed);
+    els.nameInput.dataset.suggested = suggestName(seed);
     clearTimeout(mapTimer);
     clearTimeout(bgTimer);
     mapTimer = setTimeout(() => refreshSource(seed, 'map'), immediate ? 0 : 140);
@@ -168,7 +168,7 @@ export function showStartScreen(ctx, opts = {}) {
   const choose = (mode) => {
     if (!root || root.dataset.phase !== 'choose') return;
     const seed = clampSeed(parseInt(els.seedInput.value, 10));
-    const cityName = (els.nameInput.value || els.nameInput.placeholder || 'New Charleston').trim().slice(0, 28);
+    const cityName = (els.nameInput.value || els.nameInput.dataset.suggested || 'New Charleston').trim().slice(0, 28);
     world.time.paused = wasPaused;
     if (preview) { setTimeout(hide, 60); }
     else { enterLoading(mode, seed, cityName); watchCoreProgress(events); }
@@ -456,9 +456,9 @@ function markup(seed, suggested, cityName, quality) {
 
         <div class="fm-fields">
           <div class="fm-field">
-            <label for="fm-name">City name</label>
+            <label for="fm-name">Name your city</label>
             <input class="fm-input" id="fm-name" type="text" maxlength="28" autocomplete="off"
-                   spellcheck="false" placeholder="${escapeAttr(suggested)}" value="${escapeAttr(cityName)}">
+                   spellcheck="false" placeholder="Type a name" data-suggested="${escapeAttr(suggested)}" value="${escapeAttr(cityName)}">
           </div>
           <div class="fm-field">
             <label for="fm-seed">Map seed</label>

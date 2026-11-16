@@ -26,7 +26,7 @@
  * ARCHITECTURE §7 renders exactly what it asked for and stays reproducible.
  */
 import { detectHardware, recommendQuality, describeHardware, isCheaper, stepDown, PRESET_ORDER } from '../../shared/quality.js';
-import { applyRuntimePreset, thinTraffic, baseQualityName } from './apply.js';
+import { applyRuntimePreset, applyFloorStep, FLOOR_STEPS, thinTraffic, baseQualityName } from './apply.js';
 import { createGuard, GUARD_DEFAULTS } from './guard.js';
 
 export const name = 'perfguard';
@@ -96,6 +96,7 @@ export function attach(ctx) {
     baseQuality: baseQualityName(engine),
     notified: false,
     userOverride: false,
+    floor: -1,          // which FLOOR_STEPS entry is in effect; -1 = the preset's own resolution
     sampling: false,
     lastT: 0,
     unhook: null,
@@ -136,6 +137,24 @@ export function attach(ctx) {
     return result;
   }
 
+  /** One step down the FLOOR_STEPS ladder. → false when already at the bottom. */
+  function lowerResolution(why) {
+    if (S.floor >= FLOOR_STEPS.length - 1) return false;
+    let result;
+    try { result = applyFloorStep(engine, S.floor + 1); } catch (err) { console.warn('[perfguard] could not lower the resolution', err); return false; }
+    S.floor = result.index;
+    record({ from: engine.quality.name, to: `${engine.quality.name} at ${Math.round(result.scale * 100)}%`, why, changed: result.changed });
+    console.info(`[perfguard] resolution → ${Math.round(result.scale * 100)}% (${why}) · ${result.changed.join(', ')}`);
+    tellPlayerOnce('Resolution lowered to keep it smooth', `Your graphics chip was not holding ${targetFps} fps. Turn off Auto quality in Settings to go back.`);
+    return true;
+  }
+  /** Back to the running preset's own resolution (the player took the wheel). */
+  function restoreResolution(why) {
+    if (S.floor < 0) return;
+    try { const r = applyFloorStep(engine, -1); record({ from: `${engine.quality.name} reduced`, to: engine.quality.name, why, changed: r.changed }); } catch (err) { console.warn('[perfguard] could not restore the resolution', err); }
+    S.floor = -1;
+  }
+
   // --- 2. the boot decision ------------------------------------------------------------------
   const running = engine.quality.name;
   S.recommendedApplied = false;
@@ -169,7 +188,11 @@ export function attach(ctx) {
 
     const from = engine.quality.name;
     const to = stepDown(from, 1);
-    if (to === from) { guard.stepped(now); return; }   // already at `low`, nothing left
+    if (to === from) {                                 // already at `low`: what is left is resolution
+      lowerResolution(`sustained shortfall: median ${guard.medianMs.toFixed(1)} ms (target ${targetFps} fps)`);
+      guard.stepped(now);
+      return;
+    }
     const second = guard.steps >= 1;
     moveTo(to, `sustained shortfall: median ${guard.medianMs.toFixed(1)} ms over ${(guard.options.sustainMs / 1000)} s (target ${targetFps} fps)`, {
       deepStep: second,
@@ -207,6 +230,8 @@ export function attach(ctx) {
     /** The preset the world's geometry was built from — the guard cannot change this half. */
     get baseQuality() { return S.baseQuality; },
     get quality() { return engine.quality.name; },
+    /** 1 = the preset's own resolution; below 1 the guard has shrunk the drawing buffer. */
+    get resolutionScale() { return S.floor >= 0 ? FLOOR_STEPS[S.floor].scale : 1; },
     get guard() {
       return { steps: guard.steps, exhausted: guard.exhausted, debtMs: Math.round(guard.debtMs), medianMs: +guard.medianMs.toFixed(2), sampling: S.sampling, ...guard.options };
     },
@@ -215,13 +240,14 @@ export function attach(ctx) {
     setAuto(on) {
       S.auto = !!on && S.enabled;
       store.set(AUTO_KEY, on ? '1' : '0');
+      if (!S.auto) restoreResolution('auto quality turned off');
       if (S.auto) { S.lastT = 0; guard.forget(performance.now(), 1500); }
       return S.auto;
     },
     /** Apply a preset's LIVE knobs now. A manual call stops the guard — respect the human. */
     setPreset(preset, { manual = true } = {}) {
       if (!PRESET_ORDER.includes(preset)) return null;
-      if (manual) { S.userOverride = true; store.set(STORE_KEY, preset); }
+      if (manual) { S.userOverride = true; store.set(STORE_KEY, preset); restoreResolution('preset set by the player'); }
       return moveTo(preset, manual ? 'set by the player' : 'programmatic');
     },
     /** Verification hook: pretend the machine missed the budget for `seconds`. */
@@ -236,7 +262,8 @@ export function attach(ctx) {
           const from = engine.quality.name;
           const to = stepDown(from, 1);
           const second = guard.steps >= 1;
-          if (to !== from) moveTo(to, `simulated shortfall at ${fps} fps`, { deepStep: second, notify: { title: `Graphics lowered to ${cap(to)}`, text: `Your device was not holding ${targetFps} fps. You can set it back in Settings.` } });
+          if (to === from) lowerResolution(`simulated shortfall at ${fps} fps`);
+          else moveTo(to, `simulated shortfall at ${fps} fps`, { deepStep: second, notify: { title: `Graphics lowered to ${cap(to)}`, text: `Your device was not holding ${targetFps} fps. You can set it back in Settings.` } });
           guard.stepped(t);
         }
       }
@@ -253,6 +280,7 @@ export function attach(ctx) {
         auto: S.auto,
         baseQuality: S.baseQuality,
         quality: engine.quality.name,
+        resolutionScale: api.resolutionScale,
         guard: api.guard,
         log: log.slice(),
       };
