@@ -11,7 +11,7 @@ best time, and a roast every time you deal a card (525 lines in the deck). Win a
 
 ## Purrjong (`/mahjong`)
 
-Mahjong solitaire with cats instead of BDB: one self-contained page (`mahjong/index.html`), tile art drawn in SVG in the page itself. Paws, fish and yarn run 1 to 9, there are seven cats, and any toy matches any toy and any treat any treat. Five boards (Yarn Ball 52, Paw Print 94, Cat Face 88, Goldfish 108, Turtle 144). Each deal is built by taking the board apart two free tiles at a time and filling those spots with a matching pair, so it can always be cleared; Shuffle does the same with the tiles that are left. Hint, undo, a timer and a best time per board, saved on the device.
+Mahjong solitaire with cats instead of BDB: one self-contained page (`mahjong/index.html`), tile art drawn in SVG in the page itself. Paws, fish and yarn run 1 to 9, there are seven cats, and any toy matches any toy and any treat any treat. Five boards (Yarn Ball 52, Paw Print 82, Cat Face 88, Goldfish 108, Turtle 144). Each deal is built by taking the board apart two free tiles at a time and filling those spots with a matching pair, so it can always be cleared; Shuffle does the same with the tiles that are left. Hint, undo, a timer and a best time per board, saved on the device.
 
 ## Charleston Chess (`/chess`)
 3D chess against BDB on a parquet court.

@@ -29,7 +29,8 @@ body{margin:0;background:var(--felt-lo);color:var(--ink);font-family:var(--f-ui)
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='%23ffffff' fill-opacity='.04'%3E%3Cellipse cx='34' cy='44' rx='10' ry='8'/%3E%3Cellipse cx='21.5' cy='31' rx='4' ry='5'/%3E%3Cellipse cx='29.5' cy='24' rx='4' ry='5'/%3E%3Cellipse cx='38.5' cy='24' rx='4' ry='5'/%3E%3Cellipse cx='46.5' cy='31' rx='4' ry='5'/%3E%3Cg transform='rotate(25 100 105)'%3E%3Cellipse cx='100' cy='112' rx='8' ry='6.5'/%3E%3Cellipse cx='90' cy='101' rx='3.2' ry='4'/%3E%3Cellipse cx='96.5' cy='95.5' rx='3.2' ry='4'/%3E%3Cellipse cx='103.5' cy='95.5' rx='3.2' ry='4'/%3E%3Cellipse cx='110' cy='101' rx='3.2' ry='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .11 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 70% 60% at 50% 45%,rgba(255,240,200,.10),transparent 70%),
     radial-gradient(ellipse at 50% 42%,var(--felt-hi) 0%,var(--felt) 48%,var(--felt-lo) 100%)}
 button{font-family:var(--f-ui)}
 button:focus-visible,.tile:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
@@ -51,16 +52,19 @@ button:focus-visible,.tile:focus-visible{outline:3px solid var(--gold);outline-o
 /* the table */
 .stage{flex:1;position:relative;min-height:0}
 #board{position:absolute}
-.tile{position:absolute;width:var(--tw);height:var(--th);border-radius:calc(var(--tw)*.15);
-  background:linear-gradient(135deg,var(--jade),var(--jade-lo));
-  box-shadow:calc(var(--d)*.25) calc(var(--d)*.45) calc(var(--d)*.9) rgba(0,10,5,.38);cursor:pointer}
-.face{position:absolute;left:0;top:0;right:var(--d);bottom:var(--d);border-radius:calc(var(--tw)*.13);
-  background:linear-gradient(150deg,var(--ivory) 0%,var(--ivory) 45%,var(--ivory-lo) 100%);
-  box-shadow:calc(var(--d)*.42) calc(var(--d)*.42) 0 var(--ivory-edge),inset 0 0 0 1px rgba(255,255,255,.8),inset -1px -1px 0 1px rgba(150,120,60,.12)}
-.face svg{position:absolute;inset:4% 5%;width:90%;height:92%;display:block}
-.dim .tile.blk .face::after{content:"";position:absolute;inset:0;border-radius:inherit;background:rgba(18,40,30,.26)}
+.tile{position:absolute;width:var(--tw);height:var(--th);border-radius:calc(var(--tw)*.16);cursor:pointer;
+  background:linear-gradient(160deg,#2c9c72 0%,#1a7353 42%,#0b3f2e 100%);
+  box-shadow:calc(var(--d)*var(--s)) calc(var(--d)*var(--s)*1.3) calc(var(--d)*(1.1 + var(--s))) rgba(0,14,7,.55),inset -1px -1px 0 rgba(0,0,0,.3)}
+.tile::before{content:"";position:absolute;left:0;top:0;right:calc(var(--d)*.48);bottom:calc(var(--d)*.48);border-radius:calc(var(--tw)*.15);background:linear-gradient(135deg,#f7eed6 0%,#e4d3a6 60%,#cdb781 100%)}
+.face{position:absolute;left:0;top:0;right:var(--d);bottom:var(--d);border-radius:calc(var(--tw)*.14);
+  background:radial-gradient(130% 100% at 26% 16%,#fffefb 0%,#fdf8ea 48%,#f0e4c4 100%);
+  box-shadow:inset calc(var(--tw)*.028) calc(var(--tw)*.028) 0 rgba(255,255,255,.95),inset calc(var(--tw)*-.032) calc(var(--tw)*-.032) calc(var(--tw)*.05) rgba(150,112,45,.3),0 0 0 .6px rgba(110,82,30,.4)}
+.face svg{position:absolute;inset:3% 4%;width:92%;height:94%;display:block}
+@media (hover:hover){ .tile:not(.blk):not(.sel):hover .face{background:radial-gradient(130% 100% at 26% 16%,#fff 0%,#fffcf2 48%,#f7eed6 100%)} }
+.dim .tile.blk .face::after{content:"";position:absolute;inset:0;border-radius:inherit;background:rgba(10,40,25,.14)}
 .tile.blk{cursor:default}
-.tile.sel .face{background:linear-gradient(150deg,#fff6cf,#ffe08a);box-shadow:calc(var(--d)*.42) calc(var(--d)*.42) 0 #e9c35e,0 0 0 3px var(--gold),0 0 18px 4px rgba(255,207,92,.55)}
+.tile.sel .face{background:radial-gradient(130% 100% at 26% 16%,#fffbe6 0%,#ffe9a3 55%,#ffd36b 100%);box-shadow:inset 2px 2px 0 rgba(255,255,255,.8),0 0 0 3px var(--gold),0 0 20px 5px rgba(255,207,92,.6)}
+.tile.sel{translate:0 calc(var(--d)*-.5)}
 .tile.hint .face{animation:hint .7s ease-in-out 3}
 @keyframes hint{50%{background:linear-gradient(150deg,#e6fff2,#a6f0c8);box-shadow:0 0 0 3px #6ff0b0,0 0 16px 4px rgba(111,240,176,.6)}}
 .tile.no{animation:no .32s}
@@ -164,43 +168,67 @@ const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ================= tile art ================= */
 const FONT = 'font-family="Fredoka, ui-rounded, sans-serif"';
-const G_PAW = `<g id="gp"><g transform="translate(0 -1.3)" fill="#6b4232">
-  <path d="M0 2.2C4.6 2.2 7.2 5.8 7.2 8.4C7.2 11 4.8 11.6 2.6 10.9C1.3 10.5-1.3 10.5-2.6 10.9C-4.8 11.6-7.2 11-7.2 8.4C-7.2 5.8-4.6 2.2 0 2.2Z"/>
-  <ellipse cx="-6.6" cy="-1.2" rx="2.5" ry="3.1" transform="rotate(-22 -6.6 -1.2)"/><ellipse cx="-2.5" cy="-5" rx="2.6" ry="3.3" transform="rotate(-6 -2.5 -5)"/>
-  <ellipse cx="2.5" cy="-5" rx="2.6" ry="3.3" transform="rotate(6 2.5 -5)"/><ellipse cx="6.6" cy="-1.2" rx="2.5" ry="3.1" transform="rotate(22 6.6 -1.2)"/>
-  <g fill="#f6a5b9"><ellipse cx="0" cy="7.2" rx="3.9" ry="2.5"/><ellipse cx="-6.5" cy="-.9" rx="1.2" ry="1.6" transform="rotate(-22 -6.5 -.9)"/><ellipse cx="-2.4" cy="-4.6" rx="1.3" ry="1.7"/><ellipse cx="2.4" cy="-4.6" rx="1.3" ry="1.7"/><ellipse cx="6.5" cy="-.9" rx="1.2" ry="1.6" transform="rotate(22 6.5 -.9)"/></g>
+const K = {r:'#c62630', b:'#1762ad', g:'#1f8a48', n:'#172244'};
+// a paw print and a fish, both in the colour of the <use> that places them, with a bit of gloss
+const G_PAW = `<g id="gp"><g transform="translate(0 -1.3)">
+  <g fill="currentColor" stroke="#000" stroke-opacity=".28" stroke-width=".55">
+  <path d="M0 2.1C4.7 2.1 7.4 5.8 7.4 8.5C7.4 11.1 4.9 11.8 2.7 11C1.3 10.6-1.3 10.6-2.7 11C-4.9 11.8-7.4 11.1-7.4 8.5C-7.4 5.8-4.7 2.1 0 2.1Z"/>
+  <ellipse cx="-6.7" cy="-1.1" rx="2.55" ry="3.2" transform="rotate(-22 -6.7 -1.1)"/><ellipse cx="-2.5" cy="-5.1" rx="2.65" ry="3.4" transform="rotate(-6 -2.5 -5.1)"/>
+  <ellipse cx="2.5" cy="-5.1" rx="2.65" ry="3.4" transform="rotate(6 2.5 -5.1)"/><ellipse cx="6.7" cy="-1.1" rx="2.55" ry="3.2" transform="rotate(22 6.7 -1.1)"/></g>
+  <g fill="#fff" opacity=".38"><ellipse cx="-2.6" cy="4.7" rx="2.6" ry="1.05" transform="rotate(-18 -2.6 4.7)"/><ellipse cx="-3.2" cy="-6.6" rx=".85" ry="1.35"/><ellipse cx="1.8" cy="-6.7" rx=".85" ry="1.35"/><ellipse cx="-7.4" cy="-2.6" rx=".8" ry="1.25" transform="rotate(-22 -7.4 -2.6)"/><ellipse cx="5.9" cy="-2.6" rx=".8" ry="1.25" transform="rotate(22 5.9 -2.6)"/></g>
 </g></g>`;
 const G_FISH = `<g id="gf"><g transform="translate(-1.7 0)">
-  <path d="M6.6 0L12.6-5.4Q11 0 12.6 5.4Z" fill="#1b5aa3"/>
-  <path d="M.8-5.1L3.6-8.2L5.6-4.3Z" fill="#1b5aa3"/>
-  <path d="M-9.2 0C-6.6-6.1 3.4-6.7 8 0C3.4 6.7-6.6 6.1-9.2 0Z" fill="url(#fishg)"/>
-  <path d="M-1.4-4.4Q.6 0-1.4 4.4" stroke="#1b5aa3" stroke-width=".9" fill="none" opacity=".75"/>
-  <circle cx="-5.2" cy="-1.1" r="1.5" fill="#fff"/><circle cx="-5.5" cy="-1.1" r=".8" fill="#0b2545"/>
+  <path d="M6.4 0L12.9-5.8Q11.2 0 12.9 5.8Z" fill="currentColor" stroke="#000" stroke-opacity=".3" stroke-width=".55" stroke-linejoin="round"/>
+  <path d="M8.6-1.5L11.7-4.1M8.6 1.5L11.7 4.1" stroke="#000" stroke-opacity=".22" stroke-width=".6"/>
+  <path d="M.4-5L3.6-8.6L6-4.1Z" fill="currentColor" stroke="#000" stroke-opacity=".3" stroke-width=".55" stroke-linejoin="round"/>
+  <path d="M-9.4 0C-6.6-6.3 3.4-6.9 8.1 0C3.4 6.9-6.6 6.3-9.4 0Z" fill="currentColor" stroke="#000" stroke-opacity=".3" stroke-width=".6"/>
+  <path d="M-8.2 1.1C-4.6 4.7 2.8 4.9 6.8 1.1C2.8 3.3-4.6 3.1-8.2 1.1Z" fill="#fff" opacity=".42"/>
+  <path d="M-1.8-4.7Q.5 0-1.8 4.7" stroke="#000" stroke-opacity=".28" stroke-width=".9" fill="none"/>
+  <path d="M1.2-2.6q1.3 1.2 0 2.5M3.5-2q1.1 1 0 2M1.2.6q1.3 1.2 0 2.4" stroke="#fff" stroke-opacity=".45" stroke-width=".7" fill="none"/>
+  <circle cx="-5.3" cy="-1.2" r="1.65" fill="#fff"/><circle cx="-5.6" cy="-1.15" r=".9" fill="#0b1830"/>
 </g></g>`;
-const G_YARN = `<g id="gy"><path d="M5.6 5.4C9.4 8.8 12.4 5.2 15 8.6" fill="none" stroke="#e03b3b" stroke-width="1.4" stroke-linecap="round"/>
-  <circle r="8" fill="#e03b3b"/><g fill="none" stroke="#a51d1d" stroke-width="1.1" stroke-linecap="round">
+const G_YARN = `<g id="gy"><path d="M5.6 5.4C9.4 8.8 12.4 5.2 15 8.6" fill="none" stroke="#d62f37" stroke-width="1.5" stroke-linecap="round"/>
+  <circle r="8" fill="url(#yarng)" stroke="#8e1219" stroke-width=".6"/><g fill="none" stroke="#8e1219" stroke-opacity=".75" stroke-width="1" stroke-linecap="round">
   <path d="M-6.4-4.6C-1.6-2.4.6 3-1.2 7.9"/><path d="M-2.6-7.6C2.6-4.4 4.8 1.8 3.6 7.2"/><path d="M-7.9 1.2C-3-1 3-.6 7.6-3.4"/><path d="M-5.6 5.6C-1.8 3.4 3.6 3.8 6.4 4.6"/></g>
-  <circle cx="-3" cy="-3.8" r="1.7" fill="#fff" opacity=".35"/></g>`;
+  <ellipse cx="-3.2" cy="-4" rx="2.4" ry="1.5" transform="rotate(-30 -3.2 -4)" fill="#fff" opacity=".45"/></g>`;
 
-// where the pieces sit on a suit tile, for one to nine of them, and how big
 const POS = {
-  1:[[30,44]], 2:[[30,30],[30,58]], 3:[[18,27],[30,44],[42,61]], 4:[[19,31],[41,31],[19,58],[41,58]],
-  5:[[17,27],[43,27],[30,44],[17,61],[43,61]], 6:[[19,25],[41,25],[19,44],[41,44],[19,63],[41,63]],
-  7:[[18,23],[30,29.5],[42,36],[19,52],[41,52],[19,67],[41,67]], 8:[[19,22],[41,22],[19,37],[41,37],[19,52],[41,52],[19,67],[41,67]],
-  9:[[15,26],[30,26],[45,26],[15,44],[30,44],[45,44],[15,62],[30,62],[45,62]]
+  1:[[30,44]], 2:[[30,27],[30,61]], 3:[[17,25],[30,44],[43,63]], 4:[[18,30],[42,30],[18,59],[42,59]],
+  5:[[17,25],[43,25],[30,44],[17,63],[43,63]], 6:[[18,24.5],[42,24.5],[18,44],[42,44],[18,63.5],[42,63.5]],
+  7:[[17,21],[30,28],[43,35],[18,52],[42,52],[18,67.5],[42,67.5]], 8:[[18,20.5],[42,20.5],[18,36],[42,36],[18,51.5],[42,51.5],[18,67],[42,67]],
+  9:[[15,25],[30,25],[45,25],[15,44],[30,44],[45,44],[15,63],[30,63],[45,63]]
 };
-const SCALE = { p:[0,2.05,1.3,1.05,1.1,.95,.95,.8,.72,.82], f:[0,2.05,1.5,1,.95,.85,.9,.72,.78,.62] };
-const IX = { p:'#6b4232', f:'#1b5aa3' };
+const SCALE = { p:[0,0,1.62,1.18,1.24,1.06,.97,.84,.76,.88], f:[0,0,1.85,1.22,1.02,.92,1.02,.8,.86,.68] };
+const COLS = {
+  p:[0,0,'bg','brg','bggb','bgrgb','ggrrrr','gggrrrr','bbbbbbbb','bbbrrrggg'],
+  f:[0,0,'gb','gbg','bggb','ggrgg','ggbbgg','rrrgggg','ggbbbbgg','rrrbbbggg']
+};
+const ONE_PAW = `<circle cx="30" cy="44" r="23.5" fill="none" stroke="${K.b}" stroke-width="2.6"/>
+  <circle cx="30" cy="44" r="19.6" fill="#fdecec" stroke="${K.r}" stroke-width="1.2" stroke-dasharray="2.3 2.1"/>
+  ${[0,45,90,135,180,225,270,315].map(a => `<circle cx="${(30 + 23.5 * Math.cos(a * Math.PI / 180)).toFixed(2)}" cy="${(44 + 23.5 * Math.sin(a * Math.PI / 180)).toFixed(2)}" r="2.1" fill="${K.g}" stroke="#fff" stroke-width=".8"/>`).join('')}
+  <use href="#gp" color="${K.r}" transform="translate(30 45.5) scale(1.72)"/>`;
+const ONE_FISH = `<g transform="translate(32 45)">
+  <circle cx="-21" cy="-17" r="2.3" fill="none" stroke="#4dabf7" stroke-width="1.1"/><circle cx="-24.5" cy="-23.5" r="1.5" fill="none" stroke="#4dabf7" stroke-width="1"/><circle cx="-19.5" cy="-27" r="1" fill="none" stroke="#4dabf7" stroke-width=".9"/>
+  <path d="M8 0C12-9 19-14 24-10C21-6 20-3 21 0C20 3 21 6 24 10C19 14 12 9 8 0Z" fill="url(#tailg)" stroke="#a63f00" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M13-3.5C16-5 19-6.5 21.5-8M13 3.5C16 5 19 6.5 21.5 8M13 0H20" stroke="#a63f00" stroke-opacity=".45" stroke-width=".8" fill="none"/>
+  <path d="M-7-9C-3-17 5-16 7.5-6.5C3-8.5-2-9.5-7-9Z" fill="#ffa94d" stroke="#a63f00" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M-19 0C-15-11.5 2-13.5 10.5 0C2 13.5-15 11.5-19 0Z" fill="url(#goldg)" stroke="#a63f00" stroke-width="1.15"/>
+  <path d="M-4 8.5C-2.5 14.5 2.5 15.5 5 10.5Z" fill="#ffa94d" stroke="#a63f00" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M-17 2C-12 7-1 8 7.5 2.5C-1 5.5-11 5-17 2Z" fill="#fff3bf" opacity=".7"/>
+  <path d="M-9.5-7Q-6 0-9.5 7" stroke="#a63f00" stroke-width="1.1" fill="none"/>
+  <g stroke="#fff" stroke-opacity=".55" stroke-width=".8" fill="none"><path d="M-5-4q2.2 2 0 4.2M-1-5q2.4 2.3 0 4.6M3-4q2 1.9 0 3.8M-1 .6q2.4 2.3 0 4.4"/></g>
+  <circle cx="-13.5" cy="-2.2" r="2.8" fill="#fff" stroke="#a63f00" stroke-width=".7"/><circle cx="-14" cy="-2.1" r="1.55" fill="#1a1a1a"/><circle cx="-13.4" cy="-2.8" r=".6" fill="#fff"/>
+  <path d="M-18.8 1.2q1.2.8 2.4.2" stroke="#a63f00" stroke-width=".9" fill="none" stroke-linecap="round"/></g>`;
 
 function suitSym(s, n){
-  const g = s === 'p' ? 'gp' : 'gf';
-  return `<symbol id="${s}${n}" viewBox="0 0 60 76"><text x="5" y="14" ${FONT} font-weight="700" font-size="13" fill="${IX[s]}">${n}</text>` +
-    POS[n].map(([x, y]) => `<use href="#${g}" transform="translate(${x} ${y}) scale(${SCALE[s][n]})"/>`).join('') + `</symbol>`;
+  let body;
+  if (n === 1) body = s === 'p' ? ONE_PAW : ONE_FISH;
+  else body = POS[n].map(([x, y], k) => `<use href="#${s === 'p' ? 'gp' : 'gf'}" color="${K[COLS[s][n][k]]}" transform="translate(${x} ${y}) scale(${SCALE[s][n]})"/>`).join('');
+  return `<symbol id="${s}${n}" viewBox="0 0 60 76">${body}<text x="4.5" y="13.5" ${FONT} font-weight="700" font-size="12.5" fill="${K.n}" stroke="#fffdf6" stroke-width="2.4" paint-order="stroke">${n}</text></symbol>`;
 }
 function yarnSym(n){
-  return `<symbol id="y${n}" viewBox="0 0 60 76"><text x="30" y="41" text-anchor="middle" ${FONT} font-weight="700" font-size="34" fill="#22304f">${n}</text><use href="#gy" transform="translate(27 57) scale(1.05)"/></symbol>`;
+  return `<symbol id="y${n}" viewBox="0 0 60 76"><text x="30" y="37" text-anchor="middle" ${FONT} font-weight="700" font-size="33" fill="${K.n}">${n}</text><use href="#gy" transform="translate(27.5 56.5) scale(1.42)"/></symbol>`;
 }
-
 const CATS = [
   {n:'Ginger',   fur:'#f2913d', line:'#7a3d12', ear:'#f7b2a0', eye:'#8fd14f', nose:'#e8737f', wh:'#fff3e6', stripe:'#c45d18'},
   {n:'Midnight', fur:'#2e2e39', line:'#101016', ear:'#7a5468', eye:'#f6c90e', nose:'#b9667f', wh:'#c9c9d6', mouth:'#8a8aa0'},
@@ -214,7 +242,7 @@ const HEAD = 'M30 19C44 19 52 28 52 38C52 49 42 56 30 56C18 56 8 49 8 38C8 28 16
 const EAR_L = 'M10.5 31L13 9.5L27 20.5Z', EAR_R = 'M49.5 31L47 9.5L33 20.5Z';
 const IN_L = 'M14.2 26L15.3 14.6L22.6 20.6Z', IN_R = 'M45.8 26L44.7 14.6L37.4 20.6Z';
 function catSym(c, i){
-  let s = `<symbol id="c${i}" viewBox="0 0 60 76"><g transform="translate(0 4)">`;
+  let s = `<symbol id="c${i}" viewBox="0 0 60 76"><g transform="translate(30 41) scale(1.13) translate(-30 -35)">`;
   s += `<g fill="${c.line}" stroke="${c.line}" stroke-width="3.2" stroke-linejoin="round"><path d="${EAR_L}"/><path d="${EAR_R}"/><path d="${HEAD}"/></g>`;
   s += `<path d="${EAR_L}" fill="${c.earOut || c.fur}"/><path d="${EAR_R}" fill="${c.earOut || c.fur}"/><path d="${IN_L}" fill="${c.ear}"/><path d="${IN_R}" fill="${c.ear}"/><path d="${HEAD}" fill="${c.fur}"/>`;
   if (c.calico) s += `<g clip-path="url(#catclip)"><circle cx="11" cy="22" r="13.5" fill="#f2913d"/><circle cx="50" cy="17" r="12.5" fill="#2e2e39"/><circle cx="47" cy="55" r="7" fill="#f2913d"/></g><path d="${IN_L}" fill="${c.ear}"/><path d="${IN_R}" fill="${c.ear}"/>`;
@@ -232,7 +260,7 @@ function catSym(c, i){
 
 const STAR = `<path d="M10 3.4l1.9 3.9 4.2.6-3 3 .7 4.2L10 13.1l-3.8 2 .7-4.2-3-3 4.2-.6Z" fill="#f59f00"/>`;
 const HEART = `<path d="M10 15.6S3.8 11.9 3.8 7.9A3.1 3.1 0 0 1 10 6.6a3.1 3.1 0 0 1 6.2 1.3c0 4-6.2 7.7-6.2 7.7Z" fill="#e64980"/>`;
-const TOY_BG = `<circle cx="30" cy="42" r="23" fill="#ffe7a1"/>`, TREAT_BG = `<circle cx="30" cy="42" r="23" fill="#cdeedb"/>`;
+const TOY_BG = `<circle cx="30" cy="42" r="25.5" fill="url(#toyg)" stroke="#e0a92e" stroke-width="1.2"/>`, TREAT_BG = `<circle cx="30" cy="42" r="25.5" fill="url(#treatg)" stroke="#5fb98a" stroke-width="1.2"/>`;
 const TOYS = [
   // mouse on a string
   `<path d="M44 46C50 47 51 54 45 56C40 57.5 41.5 62 47 62" stroke="#e8899c" stroke-width="1.7" fill="none" stroke-linecap="round"/>
@@ -275,7 +303,7 @@ const TREATS = [
   // tin of food
   `<rect x="18.5" y="32" width="23" height="24" rx="2" fill="#f03e3e" stroke="#a51d1d" stroke-width="1.2"/>
    <rect x="18.5" y="38.5" width="23" height="11.5" fill="#fff3bf"/>
-   <use href="#gf" transform="translate(30 44.2) scale(.55)"/>
+   <use href="#gf" color="#1762ad" transform="translate(30 44.2) scale(.55)"/>
    <ellipse cx="30" cy="32" rx="11.5" ry="3.6" fill="#ced4da" stroke="#868e96" stroke-width="1.1"/>
    <ellipse cx="30" cy="32" rx="7.5" ry="2" fill="none" stroke="#868e96" stroke-width=".9"/>`,
   // catnip
@@ -287,13 +315,13 @@ const TREATS = [
 ];
 
 function buildDefs(){
-  let d = `<defs><linearGradient id="fishg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2373cf"/><stop offset="1" stop-color="#7cc0f5"/></linearGradient>
+  let d = `<defs><linearGradient id="goldg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc078"/><stop offset=".6" stop-color="#ff8a1a"/><stop offset="1" stop-color="#f76707"/></linearGradient><linearGradient id="tailg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ff922b"/><stop offset="1" stop-color="#ffd8a8"/></linearGradient><radialGradient id="yarng" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#ff6b6b"/><stop offset="1" stop-color="#c2252d"/></radialGradient><radialGradient id="toyg" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#fff4cc"/><stop offset="1" stop-color="#ffd970"/></radialGradient><radialGradient id="treatg" cx=".4" cy=".3" r=".8"><stop offset="0" stop-color="#e9fbf0"/><stop offset="1" stop-color="#a8e6c3"/></radialGradient>
     <radialGradient id="siamg"><stop offset="0" stop-color="#4a3426"/><stop offset=".55" stop-color="#4a3426" stop-opacity=".9"/><stop offset="1" stop-color="#4a3426" stop-opacity="0"/></radialGradient>
     <clipPath id="catclip"><path d="${HEAD}"/><path d="${EAR_L}"/><path d="${EAR_R}"/></clipPath>${G_PAW}${G_FISH}${G_YARN}</defs>`;
   for (let n = 1; n <= 9; n++) d += suitSym('p', n) + suitSym('f', n) + yarnSym(n);
   CATS.forEach((c, i) => { d += catSym(c, i); });
-  TOYS.forEach((t, i) => { d += `<symbol id="t${i}" viewBox="0 0 60 76">${TOY_BG}${STAR}${t}</symbol>`; });
-  TREATS.forEach((t, i) => { d += `<symbol id="r${i}" viewBox="0 0 60 76">${TREAT_BG}${HEART}${t}</symbol>`; });
+  TOYS.forEach((t, i) => { d += `<symbol id="t${i}" viewBox="0 0 60 76">${TOY_BG}<g transform="translate(30 42) scale(1.1) translate(-30 -42)">${t}</g>${STAR}</symbol>`; });
+  TREATS.forEach((t, i) => { d += `<symbol id="r${i}" viewBox="0 0 60 76">${TREAT_BG}<g transform="translate(30 42) scale(1.1) translate(-30 -42)">${t}</g>${HEART}</symbol>`; });
   $('#defs').innerHTML = d;
 }
 
@@ -335,9 +363,9 @@ const LAYOUTS = {
     {dx:1, dy:1, rows:['','','...X....']}])},
   paw:{name:'Paw Print', pos:fromRows([
     {rows:['..XX..XX..','..XX..XX..','XX......XX','XX......XX','..........','...XXXX...','.XXXXXXXX.','XXXXXXXXXX','XXXXXXXXXX','.XXXXXXXX.','..XXXXXX..']},
-    {dx:1, dy:1, rows:['..X...X...','','X.......X.','','','','.XXXXXXX..','.XXXXXXX..','..XXXXX...']},
-    {rows:['','','','','','','','...XXXX...','...XXXX...']},
-    {dx:1, dy:1, rows:['','','','','','','','....X.....']}])},
+    {dx:1, dy:1, rows:['..X...X...','','X.......X.']},
+    {rows:['','','','','','','','..XXXXXX..','..XXXXXX..']},
+    {dy:1, rows:['','','','','','','','...XXXX...']}])},
   cat:{name:'Cat Face', pos:fromRows([
     {rows:['.XX......XX.','.XXX....XXX.','.XXXXXXXXXX.','XXXXXXXXXXXX','XXXXXXXXXXXX','XXXXXXXXXXXX','.XXXXXXXXXX.','..XXXXXXXX..']},
     {rows:['','..X......X..','','..XX....XX..','..XX....XX..','.....XX.....']},
@@ -422,7 +450,7 @@ addEventListener('pointerdown', () => snd.wake(), {once:true});
 
 /* ================= game ================= */
 const board = $('#board'), stage = $('#stage');
-let L = null, S = null, els = [], sel = -1, busy = false, modalOpen = false, dimOn = store.get('purr-dim', true);
+let L = null, S = null, els = [], sel = -1, busy = false, modalOpen = false, dimOn = store.get('purr-dim2', false);
 board.classList.toggle('dim', dimOn);
 
 const free = i => freeAt(L, S.on, i);
@@ -441,7 +469,7 @@ function build(deal){
   board.textContent = ''; els = [];
   L.pos.forEach((p, i) => {
     const el = document.createElement('div');
-    el.className = 'tile'; el.dataset.i = i; el.style.zIndex = p.z * 1000 + p.x + p.y + 10;
+    el.className = 'tile'; el.dataset.i = i; el.style.zIndex = p.z * 1000 + p.x + p.y + 10; el.style.setProperty('--s', (.45 + p.z * .38).toFixed(2));
     el.innerHTML = `<div class="face"><svg viewBox="0 0 60 76" aria-hidden="true"><use href="#${S.f[i]}"/></svg></div>`;
     el.setAttribute('role', 'button'); el.setAttribute('aria-label', NAME[S.f[i]]);
     el.hidden = !S.on[i]; board.appendChild(el); els[i] = el;
@@ -458,7 +486,7 @@ function place(){
   const r = stage.getBoundingClientRect(), P = L.pos;
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, mz = 0;
   for (const p of P){ x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); mz = Math.max(mz, p.z); }
-  const sx = (x1 - x0 + 2) / 2, sy = (y1 - y0 + 2) / 2, D = .12, R = 1.28, pad = 6;
+  const sx = (x1 - x0 + 2) / 2, sy = (y1 - y0 + 2) / 2, D = .15, R = 1.3, pad = 6;
   const tw = Math.max(14, Math.min((r.width - pad * 2) / (sx + mz * D + D), (r.height - pad * 2) / (sy * R + mz * D + D), 80));
   const th = tw * R, d = tw * D;
   board.style.setProperty('--tw', tw + 'px'); board.style.setProperty('--th', th + 'px'); board.style.setProperty('--d', d + 'px');
@@ -605,7 +633,7 @@ function help(){
     <label class="sw" for="dimSw">Shade tiles you can't pick yet<input type="checkbox" id="dimSw" ${dimOn ? 'checked' : ''}></label>
     <div class="row"><button class="cb go" data-act="close">Let's play</button></div>`);
   m.dataset.soft = 1;
-  m.querySelector('#dimSw').onchange = e => { dimOn = e.target.checked; store.set('purr-dim', dimOn); board.classList.toggle('dim', dimOn); };
+  m.querySelector('#dimSw').onchange = e => { dimOn = e.target.checked; store.set('purr-dim2', dimOn); board.classList.toggle('dim', dimOn); };
 }
 function stuck(){
   if (modalOpen || S.won || !S.on.some(Boolean)) return;
