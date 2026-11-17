@@ -11,7 +11,13 @@ best time, and a roast every time you deal a card (525 lines in the deck). Win a
 
 ## Purrjong (`/mahjong`)
 
-Mahjong solitaire with cats instead of BDB: one self-contained page (`mahjong/index.html`), tile art drawn in SVG in the page itself. Paws, fish and yarn run 1 to 9, there are seven cats, and any toy matches any toy and any treat any treat. Five boards (Yarn Ball 52, Paw Print 82, Cat Face 88, Goldfish 108, Turtle 144). Each deal is built by taking the board apart two free tiles at a time and filling those spots with a matching pair, so it can always be cleared; Shuffle does the same with the tiles that are left. Hint, undo, a timer and a best time per board, saved on the device.
+Mahjong solitaire with cats instead of BDB, on a 3D table: one self-contained page (`mahjong/index.html`) that borrows three.js from `chess/vendor`.
+- The tiles are real blocks (ivory on top, amber underneath) on a felt mat, lit and shadowed, and they move: they drop in on the deal, lift when picked, fly together and clack when matched, and flip over on a shuffle
+- Every face is drawn in SVG in the page and engraved into the tile. Paws, fish and yarn run 1 to 9, there are seven cats, and any toy matches any toy and any treat any treat
+- Five wide boards for a screen on its side (Yarn Ball 52, Paw Print 82, Cat Face 88, Goldfish 108, Turtle 144) and five tall ones for a phone held upright (the same, with Cat Tower 144 in place of Turtle), so the tiles stay big either way
+- Each deal is built by taking the board apart two free tiles at a time and filling those spots with a matching pair, so it can always be cleared; Shuffle does the same with the tiles that are left
+- Hint, undo, a timer and a best time per board, saved on the device
+- The picture steps its own quality down if frames come slowly, and a device that cannot draw 3D at all gets flat tiles instead (`?2d=1` forces them; `?q=0` to `?q=3` pins the quality; `?slow=20` plays every movement in slow motion)
 
 ## Charleston Chess (`/chess`)
 3D chess against BDB on a parquet court.
