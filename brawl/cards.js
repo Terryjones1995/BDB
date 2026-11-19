@@ -819,6 +819,68 @@ export function goalText(b, g){
     : k === 'tower' ? `Finish off ${num} towers with ${n}` : k === 'dmg' ? `Deal ${num} damage with ${n}` : `Win ${num} matches by all three towers with ${n} in your deck`;
 }
 export const GOAL_COUNT = BASE_IDS.length * 4;
+/* ---------- Boosts ----------
+   A second, small deck beside the main one. A Boost costs no Mana. It is dropped on a spot, and every troop of yours of its type standing there gets it: speed, a
+   shield, health back. 504 of them: 14 effects, each for every one of the 12 types, in three strengths. In a match one is dealt every BOOST_EVERY seconds, and a
+   player holds BOOST_HAND at most: with a full hand nothing more arrives. v: how much, by strength. t: for how many seconds (none: at once, or for good). */
+export const BOOST_DECK = 8, BOOST_HAND = 6, BOOST_EVERY = 30, BOOST_R = 2.4, BOOST_PRICE = [150, 450, 1200], TIER_NAME = ['I', 'II', 'III'];
+const pct = v => Math.round(v * 100) + '%';
+export const BOOST_FX = {
+  speed:  {name:'Lightning Speed', tag:'Speed',   v:[1.3, 1.45, 1.6],  t:[8, 10, 12],  text:(v, t) => `They move ${pct(v - 1)} faster for ${t} seconds.`},
+  haste:  {name:'Quick Hands',     tag:'Haste',   v:[1.25, 1.4, 1.55], t:[8, 10, 12],  text:(v, t) => `They attack ${pct(v - 1)} faster for ${t} seconds.`},
+  power:  {name:'Power Surge',     tag:'Power',   v:[1.25, 1.4, 1.6],  t:[8, 10, 12],  text:(v, t) => `They hit ${pct(v - 1)} harder for ${t} seconds.`},
+  guard:  {name:'Iron Skin',       tag:'Guard',   v:[.75, .65, .5],    t:[8, 10, 12],  text:(v, t) => `They take ${pct(1 - v)} less damage for ${t} seconds.`},
+  health: {name:'Extra Heart',     tag:'Health',  v:[.2, .35, .5],                     text:v => `They gain ${pct(v)} more health for the rest of their lives. Once each.`},
+  heal:   {name:'Patch Up',        tag:'Heal',    v:[.3, .5, .8],                      text:v => `They get ${pct(v)} of their health back at once.`},
+  shield: {name:'Bubble',          tag:'Shield',  v:[.25, .4, .6],                     text:v => `Each gets a shield worth ${pct(v)} of its health.`},
+  regen:  {name:'Second Breath',   tag:'Mend',    v:[.04, .06, .09],   t:[8, 8, 8],    text:(v, t) => `They heal ${pct(v)} of their health every second for ${t} seconds.`},
+  leech:  {name:'Leech',           tag:'Leech',   v:[.3, .45, .6],     t:[10, 10, 10], text:(v, t) => `For ${t} seconds they heal themselves for ${pct(v)} of the damage they do.`},
+  dodge:  {name:'Blur',            tag:'Dodge',   v:[.25, .35, .5],    t:[8, 10, 12],  text:(v, t) => `For ${t} seconds, ${pct(v)} of the hits aimed at them miss.`},
+  flame:  {name:'Hot Hands',       tag:'Flame',   v:[.3, .5, .7],      t:[10, 10, 10], text:(v, t) => `For ${t} seconds their hits set the target alight, for ${pct(v)} of the hit every second.`},
+  frost:  {name:'Cold Touch',      tag:'Frost',   v:[1.5, 2, 3],       t:[10, 10, 10], text:(v, t) => `For ${t} seconds their hits slow the target for ${v} seconds.`},
+  cleanse:{name:'Walk It Off',     tag:'Cleanse', v:[3, 5, 8],                         text:v => `Fire, poison, slows, freezes and curses come off them, and nothing sticks for ${v} seconds.`},
+  revive: {name:'Second Chance',   tag:'Revive',  v:[.3, .5, .75],     t:[20, 25, 30], text:(v, t) => `Any of them that falls in the next ${t} seconds gets back up once, with ${pct(v)} of its health.`}
+};
+export const BOOST_FX_IDS = Object.keys(BOOST_FX);
+export const BOOSTS = {};
+for (const fx of BOOST_FX_IDS) for (const type of TYPE_IDS) for (let tier = 1; tier <= 3; tier++){ const F = BOOST_FX[fx], id = `b-${fx}-${type}-${tier}`; BOOSTS[id] = {id, fx, type, tier, name:F.name, v:F.v[tier - 1], t:F.t ? F.t[tier - 1] : 0, price:BOOST_PRICE[tier - 1]}; }
+export const BOOST_IDS = Object.keys(BOOSTS);
+export const boostText = id => { const b = BOOSTS[id], F = BOOST_FX[b.fx]; return `Every ${TYPES[b.type].name} troop of yours within reach. ${F.text(b.v, b.t)}`; };
+export const boostName = id => { const b = BOOSTS[id]; return `${b.name} ${TIER_NAME[b.tier - 1]}`; };
+/* which types a deck is made of, most cards first (troops only: a Boost does nothing for a spell or a building) */
+export function deckTypes(ids){
+  const n = {}; for (const id of ids || []){ const c = CARDS[id]; if (c && c.kind === 'unit') n[c.type] = (n[c.type] || 0) + c.n * .01 + 1; }
+  return Object.keys(n).sort((a, b) => n[b] - n[a] || TYPE_IDS.indexOf(a) - TYPE_IDS.indexOf(b));
+}
+/* what everyone is given to start with: four plain ones for each of the deck's three biggest types */
+export function starterBoosts(deckIds){
+  const ty = deckTypes(deckIds); for (const t of TYPE_IDS) if (ty.length < 3 && !ty.includes(t)) ty.push(t);
+  return ty.slice(0, 3).flatMap(t => ['speed', 'power', 'guard', 'heal'].map(fx => `b-${fx}-${t}-1`));
+}
+/* the best eight of what a player owns for the deck in hand: the deck's types first, the strongest of each effect, no effect twice for one type */
+export function pickBoosts(owned, deckIds, n = BOOST_DECK){
+  const ty = deckTypes(deckIds), rank = id => { const b = BOOSTS[id], i = ty.indexOf(b.type); return (i < 0 ? -100 : 30 - i * 6) + b.tier * 10; }, seen = new Set(), out = [];
+  for (const id of owned.filter(id => BOOSTS[id] && ty.includes(BOOSTS[id].type)).sort((a, b) => rank(b) - rank(a) || BOOST_FX_IDS.indexOf(BOOSTS[a].fx) - BOOST_FX_IDS.indexOf(BOOSTS[b].fx))){
+    const b = BOOSTS[id], k = b.fx + '|' + b.type; if (seen.has(k) || out.length >= n) continue; seen.add(k); out.push(id); }
+  return out;
+}
+/* BDB's: eight for the types in his deck, stronger the further up the ladder he is */
+export function cpuBoosts(deckIds, tier = 1){
+  const ty = deckTypes(deckIds).slice(0, 3), fx = ['power', 'guard', 'heal', 'speed', 'haste', 'shield', 'regen', 'dodge', 'leech', 'health'], out = [];
+  for (let i = 0; ty.length && out.length < BOOST_DECK; i++) out.push(`b-${fx[i % fx.length]}-${ty[i % ty.length]}-${clamp(tier, 1, 3)}`);
+  return out;
+}
+/* the Boost Box: three Boosts, mostly for the types of the deck in hand, never the same one twice in a box */
+export const BOOST_BOX = {id:'boost', name:'Boost Box', price:400, n:3, odds:[72, 23, 5], col:'#5fd6d0', blurb:'Three Boosts, mostly for the types in your deck.'};
+export function openBoostBox(deckIds, rnd = Math.random){
+  const ty = deckTypes(deckIds), out = [];
+  while (out.length < BOOST_BOX.n){
+    const r = rnd() * 100, tier = r < BOOST_BOX.odds[0] ? 1 : r < BOOST_BOX.odds[0] + BOOST_BOX.odds[1] ? 2 : 3;
+    const type = ty.length && rnd() < .8 ? ty[Math.floor(rnd() * Math.min(ty.length, 4))] : TYPE_IDS[Math.floor(rnd() * TYPE_IDS.length)], id = `b-${BOOST_FX_IDS[Math.floor(rnd() * BOOST_FX_IDS.length)]}-${type}-${tier}`;
+    if (!out.includes(id)) out.push(id);
+  }
+  return out.sort((a, b) => BOOSTS[a].tier - BOOSTS[b].tier);
+}
 /* old saves held a card for every rarity of a character and used older names: where each of those went */
 export const OLD_BASE = {skels:'bonecrew', bench:'ironclad', shooters:'longshots', gobs:'orclings', bats:'gloombats', airball:'arrows', slime:'slime', hoop:'cannon', mascot:'mascot', barista:'hexa', golem:'clanker', ref:'nightbolt',
   coffee:'fireball', vending:'crypt', trainer:'tonic', fast:'gorehorn', dragon:'emberwing', ghost:'lostsoul', clockout:'freeze', overtime:'rage', buzzer:'magmaw', witch:'gravewitch', fivestar:'bdb', jumbo:'lich', bell:'bell',

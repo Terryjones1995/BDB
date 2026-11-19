@@ -1,12 +1,13 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT } from './cards.js?v=1119c';
-import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119c';
-import { createAI } from './ai.js?v=1119c';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119c';
-import { Cloud, cloudWhy } from './cloud.js?v=1119c';
-import { sayFor, sayWhen } from './talk.js?v=1119c';
-import { createAudio } from './audio.js?v=1119c';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT,
+  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119d';
+import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119d';
+import { createAI } from './ai.js?v=1119d';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119d';
+import { Cloud, cloudWhy } from './cloud.js?v=1119d';
+import { sayFor, sayWhen } from './talk.js?v=1119d';
+import { createAudio } from './audio.js?v=1119d';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +81,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119c'), import('./models.js?v=1119c')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119d'), import('./models.js?v=1119d')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -196,7 +197,7 @@ function setsHTML(deck, brief, pairs){      // brief: only what earns a bonus or
 }
 
 /* ---------- dialogs ---------- */
-function dlg(html, o = {}){ const w = $('dlg'), b = $('dlgBox'); if (w.hidden) fx('open'); b.innerHTML = html; w.hidden = false; dlg.lock = !!o.lock; $('hubToast').hidden = true; return b; }
+function dlg(html, o = {}){ const w = $('dlg'), b = $('dlgBox'); if (w.hidden) fx('open'); b.innerHTML = html; b.scrollTop = 0; w.hidden = false; dlg.lock = !!o.lock; $('hubToast').hidden = true; return b; }
 const dlgClose = () => { $('dlg').hidden = true; $('dlgBox').innerHTML = ''; };
 function backdrop(w, close){ let d = false; w.addEventListener('pointerdown', e => { d = e.target === w; }); w.addEventListener('click', e => { if (d && e.target === w) close(); d = false; }); }
 backdrop($('sheet'), () => { $('sheet').hidden = true; });
@@ -257,6 +258,98 @@ function jobsBox(){
     if (L.every(x => x.got) && !P.jobs.all){ P.jobs.all = 1; P.stats.packs++; const got = openPack(pk).map(grant); save(); hub(); return packReveal(pk, got, () => { dlgClose(); hub(); }); }
     save(); hub(); jobsBox();
   };
+}
+/* ---------- Boosts: a second, small deck that costs no Mana (the list is made in cards.js) ----------
+   P.boosts: the ones owned. P.bdecks: a Boost deck for each deck slot, eight at most. Everyone is given twelve plain ones for the types of their first deck. */
+const BICON = {
+  speed:'<path d="M13.5 1.5 4 13.5h6L8.5 22.5 20 9.5h-6.5z"/>', haste:'<path d="M3 4.5 10.5 12 3 19.5zM12.5 4.5 20 12l-7.5 7.5z"/>',
+  power:'<g transform="rotate(40 12 12)"><path d="M12 .8 14.6 4.8V14H9.4V4.8zM6 14h12v2.8H6zM10.6 16.8h2.800v3.4h-2.800z"/><circle cx="12" cy="21.6" r="1.9"/></g>',
+  guard:'<path d="M12 1.8 20.5 5v6.2c0 5.3-3.6 9.5-8.5 11-4.9-1.5-8.5-5.7-8.5-11V5z"/>', health:'<path d="M12 21.5C6.2 17.6 2.5 13.9 2.5 9.4 2.5 6.3 4.9 4 7.8 4c1.7 0 3.2.8 4.2 2.2C13 4.800 14.5 4 16.200 4c2.9 0 5.3 2.3 5.3 5.4 0 4.5-3.700 8.200-9.500 12.100z"/>',
+  heal:'<path d="M9 2.500h6V9h6.500v6H15v6.500H9V15H2.500V9H9z"/>', shield:'<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 3.200a6.800 6.800 0 1 1 0 13.600 6.800 6.800 0 0 1 0-13.600zM9.300 7.600a5 5 0 0 0-2.200 3.500l1.900.3a3.100 3.100 0 0 1 1.400-2.200z"/>',
+  regen:'<path d="M12 3.500a8.500 8.500 0 0 1 8 5.600l1.600-1.300.4 6.200-5.800-1.900 1.600-1.300A5.600 5.600 0 0 0 6.700 10L3.900 9A8.500 8.500 0 0 1 12 3.500zm0 17a8.500 8.500 0 0 1-8-5.600l-1.600 1.300-.4-6.200 5.800 1.900-1.600 1.300a5.600 5.600 0 0 0 11.100.800l2.800 1A8.500 8.500 0 0 1 12 20.500z"/>',
+  leech:'<path d="M12 1.800s7.200 7.900 7.200 13A7.200 7.200 0 0 1 4.800 14.800C4.800 9.700 12 1.800 12 1.800zM8 14.500a4 4 0 0 0 3.200 4l.4-1.800a2.200 2.200 0 0 1-1.800-2.200z"/>',
+  dodge:'<path d="M1.500 6.200h9v2.600h-9zM4 10.700h7.500v2.600H4zM1.500 15.200h9v2.600h-9zM17.500 6a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/>',
+  flame:'<path d="M12.600 1.500c.6 3.700 5.900 6 5.900 11.600a6.500 6.500 0 0 1-13 0c0-2.200.9-3.900 2.100-5.100.2 1.600.9 2.700 2 3.200-.4-3.600.9-7.200 3-9.700zM12 14c-1.500 1.300-2.200 2.500-2.200 3.800a2.200 2.200 0 0 0 4.400 0c0-1.300-.7-2.500-2.200-3.800z"/>',
+  frost:'<g><rect x="10.7" y="1.5" width="2.6" height="21" rx="1.2"/><rect x="10.7" y="1.5" width="2.6" height="21" rx="1.2" transform="rotate(60 12 12)"/><rect x="10.7" y="1.5" width="2.6" height="21" rx="1.2" transform="rotate(120 12 12)"/><path d="M12 7.2 9.2 4.6l1.3-1.400L12 4.500l1.500-1.300 1.300 1.400zM12 16.800l2.800 2.600-1.300 1.400L12 19.500l-1.500 1.300-1.300-1.400z"/></g>',
+  cleanse:'<path d="M10 2l2.300 6.700L19 11l-6.700 2.300L10 20l-2.300-6.700L1 11l6.700-2.300zM19 14.500l1.100 2.900 2.900 1.100-2.900 1.100-1.100 2.900-1.100-2.900-2.900-1.100 2.900-1.100z"/>',
+  revive:'<path d="M12 1.500 19.500 10H15v6.500H9V10H4.500zM5 19h14v3.200H5z"/>'
+};
+const bIcon = fx => `<svg viewBox="0 0 24 24" aria-hidden="true">${BICON[fx] || ''}</svg>`;
+const curBoosts = () => (P.bdecks[P.deck] || []).filter(id => BOOSTS[id] && P.boosts[id]).slice(0, BOOST_DECK);
+const boostSay = id => { const b = BOOSTS[id]; return BOOST_FX[b.fx].text(b.v, b.t); };
+const boostRow = (id, tail, cls) => { const b = BOOSTS[id]; return `<div class="brow${cls ? ' ' + cls : ''}" style="--ty:${TYPES[b.type].col}" data-id="${id}"><span class="bic">${bIcon(b.fx)}</span><div><b>${esc(b.name)}<i>${TIER_NAME[b.tier - 1]}</i></b><small><em>${esc(TYPES[b.type].name)}.</em> ${esc(boostSay(id))}</small></div>${tail || ''}</div>`; };
+const boostTile = (id, cls) => { const b = BOOSTS[id]; return `<button type="button" class="btile${cls ? ' ' + cls : ''}" style="--ty:${TYPES[b.type].col}" data-id="${id}" title="${esc(boostName(id))}, ${esc(TYPES[b.type].name)}. ${esc(boostSay(id))}" aria-label="${esc(boostName(id))}, ${esc(TYPES[b.type].name)}">${bIcon(b.fx)}<span class="pip">${'<i></i>'.repeat(b.tier)}</span></button>`; };
+/* once for every account, old or new: the starter set, and a Boost deck picked for every deck that has cards in it */
+function boostStart(){
+  if (!P || !P.onboarded || P.flags.bs1) return false;
+  const first = P.decks.find(d => d.length) || [];
+  for (const id of starterBoosts(first)) P.boosts[id] = 1;
+  for (let i = 0; i < DECK_SLOTS; i++) if (!P.bdecks[i].length) P.bdecks[i] = pickBoosts(Object.keys(P.boosts), P.decks[i].length ? P.decks[i] : first);
+  P.flags.bs1 = 1; save(); return true;
+}
+/* the strip under the deck on the Deck tab: the eight for this deck at a glance */
+function boostStrip(){
+  const el = $('bstIcons'); if (!el) return;
+  const d = curBoosts(), ty = deckTypes(curDeck()), dead = d.filter(id => !ty.includes(BOOSTS[id].type));
+  $('bstLbl').textContent = `Boosts for this deck, ${d.length} of ${BOOST_DECK}`;
+  el.innerHTML = d.map(id => boostTile(id, ty.includes(BOOSTS[id].type) ? '' : 'off')).join('') + '<button type="button" class="btile empty" aria-label="Empty place. Pick a Boost for it">+</button>'.repeat(BOOST_DECK - d.length);
+  $('bstNote').textContent = dead.length ? `${dead.length === 1 ? 'One of these has' : dead.length + ' of these have'} no troops of ${dead.length === 1 ? 'its' : 'their'} type in this deck, so ${dead.length === 1 ? 'it' : 'they'} would do nothing.` : d.length ? `No Mana. One is dealt every ${BOOST_EVERY} seconds of a match, and you hold ${BOOST_HAND} at most.` : 'Empty. Tap Change to pick some: they cost no Mana in a match.';
+  for (const b of el.children) b.onclick = boostBox;
+  $('bstEdit').onclick = boostBox;
+}
+let bstType = '';                                           // which of your Boosts the editor lists: '' is the types of the deck in hand
+function boostBox(){
+  const d = curBoosts(), ty = deckTypes(curDeck()), rest = Object.keys(P.boosts).filter(id => BOOSTS[id] && !d.includes(id));
+  const types = TYPE_IDS.filter(t => rest.some(id => BOOSTS[id].type === t)), fxI = id => Object.keys(BOOST_FX).indexOf(BOOSTS[id].fx);
+  if (bstType && !types.includes(bstType)) bstType = '';
+  const show = rest.filter(id => bstType ? BOOSTS[id].type === bstType : ty.includes(BOOSTS[id].type)).sort((a, b) => (bstType ? 0 : ty.indexOf(BOOSTS[a].type) - ty.indexOf(BOOSTS[b].type)) || fxI(a) - fxI(b) || BOOSTS[b].tier - BOOSTS[a].tier);
+  const full = d.length >= BOOST_DECK;
+  const b = dlg(`<div class="k-eyebrow">Boosts for Deck ${P.deck + 1}</div><h3>${d.length} of ${BOOST_DECK} in</h3>
+    <p class="note" style="margin:0">A Boost costs no Mana. In a match one is dealt every ${BOOST_EVERY} seconds and you hold ${BOOST_HAND} at most. Drop it on your troops: it only works on the type it names.</p>
+    <div class="bsec">In this deck</div><div class="brows" id="bbIn">${d.length ? d.map(id => boostRow(id, '<button type="button" class="k-btn" data-a="out">Take out</button>', ty.includes(BOOSTS[id].type) ? '' : 'off')).join('') : '<p class="note" style="margin:0">Nothing yet. Add some from below.</p>'}</div>
+    <div class="bsec">Your other Boosts</div>
+    <div class="tfilter" id="bbF" role="group" aria-label="Type"><button type="button" data-t="" aria-pressed="${!bstType}">This deck's types</button>${types.map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="${bstType === t}">${esc(TYPES[t].name)}</button>`).join('')}</div>
+    <div class="brows" id="bbOwn">${show.length ? show.map(id => boostRow(id, `<button type="button" class="k-btn${full ? '' : ' primary'}" data-a="in"${full ? ' disabled' : ''}>Add</button>`)).join('') : `<p class="note" style="margin:0">${rest.length ? 'None of your other Boosts are for the types in this deck. Pick a type above to see the rest.' : 'Every Boost you own is in this deck. The Market has more.'}</p>`}</div>
+    <div class="k-row" style="margin-top:14px"><button type="button" class="k-btn" id="bbAuto">Pick for me</button><button type="button" class="k-btn" id="bbShop">Get more</button><button type="button" class="k-btn primary" id="bbX">Done</button></div>`);
+  const set = list => { const sc = $('dlgBox').scrollTop; P.bdecks[P.deck] = list.slice(0, BOOST_DECK); save(); if (curTab === 'Deck') boostStrip(); boostBox(); $('dlgBox').scrollTop = sc; };      // the list stays where it was scrolled to
+  b.querySelector('#bbX').onclick = dlgClose;
+  b.querySelector('#bbAuto').onclick = () => { fx('place', null, BDB.sfx.tick); set(pickBoosts(Object.keys(P.boosts), curDeck())); };
+  b.querySelector('#bbShop').onclick = () => { dlgClose(); tab('Market'); const q = $('bstShop'); if (q) q.scrollIntoView({block:'center'}); };
+  b.querySelector('#bbF').onclick = e => { const q = e.target.closest('button'); if (!q) return; const sc = $('dlgBox').scrollTop; bstType = q.dataset.t; boostBox(); $('dlgBox').scrollTop = sc; };
+  for (const q of b.querySelectorAll('button[data-a]')) q.onclick = () => { const id = q.closest('.brow').dataset.id; if (q.dataset.a === 'out'){ fx('card', null, BDB.sfx.tick); set(d.filter(x => x !== id)); } else if (d.length < BOOST_DECK){ fx('place', null, BDB.sfx.tick); set(d.concat([id])); } };
+}
+/* the Market: the Boost Box, and every Boost there is, a type at a time */
+const boostBack = id => Math.round(BOOSTS[id].price * .4 / 10) * 10;       // what a Boost you already own turns into
+function boostShelf(){
+  const el = $('bstShop'); if (!el) return;
+  const own = Object.keys(P.boosts).filter(id => BOOSTS[id]).length;
+  el.innerHTML = `<div class="bstbox"><div class="box" aria-hidden="true">${['speed', 'guard', 'health'].map(bIcon).join('')}</div><button type="button" class="k-btn primary" id="bxBuy">${COIN}${fmt(BOOST_BOX.price)}</button></div>
+    <div class="bstside"><b>${esc(BOOST_BOX.name)}</b><p class="note" style="margin:0">${esc(BOOST_BOX.blurb)} Mostly plain ones, sometimes a II, now and then a III. One you already own comes back as coins. You own ${fmt(own)} of ${fmt(BOOST_IDS.length)}.</p><div class="k-row"><button type="button" class="k-btn" id="bxAll">See every Boost</button><button type="button" class="k-btn" id="bxDeck">My Boost deck</button></div></div>`;
+  const bb = $('bxBuy'); bb.disabled = P.coins < BOOST_BOX.price; bb.onclick = buyBoostBox; $('bxAll').onclick = () => boostShop(); $('bxDeck').onclick = boostBox;
+  $('bstEvery').textContent = BOOST_EVERY;
+}
+function buyBoostBox(){
+  if (P.coins < BOOST_BOX.price) return;
+  P.coins -= BOOST_BOX.price; let back = 0;
+  const got = openBoostBox(curDeck()).map(id => { const had = !!P.boosts[id]; if (had){ back += boostBack(id); } else P.boosts[id] = 1; return {id, had}; });
+  P.coins += back; save(); fx('chest', null, BDB.sfx.big); hub();
+  const b = dlg(`<div class="k-eyebrow">${esc(BOOST_BOX.name)}</div><h3>${got.every(g => g.had) ? 'Nothing new this time' : got.some(g => g.had) ? `${got.filter(g => !g.had).length} new` : 'Three new Boosts'}</h3>
+    <div class="brows">${got.map(g => boostRow(g.id, `<span class="own">${g.had ? `Had it: +${fmt(boostBack(g.id))}` : 'New'}</span>`, g.had ? 'off' : '')).join('')}</div>
+    <p class="note">${back ? `${fmt(back)} coins back for the ${got.filter(g => g.had).length === 1 ? 'one' : 'ones'} you already had. ` : ''}New ones are in your collection, not in a deck yet.</p>
+    <div class="k-row"><button type="button" class="k-btn primary" id="bxAgain"${P.coins < BOOST_BOX.price ? ' disabled' : ''}>Another ${COIN}${fmt(BOOST_BOX.price)}</button><button type="button" class="k-btn" id="bxPut">Boost deck</button><button type="button" class="k-btn" id="bxDone">Done</button></div>`);
+  b.querySelector('#bxAgain').onclick = buyBoostBox; b.querySelector('#bxDone').onclick = dlgClose; b.querySelector('#bxPut').onclick = boostBox;
+}
+let shopType = '';
+function boostShop(t){
+  if (t) shopType = t; if (!shopType) shopType = deckTypes(curDeck())[0] || TYPE_IDS[0];
+  const list = BOOST_IDS.filter(id => BOOSTS[id].type === shopType), own = list.filter(id => P.boosts[id]).length;
+  const b = dlg(`<div class="k-eyebrow">Every Boost</div><h3>${esc(TYPES[shopType].name)}: ${own} of ${list.length}</h3>
+    <div class="tfilter" id="bsF" role="group" aria-label="Type">${TYPE_IDS.map(q => `<button type="button" data-t="${q}" style="--ty:${TYPES[q].col}" aria-pressed="${q === shopType}">${esc(TYPES[q].name)}</button>`).join('')}</div>
+    <div class="brows">${list.map(id => boostRow(id, P.boosts[id] ? '<span class="own">Owned</span>' : `<button type="button" class="k-btn primary" data-a="buy"${P.coins < BOOSTS[id].price ? ' disabled' : ''}>${COIN}${fmt(BOOSTS[id].price)}</button>`)).join('')}</div>
+    <div class="k-row" style="margin-top:14px"><button type="button" class="k-btn" id="bsDeck">My Boost deck</button><button type="button" class="k-btn primary" id="bsX">Done</button></div>`);
+  b.querySelector('#bsX').onclick = dlgClose; b.querySelector('#bsDeck').onclick = boostBox;
+  b.querySelector('#bsF').onclick = e => { const q = e.target.closest('button'); if (q) boostShop(q.dataset.t); };
+  for (const q of b.querySelectorAll('button[data-a="buy"]')) q.onclick = () => { const id = q.closest('.brow').dataset.id, pr = BOOSTS[id].price; if (P.boosts[id] || P.coins < pr) return; const sc = $('dlgBox').scrollTop; P.coins -= pr; P.boosts[id] = 1; save(); fx('coins', null, BDB.sfx.good); hub(); boostShop(); $('dlgBox').scrollTop = sc; };
 }
 /* ---------- goals: four for every card, each paid once (the list is made in cards.js) ----------
    P.goals holds how far each has got, by card: [a, b, c, d]. One that has reached its number is done and was paid when it got there. */
@@ -553,7 +646,7 @@ function prizeChips(cpu, first, n = 1){
 const PAINTED = new Set(['ruins', 'glacier', 'citadel', 'yard', 'temple', 'keep', 'hollow', 'foundry', 'cinder', 'heavens']);      // the arenas with a painted floor: the next fight's is laid out beside it on the hub
 function hub(){
   if (!P) return;
-  top();
+  boostStart(); top();
   if (curTab === 'Battle'){
     const n = nextLevel(), all = P.ladder >= LEVELS, cpu = ladderCpu(n), T = TIERS[cpu.tier], h = $('hero');
     h.style.setProperty('--tc', T.col);
@@ -592,7 +685,7 @@ function hub(){
       : slotOn && d.length < DECK_SIZE ? `<b>Now pick a card from ${side ? 'your cards on the right' : 'your cards below'}.</b> It goes in the lit place.`
       : `Tap a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Rare, Epic, Legendary and God cards do not apply to this account' : `, and no more than ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
     const sx = $('swapX'); if (sx) sx.onclick = () => { pend = null; deckMsg = ''; hub(); };
-    sellUI(); lists.own.draw();
+    boostStrip(); sellUI(); lists.own.draw();
   } else if (curTab === 'Market') market();
   else profile();
 }
@@ -671,7 +764,7 @@ function profile(){
   $('pLv').textContent = done ? `All ${fmt(LEVELS)} levels beaten.` : `Level ${fmt(lv)} of ${fmt(LEVELS)}.` + (ti < TIERS.length - 1 ? ` ${TIERS[ti + 1].name} starts at ${fmt((ti + 1) * 100 + 1)}.` : ' The last tier.');
   $('pTiles').innerHTML = [[fmt(s.w), 'BDB beaten'], [played ? Math.round(s.w / played * 100) + '%' : '0%', 'Win rate'], [fmt(P.best), 'Best streak'], [fmt(s.ow), 'Online wins'], [fmt(own), `Cards of ${fmt(CARD_IDS.length)}`], [fmt(P.trophies), 'Trophies']]
     .map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('');
-  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)], ['Cards sold', fmt(s.sold || 0)], ['Card goals done', `${fmt(goalsDone())} of ${fmt(GOAL_COUNT)}`]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)], ['Cards sold', fmt(s.sold || 0)], ['Card goals done', `${fmt(goalsDone())} of ${fmt(GOAL_COUNT)}`], ['Boosts owned', `${fmt(Object.keys(P.boosts).filter(id => BOOSTS[id]).length)} of ${fmt(BOOST_IDS.length)}`]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
   const riv = Object.entries(P.vs || {}).map(([n, v]) => ({n, w:v[0], l:v[1], d:v[2], g:v[0] + v[1] + v[2]})).filter(o => o.g).sort((a, b) => b.g - a.g || b.w - a.w).slice(0, 12);
   msUI();
   $('vsPanel').hidden = !riv.length;
@@ -734,6 +827,7 @@ function grant(id){
   const c = Math.round(CARDS[id].price * .2 / 5) * 5; P.coins += c; return {id, lvl:L, tag:'+' + fmt(c), line:`Already maxed, so you get ${fmt(c)} coins instead`};
 }
 function market(){
+  boostShelf();
   const pr = $('packRow'); pr.innerHTML = '';
   for (const p of PACKS){
     const el = document.createElement('div'); el.className = 'pack'; el.style.setProperty('--pc', p.col);
@@ -876,17 +970,18 @@ function whatsNew(){
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
   return true;
 }
-/* a save from before orders, rampages and card goals is told once (and one from before the odds and real sound hears about those too) */
+/* What is new is told once, and only the parts a save has not heard yet: Boosts (n18), then orders, rampages and card goals (n17), then the odds and real sound (n16). */
 function newsNote(){
-  if (P.flags.n17) return false;
-  const old = !P.flags.n16, due = msDue().length;                   // old: has not seen the note before this one either
-  P.flags.n15 = P.flags.n16 = P.flags.n17 = 1; save();
+  if (P.flags.n18) return false;
+  const mid = !P.flags.n17, old = !P.flags.n16, due = msDue().length;
+  P.flags.n15 = P.flags.n16 = P.flags.n17 = P.flags.n18 = 1; save();
   const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More ways to win, ${esc(P.name)}</h3>
-    <ul class="abil"><li><b>Give orders.</b> In a match, tap one of your troops, then tap an enemy troop, building or tower. It goes for that and nothing else. Tap the troop again to call it off.</li>
+    <ul class="abil"><li><b>Boosts.</b> A second, small deck that costs no Mana. One Boost is dealt every ${BOOST_EVERY} seconds of a match. Tap it, then tap your troops: it works on the type it names. Speed, a shield, health back, a second chance. You have been given twelve, and they are under your deck on the Deck tab. The Market has the other ${fmt(BOOST_IDS.length - 12)}.</li>
+    ${mid ? `<li><b>Give orders.</b> In a match, tap one of your troops, then tap an enemy troop, building or tower. It goes for that and nothing else. Tap the troop again to call it off.</li>
     <li><b>Rampage.</b> A troop that takes down ${RAMP_AT[0]} enemies in one life goes on a rampage. Its type decides what it gets, and at ${RAMP_AT[1]} it steps up again. Every troop's card says which.</li>
     <li><b>Card goals.</b> Every card has four goals that each pay coins once, ${fmt(GOAL_COUNT)} in all. They are on the Battle tab and on every card.</li>
     <li><b>Sell cards.</b> The Deck tab has a Sell cards button, and so does every card you own. The price goes by rarity.</li>
-    <li><b>Better endings.</b> Troops go down the way they were beaten: thrown, burnt, frozen, melted, or in a way of their type's own.</li>
+    <li><b>Better endings.</b> Troops go down the way they were beaten: thrown, burnt, frozen, melted, or in a way of their type's own.</li>` : ''}
     ${old ? `<li><b>Milestones.</b> Your Profile keeps eight career totals, and every rung is a chest.${due ? ` You have ${due === 1 ? 'one' : due} waiting.` : ''}</li>
     <li><b>Raise the odds.</b> Before a match, pick two or three BDBs at once for double or triple, and every tower you take raises the pay: x${CROWN_PAY[1]}, x${CROWN_PAY[2]}, x${CROWN_PAY[3]}.</li>
     <li><b>Sound.</b> Music and proper effects. The speaker button at the top mutes it.</li>` : ''}</ul>
@@ -1100,12 +1195,14 @@ function preCpu(cpu, odds = 1){
 /* ---------- the match ---------- */
 let B = null, raf = 0, lastT = 0, ticker = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* BDB's Boost deck: none while a new player is finding their feet (the first ten rungs, and Easy), then stronger the higher his cards are */
+const bdbBoosts = c => (c.level && c.level <= 10) || c.skill === 'easy' ? [] : cpuBoosts(c.deck, c.lvl >= 8 ? 3 : c.lvl >= 4 ? 2 : 1);
 async function begin(o){
   A.music('off');
-  const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
+  const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, bsel:-1, bstKey:'', over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
   B.coach = o.mode === 'cpu' && (Q.get('coach') || (!P.flags.coach && !Q.get('skip') && !Q.get('fast') && P.stats.w + P.stats.l + P.stats.d === 0)) ? {step:0, at:0} : null; B.hold = !!B.coach; coachOff();
   if (o.mode === 'host') B.ready = new Promise(res => { B.rdRes = res; });
-  ordSel = 0; show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
+  ordSel = 0; show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('bstBar').hidden = true; $('bstTray').innerHTML = ''; $('scrBattle').classList.remove('boosts'); $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
   const w = $('wait'), tip = `<p class="tip"><em>Tip</em>${esc(pick(TIPS))}</p>`; w.hidden = false; w.innerHTML = vsCard(o, tip + '<p class="ld">Bringing both decks onto the field.</p>');
@@ -1116,14 +1213,14 @@ async function begin(o){
   B.ais = [];
   if (o.coop && o.mode === 'host'){                       // you and a friend against two BDBs, or three for a handicap. Two decks a side, so both sides' towers are tougher
     const cs = o.cpus, O = TEAM_ODDS[cs.length], dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
-    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, ...cs.map(dk)], teams:[0, 0, ...cs.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, ...cs.map(c => c.ai.el * O.el)], start:[5, 5, ...cs.map(() => 5 * O.el)],
+    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, ...cs.map(dk)], teams:[0, 0, ...cs.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, ...cs.map(c => c.ai.el * O.el)], start:[5, 5, ...cs.map(() => 5 * O.el)], boosts:[curBoosts(), o.oppBoosts || [], ...cs.map(bdbBoosts)],
       towerLvl:[o.teamTower || myTower(), cs[0].tower || cs[0].lvl], boost:[{hp:TEAM_TOWERS}, {hp:TEAM_TOWERS * (cs[0].soft || 1)}]});
     B.ais = cs.map((c, i) => createAI(B.sim, 1, c.ai, Math.random, 2 + i));
   } else if (o.mode === 'host'){
-    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck], seed:(Math.random() * 2 ** 31) | 0, towerLvl:[myTower(), o.oppTower]});
+    B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck], seed:(Math.random() * 2 ** 31) | 0, towerLvl:[myTower(), o.oppTower], boosts:[curBoosts(), o.oppBoosts || []]});
   } else if (o.mode === 'cpu'){                           // against BDB your player upgrades count; online everyone is even
     const c = o.cpu, k = P.perks, all = [c, ...(o.more || [])], O = ODDS[all.length];      // raised odds: every BDB has his own deck and Mana bar, and a share of the usual Mana
-    B.sim = createSim({map:o.map, decks:[myDeck(), ...all.map(q => q.deck.map(id => ({id, lvl:c.lvl})))], teams:[0, ...all.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0,
+    B.sim = createSim({map:o.map, decks:[myDeck(), ...all.map(q => q.deck.map(id => ({id, lvl:c.lvl})))], teams:[0, ...all.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0, boosts:[curBoosts(), ...all.map(bdbBoosts)],
       elMul:[1 + k.flow * PERKS.flow.per, ...all.map(q => q.ai.el * O.el)], start:[5 + k.start * PERKS.start.per, ...all.map(() => 5 * O.el)], towerLvl:[myTower(), c.tower || c.lvl],
       boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}, {hp:c.soft || 1}]});
     B.ais = all.map((q, i) => createAI(B.sim, 1, q.ai, Math.random, 1 + i));
@@ -1233,6 +1330,8 @@ function hear(e){
   else if (k === 'summon') fx('raise');
   else if (k === 'warp' || k === 'morph') fx('warp');
   else if (k === 'leap' || k === 'charge' || k === 'dodge') fx('throw', {rate:k === 'charge' ? .8 : 1, vol:1.3});
+  else if (k === 'boost'){ const b = BOOSTS[e.id], f = b ? b.fx : ''; fx(f === 'heal' || f === 'regen' || f === 'health' || f === 'revive' || f === 'cleanse' ? 'heal' : f === 'frost' ? 'freeze' : f === 'flame' ? 'fire' : f === 'shield' || f === 'guard' ? 'spell' : 'rage', {pan:panAt(e.x, e.z), vol:.8, rate:1.2, gap:.2}); }
+  else if (k === 'bdeal'){ if (e.pid === B.me) fx('card', {vol:.8, rate:1.3}); }
   else if (k === 'rampage'){ const o = entOf(e.id); fx('rage', {pan:o ? panAt(o.x, o.z) : 0, vol:e.n > 1 ? 1 : .75, rate:e.n > 1 ? .85 : 1.12, gap:.25}); }
   else if (k === 'order'){ if (e.pid === B.me) fx('place', {vol:.7, rate:1.25}, BDB.sfx.tick); }
   else if (k === 'reflect' || k === 'shbreak' || k === 'trapx') fx('clang', {vol:k === 'shbreak' ? 1 : .6});
@@ -1263,6 +1362,8 @@ function onEvents(ev){
       if (c && e.e === 'drop' && e.u && c.kind === 'unit' && (c.rar !== 'c' || Math.random() < .6)){ const uid = e.u, line = sayFor(c.base, c.type), mine = e.team === B.team, big = c.rar === 'l' || c.rar === 'e' || c.rar === 'g'; setTimeout(() => { if (B && !B.over) bubble(uid, line, mine, big); }, 420); }
     }
     else if (e.e === 'grow'){ if (Math.random() < .45) bubble(e.id, sayWhen('kill'), true); }
+    else if (e.e === 'bdeal'){ if (e.pid === B.me && !P.flags.bt1){ P.flags.bt1 = 1; save(); note('A Boost arrived. Tap it, then tap your troops of its type'); } }
+    else if (e.e === 'boost'){ const b = BOOSTS[e.id]; if (b && e.team !== B.team) note(`${B.mode === 'cpu' ? 'He' : 'They'} used ${b.name} on ${B.mode === 'cpu' ? 'his' : 'their'} ${TYPES[b.type].name} troops`); }
     else if (e.e === 'rampage'){ const o = entOf(e.id), R = RAMPAGE[e.k]; if (o && R){ const mine = o.team === B.team; note(`${mine ? 'Your' : B.mode === 'cpu' ? 'His' : 'Their'} ${o.U.name} ${e.n > 1 ? 'is unstoppable' : 'is on a rampage'}: ${R.name}`); if (mine){ bubble(e.id, sayWhen('kill'), true, true); buzz(18); } else if (B.mode === 'cpu' && e.n > 1) talk(TALK.legend); } }
     else if (e.e === 'revive'){ bubble(e.id, sayWhen('low'), true); }
     else if (e.e === 'trapset'){ if (e.team === B.team) SND.trapSet(); else { note(B.mode === 'cpu' ? 'He set a trap' : 'They set a trap'); if (B.mode === 'cpu') talk(TALK.trapSet); } }
@@ -1275,7 +1376,7 @@ function onEvents(ev){
     else if (e.e === 'over' && !B.over){ B.over = true; B.mv = e.mv; B.ft = e.ft; A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
   }
 }
-const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim; if (!s) return null; const p = s.players[B.me]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT}; };
+const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim; if (!s) return null; const p = s.players[B.me]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT, bh:p.bh, bn:Math.ceil(p.bn * DT), bq:p.bq.length}; };
 function hud(force){
   const I = info(); if (!I) return;
   const key = I.hand.map(c => c.id).join() + '|' + I.next.id;
@@ -1283,6 +1384,16 @@ function hud(force){
     B.handKey = key;
     const hd = $('hand'); hd.innerHTML = ''; I.hand.forEach((c, i) => { const el = cardEl(c.id, {lvl:c.lvl, now:true}); el.dataset.slot = i; if (i === B.sel) el.classList.add('sel'); hd.appendChild(el); });
     const nx = $('nextCard'); nx.innerHTML = ''; nx.appendChild(cardEl(I.next.id, {div:true, now:true}));
+  }
+  // the Boosts in hand: a small tray above the cards, and how long until the next one
+  const bh = I.bh || [], bkey = bh.join(), bar = $('bstBar'), any = bh.length > 0 || (I.bq > 0 && B.run);
+  if (bar.hidden === any){ bar.hidden = !any; $('scrBattle').classList.toggle('boosts', any); }
+  if (any){
+    if (bkey !== B.bstKey){
+      const was = (B.bstKey || '').split(',').filter(Boolean); B.bstKey = bkey; if (B.bsel >= bh.length) bselect(-1);
+      $('bstTray').innerHTML = bh.map((id, i) => boostTile(id, (i === B.bsel ? 'sel' : '') + (i >= was.length && B.run ? ' new' : ''))).join(''); [...$('bstTray').children].forEach((el, i) => { el.dataset.slot = i; });
+    }
+    const full = bh.length >= BOOST_HAND, nx = $('bstNext'); nx.classList.toggle('full', full); $('bstNextN').textContent = full ? 'Full' : I.bq > 0 ? I.bn : '';
   }
   const cs = $('hand').children;
   for (let i = 0; i < cs.length; i++){ const cost = CARDS[I.hand[i].id].cost, poor = cost > I.el, was = cs[i].classList.contains('poor');
@@ -1305,13 +1416,37 @@ function hud(force){
 
 /* ---------- playing cards: drag from the hand, or tap a card then tap the floor ---------- */
 let aim = null;
+/* a Boost is picked from the tray the same way a card is, and dropped on the field: the circle is green when a troop of its type is inside it */
+function bselect(i){
+  if (i >= 0){ if (B.sel >= 0) select(-1); if (ordSel){ ordPick(0); $('insp').hidden = true; } }
+  B.bsel = i; for (const c of $('bstTray').children) c.classList.toggle('sel', +c.dataset.slot === i);
+  if (V && i < 0) V.setGhost(false);
+}
+const boostHits = (id, p) => { const b = BOOSTS[id]; return (B.mode === 'guest' ? B.ents : B.sim.ents).filter(e => e.team === B.team && e.hp > 0 && !e.dep && !e.U.bld && !e.U.twr && e.U.type === b.type && Math.hypot(e.x - p.x, e.z - p.z) <= BOOST_R + e.U.r * .5).length; };
+function tryBoost(slot, p){
+  if (!B || !B.run || B.over || B.pz || slot < 0 || !p) return false;
+  const I = info(), id = I && I.bh && I.bh[slot]; if (!id) return false;
+  const b = BOOSTS[id]; let ok = boostHits(id, p) > 0;
+  if (ok){ if (B.mode === 'guest') room.send('b', {slot, id, x:Math.round(p.x * 100) / 100, z:Math.round(p.z * 100) / 100}, OL.opp); else ok = B.sim.boost(B.me, slot, p.x, p.z); }
+  if (!ok){ BDB.sfx.bad(); note(`No ${TYPES[b.type].name} troops of yours there`); const el = $('bstTray').children[slot]; if (el){ el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); } return false; }
+  buzz(10); bselect(-1); return true;
+}
+$('bstTray').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.btile'); if (!c || !B || B.over || e.button === 2) return;
+  e.preventDefault(); const i = +c.dataset.slot;
+  if (B.bsel === i){ bselect(-1); return; }
+  bselect(i); fx('card', null, BDB.sfx.tick); const I = info(), id = I && I.bh[i]; if (id) note(`${boostName(id)}: drop it on your ${TYPES[BOOSTS[id].type].name} troops`);
+});
 function select(i){
   if (i >= 0 && ordSel){ ordPick(0); $('insp').hidden = true; }
+  if (i >= 0 && B.bsel >= 0) bselect(-1);
   B.sel = i; for (const c of $('hand').children) c.classList.toggle('sel', +c.dataset.slot === i);
   const I = info(), c = i >= 0 && I ? CARDS[I.hand[i].id] : null; if (V){ V.setNoGo(!!c && c.kind !== 'spell' && !(c.U && c.U.any), I ? I.pocket : null); if (i < 0) V.setGhost(false); }
 }
 function ghostAt(cx, cy){
-  const I = info(); if (!V || B.sel < 0 || !I) return null;
+  const I = info(); if (!V || !I) return null;
+  if (B.bsel >= 0){ const p = V.pick(cx, cy), id = I.bh && I.bh[B.bsel]; if (!p || !id){ V.setGhost(false); return null; } V.setGhost(true, p.x, p.z, BOOST_R, boostHits(id, p) > 0, null); return p; }
+  if (B.sel < 0) return null;
   const p = V.pick(cx, cy), c = CARDS[I.hand[B.sel].id];
   if (!p){ V.setGhost(false); return null; }
   const ok = canPlace(MAPS[B.map], B.team, c, p.x, p.z, I.pocket) && I.el >= c.cost;
@@ -1357,7 +1492,7 @@ $('arena').addEventListener('pointerdown', e => {
   if (!B || aim) return;
   ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY}); try { $('arena').setPointerCapture(e.pointerId); } catch(er){}
   if (ptrs.size === 2){ const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); floorAim = false; pan = null; if (V) V.setGhost(false); }
-  else if (B.sel >= 0){ floorAim = true; ghostAt(e.clientX, e.clientY); }
+  else if (B.sel >= 0 || B.bsel >= 0){ floorAim = true; ghostAt(e.clientX, e.clientY); }
   else pan = {x:e.clientX, y:e.clientY, moved:false};
 });
 $('arena').addEventListener('pointermove', e => {
@@ -1373,7 +1508,7 @@ $('arena').addEventListener('pointermove', e => {
 const arenaUp = e => {
   ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0;
   if (!B) return;
-  if (floorAim){ floorAim = false; const p = ghostAt(e.clientX, e.clientY); if (!tryPlay(B.sel, p) && V) V.setGhost(false); }
+  if (floorAim){ floorAim = false; const p = ghostAt(e.clientX, e.clientY); if (!(B.bsel >= 0 ? tryBoost(B.bsel, p) : tryPlay(B.sel, p)) && V) V.setGhost(false); }
   else if (pan){ const moved = pan.moved; pan = null; if (!moved && e.type === 'pointerup') tapField(e.clientX, e.clientY); }
 };
 $('arena').addEventListener('pointerup', arenaUp); $('arena').addEventListener('pointercancel', arenaUp);
@@ -1434,7 +1569,7 @@ function inspect(cx, cy){
     : `<div class="ih"><b>${esc(title)}</b><span>${mine ? 'Yours' : 'Enemy'}, level ${e.lvl || 1}${c ? ', ' + RAR[c.rar].name + ' ' + TYPES[c.type].name : ''}</span></div><p>${esc(what)}</p><div class="ig">${rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>${more}`;
   box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; if (ordSel === e.id) ordPick(0); }, ordSel === e.id ? 9000 : 7000);      // a troop left picked and not sent anywhere is let go of
 }
-addEventListener('keydown', e => { if (!B || $('scrBattle').hidden) return; if (e.key >= '1' && e.key <= String(HAND)) select(B.sel === +e.key - 1 ? -1 : +e.key - 1); else if (e.key === 'Escape') select(-1); });
+addEventListener('keydown', e => { if (!B || $('scrBattle').hidden) return; if (e.key >= '1' && e.key <= String(HAND)) select(B.sel === +e.key - 1 ? -1 : +e.key - 1); else if (e.key === 'Escape'){ select(-1); bselect(-1); } });
 new ResizeObserver(() => { if (V && !$('scrBattle').hidden) V.resize(); }).observe($('arena'));
 $('btQuit').onclick = () => { if (!B || B.over) return; confirmBox('Quit the match?', 'Quitting counts as a loss.', 'Quit match', () => { if (!B || B.over) return; B.over = true; if (B.mode !== 'cpu' && room) room.send('bye', {}, OL && OL.opp); finish(1 - B.team, null, 'You walked off.'); }); };
 
@@ -1680,7 +1815,7 @@ function enterMatch(code, host, keepBox, coop, skill){
   OL = {state:'wait', code, host, opp:null, coop:coop === true ? 2 : [2, 3].includes(coop) ? coop : 0, skill:skill || 'ladder', od:null, tw:1, mate:'', again:{me:false, them:false}};
   room = net.join('brawl2-m-' + code, () => { if (OL && !OL.opp){ OL.blocked = true; const t = $('olText'); if (t) t.textContent = NET_TRYING; } });
   if (!keepBox){ const t = $('olText'); if (t) t.textContent = 'Found someone. Setting up the match.'; }
-  const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower()}, to);
+  const hi = to => room && room.send('hi', {n:P.name, d:myDeck(), tw:myTower(), b:curBoosts()}, to);
   room.onJoin(id => hi(id)); hi(); OL.hiIv = setInterval(() => { if (OL && !OL.opp) hi(); }, 1500);
   room.onLeave(id => { if (OL && id === OL.opp){ OL.gone = true; oppLeft(); } });      // gone for good, as opposed to quitting a match and staying for the result
   room.onMessage((t, d, from) => {
@@ -1688,7 +1823,7 @@ function enterMatch(code, host, keepBox, coop, skill){
     if (t === 'hi'){
       if (!OL.host || OL.opp || !okDeck(d.d)) return;
       OL.opp = from; clearInterval(OL.hiIv);
-      OL.mate = clean(d.n, 20) || 'Player'; OL.od = d.d.map(c => ({id:c.id, lvl:c.lvl})); OL.tw = Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1;
+      OL.mate = clean(d.n, 20) || 'Player'; OL.od = d.d.map(c => ({id:c.id, lvl:c.lvl})); OL.tw = Number.isInteger(d.tw) ? Math.max(1, Math.min(MAX_LVL, d.tw)) : 1; OL.ob = Array.isArray(d.b) ? [...new Set(d.b)].filter(id => typeof id === 'string' && Object.hasOwn(BOOSTS, id)).slice(0, BOOST_DECK) : [];
       dlgClose(); hostStart();
     } else if (t === 'go'){
       const again = OL.opp === from && B && B.done;                           // the host started another one from the result screen
@@ -1702,6 +1837,7 @@ function enterMatch(code, host, keepBox, coop, skill){
     else if (t === 'rd'){ if (B.mode === 'host' && B.rdRes) B.rdRes(); }
     else if (t === 's' && B.mode === 'guest') snap(d);
     else if (t === 'p' && B.mode === 'host'){ const s = d.slot, h = B.sim.players[1].hand; if (B.run && B.sim && Number.isInteger(s) && s >= 0 && s < HAND && h[s] && h[s].id === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.play(1, s, d.x, d.z); }
+    else if (t === 'b' && B.mode === 'host'){ const h = B.sim && B.sim.players[1].bh; if (B.run && h && Number.isInteger(d.slot) && h[d.slot] === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.boost(1, d.slot, d.x, d.z); }
     else if (t === 'o' && B.mode === 'host'){ if (B.run && B.sim && Number.isInteger(d.u) && Number.isInteger(d.t) && d.u > 0 && d.t >= 0) B.sim.order(1, d.u, d.t); }
     else if (t === 'em') showEmote(d.i, false);
     else if (t === 'pq' && B.mode === 'host'){ if (['pause', 'resume', 'ext', 'yes', 'no'].includes(d.a)) pzDo(d.a, 1); }
@@ -1717,7 +1853,7 @@ function hostStart(){
   const map = pick(MAP_IDS), team = Math.round((myTower() + OL.tw) / 2), cpus = OL.coop ? teamCpus(OL.coop, OL.skill, team) : null, base = OL.coop ? teamBase(OL.skill) : 150;
   const units = unitsOf([...curDeck(), ...OL.od.map(c => c.id), ...(cpus ? cpus.flatMap(c => c.deck) : [])]);
   room.send('go', {map, n:P.name, co:OL.coop, sk:OL.skill, pb:base, uk:units}, OL.opp);
-  begin({mode:'host', map, coop:OL.coop, skill:OL.skill, base, cpus, teamTower:team, mate:OL.mate, oppName:OL.coop ? NUM[OL.coop] + ' BDBs' : OL.mate, oppDeck:OL.od, oppTower:OL.tw, units});
+  begin({mode:'host', map, coop:OL.coop, skill:OL.skill, base, cpus, teamTower:team, mate:OL.mate, oppName:OL.coop ? NUM[OL.coop] + ' BDBs' : OL.mate, oppDeck:OL.od, oppBoosts:OL.ob || [], oppTower:OL.tw, units});
 }
 /* the result screen of an online match: who wants another one */
 function againUI(){
@@ -1736,7 +1872,8 @@ function snap(d){
   const s = d.s; if (!s || !Array.isArray(s.e) || !Array.isArray(s.h) || !B || B.done || typeof s.n !== 'string') return;
   const ok = id => CARDS[id] ? id : CARD_IDS[0];
   B.ents = decodeEnts(s.e, B.prev); B.prev = new Map(B.ents.map(e => [e.id, e])); B.traps = decodeTraps(s.tr);
-  B.info = {el:+s.el || 0, hand:s.h.slice(0, HAND).map((id, i) => ({id:ok(id), lvl:(s.hl && s.hl[i]) || 1})), next:{id:ok(s.n)}, left:+s.l || 0, phase:s.ph === 'ot' ? 'ot' : s.ph === 'over' ? 'over' : 'play', crowns:Array.isArray(s.cr) ? s.cr : [0, 0], pocket:Array.isArray(s.pk) ? s.pk : [false, false], bonus:!!s.bo};
+  B.info = {el:+s.el || 0, hand:s.h.slice(0, HAND).map((id, i) => ({id:ok(id), lvl:(s.hl && s.hl[i]) || 1})), next:{id:ok(s.n)}, left:+s.l || 0, phase:s.ph === 'ot' ? 'ot' : s.ph === 'over' ? 'over' : 'play', crowns:Array.isArray(s.cr) ? s.cr : [0, 0], pocket:Array.isArray(s.pk) ? s.pk : [false, false], bonus:!!s.bo,
+    bh:Array.isArray(s.bh) ? s.bh.filter(id => typeof id === 'string' && Object.hasOwn(BOOSTS, id)).slice(0, BOOST_HAND) : [], bn:clamp(+s.bn || 0, 0, 999), bq:clamp(s.bq | 0, 0, 99)};
   if (Array.isArray(d.ev) && d.ev.length){ if (V) V.events(d.ev); onEvents(d.ev); }
 }
 const STANDIN = {react:1.3, hold:6.5, derp:.04, smart:.75, el:1};      // who plays a teammate's cards once they have gone
@@ -1996,7 +2133,7 @@ window.__game = {
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
   ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, ev(l){ if (V) V.events(l); onEvents(l); }, tapField, order:(u, t) => sendOrder(u, t), get ordSel(){ return ordSel; }, goalsBox, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, ev(l){ if (V) V.events(l); onEvents(l); }, tapField, order:(u, t) => sendOrder(u, t), get ordSel(){ return ordSel; }, goalsBox, boost:(slot, x, z) => tryBoost(slot, {x, z}), bselect, boostBox, boostShop, buyBoostBox, boosts:BOOSTS, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach

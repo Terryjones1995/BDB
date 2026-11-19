@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119c';
-import { UNITS, MAPS, CARDS, TRAP_ART, TYPES } from './cards.js?v=1119c';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119c';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119d';
+import { UNITS, MAPS, CARDS, TRAP_ART, TYPES, BOOSTS, BOOST_FX } from './cards.js?v=1119d';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119d';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -676,7 +676,7 @@ export function createView(el, opt = {}){
     };
   }
   const chunk = bitPool(new THREE.BoxGeometry(1, 1, 1), low ? 80 : 170), shard = bitPool(new THREE.TetrahedronGeometry(.8, 0), low ? 60 : 120);
-  function scatter(pool, x, y, z, n, cols, o = {}){          // o as for emit, and {spd, up, size, spread, tall, dx, dz}
+  function strew(pool, x, y, z, n, cols, o = {}){          // throw a handful of pieces. o as for emit, and {spd, up, size, spread, tall, dx, dz}. (Not scatter: that name is the scenery's)
     n = Math.round(low ? n * .55 : n); const sp = o.spd ?? 3, up = o.up ?? 4, sz = o.size ?? .16, sr = o.spread ?? .3;
     for (let i = 0; i < n; i++){ const a = Math.random() * PI * 2, q = sp * (.3 + Math.random() * .7);
       pool.emit(x + (Math.random() - .5) * sr, y + Math.random() * (o.tall || .3), z + (Math.random() - .5) * sr, Math.cos(a) * q + (o.dx || 0), up * (.45 + Math.random() * .75), Math.sin(a) * q + (o.dz || 0), sz * (.65 + Math.random() * .7), cols[i % cols.length], o); }
@@ -709,7 +709,7 @@ export function createView(el, opt = {}){
       flat(r.x, r.z, {r0:1, r1:6, dur:.7, color:0xffd28a, add:true}); shake(.7);
       const rub = new THREE.Group(); rub.position.set(r.x, 0, r.z); rub.userData.rubble = true; root.add(rub);
       for (let i = 0; i < 9; i++){ const k = new THREE.Mesh(new THREE.DodecahedronGeometry(.3 + (i * 7 % 5) * .1, 0), M(i % 3 ? 0x8b93a6 : 0x636b7e, {flat:true, r:.95})); const a = i / 9 * PI * 2; k.position.set(Math.cos(a) * (.4 + (i % 3) * .4), .2 + (i % 2) * .15, Math.sin(a) * (.4 + (i % 3) * .4)); k.rotation.set(i, i * 2, i * 3); rub.add(k); }
-      scatter(chunk, r.x, 1, r.z, 16, [0x8b93a6, 0x636b7e, 0xa9b0c0], {spd:5, up:7, size:.34, tall:2.4, odd:1, life:2.2, spin:9, spread:1.4});
+      strew(chunk, r.x, 1, r.z, 16, [0x8b93a6, 0x636b7e, 0xa9b0c0], {spd:5, up:7, size:.34, tall:2.4, odd:1, life:2.2, spin:9, spread:1.4});
       drop(r); return;
     }
     const iced = !!r.ice, w = r.why || NOWHY;
@@ -762,27 +762,27 @@ export function createView(el, opt = {}){
     const R = d.r, f = d.fin, p = d.p;
     if (!d.up && (f === 'light' || f === 'implode')){ p.rotation.x = 0; p.position.y = d.mid; d.up = true; }        // back on its feet to go: these two leave upwards
     if (f === 'ash'){ paint(p, DM.char); burst(x, y, z, 10 + R * 8, 0xff8a2b, {spd:1.2, up:2.6, life:.7, grav:-1.6, spread:R}); burst(x, y, z, 5, 0x2a2622, {smoke:true, spd:.8, up:1.4, life:1.1, grav:-.7, spread:R}); flat(x, z, {r0:R * 1.7 + .3, dur:2.2, color:0x070504, fill:true, soft:true, a:.62, hold:true}); }
-    else if (f === 'shards'){ scatter(shard, x, y * .5, z, 9 + R * 12, [0xcfeeff, 0x9fd8f5, 0xffffff], {spd:3.4, up:3.6, size:.2 + R * .14, tall:y, life:1.3, spin:13, dx:d.dx * (1 + d.thr * .7), dz:d.dz * (1 + d.thr * .7)}); burst(x, y, z, 14, 0xdff5ff, {spd:4, up:2.5, life:.45}); flat(x, z, {r0:.2, r1:R * 2.6 + .5, dur:.45, color:0xbfe9ff, add:true}); flat(x, z, {r0:R * 2.2 + .45, dur:1.8, color:0xe6f7ff, fill:true, soft:true, a:.5, hold:true}); }
+    else if (f === 'shards'){ strew(shard, x, y * .5, z, 9 + R * 12, [0xcfeeff, 0x9fd8f5, 0xffffff], {spd:3.4, up:3.6, size:.2 + R * .14, tall:y, life:1.3, spin:13, dx:d.dx * (1 + d.thr * .7), dz:d.dz * (1 + d.thr * .7)}); burst(x, y, z, 14, 0xdff5ff, {spd:4, up:2.5, life:.45}); flat(x, z, {r0:.2, r1:R * 2.6 + .5, dur:.45, color:0xbfe9ff, add:true}); flat(x, z, {r0:R * 2.2 + .45, dur:1.8, color:0xe6f7ff, fill:true, soft:true, a:.5, hold:true}); }
     else if (f === 'melt'){ paint(p, DM.tox); flat(x, z, {r0:.2, r1:R * 2.6 + .5, dur:2.2, color:0x3fb82c, fill:true, soft:true, a:.8, hold:true}); burst(x, y, z, 8, 0x7dff5a, {spd:1, up:1.6, life:.7, grav:-.6, spread:R}); }
     else if (f === 'scrap'){
       burst(x, y, z, 22 + R * 14, 0xffb347, {spd:5, up:4.5, life:.5}); burst(x, y, z, 10, 0xfff3c4, {spd:6.5, up:5.5, life:.6, grav:14}); burst(x, y, z, 7, 0x3a3f4d, {smoke:true, spd:1.2, up:2.6, life:1.3, grav:-1, spread:R});
-      scatter(chunk, x, y * .5, z, 9 + R * 9, [0x8b93a6, 0x4a5266, 0x2b3040, d.col], {spd:3.8, up:4.8, size:.16 + R * .1, tall:y, odd:1, life:1.6, spin:15, dx:d.dx * (.8 + d.thr * .6), dz:d.dz * (.8 + d.thr * .6)});
+      strew(chunk, x, y * .5, z, 9 + R * 9, [0x8b93a6, 0x4a5266, 0x2b3040, d.col], {spd:3.8, up:4.8, size:.16 + R * .1, tall:y, odd:1, life:1.6, spin:15, dx:d.dx * (.8 + d.thr * .6), dz:d.dz * (.8 + d.thr * .6)});
       flat(x, z, {r0:.3, r1:R * 3 + .6, dur:.35, color:0xffb547, add:true}); flat(x, z, {r0:R * 1.6 + .25, dur:2, color:0x070504, fill:true, soft:true, a:.6, hold:true}); shake(.14 + R * .12); }
-    else if (f === 'bones'){ scatter(chunk, x, y * .5, z, 6 + R * 8, [0xf3f0e6, 0xe4decd], {spd:2.4, up:3.4, size:.26 + R * .12, sx:.22, sz:.22, tall:y, life:1.7, spin:14, dx:d.dx * (1.2 + d.thr * .8), dz:d.dz * (1.2 + d.thr * .8)});
+    else if (f === 'bones'){ strew(chunk, x, y * .5, z, 6 + R * 8, [0xf3f0e6, 0xe4decd], {spd:2.4, up:3.4, size:.26 + R * .12, sx:.22, sz:.22, tall:y, life:1.7, spin:14, dx:d.dx * (1.2 + d.thr * .8), dz:d.dz * (1.2 + d.thr * .8)});
       chunk.emit(x, y * 1.6, z, d.dx * 2.2 + Math.random() - .5, 4.2, d.dz * 2.2 + Math.random() - .5, .15 + R * .12, 0xf7f4ea, {life:1.9, spin:7, bounce:.5}); burst(x, y, z, 5, 0xe9e4d6, {smoke:true, spd:1, up:.8, life:.5, grav:-.3}); }
     else if (f === 'soul'){ paint(p, DM.dark); flat(x, z, {r0:R * 1.4 + .3, r1:.1, dur:.8, color:0x8dffc8, add:true, a:.5}); }
     else if (f === 'implode'){ paint(p, DM.arc); flat(x, z, {r0:R * 2.4 + .7, r1:.1, dur:.26, color:0xb48cff, add:true, a:.9}); }
     else if (f === 'shade'){ paint(p, DM.dark); flat(x, z, {r0:R * 2.3 + .5, r1:.05, dur:.8, color:0x05030a, fill:true, soft:true, a:.95, hold:true}); }
     else if (f === 'light'){ paint(p, DM.lit); flat(x, z, {r0:.2, r1:R * 2 + .6, dur:.6, color:0xffe9a8, add:true}); flat(x, z, {r0:R * 1.2 + .3, dur:.7, color:0xffe9a8, fill:true, a:.3, hold:true, add:true}); }
-    else if (f === 'leaves'){ scatter(shard, x, y * .6, z, 12 + R * 10, [0x7ccf4a, 0x4fae3a, 0xd9a13a, 0xa8d85a], {spd:2.1, up:3.4, size:.27, sy:.14, sz:.7, tall:y + .4, life:2.1, grav:3.4, flutter:3.2, spin:6}); burst(x, y, z, 8, 0xa8ff7a, {spd:1.6, up:2, life:.5}); }
-    else if (f === 'papers'){ scatter(chunk, x, y * .6, z, 7 + R * 7, [0xffffff, 0xf6f2e4, 0xfff3a8, 0xffc9de, 0xbfe3ff], {spd:2.1, up:3.8, size:.3, sx:.8, sy:.03, sz:1.1, tall:y, life:2.3, grav:3.2, flutter:3.4, spin:5}); burst(x, y, z, 6, 0xffffff, {smoke:true, spd:1.2, up:1, life:.5, grav:-.3}); }
+    else if (f === 'leaves'){ strew(shard, x, y * .6, z, 12 + R * 10, [0x7ccf4a, 0x4fae3a, 0xd9a13a, 0xa8d85a], {spd:2.1, up:3.4, size:.27, sy:.14, sz:.7, tall:y + .4, life:2.1, grav:3.4, flutter:3.2, spin:6}); burst(x, y, z, 8, 0xa8ff7a, {spd:1.6, up:2, life:.5}); }
+    else if (f === 'papers'){ strew(chunk, x, y * .6, z, 7 + R * 7, [0xffffff, 0xf6f2e4, 0xfff3a8, 0xffc9de, 0xbfe3ff], {spd:2.1, up:3.8, size:.3, sx:.8, sy:.03, sz:1.1, tall:y, life:2.3, grav:3.2, flutter:3.4, spin:5}); burst(x, y, z, 6, 0xffffff, {smoke:true, spd:1.2, up:1, life:.5, grav:-.3}); }
     else if (f === 'dust'){ burst(x, .2, z, 8 + R * 8, 0xcbbf9f, {smoke:true, spd:1.6, up:1, life:.8, grav:-.4, spread:R * 1.4});
-      if (d.ty === 'horde') scatter(chunk, x, y, z, 4 + R * 4, [0x8a5a3a, 0x5c3d24, 0x9aa3b5, d.col], {spd:2.2, up:3.6, size:.15, odd:1, life:1.5, spin:12});                       // what it was carrying
-      else scatter(shard, x, y, z, 5 + R * 5, [0xb08a5a, 0x8a6a45, 0xd9c2a0], {spd:1.6, up:2.8, size:.15, sy:.3, life:1.5, grav:4, flutter:2.6, spin:7}); }      // fur flies
+      if (d.ty === 'horde') strew(chunk, x, y, z, 4 + R * 4, [0x8a5a3a, 0x5c3d24, 0x9aa3b5, d.col], {spd:2.2, up:3.6, size:.15, odd:1, life:1.5, spin:12});                       // what it was carrying
+      else strew(shard, x, y, z, 5 + R * 5, [0xb08a5a, 0x8a6a45, 0xd9c2a0], {spd:1.6, up:2.8, size:.15, sy:.3, life:1.5, grav:4, flutter:2.6, spin:7}); }      // fur flies
     else if (f === 'embers'){ paint(p, DM.hot); burst(x, y, z, 20 + R * 14, 0xff8a2b, {spd:1.8, up:4.2, life:.8, grav:-2.4, spread:R}); burst(x, y, z, 10, 0xffe27a, {spd:3, up:3, life:.4}); flat(x, z, {r0:.3, r1:R * 2.6 + .6, dur:.4, color:0xff7a1f, add:true}); flat(x, z, {r0:R * 1.6 + .25, dur:2, color:0x070504, fill:true, soft:true, a:.6, hold:true}); }
-    else if (f === 'splat'){ scatter(shard, x, y * .5, z, 8 + R * 10, [0x23262e, 0x3fd0b8, 0x23262e], {spd:3, up:3, size:.15, life:1.1, bounce:.05, spin:4}); flat(x, z, {r0:.2, r1:R * 2.6 + .4, dur:2, color:0x14171d, fill:true, soft:true, a:.75, hold:true}); }
+    else if (f === 'splat'){ strew(shard, x, y * .5, z, 8 + R * 10, [0x23262e, 0x3fd0b8, 0x23262e], {spd:3, up:3, size:.15, life:1.1, bounce:.05, spin:4}); flat(x, z, {r0:.2, r1:R * 2.6 + .4, dur:2, color:0x14171d, fill:true, soft:true, a:.75, hold:true}); }
     else if (f === 'rubble'){ burst(x, .5, z, 14, 0xb8ad98, {smoke:true, spd:2.4, up:1.6, life:1.1, grav:-.4, spread:R * 1.6}); burst(x, d.mid, z, 12, 0xffb547, {spd:3.5, up:3, life:.5});
-      scatter(chunk, x, .3, z, 9 + R * 6, [0x8b93a6, 0x636b7e, 0xb9864a, d.col], {spd:2.8, up:4.4, size:.24 + R * .08, tall:d.h * .8, odd:1, life:2, spin:10, spread:R}); flat(x, z, {r0:.4, r1:R * 2.6 + .5, dur:.5, color:0xffd28a, add:true, a:.7}); shake(.22 + R * .12); }
+      strew(chunk, x, .3, z, 9 + R * 6, [0x8b93a6, 0x636b7e, 0xb9864a, d.col], {spd:2.8, up:4.4, size:.24 + R * .08, tall:d.h * .8, odd:1, life:2, spin:10, spread:R}); flat(x, z, {r0:.4, r1:R * 2.6 + .5, dur:.5, color:0xffd28a, add:true, a:.7}); shake(.22 + R * .12); }
     else burst(x, y, z, 4, d.col, {spd:1.5, up:1.5, life:.4});
     d.y0 = p.position.y; d.s0 = p.scale.clone();
   }
@@ -886,6 +886,7 @@ export function createView(el, opt = {}){
       if (e.bt && Math.random() < dt * 9) burst(r.x, mid, r.z, 1, Math.random() < .5 ? 0xff8a2b : 0xffd23f, {spd:.6, up:1.6, life:.45, grav:-1.5, spread:U.r});
       if (e.pt && Math.random() < dt * 6) burst(r.x, mid, r.z, 1, 0x7dff5a, {spd:.4, up:.9, life:.6, grav:-.6, spread:U.r});
       if (e.mk && Math.random() < dt * 5) burst(r.x, m.h + (m.fly || 0), r.z, 1, 0xc77dff, {spd:.3, up:.5, life:.5, grav:-.3});
+      if (e.bz && !gone && Math.random() < dt * 8) burst(r.x, .2 + Math.random() * m.h, r.z, 1, 0xfff3b0, {spd:.4, up:1.9, life:.5, grav:-1.3, spread:U.r * 1.3});      // boosted: a little light keeps coming off it
       if (e.wk && Math.random() < dt * 4) burst(r.x, m.h + (m.fly || 0), r.z, 1, 0xff9d3c, {spd:.2, up:-.6, life:.5, grav:.6});      // rattled: its nerve is draining away
       if (e.sh > 0 && !r.shield){ r.shield = new THREE.Mesh(shG, shMat); r.shield.scale.set(U.r * 1.5 + .25, m.h * .62, U.r * 1.5 + .25); r.shield.position.y = mid; r.g.add(r.shield); }
       else if (!(e.sh > 0) && r.shield){ r.g.remove(r.shield); r.shield = null; }
@@ -1091,6 +1092,12 @@ export function createView(el, opt = {}){
       else if (ev.e === 'dead'){ const r = recs.get(ev.id); if (r) r.why = ev; }
       else if (ev.e === 'rampage'){ const r = recs.get(ev.id); if (r){ const c = (TYPES[ev.k] || TYPES.order).col, R = r.e.U.r; r.pop = .22; tag(r, ev.n > 1 ? 'UNSTOPPABLE' : 'RAMPAGE', c);
         burst(r.x, r.m.h * .6 + (r.m.fly || 0), r.z, 26, c, {spd:4, up:5, life:.7}); flat(r.x, r.z, {r0:.3, r1:R * 4 + 1, dur:.5, color:c, add:true}); flat(r.x, r.z, {r0:R * 2.4 + .4, dur:.7, color:c, fill:true, soft:true, a:.6, hold:true, add:true}); if (ev.n > 1) shake(.2); } }
+      else if (ev.e === 'boost'){                                  // a Boost lands: the circle in its type's colour, and the word over everyone it reached
+        const b = BOOSTS[ev.id]; if (!b) continue; const c = TYPES[b.type].col, word = BOOST_FX[b.fx].tag.toUpperCase();
+        flat(ev.x, ev.z, {r0:.3, r1:ev.r, dur:.45, color:c, add:true, a:.95}); flat(ev.x, ev.z, {r0:ev.r, dur:.8, color:c, fill:true, soft:true, a:.55, hold:true, add:true});
+        burst(ev.x, .3, ev.z, 24, c, {spd:3, up:5, life:.7, grav:-1, spread:ev.r * .6});
+        (ev.ids || []).slice(0, 14).forEach((id, i) => { const r = recs.get(id); if (!r) return; r.pop = .22; if (i < 5) tag(r, word, c); burst(r.x, r.m.h * .6 + (r.m.fly || 0), r.z, 7, 0xffffff, {spd:1.6, up:3, life:.5, grav:-1}); flat(r.x, r.z, {r0:.2, r1:r.e.U.r * 2.4 + .3, dur:.4, color:c, add:true, a:.8}); });
+      }
       else if (ev.e === 'order'){                                  // shown to the side that gave it: a line from the troop to what it was sent after, and a ring closing on the target
         const r = recs.get(ev.id), t = ev.t ? recs.get(ev.t) : null;
         if (r && r.rel === 0 && t){ va.set(r.x, r.m.h * .6 + (r.m.fly || 0), r.z); vb.set(t.x, t.m.h * .5 + (t.m.fly || 0), t.z); zapLine(va.clone(), vb.clone(), 0xffffff, .035, .32);

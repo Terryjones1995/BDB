@@ -1,7 +1,7 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul } from './cards.js?v=1119c';
-import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1119c';
+import { CARDS, lvlMul, BOOSTS, BOOST_HAND, BOOST_R } from './cards.js?v=1119d';
+import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1119d';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -251,12 +251,37 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
       if (any) return put(any, any.U.bld ? laneX * .45 : laneX, any.U.bld ? edge + 3 + rnd() * 2 : L - 3);
     }
   }
+  /* Boosts: once a second he looks at what he is holding. Each wants a troop of its type in the right spot of bother: hurt for the ones that mend, in a fight for
+     the ones that protect or hit harder, stuck for the one that frees. With a full hand he is less fussy, since nothing more arrives until he uses one. */
+  function boosts(){
+    const p = P(); if (!p.bh || !p.bh.length || rnd() < prof.derp) return;
+    const mine = sim.ents.filter(e => e.team === team && e.hp > 0 && e.dep <= 0 && !e.U.bld && !e.U.twr), foes = sim.ents.filter(e => e.team !== team && e.hp > 0 && e.dep <= 0 && !e.hid);
+    const full = p.bh.length >= BOOST_HAND; let best = null;
+    p.bh.forEach((id, slot) => {
+      const B = BOOSTS[id], fx = B.fx;
+      for (const u of mine){
+        if (u.U.type !== B.type) continue;
+        const near = foes.some(o => dist(o, u) <= Math.max(3.2, u.U.rng + 1.2)), hurt = 1 - u.hp / u.max; let v = 0;
+        if (fx === 'heal' || fx === 'regen') v = hurt > .35 ? hurt * u.max : 0;
+        else if (fx === 'cleanse') v = u.frz > 0 || u.bt > 0 || u.pt > 0 || u.slow > 0 ? u.max * .6 : 0;
+        else if (fx === 'speed') v = !near && u.mv ? u.max * .12 : 0;
+        else if (fx === 'health') v = u.xh ? 0 : near ? u.max * .5 : u.max * .15;
+        else if (fx === 'shield' || fx === 'guard' || fx === 'dodge' || fx === 'revive') v = near ? u.hp * (fx === 'revive' ? .35 + hurt : .5) : 0;
+        else v = near ? u.dmg / u.U.hit * 6 : 0;                                            // power, haste, leech, flame, frost: worth it on something that is hitting
+        if (v <= 0 && !full) continue;
+        v = (v + 1) * B.tier * mine.filter(o => o.U.type === B.type && dist(o, u) <= BOOST_R).length;
+        if (!best || v > best.v) best = {v, slot, x:u.x, z:u.z};
+      }
+    });
+    if (best && (full || best.v >= 120 * (1.6 - prof.smart))) sim.boost(pid, best.slot, best.x, best.z);
+  }
   /* is anything of theirs deep in his half? */
   const alarm = () => { for (const e of sim.ents) if (e.team !== team && e.hp > 0 && e.dep <= 0 && !e.U.twr && !e.U.bld && !e.hid && e.z * s > 5.5) return true; return false; };
 
   return { tick(){
     if (sim.over) return;
     if (prof.smart >= .35) reflex(); else for (const zn of sim.zones) if (zn.team !== team && zn.spell) seen.add(zn.kind);
+    if ((sim.tick + pid * 7) % 20 === 0) boosts();
     if (wait > urgent && (sim.tick + pid) % 5 === 0 && alarm()) wait = urgent;          // a push at his towers does not wait for his next thought
     if (--wait > 0) return;
     const el = P().el;                                                                  // and with Mana piling up he thinks faster: nothing is gained by sitting on a full bar

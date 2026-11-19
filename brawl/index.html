@@ -1077,6 +1077,56 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .selling .card.inuse{opacity:.55}
 .card.sellp{outline:4px solid #ffd23f;outline-offset:2px}
 .card.sellp::after{content:"Sell";position:absolute;z-index:6;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-10deg);font:400 12px/1 var(--f-game);letter-spacing:.02em;white-space:nowrap;background:linear-gradient(180deg,#ffe066,#f59a1c);color:#fff;text-shadow:var(--stroke);border:2px solid var(--ink2);border-radius:7px;padding:4px 8px 3px}
+/* Boosts: the icon tile, a row in a list, the strip on the Deck tab, the shelf in the Market and the tray in a match */
+.bic{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;border:2.5px solid var(--ink2);background:linear-gradient(180deg,color-mix(in srgb,var(--ty,#5fd6d0) 88%,#fff),color-mix(in srgb,var(--ty,#5fd6d0) 62%,#0a1430));box-shadow:inset 0 2px 0 rgba(255,255,255,.4);color:#fff;flex:none}
+.bic svg{width:64%;height:64%;fill:currentColor;filter:drop-shadow(0 1.5px 0 rgba(6,14,40,.75))}
+.brow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:13px;border:2.5px solid var(--ink2);background:#0d2764;box-shadow:inset 0 3px 0 rgba(0,0,0,.28);text-align:left}
+.brow b{display:block;font:400 16px/1.15 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.brow b i{font-style:normal;color:#ffd23f;margin-left:3px}
+.brow small{display:block;margin-top:2px;font:600 12px/1.35 var(--f-body);color:#d6e4ff}
+.brow small em{font-style:normal;font-weight:800;color:color-mix(in srgb,var(--ty,#fff) 70%,#fff)}
+.brow .k-btn{padding:8px 13px 7px;font-size:15px;white-space:nowrap}
+.brow .own{font:800 11px/1 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:#9fe58c;white-space:nowrap}
+.brow.off{opacity:.62}
+.brows{display:grid;gap:7px;width:100%}
+.bsec{width:100%;text-align:left;font:400 15px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);margin:12px 0 7px}
+#dlgBox:has(.brows){width:min(600px,100%);max-width:min(600px,100%)}
+.bststrip{margin-top:14px;padding:11px 12px 12px;border-radius:16px;border:3px solid var(--ink2);background:rgba(6,18,58,.5)}
+.bsthd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.bsthd b{font:400 17px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.bsthd .k-btn{padding:7px 14px 6px;font-size:15px}
+.bsticons{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px}
+.btile{position:relative;aspect-ratio:1;display:grid;place-items:center;border-radius:11px;border:2.5px solid var(--ink2);background:linear-gradient(180deg,color-mix(in srgb,var(--ty,#5fd6d0) 88%,#fff),color-mix(in srgb,var(--ty,#5fd6d0) 62%,#0a1430));box-shadow:inset 0 2px 0 rgba(255,255,255,.4),0 3px 0 var(--ink2);color:#fff;padding:0;cursor:pointer;min-width:0}
+.btile svg{width:58%;height:58%;fill:currentColor;filter:drop-shadow(0 1.5px 0 rgba(6,14,40,.75))}
+.btile .pip{position:absolute;left:0;right:0;bottom:2px;display:flex;justify-content:center;gap:2px}
+.btile .pip i{width:5px;height:5px;border-radius:50%;background:#ffd23f;box-shadow:0 0 0 1px var(--ink2)}
+.btile.empty{background:rgba(6,18,58,.6);border-style:dashed;color:#6f8bd0;font:400 20px/1 var(--f-game);box-shadow:none}
+.btile.off{filter:grayscale(.8) brightness(.7)}
+.bststrip .note{margin:9px 0 0}
+.bstshop{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center}
+.bstbox{display:flex;flex-direction:column;align-items:center;gap:8px}
+.bstbox .box{width:112px;height:96px;border-radius:18px;border:4px solid var(--ink2);background:linear-gradient(180deg,#7ff0ea,#1f9a94);box-shadow:inset 0 4px 0 rgba(255,255,255,.45),0 6px 0 var(--ink2);display:grid;grid-template-columns:repeat(3,1fr);place-items:center;padding:0 8px;color:#fff}
+.bstbox .box svg{width:26px;height:26px;fill:currentColor;filter:drop-shadow(0 2px 0 rgba(6,14,40,.6))}
+.bstside{display:grid;gap:9px;justify-items:start}
+.bstside b{font:400 19px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.bstside .k-row{margin:0;justify-content:flex-start}
+/* in a match: the Boosts in hand sit just above the cards. They cost nothing, so they are small and out of the way */
+.bstbar{position:absolute;left:0;right:0;bottom:calc(var(--hand-h,150px) + 7px);z-index:6;display:flex;justify-content:center;align-items:center;gap:6px;padding:0 8px;pointer-events:none}
+.bstbar > *{pointer-events:auto}
+.bstnext{width:40px;height:44px;border-radius:12px;border:2.5px solid var(--ink2);background:rgba(6,14,40,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:#fff}
+.bstnext b{font:400 17px/1 var(--f-game);text-shadow:var(--stroke)}
+.bstnext small{font:800 8px/1 var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:#cfe1ff}
+.bstnext.full b{font-size:12px;color:#ffd23f}
+.bsttray{display:flex;gap:5px}
+.bsttray .btile{width:44px;height:44px;aspect-ratio:auto;touch-action:none;transition:transform .12s}
+.bsttray .btile.sel{transform:translateY(-8px) scale(1.08);box-shadow:inset 0 0 0 2.5px #fff,0 0 0 3px #ffd23f,0 0 0 5px var(--ink2)}
+.bsttray .btile.new{animation:bstIn .45s ease-out}
+.bsttray .btile.nope{animation:nope .3s}
+@keyframes bstIn{from{transform:translateY(26px) scale(.5);opacity:0}60%{transform:translateY(-6px) scale(1.12);opacity:1}to{transform:none}}
+#scrBattle.boosts .insp{bottom:calc(var(--hand-h,150px) + 60px)}
+#scrBattle.boosts .emote.mine{bottom:calc(var(--hand-h,150px) + 62px)}
+@media (max-width:370px){ .bsttray .btile{width:40px;height:40px} .bstnext{width:36px;height:40px} .bstbar{gap:4px} .bsttray{gap:4px} }
+@media (prefers-reduced-motion:reduce){ .bsttray .btile.new{animation:none} }
 #sheet{z-index:45}      /* a card's sheet opens over whatever list or dialog it was opened from */
 /* card goals: a wide box on the Battle tab, four rows on every card sheet, and the list for the deck in use */
 .boon.wide{grid-column:1/-1}
@@ -1210,6 +1260,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
           <div class="dk-tools"><button type="button" class="k-btn" id="deckFill">Fill the rest</button><button type="button" class="k-btn" id="deckClear">Clear deck</button></div>
           <div class="sets" id="deckSets" style="margin-top:12px"></div>
           <p class="note" id="deckHint" style="margin:10px 0 0" role="status"></p>
+          <div class="bststrip" id="bstStrip"><div class="bsthd"><b id="bstLbl">Boosts</b><button type="button" class="k-btn" id="bstEdit">Change</button></div><div class="bsticons" id="bstIcons"></div><p class="note" id="bstNote"></p></div>
         </div>
         <div class="panel dk-own"><div class="ownhd"><span class="k-label" id="ownLbl">Your cards</span><button type="button" class="k-btn" id="sellMode">Sell cards</button></div>
           <div class="sellbar" id="sellBar" hidden><div class="sell-top"><b id="sellSum"></b><div class="sell-btns"><button type="button" class="k-btn primary" id="sellGo">Sell</button><button type="button" class="k-btn" id="sellX">Done</button></div></div>
@@ -1229,6 +1280,11 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
         <span class="k-label">Type chests</span>
         <p class="note" style="margin:0 0 6px">Building around one type? Four cards of that type, one of them Rare or better.</p>
         <div class="tpacks" id="tpackRow"></div>
+      </div>
+      <div class="panel">
+        <span class="k-label">Boosts</span>
+        <p class="note" style="margin:0 0 12px">A second, small deck that costs no Mana. One Boost is dealt every <span id="bstEvery">30</span> seconds of a match, and it works on your troops of its own type: speed, a shield, health back.</p>
+        <div class="bstshop" id="bstShop"></div>
       </div>
       <div class="panel">
         <span class="k-label">Ready-made decks</span>
@@ -1324,6 +1380,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
   <div class="insp" id="insp" hidden></div>
   <div id="emoPanel" hidden></div>
   <div class="k-say quiet" id="say" aria-live="polite"><span class="av" aria-hidden="true"></span><div class="bub"><span class="tag"></span><span class="txt"></span></div></div>
+  <div class="bstbar" id="bstBar" hidden><div class="bstnext" id="bstNext" aria-hidden="true"><b id="bstNextN">30</b><small>Boost</small></div><div class="bsttray" id="bstTray" role="group" aria-label="Boosts in hand"></div></div>
   <div class="handbar">
     <div class="coach" id="coach" role="status" hidden></div>
     <div class="handrow"><div class="next"><small>Next</small><div id="nextCard"></div></div><div class="hand" id="hand"></div></div>
@@ -1337,7 +1394,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <button type="button" class="hubtoast" id="hubToast" hidden></button>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1119c"></script>
+<script type="module" src="main.js?v=1119d"></script>
 <script>
 /* If the copy of the game kept on this device ever goes bad and the game does not start, throw the copy away and load again. Once, so a real outage does not loop. */
 setTimeout(function(){

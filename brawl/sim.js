@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus, RAMPAGE, RAMP_AT } from './cards.js?v=1119c';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus, RAMPAGE, RAMP_AT, BOOSTS, BOOST_HAND, BOOST_EVERY, BOOST_R } from './cards.js?v=1119d';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -39,9 +39,10 @@ export function orderProblem(e, t){
   return '';
 }
 
-/* boost: per team {hp, dmg} for towers. start: Mana each player begins with. teams: which side each deck fights for, so the sides need not be the same size
+/* boosts: each player's Boost deck (ids), dealt out one at a time as the match goes on.
+   boost: per team {hp, dmg} for towers. start: Mana each player begins with. teams: which side each deck fights for, so the sides need not be the same size
    (one against two, two against three). Left out, two decks are a duel and four are two a side. */
-export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1], boost = [], start = [], teams}){
+export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1], boost = [], start = [], teams, boosts = []}){
   const map = MAPS[mapId], rnd = mulberry(seed), RW = riverOf(map) || RIVER;
   let tick = 0, nid = 0, phase = 'play', over = false, winner = -1;
   const ents = [], byId = new Map(), projs = [], zones = [], traps = [];
@@ -58,7 +59,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const q = d.map(c => ({id:c.id, lvl:c.lvl || 1}));
     const bon = typeBonus(d.map(c => c.id));                                   // enough cards of one type and that type fights harder
     for (let k = q.length - 1; k > 0; k--){ const j = Math.floor(rnd() * (k + 1)); [q[k], q[j]] = [q[j], q[k]]; }   // the draw order is a shuffle
-    return {el:clamp(start[i] ?? 5, 0, MAX_EL), hand:q.splice(0, HAND), next:q.shift(), queue:q, played:0, idle:0, bon};
+    const bq = [...new Set(Array.isArray(boosts[i]) ? boosts[i] : [])].filter(id => BOOSTS[id]).slice(0, 12);      // the Boost deck: shuffled, dealt from the top, played ones go back underneath
+    for (let k = bq.length - 1; k > 0; k--){ const j = Math.floor(rnd() * (k + 1)); [bq[k], bq[j]] = [bq[j], bq[k]]; }
+    return {el:clamp(start[i] ?? 5, 0, MAX_EL), hand:q.splice(0, HAND), next:q.shift(), queue:q, played:0, idle:0, bon, bq, bh:[], bn:T(BOOST_EVERY)};
   });
 
   const sides = teams || (decks.length > 2 ? decks.map((d, i) => i < decks.length / 2 ? 0 : 1) : [0, 1]);
@@ -186,6 +189,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (U.revive && !o.rev && !o.gone){ o.rev = 1; o.hp = Math.max(1, Math.round(o.max * U.revive)); o.frz = T(1.4); o.bt = o.pt = o.mk = o.wk = 0; emit({e:'revive', id:o.id});
       if (U.rise){ zones.push({kind:'blast', team:o.team, pid:o.pid, cb:o.cb, x:o.x, z:o.z, r:U.rise.r, dmg:U.rise.dmg * lvlMul(o.lvl) * o.bm, twr:.4, t:T(.35), frz:0, pool:null, lvl:o.lvl, air:1, burn:U.rise.burn ? U.rise.burn * lvlMul(o.lvl) : 0}); emit({e:'fuse', x:o.x, z:o.z, r:U.rise.r, d:.35, k:o.key}); }   // it goes up in flames, and comes back out of them
       return; }
+    if (o.rv && tick <= o.rvT && !o.gone && !U.bld){ const v = o.rv; o.rv = 0; o.hp = Math.max(1, Math.round(o.max * v)); o.frz = T(1); o.bt = o.pt = o.mk = o.wk = 0; emit({e:'revive', id:o.id}); return; }      // a Second Chance, taken
     if (!U.bld && !o.gone && !o.wished && !U.kamikaze && !U.life && o.max >= 240){                       // a genie nearby with a wish left: back on its feet
       const g = ents.find(e => e.U.bless && e.wish > 0 && e.hp > 0 && e.dep <= 0 && e !== o && e.team === o.team && Math.hypot(e.x - o.x, e.z - o.z) <= e.U.bless.r);
       if (g){ g.wish--; o.wished = 1; o.hp = Math.max(1, Math.round(o.max * g.U.bless.hp)); o.frz = T(1.2); o.bt = o.pt = o.mk = o.wk = 0; emit({e:'revive', id:o.id}); emit({e:'wish', id:g.id, n:g.wish}); return; }
@@ -479,7 +483,11 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (over) return;
     tick++;
     const left = timeLeft(), rate = manaRate(left, phase === 'ot');
-    for (let i = 0; i < players.length; i++){ const p = players[i]; p.idle++; p.el = Math.min(MAX_EL, p.el + DT / 2.8 * rate * (p.idle > PATIENT ? 1.3 : 1) * (elMul[i] ?? 1)); }   // holding off on summoning charges Mana faster
+    for (let i = 0; i < players.length; i++){ const p = players[i]; p.idle++; p.el = Math.min(MAX_EL, p.el + DT / 2.8 * rate * (p.idle > PATIENT ? 1.3 : 1) * (elMul[i] ?? 1));    // holding off on summoning charges Mana faster
+      if (p.bq.length || p.bh.length){                          // a Boost every so often, for as long as there is room in the hand. One that is due waits for room
+        if (p.bn > 0) p.bn--;
+        if (p.bn <= 0 && p.bh.length < BOOST_HAND && p.bq.length){ const id = p.bq.shift(); p.bh.push(id); p.bn = T(BOOST_EVERY); emit({e:'bdeal', pid:i, id}); }
+      } }
 
     for (let i = zones.length - 1; i >= 0; i--){
       const zn = zones[i];
@@ -533,6 +541,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (e.mt > 0) e.mt--; if (e.gd > 0) e.gd--; if (e.tb > 0) e.tb--;
       if (e.bx && tick >= e.bx){ e.bf = e.bf.filter(b => !b.t || b.t > tick); total(e); }      // a buff runs out
       if (U.stoic) e.frz = e.slow = e.wk = 0;                                 // nothing stops it, slows it or shakes it
+      if (e.imm){ if (tick <= e.imm) e.frz = e.slow = e.wk = e.mk = e.bt = e.pt = 0; else e.imm = 0; }      // Walk It Off: for a few seconds nothing sticks
+      if (e.bz && tick >= e.bz) e.bz = 0;
       if (U.recharge && e.sh < U.recharge.amt && --e.rg <= 0){ e.rg = T(U.recharge.every); e.sh = Math.round(U.recharge.amt * lvlMul(e.lvl) * e.bm); emit({e:'land', id:e.id, x:e.x, z:e.z, r:1, k:'shield'}); }
       if (e.wd > 0 && --e.wd <= 0){ e.sh = 0; emit({e:'shbreak', id:e.id}); }      // a Tower Shield runs out
       if (beat){
@@ -672,17 +682,43 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     return true;
   }
 
+  /* ---------- Boosts ----------
+     No Mana. Dropped on a spot: every troop of that player's side, of the Boost's type, standing within reach gets it. Nobody there of that type and it stays in the hand.
+     (castBoost and not boost: that name is taken by the tower option above, and a function of the same name would quietly replace it.) */
+  const bset = (e, k, v, t) => { if (e.bf) e.bf = e.bf.filter(b => !(b.s === 'b' && b.k === k)); buff(e, k, v, t, 'b'); };      // the same Boost again starts it over: it does not stack on itself
+  function boostOn(e, B){
+    const v = B.v, t = B.t, k = {speed:'spd', haste:'hit', power:'dmg', guard:'grd', regen:'regen', leech:'leech', dodge:'dodge', flame:'burn', frost:'chill'}[B.fx];
+    if (k) bset(e, k, v, t);
+    else if (B.fx === 'health'){ if (!e.xh){ e.xh = 1; const add = Math.round(e.max * v); e.max += add; e.hp += add; } }
+    else if (B.fx === 'heal') e.hp = Math.min(e.max, e.hp + e.max * v);
+    else if (B.fx === 'shield') e.sh = Math.max(e.sh, Math.round(e.max * v));
+    else if (B.fx === 'cleanse'){ e.bt = e.pt = e.bd = e.pd = 0; e.slow = e.frz = e.mk = e.wk = 0; e.imm = tick + T(v); }
+    else if (B.fx === 'revive'){ e.rv = v; e.rvT = tick + T(t); }
+    e.bz = Math.max(e.bz || 0, tick + T(t || (B.fx === 'cleanse' ? v : 1.5)));      // how long the screens show it as boosted
+  }
+  const boostable = (e, team, B, x, z) => e.team === team && e.hp > 0 && e.dep <= 0 && !e.U.bld && !e.U.twr && e.U.type === B.type && near(e, x, z, BOOST_R);
+  function castBoost(pid, slot, x, z){
+    const p = players[pid], id = p && p.bh[slot], B = id && BOOSTS[id];
+    if (over || !B || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+    const team = tm(pid), hit = ents.filter(e => boostable(e, team, B, x, z));
+    if (!hit.length) return false;
+    p.bh.splice(slot, 1); p.bq.push(id);
+    for (const e of hit) boostOn(e, B);
+    emit({e:'boost', id, x:+x.toFixed(2), z:+z.toFixed(2), r:BOOST_R, team, pid, ids:hit.map(e => e.id)});
+    return true;
+  }
+
   /* ---------- for the screens and the wire ---------- */
-  const FL = e => (e.dep > 0 ? 1 : 0) | (e.frz > 0 ? 2 : 0) | (e.rage > 0 ? 4 : 0) | (e.active ? 8 : 0) | (e.mv ? 16 : 0) | (e.chg ? 32 : 0) | (e.slow > 0 ? 64 : 0) | (e.bt > 0 ? 128 : 0) | (e.pt > 0 ? 256 : 0) | (e.hid ? 512 : 0) | (e.mk > 0 ? 1024 : 0) | (e.lp > 0 ? 2048 : 0) | (e.wk > 0 ? 4096 : 0) | (e.ram ? 8192 : 0) | (e.ram > 1 ? 16384 : 0);
+  const FL = e => (e.dep > 0 ? 1 : 0) | (e.frz > 0 ? 2 : 0) | (e.rage > 0 ? 4 : 0) | (e.active ? 8 : 0) | (e.mv ? 16 : 0) | (e.chg ? 32 : 0) | (e.slow > 0 ? 64 : 0) | (e.bt > 0 ? 128 : 0) | (e.pt > 0 ? 256 : 0) | (e.hid ? 512 : 0) | (e.mk > 0 ? 1024 : 0) | (e.lp > 0 ? 2048 : 0) | (e.wk > 0 ? 4096 : 0) | (e.ram ? 8192 : 0) | (e.ram > 1 ? 16384 : 0) | (e.bz ? 32768 : 0);
   function encode(pid){
     const p = players[pid], team = tm(pid);
     return {k:tick, l:Math.max(0, Math.ceil(timeLeft())), ph:phase, cr:crowns, el:Math.round(p.el * 100) / 100, h:p.hand.map(c => c.id), hl:p.hand.map(c => c.lvl), n:p.next.id, pk:pocket(team),
       tr:traps.filter(t => t.team === team || t.live > 0).map(t => [t.id, t.card, Math.round(t.x * 100), Math.round(t.z * 100), t.live > 0 ? 1 : 0, t.team]),      // your own traps, and any sprung Instant Replay
-      e:ents.filter(e => !e.hid || e.team === team).map(e => [e.id, KEYS.indexOf(e.key), e.team, Math.round(e.x * 100), Math.round(e.z * 100), Math.ceil(e.hp), e.max, FL(e), e.tgt, e.lvl, AFF_IDS.indexOf(e.U.aff), Math.ceil(e.sh), e.gs]), bo:p.idle > PATIENT};
+      e:ents.filter(e => !e.hid || e.team === team).map(e => [e.id, KEYS.indexOf(e.key), e.team, Math.round(e.x * 100), Math.round(e.z * 100), Math.ceil(e.hp), e.max, FL(e), e.tgt, e.lvl, AFF_IDS.indexOf(e.U.aff), Math.ceil(e.sh), e.gs]), bo:p.idle > PATIENT, bh:p.bh, bn:Math.ceil(p.bn / TPS), bq:p.bq.length};
   }
 
   return {
-    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, order, buff, encode, pocket, sides, mvp, feats,
+    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, order, boost:castBoost, buff, encode, pocket, sides, mvp, feats,
     canPlace:(team, card, x, z) => canPlace(map, team, card, x, z, pocket(team)),
     drain(){ const ev = events; events = []; return ev; },
     get tick(){ return tick; }, get phase(){ return phase; }, get over(){ return over; }, get winner(){ return winner; },
@@ -698,7 +734,7 @@ export function decodeEnts(arr, prev){
     if (!UNITS[key]) continue;
     const o = prev.get(a[0]) || {id:a[0], key, U:unitVar(key, AFF_IDS[a[10]] || 'std'), team:a[2], fx:0, fz:a[2] === 0 ? -1 : 1};
     o.x = a[3] / 100; o.z = a[4] / 100; o.hp = a[5]; o.max = a[6]; o.dep = f & 1; o.frz = f & 2; o.rage = f & 4; o.active = !!(f & 8); o.mv = !!(f & 16); o.chg = !!(f & 32); o.slow = f & 64;
-    o.bt = f & 128; o.pt = f & 256; o.hid = !!(f & 512); o.mk = f & 1024; o.lp = f & 2048; o.wk = f & 4096; o.ram = f & 16384 ? 2 : f & 8192 ? 1 : 0; o.tgt = a[8]; o.lvl = a[9]; o.sh = a[11] || 0; o.gs = a[12] || 0;
+    o.bt = f & 128; o.pt = f & 256; o.hid = !!(f & 512); o.mk = f & 1024; o.lp = f & 2048; o.wk = f & 4096; o.ram = f & 16384 ? 2 : f & 8192 ? 1 : 0; o.bz = f & 32768; o.tgt = a[8]; o.lvl = a[9]; o.sh = a[11] || 0; o.gs = a[12] || 0;
     out.push(o);
   }
   return out;
