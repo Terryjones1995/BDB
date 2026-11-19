@@ -1,7 +1,7 @@
 /* Break Room Brawl: player accounts.
    A player is a named save on this device (localStorage), with a save code to carry it to another device, and an online copy when they have an account (cloud.js).
    Everything that reads a save goes through sanitize(), so a bad or old save can never break the game: it is repaired or brought up to date instead. */
-import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, RAR_CAP, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, JOBS, MILESTONES, MS_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1116p';
+import { CARDS, STARTERS, DECK_SLOTS, DECK_SIZE, RAR_CAP, MAX_LVL, START_COINS, LEVELS, PERKS, PERK_IDS, JOBS, MILESTONES, MS_IDS, OLD_BASE, OLD_AFF } from './cards.js?v=1119a';
 
 const KEY = 'brawl-accounts-v2';
 function sum(s){ let h = 2166136261; for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
@@ -22,7 +22,7 @@ function write(d){ try { localStorage.setItem(KEY, JSON.stringify(d)); return tr
 export function fresh(name){
   const cards = {}; for (const c of STARTERS) cards[c] = 1;
   return {v:3, name:clean(name, 20) || 'Player', coins:START_COINS, trophies:0, cards, decks:Array.from({length:DECK_SLOTS}, (_, i) => i ? [] : STARTERS.slice()), deck:0,
-    ladder:0, tokens:0, perks:Object.fromEntries(PERK_IDS.map(k => [k, 0])), stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0, packs:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1, dk:1, bal1:1, n15:1, n16:1},
+    ladder:0, tokens:0, perks:Object.fromEntries(PERK_IDS.map(k => [k, 0])), stats:{w:0, l:0, d:0, ow:0, ol:0, won:0, up:0, tr:0, packs:0, sold:0}, made:Date.now(), onboarded:false, friends:{}, flags:{traps:1, dk:1, bal1:1, n15:1, n16:1},
     daily:{day:'', n:0}, streak:0, best:0, bounty:0, bn:0, jobs:{day:'', list:[], all:0}, vs:{}, ms:{}};
   // cards: id -> level. decks: the first holds the starter deck, the others start empty; a deck may be part-built (it only has to be whole to play a match).
   // ladder: the highest level beaten. tokens: unspent player upgrades. flags: one-off announcements already seen (dk: saved since decks could be part-built)

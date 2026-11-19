@@ -467,6 +467,10 @@ export const STARTER_DECKS = [
 ].map(d => ({...d, deck:d.bases.split(' ').concat(d.hero).map(b => b + '-std')}));
 export const STARTERS = STARTER_DECKS[0].deck;
 export const upgradeCost = (id, lvl) => Math.max(30, Math.round(CARDS[id].price * .22 * lvl / 10) * 10);
+/* What the Market pays for a card you want rid of: by rarity and nothing else. It is set well under what any chest, daily deal or ready-made deck charges
+   for the same card (open any chest, sell every card in it, and at best three fifths of its price comes back), so selling never pays for itself. */
+export const SELL = {c:20, r:80, e:300, l:1200, g:8000};
+export const sellPrice = id => SELL[CARDS[id].rar];
 
 export function deckProblem(ids, strict = true){
   if (!Array.isArray(ids) || ids.length !== DECK_SIZE || ids.some(i => !i)) return `A deck needs ${DECK_SIZE} cards.`;

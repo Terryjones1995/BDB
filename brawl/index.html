@@ -1057,6 +1057,26 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 /* the Mana drop is a picture of the crystal now, wherever a cost or the Mana count is shown */
 .card .cost::before,.next .card .cost::before,.coffee b::before{left:50%;top:52%;width:116%;height:116%;border-radius:0;transform:translate(-50%,-50%);background:url(ui/mana.webp) center/contain no-repeat;box-shadow:none}
 .card .cost::after,.next .card .cost::after{display:none}
+/* selling cards: a Sell button on the card sheet, and a mode on the Deck tab for picking several at once */
+.ownhd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ownhd .k-label{margin:0}
+.ownhd .k-btn{padding:8px 14px 7px;font-size:15px}
+.sellbar{position:sticky;top:0;z-index:7;margin:0 -4px 10px;padding:12px 12px 11px;border-radius:16px;border:3px solid var(--ink2);background:linear-gradient(180deg,#143f9c,#0c2664);box-shadow:inset 0 3px 0 rgba(255,255,255,.2),0 5px 0 var(--ink2)}
+.sell-top{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.sell-top b{font:400 18px/1.2 var(--f-game);color:#fff;text-shadow:var(--stroke)}
+.sell-top b .coin{margin-left:2px}
+.sell-btns{display:flex;gap:8px}
+.sell-btns .k-btn{padding:9px 14px 8px;font-size:16px;white-space:nowrap}
+.sellinfo{margin:0 0 14px}
+.sell-rates{display:flex;gap:6px;flex-wrap:wrap}
+.sell-rates > span{display:inline-flex;align-items:center;gap:4px;padding:5px 9px 4px;border-radius:9px;border:2px solid var(--ink2);background:#0a1e52;font:400 13px/1 var(--f-game);color:var(--rc);text-shadow:var(--stroke)}
+.sell-rates .coin{flex:none;width:14px;height:14px;margin:0 0 0 3px}
+.sellinfo .note{margin:8px 0 0;color:#cfe1ff}
+.sellbar .note.err{margin:8px 0 0;color:#ffd0c8;font-weight:800}
+.k-btn.arm{background:linear-gradient(180deg,#ff8a7a,#d83a2e);box-shadow:inset 0 3px 0 rgba(255,255,255,.35),0 4px 0 var(--ink2)}
+.selling .card.inuse{opacity:.55}
+.card.sellp{outline:4px solid #ffd23f;outline-offset:2px}
+.card.sellp::after{content:"Sell";position:absolute;z-index:6;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-10deg);font:400 12px/1 var(--f-game);letter-spacing:.02em;white-space:nowrap;background:linear-gradient(180deg,#ffe066,#f59a1c);color:#fff;text-shadow:var(--stroke);border:2px solid var(--ink2);border-radius:7px;padding:4px 8px 3px}
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
@@ -1158,7 +1178,11 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
           <div class="sets" id="deckSets" style="margin-top:12px"></div>
           <p class="note" id="deckHint" style="margin:10px 0 0" role="status"></p>
         </div>
-        <div class="panel dk-own"><span class="k-label" id="ownLbl">Your cards</span><div class="filters" id="ownF"></div><div class="grid" id="ownGrid"></div><div class="more-row"><button type="button" class="k-btn" id="ownMore">Show more</button></div></div>
+        <div class="panel dk-own"><div class="ownhd"><span class="k-label" id="ownLbl">Your cards</span><button type="button" class="k-btn" id="sellMode">Sell cards</button></div>
+          <div class="sellbar" id="sellBar" hidden><div class="sell-top"><b id="sellSum"></b><div class="sell-btns"><button type="button" class="k-btn primary" id="sellGo">Sell</button><button type="button" class="k-btn" id="sellX">Done</button></div></div>
+            <p class="note err" id="sellErr" role="status" hidden></p></div>
+          <div class="sellinfo" id="sellInfo" hidden><div class="sell-rates" id="sellRates"></div><p class="note">The price goes by rarity. A sold card is gone for good, levels and all. Cards in a deck are left out: take one out of its deck to sell it.</p></div>
+          <div class="filters" id="ownF"></div><div class="grid" id="ownGrid"></div><div class="more-row"><button type="button" class="k-btn" id="ownMore">Show more</button></div></div>
       </div>
     </div>
 
@@ -1280,7 +1304,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <button type="button" class="hubtoast" id="hubToast" hidden></button>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1116p"></script>
+<script type="module" src="main.js?v=1119a"></script>
 <script>
 /* If the copy of the game kept on this device ever goes bad and the game does not start, throw the copy away and load again. Once, so a real outage does not loop. */
 setTimeout(function(){

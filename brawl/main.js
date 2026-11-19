@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1116p';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1116p';
-import { createAI } from './ai.js?v=1116p';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1116p';
-import { Cloud, cloudWhy } from './cloud.js?v=1116p';
-import { sayFor, sayWhen } from './talk.js?v=1116p';
-import { createAudio } from './audio.js?v=1116p';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1119a';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119a';
+import { createAI } from './ai.js?v=1119a';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119a';
+import { Cloud, cloudWhy } from './cloud.js?v=1119a';
+import { sayFor, sayWhen } from './talk.js?v=1119a';
+import { createAudio } from './audio.js?v=1119a';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1116p'), import('./models.js?v=1116p')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119a'), import('./models.js?v=1119a')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -125,6 +125,25 @@ function noDeck(){
   BDB.sfx.bad(); dlgClose(); tab('Deck'); return true;
 }
 const coinsTxt = () => OWN ? '\u221e' : fmt(P.coins);
+/* ---------- selling: the Market buys back any card you want rid of, for a price set by its rarity ----------
+   A card is one entry in the collection however many levels it has, so the card and its levels go together.
+   Three things cannot be sold: a card that is in one of your decks (take it out first), anything while a trade is open, and the last deck's worth of cards. */
+const inDecks = id => P.decks.map((d, i) => d.includes(id) ? i + 1 : 0).filter(Boolean);
+function sellWhy(id, going = 0){      // why this card cannot be sold right now, or '' if it can. going: how many others are already picked to go with it
+  if (!P || !lvl(id) || !CARDS[id]) return 'That card is not yours to sell.';
+  if (TR) return 'Finish the trade first.';
+  if (B && !B.done) return 'Not in the middle of a match.';
+  const dk = inDecks(id); if (dk.length) return `It is in Deck ${dk.join(' and ')}. Take it out to sell it.`;
+  if (Object.keys(P.cards).length - going <= DECK_SIZE) return `A deck takes ${DECK_SIZE} cards, so your last ${DECK_SIZE} stay.`;
+  return '';
+}
+function sellCards(ids){              // sells every one of these that can be sold, and says how many went and for how much
+  let n = 0, coins = 0;
+  for (const id of ids){ if (sellWhy(id)) continue; coins += sellPrice(id); delete P.cards[id]; if (pend === id) pend = null; n++; }
+  if (!n) return {n, coins};
+  P.coins += coins; P.stats.sold = (P.stats.sold || 0) + n; save(); fx('coins', null, BDB.sfx.good);
+  return {n, coins};
+}
 const bigN = n => n >= 1e6 ? +(n / 1e6).toFixed(n >= 1e7 ? 1 : 2) + 'M' : fmt(n);      // the top bar has no room for seven digits
 const tierPic = t => `ui/tier-${t.id}.webp`;
 const kN = n => n >= 1e6 ? bigN(n) : n >= 1e5 ? Math.floor(n / 1e3) + 'K' : n >= 1e4 ? Math.floor(n / 100) / 10 + 'K' : fmt(n);      // and less still on a narrow phone: 152K, 48.2K
@@ -421,13 +440,21 @@ function sheet(id){
   box.querySelector('.sheet-top > div').replaceWith(cardEl(id, {div:true, lvl:L, now:true}));
   const act = box.querySelector('#shAct');
   const btn = (t, cls, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn ' + cls; b.innerHTML = t; b.disabled = !!dis; b.onclick = fn; act.appendChild(b); return b; };
-  const close = () => { $('sheet').hidden = true; }, short = n => { box.querySelector('#shNote').textContent = `You need ${fmt(n - P.coins)} more coins.`; };
+  const say = t => { box.querySelector('#shNote').textContent = t; }, close = () => { $('sheet').hidden = true; }, short = n => say(`You need ${fmt(n - P.coins)} more coins.`);
   if (!P || !P.onboarded || (B && !B.done)){ /* mid-match, or just looking: the facts and nothing to buy */ }
   else if (!L){ btn(`Buy ${COIN}${fmt(price)}`, 'primary', () => { if (P.coins < price) return; P.coins -= price; P.cards[id] = 1; save(); fx('coins', null, BDB.sfx.good); hub(); sheet(id); }, P.coins < price); if (P.coins < price) short(price); }
   else {
     if (L < MAX_LVL){ btn(`Upgrade ${COIN}${fmt(up)}`, 'primary', () => { if (P.coins < up) return; P.coins -= up; P.cards[id] = L + 1; P.stats.up++; jobTick('up'); save(); fx('upgrade', null, BDB.sfx.big); hub(); sheet(id); }, P.coins < up); if (P.coins < up) short(up); }
     if (!curDeck().includes(id)) btn('Put in deck', L < MAX_LVL ? '' : 'primary', () => { close(); if (curTab !== 'Deck') tab('Deck'); addCard(id); });
     else btn('Take out of deck', '', () => { close(); takeOut(curDeck().indexOf(id)); });
+    // sell it: one tap says what goes and what comes back, a second tap does it
+    const sp = sellPrice(id), face = `Sell ${COIN}${fmt(sp)}`; let armed = 0;
+    const sb = btn(face, 'sell', () => {
+      const why = sellWhy(id); if (why){ say(why); BDB.sfx.bad(); return; }
+      if (!armed){ armed = setTimeout(() => { armed = 0; if (sb.isConnected){ sb.innerHTML = face; sb.classList.remove('arm'); say(''); } }, 4200); sb.textContent = 'Tap again to sell'; sb.classList.add('arm'); BDB.sfx.tick();
+        return say(`${c.name} leaves your collection for good${L > 1 ? `, level ${L} and all` : ''}, and you get ${fmt(sp)} coins: what the Market pays for any ${R.name} card.`); }
+      clearTimeout(armed); const r = sellCards([id]); if (!r.n) return; close(); hub(); hubToast(`Sold ${c.name} for ${fmt(r.coins)} coins.`);
+    });
   }
   btn('Close', '', close);
   $('sheet').hidden = false;
@@ -448,10 +475,11 @@ function listUI(key, source, label){
     const ids = source().filter(id => { const c = CARDS[id]; return (!st.kind || c.kind === st.kind) && (!st.rar || c.rar === st.rar) && (!st.type || c.type === st.type) && (!st.aff || c.aff === st.aff) && (!q || c.name.toLowerCase().includes(q)); });
     const byCost = (a, b) => CARDS[a].cost - CARDS[b].cost || RO[CARDS[a].rar] - RO[CARDS[b].rar] || CARDS[a].name.localeCompare(CARDS[b].name);
     ids.sort(st.sort === 'price' ? (a, b) => CARDS[a].price - CARDS[b].price : st.sort === 'name' ? (a, b) => CARDS[a].name.localeCompare(CARDS[b].name) : st.sort === 'lvl' ? (a, b) => lvl(b) - lvl(a) || byCost(a, b) : st.sort === 'rar' ? (a, b) => RO[CARDS[b].rar] - RO[CARDS[a].rar] || byCost(a, b) : byCost);
-    const g = $(key + 'Grid'), dl = key === 'shop' ? deals() : [], dk = curDeck(); g.innerHTML = '';
+    const g = $(key + 'Grid'), dl = key === 'shop' ? deals() : [], dk = curDeck(), used = key === 'own' && sellOn ? new Set(P.decks.flat()) : null; g.innerHTML = '';
     for (const id of ids.slice(0, st.n)){
-      const c = cardEl(id, key === 'shop' ? {price:lvl(id) ? 'Owned' : fmt(priceNow(id)), own:!!lvl(id), sale:dl.includes(id) && !lvl(id), was:dl.includes(id) && !lvl(id) ? fmt(CARDS[id].price) : '', lvl:lvl(id), cls:lvl(id) ? 'dim' : ''} : {lvl:lvl(id), cls:(dk.includes(id) ? 'inuse' : '') + (pend === id ? ' pend' : '')});
-      if (key === 'own'){ withInfo(c, id); c.onclick = e => { if (e.target.closest('.inf')) return sheet(id); const i = curDeck().indexOf(id); if (i >= 0) takeOut(i); else addCard(id); }; }
+      const c = cardEl(id, key === 'shop' ? {price:lvl(id) ? 'Owned' : fmt(priceNow(id)), own:!!lvl(id), sale:dl.includes(id) && !lvl(id), was:dl.includes(id) && !lvl(id) ? fmt(CARDS[id].price) : '', lvl:lvl(id), cls:lvl(id) ? 'dim' : ''}
+        : key === 'own' && sellOn ? {lvl:lvl(id), cls:(used.has(id) ? 'inuse' : '') + (sellSet.has(id) ? ' sellp' : '')} : {lvl:lvl(id), cls:(dk.includes(id) ? 'inuse' : '') + (pend === id ? ' pend' : '')});
+      if (key === 'own'){ withInfo(c, id); c.onclick = e => { if (e.target.closest('.inf')) return sheet(id); if (sellOn) return sellPick(id, c); const i = curDeck().indexOf(id); if (i >= 0) takeOut(i); else addCard(id); }; }
       else c.onclick = () => sheet(id);
       g.appendChild(c);
     }
@@ -467,7 +495,7 @@ function listUI(key, source, label){
 
 /* ---------- hub ---------- */
 let curTab = 'Battle', deckType = '', deckAll = false;
-function tab(t){ curTab = t; for (const k of ['Battle', 'Deck', 'Market', 'Profile']) $('tab' + k).hidden = k !== t; for (const b of $('tabbar').children) b.setAttribute('aria-selected', b.dataset.tab === t); if (t !== 'Deck'){ pend = null; deckMsg = ''; clearT = 0; slotOn = false; } hub(); $('hubBody').scrollTop = 0; }
+function tab(t){ curTab = t; for (const k of ['Battle', 'Deck', 'Market', 'Profile']) $('tab' + k).hidden = k !== t; for (const b of $('tabbar').children) b.setAttribute('aria-selected', b.dataset.tab === t); if (t !== 'Deck'){ pend = null; deckMsg = ''; clearT = 0; slotOn = false; sellOn = false; sellSet.clear(); } hub(); $('hubBody').scrollTop = 0; }
 $('tabbar').onclick = e => { const b = e.target.closest('button'); if (b){ if (b.dataset.tab !== curTab) fx('tab'); tab(b.dataset.tab); } };
 $('toDeck').onclick = () => tab('Deck');
 const avgCost = d => d.length ? (d.reduce((a, id) => a + CARDS[id].cost, 0) / d.length).toFixed(1) : '0';
@@ -525,7 +553,7 @@ function hub(){
       : slotOn && d.length < DECK_SIZE ? `<b>Now pick a card from ${side ? 'your cards on the right' : 'your cards below'}.</b> It goes in the lit place.`
       : `Tap a card on ${matchMedia('(min-width:1100px)').matches ? 'the right' : 'the list below'} to put it in, and a card in the deck to take it out. The <b>i</b> on a card opens its sheet. ${DECK_SIZE} cards make a deck: one version of each character${OWN ? '. The limits on Rare, Epic, Legendary and God cards do not apply to this account' : `, and no more than ${RAR_CAP.r} Rare, ${RAR_CAP.e} Epic, ${RAR_CAP.l} Legendary and one God`}. ${SET_AT.join(', ').replace(/, (\d+)$/, ' or $1')} cards of one type give that type ${SET_MUL.map(m => Math.round((m - 1) * 100) + '%').join(', ').replace(/, (\d+%)$/, ' or $1')} more health and damage.`;
     const sx = $('swapX'); if (sx) sx.onclick = () => { pend = null; deckMsg = ''; hub(); };
-    lists.own.draw();
+    sellUI(); lists.own.draw();
   } else if (curTab === 'Market') market();
   else profile();
 }
@@ -563,6 +591,34 @@ function fillDeck(){
   const m = deckMsg; setDeck(d); if (m && d.length < DECK_SIZE){ deckMsg = m; hub(); }
 }
 $('deckFill').onclick = fillDeck;
+/* selling from the list of your cards: switch it on, tap the ones to go, and one button sells the lot */
+let sellOn = false, sellArm = 0, sellMsg = ''; const sellSet = new Set();
+const sellTotal = () => [...sellSet].reduce((a, id) => a + (CARDS[id] ? sellPrice(id) : 0), 0);
+function sellUI(){
+  const bar = $('sellBar'), mb = $('sellMode'); if (!bar || !mb) return;
+  for (const id of [...sellSet]) if (!lvl(id) || inDecks(id).length) sellSet.delete(id);      // put in a deck, traded or sold since it was picked
+  mb.hidden = sellOn; bar.hidden = $('sellInfo').hidden = !sellOn; document.querySelector('.dk-own').classList.toggle('selling', sellOn);
+  if (!sellOn) return;
+  const n = sellSet.size, go = $('sellGo');
+  $('sellSum').innerHTML = n ? `${n} ${n > 1 ? 'cards' : 'card'} picked: ${COIN}${fmt(sellTotal())}` : 'Tap the cards you want to sell.';
+  go.disabled = !n; go.classList.toggle('arm', !!sellArm && n > 0); go.innerHTML = !n ? 'Sell' : sellArm ? 'Tap again to sell' : `Sell for ${COIN}${fmt(sellTotal())}`;
+  $('sellErr').textContent = sellMsg; $('sellErr').hidden = !sellMsg;
+}
+function sellPick(id, el){
+  clearTimeout(sellArm); sellArm = 0; sellMsg = '';
+  if (sellSet.has(id)) sellSet.delete(id);
+  else { const why = sellWhy(id, sellSet.size); if (why){ sellMsg = why; BDB.sfx.bad(); return sellUI(); } sellSet.add(id); }
+  BDB.sfx.tick(); if (el) el.classList.toggle('sellp', sellSet.has(id)); sellUI();
+}
+$('sellMode').onclick = () => { sellOn = true; sellSet.clear(); sellMsg = ''; pend = null; deckMsg = ''; slotOn = false; BDB.sfx.tick(); hub(); };
+$('sellX').onclick = () => { sellOn = false; sellSet.clear(); sellMsg = ''; clearTimeout(sellArm); sellArm = 0; BDB.sfx.tick(); hub(); };
+$('sellGo').onclick = () => {
+  if (!sellSet.size) return;
+  if (!sellArm){ sellArm = setTimeout(() => { sellArm = 0; if (sellOn && curTab === 'Deck' && !B) sellUI(); }, 3600); BDB.sfx.tick(); return sellUI(); }
+  clearTimeout(sellArm); sellArm = 0;
+  const r = sellCards([...sellSet]); sellSet.clear(); sellMsg = '';
+  hub(); if (r.n) hubToast(`Sold ${r.n} ${r.n > 1 ? 'cards' : 'card'} for ${fmt(r.coins)} coins.`);
+};
 $('deckClear').onclick = () => { if (!curDeck().length) return; if (!clearT){ clearT = setTimeout(() => { clearT = 0; if (curTab === 'Deck' && !B) hub(); }, 2600); BDB.sfx.tick(); return hub(); } clearTimeout(clearT); BDB.sfx.bad(); setDeck([]); };
 
 /* ---------- profile: the numbers, and the upgrades bought with tokens from the ladder ---------- */
@@ -576,7 +632,7 @@ function profile(){
   $('pLv').textContent = done ? `All ${fmt(LEVELS)} levels beaten.` : `Level ${fmt(lv)} of ${fmt(LEVELS)}.` + (ti < TIERS.length - 1 ? ` ${TIERS[ti + 1].name} starts at ${fmt((ti + 1) * 100 + 1)}.` : ' The last tier.');
   $('pTiles').innerHTML = [[fmt(s.w), 'BDB beaten'], [played ? Math.round(s.w / played * 100) + '%' : '0%', 'Win rate'], [fmt(P.best), 'Best streak'], [fmt(s.ow), 'Online wins'], [fmt(own), `Cards of ${fmt(CARD_IDS.length)}`], [fmt(P.trophies), 'Trophies']]
     .map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('');
-  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)], ['Cards sold', fmt(s.sold || 0)]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
   const riv = Object.entries(P.vs || {}).map(([n, v]) => ({n, w:v[0], l:v[1], d:v[2], g:v[0] + v[1] + v[2]})).filter(o => o.g).sort((a, b) => b.g - a.g || b.w - a.w).slice(0, 12);
   msUI();
   $('vsPanel').hidden = !riv.length;
@@ -1846,6 +1902,7 @@ function drawTrade(){
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) $('sheet').hidden = true; });
 $('lvPct').textContent = Math.round(LVL_STEP * 100); $('lvMax').textContent = MAX_LVL; $('dealPct').textContent = Math.round((1 - DEAL) * 100);      // the numbers in the Market's small print come from the rules, so they cannot drift from them
 listUI('own', () => Object.keys(P.cards), 'Your cards');
+$('sellRates').innerHTML = RAR_IDS.map(r => `<span class="r-${r}">${RAR[r].name} ${COIN}${fmt(SELL[r])}</span>`).join('');
 listUI('shop', () => CARD_IDS, 'All cards');
 window.__game = {
   get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? (P.onboarded ? 'hub' : 'onboard') : 'login'; }, get score(){ return P ? P.coins : 0; },
