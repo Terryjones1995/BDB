@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1119a';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus } from './cards.js?v=1119b';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -107,6 +107,11 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   const near = (o, x, z, r) => Math.hypot(o.x - x, o.z - z) <= r + o.U.r * .5;
   const ignite = (o, t, dps) => { if (o.U.fireproof) return; o.bt = Math.max(o.bt, t); o.bd = Math.max(o.bd, dps); };      // set alight, unless it cannot be
   /* how: 'hit' (an attack), 'area' (a spell or blast), 'dot' (burning, poison, thorns) */
+  /* What is doing the damage right now, whenever it is more than one unit hitting another: {k, x, z, kn}. kind, where it came from, how far it throws.
+     Nothing in the rules reads it. It rides along in the 'dead' event, and the view picks how a troop goes down from it. */
+  let why = null;
+  const BURN = {k:'burn'}, PSN = {k:'psn'};
+  const cause = zn => ({k:zn.kind === 'bolt' ? 'storm' : zn.kind !== 'blast' ? zn.kind : zn.burn || zn.pool ? 'fire' : zn.frz ? 'freeze' : 'blast', x:zn.x, z:zn.z, kn:zn.knock || 0});
   function hurt(o, dmg, src, how = 'hit'){
     if (o.hp <= 0 || dmg <= 0) return;
     if (o.mk > 0) dmg *= 1.3;                                                 // marked: everything hurts more
@@ -121,7 +126,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (src && !src.U.twr && src.team !== o.team && tally[src.pid]) tally[src.pid][src.key] = (tally[src.pid][src.key] || 0) + Math.min(dmg, o.hp);      // who did the work, for the result screen
     o.hp -= dmg;
     if (o.key === 'king' && !o.active){ o.active = true; emit({e:'king', team:o.team}); }
-    if (o.hp <= 0){ kill(o, src); return; }
+    if (o.hp <= 0){ kill(o, src, dmg, how); return; }
     if (o.U.morph && o.hp <= o.max * o.U.morph.at){ morph(o); return; }
     // someone is hitting me: unless I am busy with a fight of my own, turn on them rather than walk on
     if (src && src.hp > 0 && how === 'hit' && !o.U.bld && o.U.only !== 'b' && o.U.dmg && ok(o, src) && !(src.key === 'princess' && o.ln && (src.x > 0) !== (o.ln > 0))){      // (not on the far guard tower: a troop keeps to its side even under fire)
@@ -133,7 +138,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const n = add(o.U.morph.u, o.team, o.x, o.z, o.lvl, 8, o.U.aff, o.pid, o.bm);
     emit({e:'morph', id:o.id, to:n.id}); o.hp = 0; o.gone = true;
   }
-  function kill(o, killer){
+  function kill(o, killer, dmg = 0, how = ''){
     const U = o.U;
     if (U.revive && !o.rev && !o.gone){ o.rev = 1; o.hp = Math.max(1, Math.round(o.max * U.revive)); o.frz = T(1.4); o.bt = o.pt = o.mk = o.wk = 0; emit({e:'revive', id:o.id});
       if (U.rise){ zones.push({kind:'blast', team:o.team, pid:o.pid, x:o.x, z:o.z, r:U.rise.r, dmg:U.rise.dmg * lvlMul(o.lvl) * o.bm, twr:.4, t:T(.35), frz:0, pool:null, lvl:o.lvl, air:1, burn:U.rise.burn ? U.rise.burn * lvlMul(o.lvl) : 0}); emit({e:'fuse', x:o.x, z:o.z, r:U.rise.r, d:.35, k:o.key}); }   // it goes up in flames, and comes back out of them
@@ -141,6 +146,12 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (!U.bld && !o.gone && !o.wished && !U.kamikaze && !U.life && o.max >= 240){                       // a genie nearby with a wish left: back on its feet
       const g = ents.find(e => e.U.bless && e.wish > 0 && e.hp > 0 && e.dep <= 0 && e !== o && e.team === o.team && Math.hypot(e.x - o.x, e.z - o.z) <= e.U.bless.r);
       if (g){ g.wish--; o.wished = 1; o.hp = Math.max(1, Math.round(o.max * g.U.bless.hp)); o.frz = T(1.2); o.bt = o.pt = o.mk = o.wk = 0; emit({e:'revive', id:o.id}); emit({e:'wish', id:g.id, n:g.wish}); return; }
+    }
+    if (!U.twr){                                                              // for the view: what finished it, where the blow came from, and how hard it landed for a body this size
+      const c = why || (killer ? {k:killer.U.rng > 1.5 ? killer.U.shot || 'shot' : 'hit', x:killer.x, z:killer.z, kn:(killer.U.knock ? 1 : 0) + (killer.U.r >= .75 ? .6 : 0)} : null);
+      const ev = {e:'dead', id:o.id, k:c ? c.k : how === 'dot' ? 'dot' : how ? 'hit' : U.kamikaze ? 'boom' : 'time', f:+Math.min(4, dmg / o.max + (c && c.kn || 0)).toFixed(1)};
+      if (c && c.x != null){ ev.x = +c.x.toFixed(1); ev.z = +c.z.toFixed(1); }
+      emit(ev);
     }
     o.hp = 0;
     if (o.by){ const r = byId.get(o.by); if (r) r.rn = Math.max(0, r.rn - 1); }
@@ -198,7 +209,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
   /* ---------- traps ---------- */
   const foot = (o, team) => o.team !== team && o.hp > 0 && o.dep <= 0 && !o.U.bld && !o.U.twr && !o.U.fly;      // who a trap can catch: enemy troops on the ground
-  function spring(tr, hit){
+  function spring(tr, hit){ why = {k:tr.kind, x:tr.x, z:tr.z, kn:tr.kind === 'snap' ? 1.5 : 0}; try { sprung(tr, hit); } finally { why = null; } }
+  function sprung(tr, hit){
     emit({e:'trap', k:tr.kind, x:tr.x, z:tr.z, r:tr.r, team:tr.team, id:tr.card, t:tr.dur || 0});
     const all = ents.filter(o => foot(o, tr.team) && near(o, tr.x, tr.z, tr.r));
     if (hit && !all.includes(hit)) all.push(hit);
@@ -294,7 +306,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (p.melee && !src) return;
     if (src && src.hp > 0 && !src.U.twr) for (const tr of traps) if (tr.live > 0 && tr.team !== src.team && Math.hypot(src.x - tr.x, src.z - tr.z) <= tr.r){ emit({e:'reflect', id:src.id}); hurt(src, p.dmg * tr.refl, null, 'dot'); break; }   // standing in the other side's Instant Replay
     if (p.splash){
+      why = {k:p.melee ? 'slam' : u.shot || 'shot', x:p.x, z:p.z, kn:(u.knock ? 1 : 0) + (p.melee ? .5 : .3)};
       area(p.x, p.z, p.splash, p.dmg, p.team, {air:p.air, src, how:'hit', each:o => afflict(o, u, p.lv, src, p.st)});
+      why = null;
       if (u.mend){ let any = false; for (const o of ents) if (o.team === p.team && o.hp > 0 && !o.U.bld && o.hp < o.max && near(o, p.x, p.z, p.splash + .8)){ o.hp = Math.min(o.max, o.hp + u.mend * p.lv); any = true; } if (any) emit({e:'heal', x:p.x, z:p.z, r:p.splash + .8}); }      // the same brew mends her own side
       return;
     }
@@ -335,15 +349,17 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     const U = e.U, a = U.land, lv = lvlMul(e.lvl) * e.bm;
     if (U.charge && U.charge.dash){ e.chg = true; emit({e:'charge', id:e.id}); }
     if (U.smite || U.reap){                                  // a god arrives, and the whole field feels it: every enemy, wherever it stands
-      const pts = [];
+      const pts = []; why = {k:U.smite ? 'storm' : 'reap'};
       for (const o of ents.slice()){
         if (o.team === e.team || o.hp <= 0 || o.dep > 0) continue;
         if (U.smite){ hurt(o, U.smite.dmg * lv * (o.U.twr ? U.smite.twr ?? .3 : 1), e, 'area'); if (U.smite.stun && !o.U.twr && o.hp > 0) o.frz = Math.max(o.frz, T(U.smite.stun)); pts.push([o.x, o.z]); }
         else if (!o.U.twr){ hurt(o, o.max * U.reap, e, 'area'); pts.push([o.x, o.z]); }      // the reaping takes a share of what each one started with. Towers are not his to take
       }
+      why = null;
       emit({e:'godfall', id:e.id, x:e.x, z:e.z, team:e.team, k:U.smite ? 'smite' : 'reap', pts});
     }
     if (!a) return;
+    why = {k:a.burn ? 'fire' : a.slow ? 'frost' : 'slam', x:e.x, z:e.z, kn:1};
     if (a.dmg || a.stun || a.slow || a.push || a.weak) area(e.x, e.z, a.r, (a.dmg || 0) * lv, e.team, {air:!!U.air, twr:.4, src:e, each:o => {      // a troop that cannot reach the sky does not shake it by landing either
       if (o.U.twr) return;
       if (a.stun) o.frz = Math.max(o.frz, T(a.stun));
@@ -352,6 +368,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (a.burn && U.burn) ignite(o, T(U.burn.t), U.burn.dps * lv);
       if (a.push && !o.U.bld && o.U.r < .9){ const dx = o.x - e.x, dz = o.z - e.z, d = Math.hypot(dx, dz) || 1; o.x += dx / d * a.push; o.z += dz / d * a.push; ashore(o, e.z); }
     }});
+    why = null;
     if (a.shield) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.twr && near(o, e.x, e.z, a.r)) o.sh = Math.max(o.sh, Math.round(a.shield * lv));
     if (a.rage) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.bld && near(o, e.x, e.z, a.r)) o.rage = Math.max(o.rage, T(a.rage));
     if (a.summon) for (let i = 0; i < a.summon.n; i++){ const ring = Math.floor(i / 10), per = Math.min(10, a.summon.n - ring * 10), q = 1.3 + ring * .85, an = (i % 10) / per * 6.283 + .4 + ring * .31;      // ten to a ring, each ring further out
@@ -360,7 +377,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
 
   /* ---------- spells and the things they leave on the ground ---------- */
-  function strike(zn){                                     // the moment a spell lands
+  function strike(zn){ why = cause(zn); try { struck(zn); } finally { why = null; } }
+  function struck(zn){                                     // the moment a spell lands
     const k = zn.kind, mine = o => o.team === zn.team && o.hp > 0 && near(o, zn.x, zn.z, zn.r);
     if (k === 'rage'){ for (const o of ents) if (mine(o) && !o.U.twr) o.rage = T(zn.rage); }
     else if (k === 'heal' || k === 'grave' || k === 'tornado' || k === 'fire'){ /* these work over time: see pulse */ }
@@ -383,7 +401,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     }
     emit({e:'boom', k, x:zn.x, z:zn.z, r:zn.r, team:zn.team});
   }
-  function pulse(zn){                                      // once a second for as long as it lasts
+  function pulse(zn){ why = cause(zn); try { pulsed(zn); } finally { why = null; } }
+  function pulsed(zn){                                     // once a second for as long as it lasts
     const k = zn.kind;
     if (k === 'poison') area(zn.x, zn.z, zn.r, zn.dmg, zn.team, {air:true, twr:zn.twr, how:'dot', chill:1.2});
     else if (k === 'fire') area(zn.x, zn.z, zn.r, zn.dmg, zn.team, {air:false, twr:zn.twr, how:'dot', fire:1});
@@ -443,8 +462,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (e.dep > 0){ if (--e.dep <= 0) arrive(e); continue; }
       if (U.life){ e.hp -= e.max / (U.life * TPS); if (e.hp <= 0){ kill(e); continue; } }
       const beat = (tick + e.id) % 10 === 0;                                   // twice a second: burning, poison, healing over time, auras
-      if (e.bt > 0){ e.bt--; if (beat) hurt(e, e.bd * .5, null, 'dot'); if (e.bt <= 0) e.bd = 0; }
-      if (e.pt > 0){ e.pt--; if (beat) hurt(e, e.pd * .5, null, 'dot'); if (e.pt <= 0) e.pd = 0; }
+      if (e.bt > 0){ e.bt--; if (beat){ why = BURN; hurt(e, e.bd * .5, null, 'dot'); why = null; } if (e.bt <= 0) e.bd = 0; }
+      if (e.pt > 0){ e.pt--; if (beat){ why = PSN; hurt(e, e.pd * .5, null, 'dot'); why = null; } if (e.pt <= 0) e.pd = 0; }
       if (e.hp <= 0) continue;
       if (e.mk > 0) e.mk--;
       if (e.wk > 0) e.wk--;

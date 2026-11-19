@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119a';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1119a';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119a';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119b';
+import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1119b';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119b';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -206,6 +206,16 @@ export function createView(el, opt = {}){
       root.remove(tmp);
       await new Promise(r => requestAnimationFrame(r));
     }
+    try {                                                              // and the materials a figure is repainted in as it dies, on a character with bones and one without
+      const tmp = new THREE.Group(); root.add(tmp); let rigged = 0, plain = 0;
+      for (const k of list){ if (rigged && plain) break; if (UNITS[k].twr) continue; const m = makeModel(k, 0, {ink:false}); if (m.rig ? rigged++ : plain++) continue; m.g.position.set(tmp.children.length * 2.2 - 1.1, 0, 4); tmp.add(m.g); }
+      for (const mat of [FLASH, ...Object.values(DM)]){
+        paint(tmp, mat); camera.position.set(0, 30, 30); camera.lookAt(0, 0, 4); camera.updateMatrixWorld();
+        if (fxOn()){ warmRT = warmRT || new THREE.WebGLRenderTarget(32, 32, {type:THREE.HalfFloatType}); renderer.setRenderTarget(warmRT); renderer.render(scene, camera); renderer.setRenderTarget(null); }
+        else { renderer.setScissorTest(true); renderer.setScissor(0, 0, 2, 2); renderer.render(scene, camera); renderer.setScissorTest(false); }
+      }
+      root.remove(tmp);
+    } catch(e){}
   }
 
   /* ---------- particles: two pools (glow and smoke) ---------- */
@@ -242,8 +252,8 @@ export function createView(el, opt = {}){
   /* ---------- flat ground effects ---------- */
   const ringG = new THREE.RingGeometry(.9, 1, 56), discG = new THREE.CircleGeometry(1, 48), flats = [];
   const domeG = new THREE.SphereGeometry(1, 28, 10, 0, PI * 2, 0, PI / 2).rotateX(PI / 2);       // lies on its side so that, turned flat like the rings, it stands up as a dome
-  function flat(x, z, o){             // o: {r0, r1, dur, color, fill, a, delay, pulse}
-    const m = new THREE.Mesh(o.geo || (o.fill ? discG : ringG), new THREE.MeshBasicMaterial({color:o.color, transparent:true, opacity:0, depthWrite:false, side:o.geo ? THREE.DoubleSide : THREE.FrontSide, blending:o.add ? THREE.AdditiveBlending : THREE.NormalBlending}));
+  function flat(x, z, o){             // o: {r0, r1, dur, color, fill, a, delay, pulse, hold, add, soft}. soft: a filled one that fades out towards its edge
+    const m = new THREE.Mesh(o.geo || (o.fill ? discG : ringG), new THREE.MeshBasicMaterial({color:o.color, map:o.soft ? dot : null, transparent:true, opacity:0, depthWrite:false, side:o.geo ? THREE.DoubleSide : THREE.FrontSide, blending:o.add ? THREE.AdditiveBlending : THREE.NormalBlending}));
     if (o.add) m.material.color.multiplyScalar(1 + (HDR - 1) * .6);
     m.rotation.x = -PI / 2; m.position.set(x, .05 + flats.length % 5 * .004, z); m.visible = false; root.add(m);
     flats.push({m, t:-(o.delay || 0), ...o}); return m;
@@ -623,23 +633,210 @@ export function createView(el, opt = {}){
     if (r.num){ r.num.t.dispose(); if (r.ns) r.ns.material.dispose(); }
     recs.delete(r.e.id);
   }
+  /* ---------- how things die ----------
+     Nothing just vanishes. The rules say what finished a troop and where the blow came from (a 'dead' event, kept on its record as r.why), and that picks
+     how the body takes it: thrown clear, toppled, caught where it stands, dropped out of the sky. What the troop is picks what is left of it: ash, ice,
+     a puddle, bones, scrap, leaves, paperwork, a column of light. The loose pieces come from two small pools, each drawn in one go. */
+  function bitPool(geo, n){
+    const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({roughness:.7, metalness:.1, flatShading:true, envMapIntensity:.5}), n), P = [], ob = new THREE.Object3D();
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; ob.scale.setScalar(0); ob.updateMatrix();
+    for (let i = 0; i < n; i++){ P.push({l:0}); im.setMatrixAt(i, ob.matrix); im.setColorAt(i, tc.set(0xffffff)); }
+    root.add(im); let at = 0, live = 0;
+    return {
+      /* o: {life, grav, bounce, spin, flutter, odd, sx, sy, sz}. flutter: drifts down like paper. odd: every piece a different shape */
+      emit(x, y, z, vx, vy, vz, s, color, o = {}){
+        const p = P[at], lo = o.odd ? .45 : 1, sp = o.odd ? .9 : 0, w = o.spin ?? 10; if (p.l <= 0) live++;
+        p.x = x; p.y = y; p.z = z; p.vx = vx; p.vy = vy; p.vz = vz; p.s = s;
+        p.sx = (o.sx ?? 1) * (lo + Math.random() * sp); p.sy = (o.sy ?? 1) * (lo + Math.random() * sp); p.sz = (o.sz ?? 1) * (lo + Math.random() * sp);
+        p.l = p.m = (o.life ?? 1.3) * (.75 + Math.random() * .5); p.g = o.grav ?? 14; p.b = o.bounce ?? .35; p.fl = o.flutter || 0; p.fy = Math.min(p.sx, p.sy, p.sz) * s * .5 + .03;
+        p.rx = Math.random() * 6; p.ry = Math.random() * 6; p.rz = Math.random() * 6; p.wx = (Math.random() - .5) * w; p.wy = (Math.random() - .5) * w; p.wz = (Math.random() - .5) * w;
+        im.setColorAt(at, tc.set(color)); im.instanceColor.needsUpdate = true; at = (at + 1) % n;
+      },
+      step(dt){
+        if (!live) return;
+        for (let i = 0; i < n; i++){ const p = P[i]; if (p.l <= 0) continue;
+          if ((p.l -= dt) <= 0){ live--; ob.scale.setScalar(0); ob.updateMatrix(); im.setMatrixAt(i, ob.matrix); continue; }
+          p.vy -= p.g * dt;
+          if (p.fl && p.y > p.fy + .02){ p.vx += Math.sin(time * 5 + i) * p.fl * dt; p.vz += Math.cos(time * 4.3 + i * 1.7) * p.fl * dt; if (p.vy < -1.3) p.vy = -1.3; }
+          p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+          if (p.y < p.fy){ p.y = p.fy;
+            if (p.vy < -1.6){ p.vy *= -p.b; p.vx *= .6; p.vz *= .6; p.wx *= .5; p.wy *= .5; p.wz *= .5; }
+            else { p.vy = 0; p.vx *= .8; p.vz *= .8; p.wx = p.wy = p.wz = 0; if (p.fl) p.rx = p.rz = 0; } }      // what flutters down comes to rest lying flat
+          p.rx += p.wx * dt; p.ry += p.wy * dt; p.rz += p.wz * dt;
+          const k = p.s * Math.min(1, p.l / (p.m * .3));
+          ob.position.set(p.x, p.y, p.z); ob.rotation.set(p.rx, p.ry, p.rz); ob.scale.set(k * p.sx, k * p.sy, k * p.sz); ob.updateMatrix(); im.setMatrixAt(i, ob.matrix); }
+        im.instanceMatrix.needsUpdate = true;
+      },
+      clear(){ ob.scale.setScalar(0); ob.updateMatrix(); for (let i = 0; i < n; i++){ P[i].l = 0; im.setMatrixAt(i, ob.matrix); } live = 0; im.instanceMatrix.needsUpdate = true; }
+    };
+  }
+  const chunk = bitPool(new THREE.BoxGeometry(1, 1, 1), low ? 80 : 170), shard = bitPool(new THREE.TetrahedronGeometry(.8, 0), low ? 60 : 120);
+  function scatter(pool, x, y, z, n, cols, o = {}){          // o as for emit, and {spd, up, size, spread, tall, dx, dz}
+    n = Math.round(low ? n * .55 : n); const sp = o.spd ?? 3, up = o.up ?? 4, sz = o.size ?? .16, sr = o.spread ?? .3;
+    for (let i = 0; i < n; i++){ const a = Math.random() * PI * 2, q = sp * (.3 + Math.random() * .7);
+      pool.emit(x + (Math.random() - .5) * sr, y + Math.random() * (o.tall || .3), z + (Math.random() - .5) * sr, Math.cos(a) * q + (o.dx || 0), up * (.45 + Math.random() * .75), Math.sin(a) * q + (o.dz || 0), sz * (.65 + Math.random() * .7), cols[i % cols.length], o); }
+  }
+  /* One material for a whole figure: burnt, frozen, poisoned, a shadow, or made of light. */
+  const FLASH = new THREE.MeshBasicMaterial({color:0xffffff});
+  const glowMat = c => new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:.9, depthWrite:false, blending:THREE.AdditiveBlending});
+  const DM = {
+    char: new THREE.MeshStandardMaterial({color:0x17120f, roughness:1, metalness:0, emissive:0xff5a1a, emissiveIntensity:.02}),
+    ice: new THREE.MeshStandardMaterial({color:0xcfeeff, roughness:.12, metalness:.1, emissive:0x4aa0d8, emissiveIntensity:.35}),
+    tox: new THREE.MeshStandardMaterial({color:0x5fdc4c, roughness:.3, metalness:0, emissive:0x2c9a20, emissiveIntensity:.5}),
+    dark: new THREE.MeshBasicMaterial({color:0x08060d}), lit: glowMat(0xffe9a8), arc: glowMat(0xb48cff), hot: glowMat(0xff8a2b)
+  };
+  function paint(g, mat){            // outlines sit on a layer of their own: they stay on anything solid and go from anything that glows
+    const solid = !mat.transparent;
+    g.traverse(o => { if (!o.isMesh || Array.isArray(o.material)) return; if (!(o.layers.mask & 1)){ o.visible = solid; return; } o.material = mat; if (!solid) o.castShadow = false; });
+  }
+  const CAUSE = {bomb:'fire', meteor:'fire', fire:'fire', burn:'fire', beam:'fire', laser:'fire', freeze:'ice', ice:'ice', frost:'ice', zap:'zap', storm:'zap', sky:'zap', poison:'tox', psn:'tox', spit:'tox', vial:'tox', tox:'tox'};
+  const THROW = {bomb:1.2, meteor:2, blast:1, shell:1, rock:.4, quake:.5, slam:.5};       // what blows up throws things further than its damage alone would
+  const GOES = {dragon:['embers', 'topple'], fire:['embers', 'hold'], frost:['shards', 'hold'], arcane:['implode', 'hold'], dark:['soul', 'topple'], shadow:['shade', 'hold'], beast:['dust', 'topple'], nature:['leaves', 'topple'],
+    horde:['dust', 'topple'], order:['light', 'topple'], tech:['scrap', 'spark'], crew:['papers', 'topple']};       // what each type leaves behind, and how it takes a blow that does not throw it
+  const LANDS = {ash:1, melt:1, splat:1, embers:1, dust:1, leaves:1, papers:1, soul:1};                       // endings that happen on the ground: a flyer comes down first
+  const FD = {ash:.45, melt:.55, soul:.85, implode:.26, shade:.5, light:.6, leaves:.3, papers:.3, dust:.5, embers:.5, splat:.38, rubble:.7, fade:.3};      // how long each ending takes. Anything not listed is over at once
+  const BONY = /^(skel|bone)/, NOWHY = {k:''};
   function die(r){
-    if (opt.onDie) opt.onDie(r.e);
-    const U = r.e.U, h = r.m.h * .5 + (r.m.fly || 0);
+    const e = r.e, U = e.U, m = r.m, mid = m.h * .5 + (m.fly || 0);
     if (U.twr){
+      if (opt.onDie) opt.onDie(e);
       burst(r.x, 1.5, r.z, 70, 0xffb547, {spd:7, up:8, life:1.1, spread:1.6}); burst(r.x, 1, r.z, 26, 0x8b93a6, {smoke:true, spd:3, up:3, life:1.6, grav:-.5, spread:1.5});
       flat(r.x, r.z, {r0:1, r1:6, dur:.7, color:0xffd28a, add:true}); shake(.7);
       const rub = new THREE.Group(); rub.position.set(r.x, 0, r.z); rub.userData.rubble = true; root.add(rub);
       for (let i = 0; i < 9; i++){ const k = new THREE.Mesh(new THREE.DodecahedronGeometry(.3 + (i * 7 % 5) * .1, 0), M(i % 3 ? 0x8b93a6 : 0x636b7e, {flat:true, r:.95})); const a = i / 9 * PI * 2; k.position.set(Math.cos(a) * (.4 + (i % 3) * .4), .2 + (i % 2) * .15, Math.sin(a) * (.4 + (i % 3) * .4)); k.rotation.set(i, i * 2, i * 3); rub.add(k); }
-    } else {
-      const col = r.e.key.startsWith('slime') ? 0x3fd0b8 : r.e.key === 'skel' ? 0xf3f0e6 : U.bld ? 0xffb547 : r.rel ? 0xff8a7a : 0x8fc4ff;
-      burst(r.x, h, r.z, 8 + Math.round(U.r * 12), col, {spd:2.2 + U.r * 2, up:2.5, life:.5});
-      burst(r.x, .3, r.z, 3 + Math.round(U.r * 4), 0xd9dde8, {smoke:true, spd:1, up:1, life:.7, grav:-.6});
+      scatter(chunk, r.x, 1, r.z, 16, [0x8b93a6, 0x636b7e, 0xa9b0c0], {spd:5, up:7, size:.34, tall:2.4, odd:1, life:2.2, spin:9, spread:1.4});
+      drop(r); return;
     }
-    if (U.twr) drop(r);
-    else { bars.remove(r.bar); if (r.badge) bars.remove(r.badge); if (r.num){ r.num.t.dispose(); if (r.ns) r.ns.material.dispose(); r.num = null; } recs.delete(r.e.id); if (r.ring) r.ring.visible = false; if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); if (r.gone || r.quiet){ root.remove(r.g); return; } dying.push({g:r.g, t:0, spin:(Math.random() - .5) * 16, rig:r.m.die && r.m.die() ? r.m : null}); flat(r.x, r.z, {r0:.2, r1:U.r * 2.2, dur:.3, color:0xffffff, add:true, a:.6}); }   // knocked into the air, spinning, then gone
+    const iced = !!r.ice, w = r.why || NOWHY;
+    bars.remove(r.bar); if (r.badge) bars.remove(r.badge); if (r.num){ r.num.t.dispose(); if (r.ns) r.ns.material.dispose(); r.num = null; } recs.delete(e.id);
+    if (r.ring) r.g.remove(r.ring); if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); setFlash(r, false);
+    if (r.gone || r.quiet){ if (opt.onDie) opt.onDie(e); root.remove(r.g); return; }
+    /* What is left of it. Some causes settle everything (ice, lightning, a reaping); otherwise the type decides, and a hard enough blow throws the body first. */
+    const cz = CAUSE[w.k], bony = BONY.test(e.key), col = r.rel ? 0xff8a7a : 0x8fc4ff, tiny = U.role === 'swarm' || U.role === 'flock';
+    let fin, soft = 'topple', hold = 0, tint = null, fixed = false;
+    if (opt.reduced){ fin = 'fade'; soft = 'hold'; fixed = true; }
+    else if (U.bld){ fin = 'rubble'; soft = 'hold'; fixed = true; }
+    else if (w.k === 'boom'){ fin = 'scrap'; soft = 'hold'; fixed = true; }                               // it was the bomb
+    else if (iced || cz === 'ice'){ fin = 'shards'; soft = 'hold'; hold = .14; tint = DM.ice; fixed = true; }
+    else if (cz === 'zap'){ fin = bony ? 'bones' : 'ash'; soft = 'zap'; hold = .34; fixed = true; }
+    else if (w.k === 'reap'){ fin = 'soul'; soft = 'hold'; hold = .08; fixed = true; }
+    else if ((cz === 'fire' || e.bt > 0) && !U.fireproof && U.type !== 'fire' && U.type !== 'dragon'){ fin = 'ash'; tint = DM.char; if (w.k === 'burn'){ soft = 'hold'; hold = .22; } }
+    else if (cz === 'tox' || e.pt > 0){ fin = 'melt'; tint = DM.tox; soft = 'hold'; hold = .1; }
+    else if (e.key.startsWith('slime')){ fin = 'splat'; soft = 'hold'; }
+    else if (bony){ fin = 'bones'; soft = 'hold'; fixed = true; }
+    else if (tiny){ fin = 'pop'; soft = 'launch'; }                                                       // the small ones in a crowd are simply batted away
+    else { [fin, soft] = GOES[U.type] || GOES.beast; hold = soft === 'hold' ? .1 : soft === 'spark' ? .26 : 0; }
+    /* how hard it was hit for its size decides whether it is thrown or simply goes over */
+    const thr = ((w.f || 0) + (THROW[w.k] || 0)) / (clamp(U.r / .42, .7, 2.6) * (e.max >= 1500 ? 1.4 : 1));
+    let react = fixed ? soft : w.k === 'tornado' ? 'lift' : w.k === 'snap' && !m.fly ? 'squash' : fin === 'pop' || (thr >= 1.15 && w.x != null) ? 'launch' : soft;
+    if (m.fly && (react === 'topple' || (react === 'hold' && LANDS[fin] && !fixed))) react = 'drop';
+    let dx = 0, dz = 0; if (w.x != null){ dx = r.x - w.x; dz = r.z - w.z; }
+    let dl = Math.hypot(dx, dz);
+    if (dl < .08){ const a = react === 'launch' ? Math.random() * PI * 2 : r.g.rotation.y + PI; dx = Math.sin(a); dz = Math.cos(a); dl = 1; }      // nothing to be thrown away from: over backwards
+    dx /= dl; dz /= dl;
+    const rig = react === 'topple' && m.die && m.die() ? m : null, py = react === 'launch' || react === 'drop' || react === 'lift' || (react === 'topple' && !rig) ? mid : 0;
+    /* the figure hangs in a holder that turns about the middle of the body (to tumble) or about its feet (to collapse), facing the way it was hit */
+    const p = new THREE.Group(); p.rotation.order = 'YXZ'; p.position.set(r.x, py, r.z); p.rotation.y = Math.atan2(dx, dz);
+    r.g.position.set(0, -py, 0); r.g.rotation.y -= p.rotation.y; p.add(r.g); root.add(p);
+    const d = {p, rig, t:0, react, fin, t1:hold, fd:FD[fin] || 0, dx, dz, mid, rest:clamp(U.r * .55, .14, .6), r:U.r, h:m.h, col, x:r.x, z:r.z, big:U.r >= .75 || e.max >= 900, up:true, lying:false, air:false, thr:Math.min(3, thr), ty:U.type};
+    if (react === 'launch'){ const hs = clamp(1.4 + thr * 1.1, 1.8, 4.6), pop = fin === 'pop'; d.vx = dx * hs * (pop ? .7 : 1); d.vz = dz * hs * (pop ? .7 : 1); d.vy = clamp(3.4 + thr * .8, 3.8, 6.4); d.spin = (5.5 + Math.min(4, thr) * 2.4) * (pop ? 1.6 : 1); d.air = true; d.up = false; d.lying = true; d.t1 = 1e9; if (pop) d.shrink = .42; }
+    else if (react === 'drop'){ d.vx = dx * 1.3; d.vz = dz * 1.3; d.vy = 2.6; d.spin = 2.4; d.air = true; d.up = false; d.lying = true; d.t1 = 1e9; }
+    else if (react === 'lift'){ d.vx = dx * .6; d.vz = dz * .6; d.vy = 7; d.air = true; d.t1 = 1e9; d.fin = 'fade'; d.fd = .22; }
+    else if (react === 'topple'){ d.t1 = rig ? .82 : .66; d.up = !!rig; d.lying = true; }
+    else if (react === 'squash'){ d.t1 = .5; d.fin = 'fade'; d.fd = .2; flat(r.x, r.z, {r0:.2, r1:U.r * 3 + .4, dur:.3, color:0xe9e4d6, a:.8}); }
+    if (tint) paint(p, tint);
+    if (opt.onDie) opt.onDie(e, d.fin);
+    flat(r.x, r.z, {r0:.2, r1:U.r * 2.2, dur:.3, color:0xffffff, add:true, a:.6});
+    burst(r.x, mid, r.z, 6 + Math.round(U.r * 10), col, {spd:2.2 + U.r * 2, up:2.5, life:.5});
+    if (react === 'launch' && thr > 1.8) burst(r.x, mid, r.z, 6, 0xffffff, {spd:4.5, up:1.5, life:.2, grav:0});
+    dying.push(d);
   }
-  const dying = [], DEAD = {mv:false, atk:99, ph:0}, FLASH = new THREE.MeshBasicMaterial({color:0xffffff});
+  const dying = [], DEAD = {mv:false, atk:99, ph:0};
+  /* the moment the ending starts: what flies off, what is left on the ground */
+  function finStart(d, x, y, z){
+    const R = d.r, f = d.fin, p = d.p;
+    if (!d.up && (f === 'light' || f === 'implode')){ p.rotation.x = 0; p.position.y = d.mid; d.up = true; }        // back on its feet to go: these two leave upwards
+    if (f === 'ash'){ paint(p, DM.char); burst(x, y, z, 10 + R * 8, 0xff8a2b, {spd:1.2, up:2.6, life:.7, grav:-1.6, spread:R}); burst(x, y, z, 5, 0x2a2622, {smoke:true, spd:.8, up:1.4, life:1.1, grav:-.7, spread:R}); flat(x, z, {r0:R * 1.7 + .3, dur:2.2, color:0x070504, fill:true, soft:true, a:.62, hold:true}); }
+    else if (f === 'shards'){ scatter(shard, x, y * .5, z, 9 + R * 12, [0xcfeeff, 0x9fd8f5, 0xffffff], {spd:3.4, up:3.6, size:.2 + R * .14, tall:y, life:1.3, spin:13, dx:d.dx * (1 + d.thr * .7), dz:d.dz * (1 + d.thr * .7)}); burst(x, y, z, 14, 0xdff5ff, {spd:4, up:2.5, life:.45}); flat(x, z, {r0:.2, r1:R * 2.6 + .5, dur:.45, color:0xbfe9ff, add:true}); flat(x, z, {r0:R * 2.2 + .45, dur:1.8, color:0xe6f7ff, fill:true, soft:true, a:.5, hold:true}); }
+    else if (f === 'melt'){ paint(p, DM.tox); flat(x, z, {r0:.2, r1:R * 2.6 + .5, dur:2.2, color:0x3fb82c, fill:true, soft:true, a:.8, hold:true}); burst(x, y, z, 8, 0x7dff5a, {spd:1, up:1.6, life:.7, grav:-.6, spread:R}); }
+    else if (f === 'scrap'){
+      burst(x, y, z, 22 + R * 14, 0xffb347, {spd:5, up:4.5, life:.5}); burst(x, y, z, 10, 0xfff3c4, {spd:6.5, up:5.5, life:.6, grav:14}); burst(x, y, z, 7, 0x3a3f4d, {smoke:true, spd:1.2, up:2.6, life:1.3, grav:-1, spread:R});
+      scatter(chunk, x, y * .5, z, 9 + R * 9, [0x8b93a6, 0x4a5266, 0x2b3040, d.col], {spd:3.8, up:4.8, size:.16 + R * .1, tall:y, odd:1, life:1.6, spin:15, dx:d.dx * (.8 + d.thr * .6), dz:d.dz * (.8 + d.thr * .6)});
+      flat(x, z, {r0:.3, r1:R * 3 + .6, dur:.35, color:0xffb547, add:true}); flat(x, z, {r0:R * 1.6 + .25, dur:2, color:0x070504, fill:true, soft:true, a:.6, hold:true}); shake(.14 + R * .12); }
+    else if (f === 'bones'){ scatter(chunk, x, y * .5, z, 6 + R * 8, [0xf3f0e6, 0xe4decd], {spd:2.4, up:3.4, size:.26 + R * .12, sx:.22, sz:.22, tall:y, life:1.7, spin:14, dx:d.dx * (1.2 + d.thr * .8), dz:d.dz * (1.2 + d.thr * .8)});
+      chunk.emit(x, y * 1.6, z, d.dx * 2.2 + Math.random() - .5, 4.2, d.dz * 2.2 + Math.random() - .5, .15 + R * .12, 0xf7f4ea, {life:1.9, spin:7, bounce:.5}); burst(x, y, z, 5, 0xe9e4d6, {smoke:true, spd:1, up:.8, life:.5, grav:-.3}); }
+    else if (f === 'soul'){ paint(p, DM.dark); flat(x, z, {r0:R * 1.4 + .3, r1:.1, dur:.8, color:0x8dffc8, add:true, a:.5}); }
+    else if (f === 'implode'){ paint(p, DM.arc); flat(x, z, {r0:R * 2.4 + .7, r1:.1, dur:.26, color:0xb48cff, add:true, a:.9}); }
+    else if (f === 'shade'){ paint(p, DM.dark); flat(x, z, {r0:R * 2.3 + .5, r1:.05, dur:.8, color:0x05030a, fill:true, soft:true, a:.95, hold:true}); }
+    else if (f === 'light'){ paint(p, DM.lit); flat(x, z, {r0:.2, r1:R * 2 + .6, dur:.6, color:0xffe9a8, add:true}); flat(x, z, {r0:R * 1.2 + .3, dur:.7, color:0xffe9a8, fill:true, a:.3, hold:true, add:true}); }
+    else if (f === 'leaves'){ scatter(shard, x, y * .6, z, 12 + R * 10, [0x7ccf4a, 0x4fae3a, 0xd9a13a, 0xa8d85a], {spd:2.1, up:3.4, size:.27, sy:.14, sz:.7, tall:y + .4, life:2.1, grav:3.4, flutter:3.2, spin:6}); burst(x, y, z, 8, 0xa8ff7a, {spd:1.6, up:2, life:.5}); }
+    else if (f === 'papers'){ scatter(chunk, x, y * .6, z, 7 + R * 7, [0xffffff, 0xf6f2e4, 0xfff3a8, 0xffc9de, 0xbfe3ff], {spd:2.1, up:3.8, size:.3, sx:.8, sy:.03, sz:1.1, tall:y, life:2.3, grav:3.2, flutter:3.4, spin:5}); burst(x, y, z, 6, 0xffffff, {smoke:true, spd:1.2, up:1, life:.5, grav:-.3}); }
+    else if (f === 'dust'){ burst(x, .2, z, 8 + R * 8, 0xcbbf9f, {smoke:true, spd:1.6, up:1, life:.8, grav:-.4, spread:R * 1.4});
+      if (d.ty === 'horde') scatter(chunk, x, y, z, 4 + R * 4, [0x8a5a3a, 0x5c3d24, 0x9aa3b5, d.col], {spd:2.2, up:3.6, size:.15, odd:1, life:1.5, spin:12});                       // what it was carrying
+      else scatter(shard, x, y, z, 5 + R * 5, [0xb08a5a, 0x8a6a45, 0xd9c2a0], {spd:1.6, up:2.8, size:.15, sy:.3, life:1.5, grav:4, flutter:2.6, spin:7}); }      // fur flies
+    else if (f === 'embers'){ paint(p, DM.hot); burst(x, y, z, 20 + R * 14, 0xff8a2b, {spd:1.8, up:4.2, life:.8, grav:-2.4, spread:R}); burst(x, y, z, 10, 0xffe27a, {spd:3, up:3, life:.4}); flat(x, z, {r0:.3, r1:R * 2.6 + .6, dur:.4, color:0xff7a1f, add:true}); flat(x, z, {r0:R * 1.6 + .25, dur:2, color:0x070504, fill:true, soft:true, a:.6, hold:true}); }
+    else if (f === 'splat'){ scatter(shard, x, y * .5, z, 8 + R * 10, [0x23262e, 0x3fd0b8, 0x23262e], {spd:3, up:3, size:.15, life:1.1, bounce:.05, spin:4}); flat(x, z, {r0:.2, r1:R * 2.6 + .4, dur:2, color:0x14171d, fill:true, soft:true, a:.75, hold:true}); }
+    else if (f === 'rubble'){ burst(x, .5, z, 14, 0xb8ad98, {smoke:true, spd:2.4, up:1.6, life:1.1, grav:-.4, spread:R * 1.6}); burst(x, d.mid, z, 12, 0xffb547, {spd:3.5, up:3, life:.5});
+      scatter(chunk, x, .3, z, 9 + R * 6, [0x8b93a6, 0x636b7e, 0xb9864a, d.col], {spd:2.8, up:4.4, size:.24 + R * .08, tall:d.h * .8, odd:1, life:2, spin:10, spread:R}); flat(x, z, {r0:.4, r1:R * 2.6 + .5, dur:.5, color:0xffd28a, add:true, a:.7}); shake(.22 + R * .12); }
+    else burst(x, y, z, 4, d.col, {spd:1.5, up:1.5, life:.4});
+    d.y0 = p.position.y; d.s0 = p.scale.clone();
+  }
+  /* one frame of one death. True once there is nothing left to draw. */
+  function stepDeath(d, dt){
+    const p = d.p, t = d.t;
+    if (t < d.t1){                                                         // taking the blow
+      if (d.rig) d.rig.anim(time, DEAD);
+      if (d.air){
+        d.vy -= 20 * dt; p.position.x += d.vx * dt; p.position.y += d.vy * dt; p.position.z += d.vz * dt;
+        if (d.react === 'lift'){ p.rotation.y += dt * 15; if (d.vy < 0) d.t1 = t; return false; }      // spun up into the air, and gone at the top
+        if (d.react === 'drop'){ p.rotation.y += dt * 9; p.rotation.x = Math.min(1.35, p.rotation.x + dt * d.spin);        // out of the sky in a spin, trailing smoke
+          if (!low && (d.sm = (d.sm || 0) + dt) > .05){ d.sm = 0; burst(p.position.x, p.position.y, p.position.z, 1, 0x4a4f5c, {smoke:true, spd:.3, up:.4, life:.6, grav:-.4}); } }
+        else p.rotation.x += d.spin * dt;                                  // thrown: head over heels, away from the blow
+        if (d.shrink){ const k = t / d.shrink; if (k >= 1) return true; p.scale.setScalar(Math.max(.01, 1 - k * k)); }
+        if (p.position.y <= d.rest && d.vy < 0){
+          p.position.y = d.rest; burst(p.position.x, .12, p.position.z, 3 + Math.round(d.r * 6), 0xe9e4d6, {smoke:true, spd:1.5, up:.7, life:.5, grav:-.4, spread:d.r});
+          if (!d.hit && d.vy < -5 && d.react === 'launch'){ d.hit = 1; d.vy *= -.3; d.vx *= .5; d.vz *= .5; d.spin *= .55; if (d.big) shake(.2); }      // one bounce
+          else { d.air = false; d.t1 = t + .16; d.rx = Math.round((p.rotation.x - PI / 2) / PI) * PI + PI / 2; if (d.big){ shake(.3); flat(p.position.x, p.position.z, {r0:.3, r1:d.r * 2.6 + .4, dur:.35, color:0xe9e4d6, a:.7}); } }
+        }
+        return false;
+      }
+      if (d.rx != null){ p.rotation.x = lerp(p.rotation.x, d.rx, 1 - Math.exp(-dt * 26)); return false; }      // comes to rest lying flat
+      if (d.react === 'topple' && !d.rig){                               // no fall of its own to play: it goes over like a felled tree
+        const k = Math.min(1, t / .44), a = k * k * PI / 2; p.rotation.x = a; p.position.set(d.x + d.dx * d.mid * Math.sin(a), Math.max(d.rest, d.mid * Math.cos(a)), d.z + d.dz * d.mid * Math.sin(a));
+        if (k >= 1 && !d.hit){ d.hit = 1; burst(p.position.x, .12, p.position.z, 4 + Math.round(d.r * 6), 0xe9e4d6, {smoke:true, spd:1.6, up:.7, life:.5, grav:-.4, spread:d.r}); if (d.big) shake(.25); }
+      } else if (d.react === 'zap'){                                      // lit up from the inside: black, white, black
+        const n = Math.floor(t / .05); if (n !== d.zn){ d.zn = n; paint(p, n % 2 ? DM.dark : FLASH); burst(d.x, d.mid, d.z, 2, 0xfff27a, {spd:3.5, up:1.5, life:.2, grav:0}); }
+        p.position.x = d.x + (Math.random() - .5) * .07;
+      } else if (d.react === 'spark'){                                    // a short circuit: it judders and spits sparks, then goes up
+        if ((d.sm = (d.sm || 0) + dt) > .04){ d.sm = 0; burst(d.x, d.mid * (.4 + Math.random()), d.z, 2, Math.random() < .5 ? 0xfff27a : 0x9fe0ff, {spd:3.2, up:2.2, life:.25, grav:9}); }
+        p.position.x = d.x + (Math.random() - .5) * .08; p.rotation.z = (Math.random() - .5) * .1;
+      } else if (d.react === 'squash'){ const k = Math.min(1, t / .07); p.scale.set(1 + k * .5, 1 - k * .92, 1 + k * .5); }
+      return false;
+    }
+    const x = p.position.x, z = p.position.z, y = d.lying ? Math.max(.25, d.rest) : d.mid;
+    if (!d.f0){ d.f0 = true; finStart(d, x, y, z); if (!d.fd) return true; }
+    const k = Math.min(1, (t - d.t1) / d.fd), f = d.fin;
+    const sq = (v, h) => { if (!d.lying) p.scale.set(h, v, h); else { p.scale.setScalar(Math.max(.01, v)); if (!d.up) p.position.y = d.y0 * v; } };      // standing: down into the ground. Lying: it is already down, so it simply shrinks away
+    if (f === 'ash'){ sq(1 - k * .96, 1 + k * .3); if (Math.random() < dt * 26) burst(x, .2 + Math.random() * y, z, 1, 0xff8a2b, {spd:.4, up:1.6, life:.5, grav:-1.5, spread:d.r}); }
+    else if (f === 'melt') sq(1 - k * .95, 1 + k * .75);
+    else if (f === 'splat') sq(1 - k * .95, 1 + k);
+    else if (f === 'soul'){ sq(Math.max(.02, 1 - k * 2.4), k < .35 ? 1 : Math.max(.01, 1 - (k - .35) / .5));                 // the body sinks, and something leaves it
+      const a = t * 12, q = .36 * (1 - k) + .06, hy = .3 + k * 2.9; tc.set(0x9dffd0); for (let i = 0; i < 3; i++) glow.emit(x + Math.cos(a + i * 2.094) * q, hy - i * .05, z + Math.sin(a + i * 2.094) * q, 0, .5, 0, .5, tc, -.3);
+      tc.set(0xe9fff4); glow.emit(x, hy + .1, z, 0, .2, 0, .16, tc, 0);
+      if (k >= 1) burst(x, 3.1, z, 8, 0xdfffee, {spd:1.6, up:1, life:.4, grav:0}); }
+    else if (f === 'implode'){ p.rotation.y += dt * 30; const s = Math.max(.01, 1 - k * k); p.scale.set(s * (1 - k * .4), s + k * .5, s * (1 - k * .4));
+      if (k >= 1){ burst(x, d.mid, z, 18, 0xd9c4ff, {spd:5, up:2.5, life:.4, grav:0}); flat(x, z, {r0:.1, r1:d.r * 2.2 + .8, dur:.3, color:0xb48cff, add:true}); } }
+    else if (f === 'shade'){ sq(Math.max(.01, 1 - k), 1 + k * .12); if (Math.random() < dt * 22) burst(x, .2, z, 1, 0x3a1f6a, {smoke:true, spd:.5, up:1.2, life:.7, grav:-.6, spread:d.r}); }
+    else if (f === 'light'){ const s = Math.max(.02, 1 - k * k); p.scale.set(s, 1 + k * 2.4, s); p.position.y = d.y0 + k * k * 1.6;
+      if (Math.random() < dt * 40){ tc.set(0xffe9a8); glow.emit(x + (Math.random() - .5) * d.r, .2 + Math.random() * 2.4, z + (Math.random() - .5) * d.r, 0, 2.4, 0, .5, tc, -.5); }
+      if (k >= 1) burst(x, 2.8, z, 10, 0xfff3c4, {spd:1.8, up:1.4, life:.5, grav:0}); }
+    else if (f === 'embers'){ sq(Math.max(.02, 1 - k * .95), 1 - k * .5); if (Math.random() < dt * 40) burst(x, .2 + Math.random() * y, z, 1, Math.random() < .5 ? 0xff8a2b : 0xffd23f, {spd:.5, up:2.4, life:.5, grav:-2, spread:d.r});
+      if (k >= 1) burst(x, .4, z, 6, 0x3a3f4d, {smoke:true, spd:.8, up:1.8, life:1, grav:-.8}); }
+    else if (f === 'rubble'){ p.scale.set(1 + k * .12, Math.max(.03, 1 - k * k), 1 + k * .12); p.position.x = d.x + Math.sin(t * 55) * .035 * (1 - k);       // comes down on itself, shaking
+      if (Math.random() < dt * 20) burst(x + (Math.random() - .5) * d.r * 2, .2, z + (Math.random() - .5) * d.r * 2, 1, 0xb8ad98, {smoke:true, spd:.8, up:1.2, life:.8, grav:-.4}); }
+    else { const s = Math.max(.01, 1 - k * k); p.scale.copy(d.s0).multiplyScalar(s); if (f === 'leaves' || f === 'papers') p.rotation.y += dt * 9; if (!d.up) p.position.y = d.y0 * s; }      // leaves, papers, dust, the plain fade
+    return k >= 1;
+  }
   function setFlash(r, on){
     if (!!r.fl === on) return; r.fl = on;
     r.m.g.traverse(o => { if (!o.isMesh || Array.isArray(o.material)) return; if (on){ if (o.material.side === THREE.BackSide || o.material.transparent) return; o.userData.om = o.material; o.material = FLASH; } else if (o.userData.om){ o.material = o.userData.om; o.userData.om = null; } });
@@ -880,6 +1077,7 @@ export function createView(el, opt = {}){
       }
       else if (ev.e === 'leap'){ const r = recs.get(ev.id); if (r){ r.leap = r.leapD = Math.max(.2, ev.t); burst(r.x, .2, r.z, 8, 0xe9e4d6, {smoke:true, spd:1.6, up:.8, life:.4, grav:-.3}); } }
       else if (ev.e === 'reveal' || ev.e === 'cloak'){ const r = recs.get(ev.id); if (r) burst(r.x, r.m.h * .5, r.z, 18, 0x9a6bff, {smoke:true, spd:1.8, up:1.6, life:.7, grav:-.5}); }
+      else if (ev.e === 'dead'){ const r = recs.get(ev.id); if (r) r.why = ev; }                    // it is gone from the next list of what is on the field: this is how
       else if (ev.e === 'revive'){ const r = recs.get(ev.id); if (r){ r.pop = .22; r.hp = r.e.hp; burst(r.x, .3, r.z, 30, 0x7dffb0, {spd:2.4, up:7, life:.9, grav:1}); flat(r.x, r.z, {r0:.3, r1:2, dur:.6, color:0x7dffb0, add:true}); } }
       else if (ev.e === 'morph'){ const r = recs.get(ev.id); if (r){ r.quiet = true; burst(r.x, r.m.h * .5, r.z, 40, 0xc98a4b, {smoke:true, spd:3, up:3, life:.9, grav:-.6}); burst(r.x, r.m.h * .5, r.z, 20, 0xffe27a, {spd:4, up:4, life:.5}); shake(.3); } }
       else if (ev.e === 'raise'){ burst(ev.x, .2, ev.z, 14, 0xa678ff, {spd:1.6, up:4.5, life:.7, grav:1}); flat(ev.x, ev.z, {r0:.2, r1:.9, dur:.4, color:0xa678ff, add:true}); }
@@ -1024,13 +1222,11 @@ export function createView(el, opt = {}){
     time += dt;
     if (ents) sync(ents, dt);
     if (ghost.visible){ const p = 1 + Math.sin(time * 7) * .06; gRing.scale.setScalar(gRing.scale.x / (gRing.userData.p || 1) * p); gRing.userData.p = p; if (gM && gM.g.visible){ gM.g.position.y = (gM.fly || 0) + .5 + Math.sin(time * 5) * .14; gM.anim(time, {mv:false, ph:0, atk:99, sum:99, aim:0, active:true, chg:false}); } }
-    stepShots(dt); stepFlats(dt); stepBeams(dt); stepZaps(dt); stepPools(dt); stepTraps(dt); glow.step(dt); smoke.step(dt);
+    stepShots(dt); stepFlats(dt); stepBeams(dt); stepZaps(dt); stepPools(dt); stepTraps(dt); glow.step(dt); smoke.step(dt); chunk.step(dt); shard.step(dt);
     if (waterTex) waterTex.offset.x = time * .035;
     for (let i = 0; i < crowd.length; i++) crowd[i].position.y = Math.abs(Math.sin(time * 3 + i * 1.3)) * .1;
     if (mapId === 'court' && Math.random() < dt * 5){ tc.set(0xffffff); glow.emit(-15.6 - Math.random() * 5, 1.4 + Math.random() * 2.6, (Math.random() * 2 - 1) * 20, 0, 0, 0, .13, tc, 0); }      // somebody in the stands has a camera out
-    for (let i = dying.length - 1; i >= 0; i--){ const d = dying[i]; d.t += dt;
-      if (d.rig){ d.rig.anim(time, DEAD); if (d.t > 1.15) d.g.position.y -= dt * 1.6; if (d.t > 1.75){ root.remove(d.g); dying.splice(i, 1); } continue; }     // rigged troops fall over, lie there a moment, then sink away
-      const k = d.t / .42; if (k >= 1){ root.remove(d.g); dying.splice(i, 1); continue; } d.g.position.y += dt * (5 - k * 9); d.g.rotation.z += dt * d.spin; d.g.rotation.x += dt * 6; d.g.scale.setScalar(Math.max(.01, 1 - k * k)); }
+    for (let i = dying.length - 1; i >= 0; i--){ const d = dying[i]; d.t += dt; if (stepDeath(d, dt)){ root.remove(d.p); dying.splice(i, 1); } }
     for (let i = 0; i < sway.length; i++){ sway[i].rotation.z = Math.sin(time * 1.1 + i * 1.7) * .028; sway[i].rotation.x = Math.sin(time * .8 + i) * .02; }
     for (let i = 0; i < flags.length; i++){ flags[i].rotation.y = Math.sin(time * 3.2 + i * 1.7) * .4; flags[i].scale.x = 1 + Math.sin(time * 5 + i) * .06; }
     if ((amb += dt) > (low ? .45 : .16)){ amb = 0; tc.set(PAINT[mapId] ? PAINT[mapId].amb : AMB[mapId] || 0xffffff); glow.emit((Math.random() * 2 - 1) * 9, .4 + Math.random() * 2.5, (Math.random() * 2 - 1) * 16, (Math.random() - .5) * .4, .2 + Math.random() * .35, (Math.random() - .5) * .4, 2.6, tc, 0); }
@@ -1057,7 +1253,7 @@ export function createView(el, opt = {}){
     for (const f of flats){ root.remove(f.m); f.m.material.dispose(); } flats.length = 0;
     for (const b of beams){ root.remove(b.m); b.m.material.dispose(); } beams.length = 0;
     for (const z of zaps){ root.remove(z.m); z.m.material.dispose(); } zaps.length = 0; pools.length = 0;
-    for (const d of dying) root.remove(d.g); dying.length = 0; intro = opt.reduced ? 9 : 0; punch.t = 0;
+    for (const d of dying) root.remove(d.p); dying.length = 0; chunk.clear(); shard.clear(); intro = opt.reduced ? 9 : 0; punch.t = 0;
     for (const [id, r] of [...trapRecs]) dropTrap(id, r); for (const p of pops) root.remove(p.g); pops.length = 0;
     resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false); pT = pN = pSlow = 0; pHold = 3500;
     resize(); setMap(map);
@@ -1083,5 +1279,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, panOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get gl(){ return renderer; } };
+  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, panOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get dying(){ return dying.length; }, get gl(){ return renderer; } };
 }

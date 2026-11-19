@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1119a';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119a';
-import { createAI } from './ai.js?v=1119a';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119a';
-import { Cloud, cloudWhy } from './cloud.js?v=1119a';
-import { sayFor, sayWhen } from './talk.js?v=1119a';
-import { createAudio } from './audio.js?v=1119a';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1119b';
+import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119b';
+import { createAI } from './ai.js?v=1119b';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119b';
+import { Cloud, cloudWhy } from './cloud.js?v=1119b';
+import { sayFor, sayWhen } from './talk.js?v=1119b';
+import { createAudio } from './audio.js?v=1119b';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119a'), import('./models.js?v=1119a')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119b'), import('./models.js?v=1119b')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -1194,10 +1194,14 @@ function hear(e){
   else if (k === 'leap' || k === 'charge' || k === 'dodge') fx('throw', {rate:k === 'charge' ? .8 : 1, vol:1.3});
   else if (k === 'reflect' || k === 'shbreak' || k === 'trapx') fx('clang', {vol:k === 'shbreak' ? 1 : .6});
 }
-function hearDeath(o){                                   // the view calls this as a troop or a building goes
+function hearDeath(o, how){                              // the view calls this as a troop or a building goes, with what became of it
   if (!B || !o || !o.U || o.U.twr) return;
   const U = o.U, p = {pan:panAt(o.x, o.z)};
-  if (U.bld) fx('crash', p); else if (/^skel/.test(o.key)) fx('bones', p); else { fx('poof', p); if (U.role === 'giant' || U.role === 'tank') fx('thud', p); }
+  if (U.bld) fx('crash', p);
+  else if (how === 'bones' || /^skel/.test(o.key)) fx('bones', p);
+  else if (how === 'shards') fx('freeze', {...p, vol:.55, rate:1.6});          // ice breaking
+  else if (how === 'scrap'){ fx('clang', p); fx('boom', {...p, vol:.4, rate:1.3}); }
+  else { fx('poof', p); if (U.role === 'giant' || U.role === 'tank') fx('thud', p); }
 }
 function onEvents(ev){
   for (const e of ev){
