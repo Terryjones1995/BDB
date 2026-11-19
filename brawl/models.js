@@ -2,11 +2,11 @@
    makeModel(key, team, opts) -> {g, h, fly, turret, anim(t, s)}.  Models face +z.
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
-import { AFF, UNITS } from './cards.js?v=1119e';
-import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1119e';
+import { AFF, UNITS } from './cards.js?v=1119f';
+import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1119f';
 
 const PI = Math.PI;
-export const TEAM = [0x3d8bff, 0xff4b47];
+export const TEAM = [0x3d8bff, 0xff4b47, 0x3fcf62, 0xf2b630, 0xb36bff];      // you, them. In Battle Royale: you, then four others
 const GC = new Map(), MC = new Map(), TC = {};
 const geo = (k, f) => { let g = GC.get(k); if (!g){ g = f(); GC.set(k, g); } return g; };
 const SPH = (r, w = 18, h = 12) => geo(`s${r}|${w}`, () => new THREE.SphereGeometry(r, w, h));

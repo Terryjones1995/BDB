@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus, RAMPAGE, RAMP_AT, BOOSTS, BOOST_HAND, BOOST_EVERY, BOOST_R } from './cards.js?v=1119e';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus, RAMPAGE, RAMP_AT, BOOSTS, BOOST_HAND, BOOST_EVERY, BOOST_R } from './cards.js?v=1119f';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -15,10 +15,35 @@ export const KEYS = Object.keys(UNITS);
 export const OT_MANA = 4;
 export const manaRate = (left, ot) => ot ? OT_MANA : 1 + .5 * Math.min(4, Math.max(0, Math.floor((MATCH - left) / MANA_STEP)));      // and x4 for the whole of overtime
 
+/* Battle Royale. An eight-sided floor with its flats square to the axes: RING is how far the middle is from a flat. Every side has a King Tower RING_AT out from the middle,
+   evenly round it, side 0 nearest the camera, and two guard towers in front of it (RING_GUARD: how far forward and how far apart). You summon within RING_DROP of the
+   middle of your own ground. Six minutes on the clock, with Mana at double from the first second; then sudden death, where every King Tower left crumbles
+   (RING_FALL of its health a second) until one is standing. Your King Tower falls and you are out. RING_TWR: how much tougher than in a duel the towers are. */
+export const RING = 22, RING_AT = 19, RING_GUARD = [3.6, 5], RING_DROP = 7.4, RING_MATCH = 360, RING_OT = 90, RING_FALL = 1 / 85, RING_TWR = 1, RING_SIDES = 5;
+export const ringRate = (left, ot) => ot ? OT_MANA : Math.min(3, 2 + .5 * Math.max(0, Math.floor((RING_MATCH - left) / MANA_STEP)));
+export const ringAt = (i, n = RING_SIDES, r = RING_AT) => { const a = i / n * Math.PI * 2; return [-Math.sin(a) * r || 0, Math.cos(a) * r]; };
+/* a side's three towers: the King Tower, then the guard tower on its left and on its right as it faces the middle */
+export const ringTowers = (i, n = RING_SIDES) => { const [kx, kz] = ringAt(i, n), d = Math.hypot(kx, kz), ux = -kx / d, uz = -kz / d, [f, w] = RING_GUARD;
+  return [['king', kx, kz], ['princess', kx + ux * f - uz * w, kz + uz * f + ux * w], ['princess', kx + ux * f + uz * w, kz + uz * f - ux * w]]; };
+export const ringDrop = (i, n = RING_SIDES) => ringAt(i, n, RING_AT - 3.4);      // the middle of a side's own ground
+export const inRing = (x, z, m = 0) => Math.abs(x) <= RING - m && Math.abs(z) <= RING - m && Math.abs(x) + Math.abs(z) <= (RING - m) * Math.SQRT2;
+const RING_N = [[1, 0], [0, 1], [-1, 0], [0, -1], [Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, Math.SQRT1_2], [-Math.SQRT1_2, -Math.SQRT1_2], [Math.SQRT1_2, -Math.SQRT1_2]];
+/* the nearest point inside the floor, m in from the wall. Twice round the eight walls, so a point past a corner ends up in it */
+export function ringClamp(x, z, m = 0){
+  const lim = RING - m;
+  for (let k = 0; k < 2; k++) for (const [nx, nz] of RING_N){ const d = x * nx + z * nz - lim; if (d > 0){ x -= nx * d; z -= nz * d; } }
+  return [x, z];
+}
+
 function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 /* Can this team drop this card here? Pure, so the screens and the CPU can ask without a sim in hand. */
 export function canPlace(map, team, card, x, z, pocket){
+  if (map.ring){                                                             // Battle Royale: anything goes down near your own tower; spells, and whoever can drop in anywhere, go anywhere on the floor
+    if (!inRing(x, z, .4)) return false;
+    if (card.kind === 'spell' || (card.U && card.U.any)) return true;
+    const [bx, bz] = ringDrop(team, map.sides); return Math.hypot(x - bx, z - bz) <= RING_DROP;
+  }
   if (Math.abs(x) > W - .4 || Math.abs(z) > L - .4) return false;
   if (card.kind === 'spell' || (card.U && card.U.any)) return true;            // spells land anywhere, and so does anyone who can drop in behind the lines
   const zz = team === 0 ? z : -z, edge = riverOf(map) + .6;
@@ -44,10 +69,12 @@ export function orderProblem(e, t){
    (one against two, two against three). Left out, two decks are a duel and four are two a side. */
 export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl = [1, 1], boost = [], start = [], teams, boosts = []}){
   const map = MAPS[mapId], rnd = mulberry(seed), RW = riverOf(map) || RIVER;
+  const ring = !!map.ring, NT = ring ? decks.length : 2, MT = ring ? RING_MATCH : MATCH, OT = ring ? RING_OT : OVERTIME;      // ring: Battle Royale, every deck a side of its own
   let tick = 0, nid = 0, phase = 'play', over = false, winner = -1;
   const ents = [], byId = new Map(), projs = [], zones = [], traps = [];
   let events = [];
-  const crowns = [0, 0];
+  const crowns = Array(NT).fill(0);                        // towers taken. In Battle Royale: sides knocked out
+  const alive = Array(NT).fill(true), place = Array(NT).fill(0), fell = [];      // Battle Royale: who is still in, where each side finished, and who went out this tick
   const emit = o => events.push(o);
 
   const tally = decks.map(() => ({}));                     // per player: damage done to the other side, by the kind of troop that did it
@@ -64,13 +91,17 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     return {el:clamp(start[i] ?? 5, 0, MAX_EL), hand:q.splice(0, HAND), next:q.shift(), queue:q, played:0, idle:0, bon, bq, bh:[], bn:T(BOOST_EVERY)};
   });
 
-  const sides = teams || (decks.length > 2 ? decks.map((d, i) => i < decks.length / 2 ? 0 : 1) : [0, 1]);
+  const sides = ring ? decks.map((d, i) => i) : teams || (decks.length > 2 ? decks.map((d, i) => i < decks.length / 2 ? 0 : 1) : [0, 1]);
   const tm = pid => sides[pid];
+  /* where a side's own end is, and which way it faces from there. A duel has two ends; in Battle Royale every side looks in at the middle from its tower */
+  const BASE = ring ? sides.map(t => ringAt(t, map.sides)) : [[0, L - 3], [0, 3 - L]];
+  const FACE = BASE.map(([x, z]) => { const d = Math.hypot(x, z) || 1; return ring ? [-x / d, -z / d] : [0, -z / d]; });
+  const HOME = ring ? sides.map(t => ringAt(t, map.sides, RING_AT - 2.6)) : null;      // Battle Royale: where a troop thrown back to its own tower lands
   function add(key, team, x, z, lvl, dep = DEPLOY, aff = 'std', pid = team, bm = 1, cb = ''){
     const U = unitVar(key, aff), m = lvlMul(lvl) * bm, hp = Math.round(U.hp * m);
     const e = {id:++nid, key, U, team, pid, bm, cb, x, z, lvl, hp, max:hp, dmg:Math.round(U.dmg * m), d0:Math.round(U.dmg * m),
-      cd:0, tgt:0, dep, frz:0, rage:0, slow:0, lock:false, fx:0, fz:team === 0 ? -1 : 1, mv:false, run:0, chg:false, active:key !== 'king',
-      sh:U.shield ? Math.round(U.shield * m) : 0, wd:0, bt:0, bd:0, pt:0, pd:0, mk:0, hid:!!U.stealth, ht:0, hits:0, rs:0, rt:0, gs:0, rev:0, lp:0, jmp:false, rn:0, rc:0, by:0, wk:0, ft:0, mt:0, gd:0, tb:0, ln:Math.abs(x) >= 1.2 ? (x > 0 ? 1 : -1) : 0};
+      cd:0, tgt:0, dep, frz:0, rage:0, slow:0, lock:false, fx:FACE[team][0], fz:FACE[team][1], mv:false, run:0, chg:false, active:key !== 'king',
+      sh:U.shield ? Math.round(U.shield * m) : 0, wd:0, bt:0, bd:0, pt:0, pd:0, mk:0, hid:!!U.stealth, ht:0, hits:0, rs:0, rt:0, gs:0, rev:0, lp:0, jmp:false, rn:0, rc:0, by:0, wk:0, ft:0, mt:0, gd:0, tb:0, ln:!ring && Math.abs(x) >= 1.2 ? (x > 0 ? 1 : -1) : 0};      // the side of the field it keeps to (not in Battle Royale, which has no sides)
     if (U.spawn) e.sp = T(U.spawn.first ?? U.spawn.every);
     if (U.heal) e.hl = T(U.heal.every);
     if (U.mana) e.mn = T(U.mana.every);
@@ -80,16 +111,22 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     ents.push(e); byId.set(e.id, e);
     return e;
   }
-  const towers = [[], []];
-  for (const team of [0, 1]) for (const [k, x, z] of TOWER_AT){
+  const towers = Array.from({length:NT}, () => []);
+  if (ring) for (let team = 0; team < NT; team++) for (const [k, x, z] of ringTowers(team, map.sides)){      // a King Tower and two guard towers a side, as in a duel
+    const b = boost[team] || {}, e = add(k, team, x, z, towerLvl[team] ?? 1, 0);
+    e.hp = e.max = Math.round(e.max * RING_TWR * (b.hp || 1)); if (b.dmg) e.dmg = e.d0 = Math.round(e.dmg * b.dmg);
+    towers[team].push(e);
+  }
+  else for (const team of [0, 1]) for (const [k, x, z] of TOWER_AT){
     const s = team === 0 ? 1 : -1, b = boost[team] || {}, e = add(k, team, x * s, z * s, towerLvl[team], 0);
     if (b.hp){ e.hp = e.max = Math.round(e.max * b.hp); } if (b.dmg) e.dmg = e.d0 = Math.round(e.dmg * b.dmg);
     towers[team].push(e);
   }
   const kingOf = t => towers[t][0];
-  const pocket = team => { const en = towers[1 - team]; return [en[2].hp <= 0, en[1].hp <= 0]; };
+  const pocket = team => { if (ring) return [false, false]; const en = towers[1 - team]; return [en[2].hp <= 0, en[1].hp <= 0]; };
   // towers[1] sits mirrored: its index 1 is at +x, index 2 at -x. For team 0 looking at x<0 that is towers[1][2].
 
+  const BX = ring ? RING : W, BZ = ring ? RING : L;        // the box the floor fits in
   /* ---------- river and bridges ---------- */
   const side = z => z >= RW ? 1 : z <= -RW ? -1 : 0;
   const bridgeAt = x => map.bridges.find(b => Math.abs(x - b.x) <= b.w / 2);
@@ -108,6 +145,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     return [bx, su * (RW + .3)];
   }
   function constrain(e, px, pz){
+    if (ring){ [e.x, e.z] = ringClamp(e.x, e.z, e.U.r * .5 + .1); return; }
     e.x = clamp(e.x, -W + e.U.r * .5, W - e.U.r * .5); e.z = clamp(e.z, -L + .3, L - .3);
     if (!map.river || e.U.fly || Math.abs(e.z) >= RW) return;
     if (bridgeAt(e.x)) return;
@@ -116,6 +154,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
   /* thrown, pulled or landed somewhere it cannot stand: put it on the nearer bank */
   function ashore(e, toward){
+    if (ring){ [e.x, e.z] = ringClamp(e.x, e.z, e.U.r * .5 + .1); return; }
     e.x = clamp(e.x, -W + e.U.r * .5, W - e.U.r * .5); e.z = clamp(e.z, -L + .3, L - .3);
     if (map.river && !e.U.fly && Math.abs(e.z) < RW && !bridgeAt(e.x)) e.z = ((toward ?? e.z) >= 0 ? 1 : -1) * RW;
   }
@@ -228,7 +267,17 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
         emit({e:'raise', id:e.id, x:o.x, z:o.z}); break;
       }
     }
-    if (U.twr){
+    if (U.twr && ring && o.key !== 'king'){                                  // Battle Royale, a guard tower: the King Tower behind it wakes up
+      emit({e:'tower', team:o.team, king:false, x:o.x, z:o.z});
+      const k = kingOf(o.team); if (k && !k.active && k.hp > 0){ k.active = true; emit({e:'king', team:o.team}); }
+    } else if (U.twr && ring){                                                // Battle Royale, the King Tower: that side is out, and finishes one place behind everyone still standing
+      if (!over && alive[o.team]){
+        const n = alive.filter(Boolean).length, kp = by && by.pid != null && sides[by.pid] !== o.team && alive[sides[by.pid]] ? by.pid : -1;
+        alive[o.team] = false; place[o.team] = n; fell.push(o.team); if (kp >= 0) crowns[sides[kp]]++;
+        emit({e:'tower', team:o.team, king:true, x:o.x, z:o.z}); emit({e:'out', team:o.team, by:kp, place:n, left:n - 1});
+        if (n <= 2){ const w = alive.indexOf(true); if (w >= 0) place[w] = 1; finish(w); }
+      }
+    } else if (U.twr){
       crowns[1 - o.team] = o.key === 'king' ? 3 : Math.min(3, crowns[1 - o.team] + 1);
       emit({e:'tower', team:o.team, king:o.key === 'king', x:o.x, z:o.z});
       const k = kingOf(o.team);
@@ -271,7 +320,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (tr.kind === 'slip'){ for (const o of all){ o.frz = Math.max(o.frz, T(tr.stun)); hurt(o, tr.dmg, null, 'area'); } }
     else if (tr.kind === 'snap'){ for (const o of all) hurt(o, tr.dmg, null, 'area'); }
     else if (tr.kind === 'bounce' && hit.hp > 0){                                                 // back to in front of their own king tower
-      hit.x = clamp(hit.x * .45, -2.6, 2.6); hit.z = (hit.team === 0 ? 1 : -1) * (L - 5.6); hit.frz = Math.max(hit.frz, T(tr.stun)); hit.tgt = 0; hit.lock = false; hit.run = 0; hit.chg = false; hit.lp = 0;
+      if (ring) [hit.x, hit.z] = HOME[hit.team]; else { hit.x = clamp(hit.x * .45, -2.6, 2.6); hit.z = (hit.team === 0 ? 1 : -1) * (L - 5.6); } hit.frz = Math.max(hit.frz, T(tr.stun)); hit.tgt = 0; hit.lock = false; hit.run = 0; hit.chg = false; hit.lp = 0;
       emit({e:'warp', id:hit.id, x:hit.x, z:hit.z});
       hurt(hit, tr.dmg, null, 'area');
     }
@@ -283,7 +332,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
   /* each player's troop that did the most damage in the match: [unit key, damage], or null if nothing of theirs landed a blow */
   const mvp = () => tally.map(t => { let k = null, v = 0; for (const q in t) if (t[q] > v){ v = t[q]; k = q; } return k ? [k, Math.round(v)] : null; });
-  function finish(w){ if (over) return; over = true; winner = w; phase = 'over'; for (const f of feats) for (const k in f) f[k].d = Math.round(f[k].d); emit({e:'over', w, cr:crowns.slice(), mv:mvp(), ft:feats}); }
+  function finish(w){ if (over) return; over = true; winner = w; phase = 'over'; for (const f of feats) for (const k in f) f[k].d = Math.round(f[k].d); emit(ring ? {e:'over', w, cr:crowns.slice(), mv:mvp(), ft:feats, pl:place.slice()} : {e:'over', w, cr:crowns.slice(), mv:mvp(), ft:feats}); }
 
   /* ---------- targeting ---------- */
   const ok = (e, o) => o && o.hp > 0 && o.dep <= 0 && !o.hid && !(o.U.fly && !e.U.air) && !(e.U.only === 'b' && !o.U.bld);
@@ -291,7 +340,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
      Something that cannot be ignored (a taunt) still cannot be ignored. */
   function order(pid, uid, tid){
     const e = byId.get(uid), t = tid ? byId.get(tid) : null;
-    if (over || !e || sides[e.pid] !== sides[pid] || e.hp <= 0 || e.U.twr || !e.U.dmg) return false;
+    if (over || !e || sides[e.pid] !== sides[pid] || !alive[sides[pid]] || e.hp <= 0 || e.U.twr || !e.U.dmg) return false;
     if (!tid){ if (!e.ord) return false; e.ord = 0; e.lock = false; emit({e:'order', id:uid, t:0, pid}); return true; }
     if (orderProblem(e, t)) return false;
     e.ord = tid; e.lock = false; if (!e.U.bld) e.tgt = tid; emit({e:'order', id:uid, t:tid, pid});
@@ -325,6 +374,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
      Never across the field to the other guard tower, however near it happens to be. Its side is the one it was last on (e.ln), so a troop
      funnelled over a bridge in the middle still knows where it came from; one that has only ever been in the middle takes the nearer guard tower. */
   function laneTower(e){
+    if (ring){ let g = null, gd = 1e9; for (let t = 0; t < NT; t++){ if (t === e.team) continue; for (const k of towers[t]){ if (k.hp <= 0) continue; const d = gap(e, k); if (d < gd){ gd = d; g = k; } } } return g; }      // Battle Royale: whichever tower is nearest
     if (Math.abs(e.x) >= 1.2) e.ln = e.x > 0 ? 1 : -1;
     const en = towers[1 - e.team]; let g = null;
     for (const t of [en[1], en[2]]) if (t.hp > 0 && (!e.ln || (t.x > 0) === (e.ln > 0)) && (!g || gap(e, t) < gap(e, g))) g = t;
@@ -397,7 +447,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (u.lock && t.U.bld && t.hp > 0) t.frz = Math.max(t.frz, T(u.lock));      // the door is locked: that building or tower cannot fire for a moment
       if (u.leech && t.U.twr){ const pl = players[src.pid]; if (pl){ pl.el = Math.min(MAX_EL, pl.el + u.leech); emit({e:'mana', id:src.id, amt:u.leech, pid:src.pid, steal:1}); } }
     }
-    if (p.eject && t.hp > 0 && !t.U.twr){ t.x = clamp(t.x * .45, -2.6, 2.6); t.z = (t.team === 0 ? 1 : -1) * (L - 5.6); t.frz = Math.max(t.frz, T(1)); t.tgt = 0; t.lock = false; t.run = 0; t.chg = false; t.lp = 0; emit({e:'warp', id:t.id, x:t.x, z:t.z}); }      // sent off: back to its own king tower
+    if (p.eject && t.hp > 0 && !t.U.twr){ if (ring) [t.x, t.z] = HOME[t.team]; else { t.x = clamp(t.x * .45, -2.6, 2.6); t.z = (t.team === 0 ? 1 : -1) * (L - 5.6); } t.frz = Math.max(t.frz, T(1)); t.tgt = 0; t.lock = false; t.run = 0; t.chg = false; t.lp = 0; emit({e:'warp', id:t.id, x:t.x, z:t.z}); }      // sent off: back to its own king tower
     const sky = u.shot === 'sky';
     if (u.chain || sky){                                                    // the bolt jumps on to whoever is nearest, a little weaker each time
       const done = new Set([t.id]), pts = [[t.x, t.z, t.U.fly ? 1 : 0]]; let from = t, d = p.dmg;
@@ -439,7 +489,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     if (a.shield) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.twr && near(o, e.x, e.z, a.r)) o.sh = Math.max(o.sh, Math.round(a.shield * lv));
     if (a.rage) for (const o of ents) if (o.team === e.team && o.hp > 0 && !o.U.bld && near(o, e.x, e.z, a.r)) o.rage = Math.max(o.rage, T(a.rage));
     if (a.summon) for (let i = 0; i < a.summon.n; i++){ const ring = Math.floor(i / 10), per = Math.min(10, a.summon.n - ring * 10), q = 1.3 + ring * .85, an = (i % 10) / per * 6.283 + .4 + ring * .31;      // ten to a ring, each ring further out
-      const n = add(a.summon.u, e.team, clamp(e.x + Math.cos(an) * q, -W + .4, W - .4), clamp(e.z + Math.sin(an) * q, -L + .4, L - .4), e.lvl, 8 + ring * 3, U.aff, e.pid, e.bm, e.cb); n.by = e.id; e.rn++; ashore(n, e.z); }
+      const n = add(a.summon.u, e.team, clamp(e.x + Math.cos(an) * q, -BX + .4, BX - .4), clamp(e.z + Math.sin(an) * q, -BZ + .4, BZ - .4), e.lvl, 8 + ring * 3, U.aff, e.pid, e.bm, e.cb); n.by = e.id; e.rn++; ashore(n, e.z); }
     emit({e:'land', id:e.id, x:e.x, z:e.z, r:a.r, k:a.stun ? 'stun' : a.burn ? 'fire' : a.slow ? 'frost' : a.weak || a.rage ? 'roar' : a.shield ? 'shield' : a.summon ? 'summon' : 'slam'});
   }
 
@@ -475,14 +525,14 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     else if (k === 'fire') area(zn.x, zn.z, zn.r, zn.dmg, zn.team, {air:false, twr:zn.twr, how:'dot', fire:1});
     else if (k === 'tornado') area(zn.x, zn.z, zn.r, zn.dmg, zn.team, {air:true, twr:0, bld:0, how:'dot'});
     else if (k === 'heal'){ let any = false; for (const o of ents) if (o.team === zn.team && o.hp > 0 && !o.U.bld && o.hp < o.max && near(o, zn.x, zn.z, zn.r)){ o.hp = Math.min(o.max, o.hp + zn.heal); any = true; } if (any) emit({e:'heal', x:zn.x, z:zn.z, r:zn.r}); }
-    else if (k === 'grave'){ const a = rnd() * 6.283, q = Math.sqrt(rnd()) * zn.r * .85, n = add(zn.u, zn.team, clamp(zn.x + Math.cos(a) * q, -W + .5, W - .5), clamp(zn.z + Math.sin(a) * q, -L + .5, L - .5), zn.lvl, 12, zn.aff, zn.pid, zn.bm, zn.cb); ashore(n, zn.team === 0 ? 1 : -1); emit({e:'raise', id:0, x:n.x, z:n.z}); }
+    else if (k === 'grave'){ const a = rnd() * 6.283, q = Math.sqrt(rnd()) * zn.r * .85, n = add(zn.u, zn.team, clamp(zn.x + Math.cos(a) * q, -BX + .5, BX - .5), clamp(zn.z + Math.sin(a) * q, -BZ + .5, BZ - .5), zn.lvl, 12, zn.aff, zn.pid, zn.bm, zn.cb); ashore(n, zn.team === 0 ? 1 : -1); emit({e:'raise', id:0, x:n.x, z:n.z}); }
   }
 
   /* ---------- one tick ---------- */
   function step(){
     if (over) return;
     tick++;
-    const left = timeLeft(), rate = manaRate(left, phase === 'ot');
+    const left = timeLeft(), rate = ring ? ringRate(left, phase === 'ot') : manaRate(left, phase === 'ot');
     for (let i = 0; i < players.length; i++){ const p = players[i]; p.idle++; p.el = Math.min(MAX_EL, p.el + DT / 2.8 * rate * (p.idle > PATIENT ? 1.3 : 1) * (elMul[i] ?? 1));    // holding off on summoning charges Mana faster
       if (p.bq.length || p.bh.length){                          // a Boost every so often, for as long as there is room in the hand. One that is due waits for room
         if (p.bn > 0) p.bn--;
@@ -565,8 +615,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       if (U.berserk) fast *= 1 + (1 - e.hp / e.max) * .9;
       if (U.spawn && (e.sp -= fast) <= 0){
         e.sp = T(U.spawn.every);
-        const s = e.team === 0 ? -1 : 1;
-        for (let k = 0; k < U.spawn.n; k++){ const a = (k / U.spawn.n - .5) * 1.4; constrain(add(U.spawn.u, e.team, e.x + Math.sin(a) * 1.1, e.z + s * (U.r + .5) * Math.cos(a), e.lvl, 8, U.aff, e.pid, e.bm, e.cb), e.x, e.z); }
+        const [fx, fz] = FACE[e.team];                                           // out of the side that faces the fight
+        for (let k = 0; k < U.spawn.n; k++){ const a = (k / U.spawn.n - .5) * 1.4, f = (U.r + .5) * Math.cos(a), w = Math.sin(a) * 1.1; constrain(add(U.spawn.u, e.team, e.x + fx * f + (ring ? -fz * w : w), e.z + fz * f + (ring ? fx * w : 0), e.lvl, 8, U.aff, e.pid, e.bm, e.cb), e.x, e.z); }
         emit({e:'summon', id:e.id});
       }
       if (U.heal && --e.hl <= 0){
@@ -636,9 +686,25 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       constrain(a, px, pz);
     }
 
+    if (ring && !over){
+      if (phase === 'play' && tick >= MT * TPS){ phase = 'ot'; emit({e:'ot'}); }
+      if (phase === 'ot'){                                                    // sudden death: every King Tower left crumbles. The weakest goes first; level, and it is whoever has done less
+        const dealt = t => { let v = 0; for (let i = 0; i < players.length; i++) if (sides[i] === t) for (const k in tally[i]) v += tally[i][k]; return v; };
+        const ks = towers.map(t => t[0]).filter(k => k.hp > 0).sort((a, b) => a.hp / a.max - b.hp / b.max || dealt(a.team) - dealt(b.team));
+        for (const k of ks){ if (over) break; k.active = true; k.hp -= k.max * RING_FALL * DT; if (k.hp <= 0) kill(k, null, 0, 'time'); }
+      }
+    }
+    if (fell.length){                                                         // a side that is out takes everything of its own with it: troops, buildings, traps, and any spell still on its way down
+      for (const t of fell){
+        for (const o of ents) if (o.team === t && o.hp > 0){ emit(o.U.twr ? {e:'tower', team:t, king:false, x:o.x, z:o.z, gone:1} : {e:'dead', id:o.id, k:'out', f:0}); o.hp = 0; o.gone = true; }
+        for (let i = traps.length - 1; i >= 0; i--) if (traps[i].team === t) traps.splice(i, 1);
+        for (let i = zones.length - 1; i >= 0; i--) if (zones[i].team === t) zones.splice(i, 1);
+      }
+      fell.length = 0;
+    }
     for (let i = ents.length - 1; i >= 0; i--) if (ents[i].hp <= 0){ byId.delete(ents[i].id); ents.splice(i, 1); }
 
-    if (!over){
+    if (!over && !ring){
       if (phase === 'play' && tick >= MATCH * TPS){
         if (crowns[0] !== crowns[1]) finish(crowns[0] > crowns[1] ? 0 : 1);
         else { phase = 'ot'; emit({e:'ot'}); }
@@ -648,13 +714,13 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
       }
     }
   }
-  const timeLeft = () => phase === 'ot' ? MATCH + OVERTIME - tick / TPS : phase === 'over' ? 0 : MATCH - tick / TPS;
+  const timeLeft = () => phase === 'ot' ? MT + OT - tick / TPS : phase === 'over' ? 0 : MT - tick / TPS;
 
   /* ---------- playing a card ---------- */
   /* pid is the player, and tm(pid) the side he is on: with four decks, players 0 and 1 share team 0 and players 2 and 3 share team 1. */
   function play(pid, slot, x, z){
     const p = players[pid], team = tm(pid), c = p && p.hand[slot];
-    if (over || !c) return false;
+    if (over || !c || !alive[team]) return false;
     const card = CARDS[c.id], bm = p.bon[card.type] || 1;
     if (p.el < card.cost || !canPlace(map, team, card, x, z, pocket(team))) return false;
     if (card.kind === 'build') for (const o of ents) if (o.U.bld && Math.hypot(o.x - x, o.z - z) < o.U.r + card.U.r + .1) return false;
@@ -699,7 +765,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   const boostable = (e, team, B, x, z) => e.team === team && e.hp > 0 && e.dep <= 0 && !e.U.bld && !e.U.twr && e.U.type === B.type && near(e, x, z, BOOST_R);
   function castBoost(pid, slot, x, z){
     const p = players[pid], id = p && p.bh[slot], B = id && BOOSTS[id];
-    if (over || !B || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+    if (over || !B || !Number.isFinite(x) || !Number.isFinite(z) || !alive[tm(pid)]) return false;
     const team = tm(pid), hit = ents.filter(e => boostable(e, team, B, x, z));
     if (!hit.length) return false;
     p.bh.splice(slot, 1); p.bq.push(id);
@@ -718,7 +784,9 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   }
 
   return {
-    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, order, boost:castBoost, buff, encode, pocket, sides, mvp, feats,
+    map, mapId, ents, byId, players, crowns, towers, traps, zones, step, play, order, boost:castBoost, buff, encode, pocket, sides, mvp, feats, ring, alive, place,
+    damage(id, d){ const e = byId.get(id); if (e && !over) hurt(e, d, null, 'area'); },      // for tests: hurts one unit or tower as a spell would
+    get rate(){ return ring ? ringRate(timeLeft(), phase === 'ot') : manaRate(timeLeft(), phase === 'ot'); },
     canPlace:(team, card, x, z) => canPlace(map, team, card, x, z, pocket(team)),
     drain(){ const ev = events; events = []; return ev; },
     get tick(){ return tick; }, get phase(){ return phase; }, get over(){ return over; }, get winner(){ return winner; },

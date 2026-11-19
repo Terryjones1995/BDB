@@ -499,9 +499,10 @@ export const MAPS = {
   hollow:  {name:'The Hollow',     river:true, rw:1.46, bridges:[{x:-6.46, w:2.14}, {x:6.46, w:2.14}], blurb:'Something green glows in the crack. Two bridges over it.'},
   foundry: {name:'The Foundry',    river:true, rw:1.05, bridges:[{x:-6.23, w:2.19}, {x:6.23, w:2.19}], blurb:'An iron floor and a thin river of fire. Easy to shoot across.'},
   cinder:  {name:'Cinder Keep',    river:true, rw:1.68, bridges:[{x:-6.69, w:2.85}, {x:6.69, w:2.85}], blurb:'A lot of lava, and the widest bridges there are.'},
-  heavens: {name:'Marble Heavens', river:true, rw:1.3, bridges:[{x:-7.02, w:1.57}, {x:7.02, w:1.57}], blurb:'White stone above the clouds. The bridges are one troop wide.'}
+  heavens: {name:'Marble Heavens', river:true, rw:1.3, bridges:[{x:-7.02, w:1.57}, {x:7.02, w:1.57}], blurb:'White stone above the clouds. The bridges are one troop wide.'},
+  ring:    {name:'The Octagon',    river:false, bridges:[], ring:true, sides:5, blurb:'Eight walls, five towers, no teams. Last one standing.'}      // Battle Royale only: never dealt as a duel map
 };
-export const MAP_IDS = Object.keys(MAPS);
+export const MAP_IDS = Object.keys(MAPS).filter(k => !MAPS[k].ring);
 
 /* ---------- drawing cards: packs, crates and CPU decks ---------- */
 export function weightedPick(ids, weightOf, rnd = Math.random){

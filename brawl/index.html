@@ -1160,6 +1160,37 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .insp.pick .ih{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .insp.pick .ih b{font-size:17px}
 .insp.pick p{margin-top:6px;font-size:11.5px;line-height:1.3}
+
+/* Battle Royale */
+.brpanel{display:grid;grid-template-columns:84px 1fr;gap:14px;align-items:center;background:linear-gradient(180deg,#4b5468,#2b3140)}
+.brpanel .br-oct{width:84px;height:84px;filter:drop-shadow(0 4px 0 var(--ink2))}
+.brpanel .note{margin:6px 0 10px}
+.br-seats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:6px 0 12px}
+.br-seat{text-align:center;font:800 12px/1.2 var(--f-body);min-width:0}
+.br-seat b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.br-seat .av{width:52px;height:52px;border-radius:50%;margin:0 auto 5px;border:4px solid var(--tc);background:#12306b;display:grid;place-items:center;font:400 22px/1 var(--f-display);color:#fff}
+.br-seat .av.bdb{background:url(../assets/face.jpg) center 32%/cover}
+.br-sk{display:flex;width:100%;margin:0 0 10px} .br-sk button{flex:1;min-width:0;padding:8px 2px;font-size:13px}
+.br-rules{margin:0 0 12px;padding-left:18px;text-align:left;font:600 13px/1.45 var(--f-body);color:#d6e6ff}
+.br-pay{text-align:left;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 14px;margin:0 0 14px;font:700 13px/1.3 var(--f-body)}
+.br-pay div{display:flex;gap:8px;align-items:baseline;min-width:0} .br-pay dt{font:400 15px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);min-width:34px} .br-pay dd{margin:0;color:#fff7c2}
+.br-pay .br1 dt{color:#ffd23f} .br-pay .br1{grid-column:1/-1} .br-pay .ko{grid-column:1/-1} .br-pay .ko dt{font:700 13px/1.3 var(--f-body);text-shadow:none;color:#d6e6ff}
+.br-pay .coin{width:14px;height:14px;vertical-align:-2px;margin-right:2px}
+#scrBattle.ring .crowns{display:none}
+.ringbar{display:none;position:absolute;right:8px;top:40%;z-index:6;transform:translateY(-50%);flex-direction:column;gap:5px;pointer-events:none;width:118px}
+#scrBattle.ring .ringbar{display:flex}
+.ringbar div{display:grid;grid-template-columns:1fr auto;gap:2px 6px;padding:5px 7px 6px;border-radius:10px;background:rgba(6,14,38,.72);border:2px solid var(--ink2);border-left:6px solid var(--tc)}
+.ringbar div.me{background:rgba(18,48,107,.85)}
+.ringbar b{font:400 12px/1 var(--f-game);color:#fff;text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.ringbar em{font:800 11px/1 var(--f-body);font-style:normal;color:#fff}
+.ringbar span{grid-column:1/-1;height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+.ringbar i{display:block;height:100%;background:var(--tc);transition:width .25s}
+.ringbar div.out{opacity:.5;border-left-color:#59606e} .ringbar div.out span{visibility:hidden}
+@media (max-width:759px){ #scrBattle.ring .k-say{top:100px} .ringbar{left:8px;right:8px;width:auto;top:64px;transform:none;flex-direction:row;gap:4px} .ringbar div{flex:1;min-width:0;padding:4px 5px 5px;border-left-width:4px;border-radius:8px} .ringbar b{font-size:11px} .ringbar em{display:none} }
+.res-ring{list-style:none;margin:10px auto 4px;padding:0;display:grid;gap:4px;max-width:340px;width:100%}
+.res-ring li{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(6,14,38,.45);border-left:6px solid var(--tc);text-align:left}
+.res-ring li.me{background:rgba(255,210,63,.18);outline:2px solid #ffd23f}
+.res-ring em{font:400 18px/1 var(--f-game);font-style:normal;color:#fff;text-shadow:var(--stroke)} .res-ring b{font:800 14px/1.2 var(--f-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .res-ring small{font:700 12px/1 var(--f-body);color:#ffd23f}
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
@@ -1237,6 +1268,12 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
         </div>
       </div>
       <div class="c3">
+        <div class="panel brpanel">
+          <svg class="br-oct" viewBox="0 0 100 100" aria-hidden="true"><path d="M30 6h40l24 24v40L70 94H30L6 70V30z" fill="#59606e" stroke="#0a1430" stroke-width="5"/><path d="M33 14h34l19 19v34L67 86H33L14 67V33z" fill="#3a404c"/><circle cx="50" cy="78" r="7" fill="#3d8bff" stroke="#0a1430" stroke-width="3"/><circle cx="23" cy="58" r="7" fill="#ff4b47" stroke="#0a1430" stroke-width="3"/><circle cx="33" cy="27" r="7" fill="#3fcf62" stroke="#0a1430" stroke-width="3"/><circle cx="67" cy="27" r="7" fill="#f2b630" stroke="#0a1430" stroke-width="3"/><circle cx="77" cy="58" r="7" fill="#b36bff" stroke="#0a1430" stroke-width="3"/></svg>
+          <div><span class="k-label">Battle Royale</span>
+          <p class="note">You and four BDBs in the Octagon. No teams, Mana x2 from the first second, last one standing wins.</p>
+          <button type="button" class="k-btn primary" id="brOpen">Battle Royale</button></div>
+        </div>
         <div class="panel">
           <span class="k-label">Quick battle</span>
           <p class="note" style="margin:0 0 12px">A BDB with a deck dealt at random, so no two fights are the same. The better he is, the more a win pays, and you can take on two or three at once for double or triple.</p>
@@ -1372,6 +1409,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
     <div class="clock" id="clock"><small id="clockLbl">Time left</small><b id="clockT">10:00</b></div>
     <div class="chip me"><span class="dot" id="meDot"></span><span class="nm2" id="meName">You</span></div>
   </div>
+  <div class="ringbar" id="ringBar" aria-hidden="true"></div>
   <div class="crowns" aria-hidden="true">
     <div><img alt="" src="ui/crown-r.webp"><b id="oppCr">0</b></div>
     <div><img alt="" src="ui/crown-b.webp"><b id="meCr">0</b></div>
@@ -1394,7 +1432,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <button type="button" class="hubtoast" id="hubToast" hidden></button>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1119e"></script>
+<script type="module" src="main.js?v=1119f"></script>
 <script>
 /* If the copy of the game kept on this device ever goes bad and the game does not start, throw the copy away and load again. Once, so a real outage does not loop. */
 setTimeout(function(){

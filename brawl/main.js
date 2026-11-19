@@ -1,13 +1,13 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
   lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, SELL_GOD, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT,
-  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119e';
-import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119e';
-import { createAI } from './ai.js?v=1119e';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119e';
-import { Cloud, cloudWhy } from './cloud.js?v=1119e';
-import { sayFor, sayWhen } from './talk.js?v=1119e';
-import { createAudio } from './audio.js?v=1119e';
+  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119f';
+import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA, RING_MATCH, RING_SIDES } from './sim.js?v=1119f';
+import { createAI } from './ai.js?v=1119f';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119f';
+import { Cloud, cloudWhy } from './cloud.js?v=1119f';
+import { sayFor, sayWhen } from './talk.js?v=1119f';
+import { createAudio } from './audio.js?v=1119f';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -81,7 +81,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119e'), import('./models.js?v=1119e')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119f'), import('./models.js?v=1119f')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -669,6 +669,7 @@ function hub(){
     $('bDeckLbl').textContent = deckOK() ? `Deck ${P.deck + 1}, average ${avgCost(curDeck())} Mana` : `Deck ${P.deck + 1} is not finished: ${curDeck().length} of ${DECK_SIZE} cards`;
     const bd = $('bDeck'); bd.innerHTML = ''; for (const id of curDeck()){ const c = cardEl(id, {lvl:lvl(id)}); c.onclick = () => sheet(id); bd.appendChild(c); }
     $('bSets').innerHTML = setsHTML(curDeck(), true);
+    $('brOpen').onclick = () => preRing();
     const qr = $('quickRow'); qr.innerHTML = '';
     for (const sk of SKILLS){ const b = document.createElement('button'); b.type = 'button'; b.className = 'k-btn sk-' + sk.id; b.innerHTML = `${sk.name}<small>${COIN}${sk.coins}</small><em>${sk.pack ? 'card and a chest' : sk.card ? 'and a card' : 'coins'}</em>`; b.onclick = () => preCpu(randomCpu(sk.id, myTower())); qr.appendChild(b); }
   } else if (curTab === 'Deck'){
@@ -970,13 +971,14 @@ function whatsNew(){
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
   return true;
 }
-/* What is new is told once, and only the parts a save has not heard yet: Boosts (n18), then orders, rampages and card goals (n17), then the odds and real sound (n16). */
+/* What is new is told once, and only the parts a save has not heard yet: Battle Royale (n19), Boosts (n18), then orders, rampages and card goals (n17), then the odds and real sound (n16). */
 function newsNote(){
-  if (P.flags.n18) return false;
-  const mid = !P.flags.n17, old = !P.flags.n16, due = msDue().length;
-  P.flags.n15 = P.flags.n16 = P.flags.n17 = P.flags.n18 = 1; save();
+  if (P.flags.n19) return false;
+  const mid = !P.flags.n17, old = !P.flags.n16, bst = !P.flags.n18, due = msDue().length;
+  P.flags.n15 = P.flags.n16 = P.flags.n17 = P.flags.n18 = P.flags.n19 = 1; save();
   const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More ways to win, ${esc(P.name)}</h3>
-    <ul class="abil"><li><b>Boosts.</b> A second, small deck that costs no Mana. One Boost is dealt every ${BOOST_EVERY} seconds of a match. Tap it, then tap your troops: it works on the type it names. Speed, a shield, health back, a second chance. You have been given twelve, and they are under your deck on the Deck tab. The Market has the other ${fmt(BOOST_IDS.length - 12)}.</li>
+    <ul class="abil"><li><b>Battle Royale.</b> You and four BDBs in the Octagon, one tower each and no teams. Mana is x2 from the first second. Lose your tower and you are out; last one standing wins. It is on the Battle tab.</li>
+    ${bst ? `<li><b>Boosts.</b> A second, small deck that costs no Mana. One Boost is dealt every ${BOOST_EVERY} seconds of a match. Tap it, then tap your troops: it works on the type it names. Speed, a shield, health back, a second chance. You have been given twelve, and they are under your deck on the Deck tab. The Market has the other ${fmt(BOOST_IDS.length - 12)}.</li>` : ''}
     ${mid ? `<li><b>Give orders.</b> In a match, tap one of your troops, then tap an enemy troop, building or tower. It goes for that and nothing else. Tap the troop again to call it off.</li>
     <li><b>Rampage.</b> A troop that takes down ${RAMP_AT[0]} enemies in one life goes on a rampage. Its type decides what it gets, and at ${RAMP_AT[1]} it steps up again. Every troop's card says which.</li>
     <li><b>Card goals.</b> Every card has four goals that each pay coins once, ${fmt(GOAL_COUNT)} in all. They are on the Battle tab and on every card.</li>
@@ -1192,6 +1194,46 @@ function preCpu(cpu, odds = 1){
   };
 }
 
+/* ---------- Battle Royale: you and four BDBs in the Octagon ----------
+   They are dealt at random at the level picked, like a quick battle. Pay goes by where you finish, with a bonus for every side you knock out yourself.
+   Only the winner gets the level's card and chest. */
+const RCOL = ['#3d8bff', '#ff4b47', '#3fcf62', '#f2b630', '#b36bff'], PLC = ['', '1st', '2nd', '3rd', '4th', '5th'];
+const RING_PAY = [0, 3.5, 1.6, .8, .4], RING_KO = .3;
+const RING_TALK = {start:["Five towers, no teams. If I were you I'd watch all four of us.", "Everybody for themselves. That's how I run the break room anyway.", "I'm not saying I'll gang up on you. I'm saying I might."],
+  win:["Last one standing. That was you? Fine. Enjoy it.", "You outlasted all four of us. I'm telling people it was three."],
+  out:["Out already? There's a seat by me. Watch the rest.", "That's your tower gone. Take a seat, champ."], mid:["Close. Not close enough, but close.", "A podium finish is still a finish. Kind of."]};
+let ringSk = 'medium';
+const ringPay = (S, pl) => pl >= 5 ? S.lose : Math.round(S.coins * RING_PAY[pl] / 5) * 5;
+function preRing(sk = ringSk){
+  if (noDeck()) return;
+  ringSk = SKILLS.some(k => k.id === sk) ? sk : 'medium';
+  const S = SKILLS.find(k => k.id === ringSk), names = new Set(), cpus = [];
+  while (cpus.length < RING_SIDES - 1){ const c = randomCpu(ringSk, myTower()); if (names.has(c.name) && names.size < 20) continue; names.add(c.name); cpus.push(c); }
+  const seats = [{name:P.name}, ...cpus];
+  const b = dlg(`<div class="k-eyebrow">${esc(MAPS.ring.name)}. Battle Royale</div><h3>You against four BDBs</h3>
+    <div class="br-seats">${seats.map((c, i) => `<div class="br-seat" style="--tc:${RCOL[i]}"><span class="av${i ? ' bdb' : ''}">${i ? '' : esc(P.name[0].toUpperCase())}</span><b>${esc(i ? c.name.replace(/ BDB$/, '') : 'You')}</b></div>`).join('')}</div>
+    <div class="k-seg br-sk" id="brSk" role="group" aria-label="How good the BDBs are">${SKILLS.map(k => `<button type="button" data-sk="${k.id}" aria-pressed="${k.id === ringSk}">${esc(k.name)}</button>`).join('')}</div>
+    <ul class="br-rules"><li>Five towers and no teams. Anyone can hit anyone.</li><li>Mana comes in at x2 from the first second.</li><li>Summon inside your own ring. Tap a troop, then a target, to send it anywhere.</li><li>Lose your tower and you are out. Last one standing wins.</li><li>After ${RING_MATCH / 60} minutes every tower starts to crumble.</li></ul>
+    <dl class="br-pay">${[1, 2, 3, 4, 5].map(pl => `<div${pl === 1 ? ' class="br1"' : ''}><dt>${PLC[pl]}</dt><dd>${COIN}${fmt(ringPay(S, pl))}${pl === 1 && S.pack ? `, ${esc(PACK[S.pack].name)}` : ''}${pl === 1 && S.card ? ', one of their cards' : ''}</dd></div>`).join('')}<div class="ko"><dt>Each side you knock out</dt><dd>+${COIN}${fmt(Math.round(S.coins * RING_KO / 5) * 5)}</dd></div></dl>
+    <div class="k-row"><button type="button" class="k-btn primary big" id="brGo">Start</button><button type="button" class="k-btn" id="brNo">Back</button></div>`);
+  b.querySelector('#brSk').onclick = e => { const q = e.target.closest('button[data-sk]'); if (!q || q.dataset.sk === ringSk) return; BDB.sfx.tick(); preRing(q.dataset.sk); };
+  b.querySelector('#brNo').onclick = () => dlgClose();
+  b.querySelector('#brGo').onclick = () => {
+    dlgClose();
+    const prize = S.card ? weightedPick(pick(cpus).deck, id => DRAW_W[CARDS[id].rar]) : null;
+    begin({mode:'cpu', ring:true, skill:ringSk, cpu:{...cpus[0], rand:true}, cpus, prize:prize ? [prize] : [], map:'ring', oppName:'Four BDBs', rnames:['You', ...cpus.map(c => c.name.replace(/ BDB$/, ''))], units:unitsOf([...curDeck(), ...cpus.flatMap(c => c.deck)])});
+  };
+}
+function ringHud(){
+  const s = B && B.sim, el = $('ringBar'); if (!s || !s.ring || !el) return;
+  s.towers.forEach((t, i) => {
+    const k = t[0], row = el.children[i]; if (!row || !k) return;
+    const out = !s.alive[i], f = out ? 0 : Math.max(0, k.hp / k.max), key = out ? 'o' + s.place[i] : String(Math.ceil(f * 100));
+    if (row.dataset.k === key) return; row.dataset.k = key;
+    row.classList.toggle('out', out); row.querySelector('i').style.width = (f * 100).toFixed(1) + '%'; row.querySelector('em').textContent = out ? PLC[s.place[i]] : Math.ceil(f * 100) + '%';
+  });
+}
+
 /* ---------- the match ---------- */
 let B = null, raf = 0, lastT = 0, ticker = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1200,10 +1242,12 @@ const bdbBoosts = c => (c.level && c.level <= 10) || c.skill === 'easy' ? [] : c
 async function begin(o){
   A.music('off');
   const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, bsel:-1, bstKey:'', over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
-  B.coach = o.mode === 'cpu' && (Q.get('coach') || (!P.flags.coach && !Q.get('skip') && !Q.get('fast') && P.stats.w + P.stats.l + P.stats.d === 0)) ? {step:0, at:0} : null; B.hold = !!B.coach; coachOff();
+  B.coach = o.mode === 'cpu' && !o.ring && (Q.get('coach') || (!P.flags.coach && !Q.get('skip') && !Q.get('fast') && P.stats.w + P.stats.l + P.stats.d === 0)) ? {step:0, at:0} : null; B.hold = !!B.coach; coachOff();
   if (o.mode === 'host') B.ready = new Promise(res => { B.rdRes = res; });
   ordSel = 0; show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('bstBar').hidden = true; $('bstTray').innerHTML = ''; $('scrBattle').classList.remove('boosts'); $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
+  $('scrBattle').classList.toggle('ring', !!o.ring);
+  $('ringBar').innerHTML = o.ring ? o.rnames.map((n, i) => `<div style="--tc:${RCOL[i]}"${i ? '' : ' class="me"'}><b>${esc(n)}</b><span><i></i></span><em>100%</em></div>`).join('') : '';
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
   const w = $('wait'), tip = `<p class="tip"><em>Tip</em>${esc(pick(TIPS))}</p>`; w.hidden = false; w.innerHTML = vsCard(o, tip + '<p class="ld">Bringing both decks onto the field.</p>');
   if (MD && V && o.units) try { await Promise.all([MD.needModels(o.units, Q.get('fast') ? 60000 : 25000), V.needFloor(o.map)]); } catch(e){}
@@ -1211,7 +1255,13 @@ async function begin(o){
   if (V) V.reset(B.team, o.map);
   if (V && o.units){ try { await Promise.race([V.warm(o.units), sleep(9000)]); } catch(e){} if (B !== me) return; }      // build every shader and send every model to the graphics card now, not mid-match
   B.ais = [];
-  if (o.coop && o.mode === 'host'){                       // you and a friend against two BDBs, or three for a handicap. Two decks a side, so both sides' towers are tougher
+  if (o.ring){                                            // Battle Royale: five decks, five sides. Your player upgrades count, as they do against BDB anywhere
+    const cs = o.cpus, k = P.perks;
+    B.sim = createSim({map:o.map, decks:[myDeck(), ...cs.map(c => c.deck.map(id => ({id, lvl:c.lvl})))], seed:(Math.random() * 2 ** 31) | 0, boosts:[curBoosts(), ...cs.map(bdbBoosts)],
+      elMul:[1 + k.flow * PERKS.flow.per, ...cs.map(c => c.ai.el)], start:[5 + k.start * PERKS.start.per, ...cs.map(() => 5)], towerLvl:[myTower(), ...cs.map(c => c.tower)],
+      boost:[{hp:1 + k.hp * PERKS.hp.per, dmg:1 + k.dmg * PERKS.dmg.per}, ...cs.map(() => ({}))]});
+    B.ais = cs.map((c, i) => createAI(B.sim, i + 1, c.ai, Math.random, i + 1));
+  } else if (o.coop && o.mode === 'host'){                       // you and a friend against two BDBs, or three for a handicap. Two decks a side, so both sides' towers are tougher
     const cs = o.cpus, O = TEAM_ODDS[cs.length], dk = c => c.deck.map(id => ({id, lvl:c.lvl}));
     B.sim = createSim({map:o.map, decks:[myDeck(), o.oppDeck, ...cs.map(dk)], teams:[0, 0, ...cs.map(() => 1)], seed:(Math.random() * 2 ** 31) | 0, elMul:[1, 1, ...cs.map(c => c.ai.el * O.el)], start:[5, 5, ...cs.map(() => 5 * O.el)], boosts:[curBoosts(), o.oppBoosts || [], ...cs.map(bdbBoosts)],
       towerLvl:[o.teamTower || myTower(), cs[0].tower || cs[0].lvl], boost:[{hp:TEAM_TOWERS}, {hp:TEAM_TOWERS * (cs[0].soft || 1)}]});
@@ -1230,7 +1280,7 @@ async function begin(o){
   if (o.mode === 'guest' && room) room.send('rd', {}, OL && OL.opp);
   if (o.mode === 'host'){ const ld = w.querySelector('.ld'); if (ld) ld.textContent = `Waiting for ${o.mate || o.oppName} to load in.`; await Promise.race([B.ready, sleep(20000)]); if (B !== me) return; }
   let n = 3;
-  const cd = () => { if (B !== me) return; if (n > 0){ if (n === 3) w.innerHTML = vsCard(o, '<b class="cnt"></b>'); const q = w.querySelector('.cnt'); if (q){ q.textContent = n; q.classList.remove('tk'); void q.offsetWidth; q.classList.add('tk'); } fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); if (B.coach) setTimeout(() => { if (B === me) coach(0); }, 700); talk(o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
+  const cd = () => { if (B !== me) return; if (n > 0){ if (n === 3) w.innerHTML = vsCard(o, '<b class="cnt"></b>'); const q = w.querySelector('.cnt'); if (q){ q.textContent = n; q.classList.remove('tk'); void q.offsetWidth; q.classList.add('tk'); } fx('tock', null, () => tone(1200, .03, 'square', .02)); n--; setTimeout(cd, Q.get('fast') ? 60 : 800); } else { w.hidden = true; B.run = true; B.t0 = performance.now(); SND.horn(); A.music('battle'); if (B.coach) setTimeout(() => { if (B === me) coach(0); }, 700); talk(o.ring ? RING_TALK.start : o.mode === 'cpu' ? (o.odds === 3 ? TALK.start3 : o.odds === 2 ? TALK.start2 : TALK.start) : o.coop ? [`Two of you? Fine. There are ${o.coop === 3 ? 'three' : 'two'} of me. You're teamed with ${o.mate}.`] : ["Two real players. BDB is watching from the break room."], true); if (o.mode === 'host') startTicker(); } };
   cd();
 }
 function startTicker(){ try { ticker = new Worker(URL.createObjectURL(new Blob(['setInterval(()=>postMessage(0),100)'], {type:'text/javascript'}))); ticker.onmessage = () => { if (document.hidden) hostPump(); }; } catch(e){} }
@@ -1279,7 +1329,7 @@ const TIPS = ['A full Mana bar is wasted Mana. Spend it.', 'Spells do far less t
   'In overtime the next tower wins it.', 'Drag a card over the field to see where it will land before you let go.', 'Tap any troop on the field to see what it is and what it does.'];
 function vsCard(o, below){
   const T = tierOf(nextLevel()), solo = o.mode === 'cpu', bdb = solo || o.coop, c = o.cpu, rec = bdb ? '' : vsLine(o.oppName);      // rec: the score so far against a real opponent
-  const sub = solo ? (c.rand ? `${(SKILLS.find(k => k.id === c.skill) || {name:'Quick'}).name} quick battle` : `Level ${fmt(c.level)}, ${TIERS[c.tier].name} tier`) + (o.odds > 1 ? `. ${o.odds} against 1` : '') : o.coop ? `${teamSkName(o.skill)}, ${o.coop} against 2` : 'Online, even cards' + (rec ? '. ' + rec[0].toUpperCase() + rec.slice(1) : '');
+  const sub = o.ring ? `Battle Royale, ${(SKILLS.find(k => k.id === o.skill) || {name:'Medium'}).name}. Five towers, no teams` : solo ? (c.rand ? `${(SKILLS.find(k => k.id === c.skill) || {name:'Quick'}).name} quick battle` : `Level ${fmt(c.level)}, ${TIERS[c.tier].name} tier`) + (o.odds > 1 ? `. ${o.odds} against 1` : '') : o.coop ? `${teamSkName(o.skill)}, ${o.coop} against 2` : 'Online, even cards' + (rec ? '. ' + rec[0].toUpperCase() + rec.slice(1) : '');
   return `<div class="vs2"><div class="plate opp"><span class="pav${bdb ? ' bdb' : ''}">${bdb ? '' : esc(o.oppName[0].toUpperCase())}</span><div><strong>${esc(o.oppName)}</strong><small>${esc(sub)}</small></div></div>
     <div class="vsb" aria-hidden="true">VS</div>
     <div class="plate me"><img class="pav" alt="" src="${tierPic(T)}"><div><strong>${esc(o.coop && o.mate ? `${P.name} and ${o.mate}` : P.name)}</strong><small>${esc(T.name)} tier</small></div></div>
@@ -1345,9 +1395,27 @@ function hearDeath(o, how){                              // the view calls this 
   else if (how === 'scrap'){ fx('clang', p); fx('boom', {...p, vol:.4, rate:1.3}); }
   else { fx('poof', p); if (U.role === 'giant' || U.role === 'tank') fx('thud', p); }
 }
+/* Battle Royale's own moments: a side going out, and sudden death. Returns true when it has dealt with the event */
+function ringEvent(e){
+  const nm = t => B.rnames[t] || 'A BDB';
+  if (e.e === 'tower'){ fx('tower', {pan:panAt(e.x || 0, e.z || 0) * .6}, BEEP.boom); A.duck(.45, 1.5); buzz(e.team === B.team ? [50, 40, 110] : [25, 35, 25]); return true; }
+  if (e.e === 'out'){
+    if (e.team === B.team){                                // that is you: the match is over for you, in this place
+      if (B.over) return true; B.over = true; stamp('Knocked out', true); A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); }
+      talk(RING_TALK.out, true); setTimeout(() => finish(1, null), Q.get('fast') ? 50 : 1900); return true;
+    }
+    const mine = e.by === B.me; stamp(mine ? 'Knockout!' : `${nm(e.team)} is out`, false);
+    note(`${mine ? `You knocked out ${nm(e.team)}` : e.by >= 0 ? `${nm(e.by)} knocked out ${nm(e.team)}` : `${nm(e.team)} crumbled`}. ${e.left} left`);
+    if (mine){ fx('crown', {delay:.4}); buzz([30, 40, 80]); }
+    return true;
+  }
+  if (e.e === 'ot'){ stamp('Sudden death'); note('Every tower is crumbling now. Last one standing wins'); fx('hornot', null, BEEP.horn); A.hurry(true); return true; }
+  return e.e === 'king';
+}
 function onEvents(ev){
   for (const e of ev){
     hear(e);
+    if (B.ring && ringEvent(e)) continue;
     if (e.e === 'tower' && !e.king && B.coach) setTimeout(() => coach(3, 10000), 1600);
     if (e.e === 'tower'){
       const mine = e.team === B.team; fx('tower', {pan:panAt(e.x || 0, e.z || 0) * .6}, BEEP.boom); A.duck(.45, 1.5); buzz(mine ? [50, 40, 110] : [25, 35, 25]);
@@ -1400,17 +1468,17 @@ function hud(force){
     if (poor !== was){ cs[i].classList.toggle('poor', poor); if (!poor && B.run){ cs[i].classList.remove('ready'); void cs[i].offsetWidth; cs[i].classList.add('ready'); } }
     if (poor) cs[i].style.setProperty('--p', Math.min(1, I.el / cost).toFixed(3)); }
   $('coffeeFill').style.width = (I.el / MAX_EL * 100) + '%'; $('coffeeN').textContent = Math.floor(I.el);
-  const rate = manaRate(I.left, I.phase === 'ot'), bonus = I.bonus && I.el < MAX_EL;      // half as fast again every two minutes
+  const rate = B.ring && B.sim ? B.sim.rate : manaRate(I.left, I.phase === 'ot'), bonus = I.bonus && I.el < MAX_EL;      // half as fast again every two minutes
   $('coffee').classList.toggle('dbl', rate > 1 && rate < 3); $('coffee').classList.toggle('tpl', rate >= 3); $('coffee').classList.toggle('bonus', !!bonus); const nt = B.run ? myTraps().filter(t => !t.live && t.team === B.team).length : 0;
   $('coffeeLbl').textContent = (rate > 1 ? 'Mana x' + rate : 'Mana') + (bonus ? ', charging +30%' : '') + (nt ? `, ${nt} trap${nt > 1 ? 's' : ''} set` : '');
   if (B.run && I.phase === 'play'){
-    if (rate > (B.said.rate || 1)){ B.said.rate = rate; stamp('Mana x' + rate); fx('hornup', null, BEEP.horn); if (B.mode === 'cpu' && rate === 2) talk(TALK.late, true); else if (B.mode === 'cpu' && rate === 3) talk(TALK.last, true); }
+    if (rate > (B.said.rate || 1)){ B.said.rate = rate; stamp('Mana x' + rate); fx('hornup', null, BEEP.horn); if (B.ring){} else if (B.mode === 'cpu' && rate === 2) talk(TALK.late, true); else if (B.mode === 'cpu' && rate === 3) talk(TALK.last, true); }
   }
   const t = Math.ceil(I.left); $('clockT').textContent = mmss(t);
   if (B.run && !B.over && t <= 10 && t > 0 && B.said.tk !== t){ B.said.tk = t; fx('tock'); }
   if (B.coach && B.coach.step === 2 && B.sim && performance.now() - B.coach.at > 9000 && B.sim.tick % 10 === 0 && B.sim.ents.some(o => o.team !== B.team && !o.U.twr && !o.U.bld && o.z > 1.5)) coach(2, 9000);      // the last ten seconds tick
-  $('clockLbl').textContent = I.phase === 'ot' ? 'Overtime' : rate > 1 ? 'Mana x' + rate : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
-  $('meCr').textContent = I.crowns[B.team]; $('oppCr').textContent = I.crowns[1 - B.team];
+  $('clockLbl').textContent = I.phase === 'ot' ? (B.ring ? 'Sudden death' : 'Overtime') : rate > 1 ? 'Mana x' + rate : 'Time left'; $('clock').classList.toggle('hot', I.phase === 'ot' || t <= 30);
+  if (B.ring) ringHud(); else { $('meCr').textContent = I.crowns[B.team]; $('oppCr').textContent = I.crowns[1 - B.team]; }
   if (B.run && !B.over && B.mode === 'cpu' && performance.now() - lastTalk > 38000){ lastTalk = performance.now(); BDB.roast(); }
 }
 
@@ -1644,7 +1712,14 @@ function finish(w, cr, why){
   let pack = null, tokens = 0, pay, title = win ? 'Victory' : draw ? 'Draw' : 'Defeat';
   if (win){ P.streak++; P.best = Math.max(P.best, P.streak); } else if (!draw) P.streak = 0;
   const up = {win, wins:P.streak, streak:win ? streakMul(P.streak) : 1};
-  if (B.mode === 'cpu'){
+  const ring = !!B.ring, rs = ring ? B.sim : null, place = ring ? clamp(rs.place[B.team] || rs.alive.filter(Boolean).length, 1, RING_SIDES) : 0;
+  if (ring){
+    const S = SKILLS.find(k => k.id === B.skill) || SKILLS[1], ko = rs.crowns[B.team] | 0, per = Math.round(S.coins * RING_KO / 5) * 5;
+    if (win){ P.stats.w++; for (const id of B.prize || []){ got.push(grant(id)); P.stats.won++; } if (S.pack) pack = PACK[S.pack]; } else P.stats.l++;
+    title = win ? 'Last one standing' : PLC[place] + ' place';
+    lines.push(win ? `You outlasted all four BDBs.` : `Out in ${PLC[place]} place of ${RING_SIDES}.`);
+    pay = payout(ringPay(S, place), 0, {...up, label:`${PLC[place]} of ${RING_SIDES}, Battle Royale, ${S.name}`, perk:win ? P.perks.coin * PERKS.coin.per : 0, extra:ko * per, extraLabel:`${ko} knockout${ko === 1 ? '' : 's'}`});
+  } else if (B.mode === 'cpu'){
     const c = B.cpu, n = B.odds || 1, O = ODDS[n];
     if (win){
       P.stats.w++; let extra = 0, xl = '';
@@ -1695,7 +1770,7 @@ function finish(w, cr, why){
   A.music('off'); fx(win ? 'win' : draw ? 'draw' : 'lose', null, win ? BDB.sfx.big : BDB.sfx.bad); buzz(win ? [30, 50, 30, 50, 120] : draw ? 60 : 180); if (win && coins > 0) fx('coins', {delay:2.6});
   setTimeout(() => { if (!B || B.done) A.music('menu'); }, 3800);
   const many = B.mode === 'cpu' && B.odds > 1;
-  const line = B.mode === 'cpu' ? pick(win ? (many ? TALK.winMany : TALK.win) : draw ? ["A draw. We'll both tell people we won."] : many ? TALK.loseMany : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : draw ? 'A draw. BDB is counting it as a win for him anyway.' : 'BDB says he could have won that one. He could not.');
+  const line = ring ? pick(win ? RING_TALK.win : place <= 3 ? RING_TALK.mid : RING_TALK.out) : B.mode === 'cpu' ? pick(win ? (many ? TALK.winMany : TALK.win) : draw ? ["A draw. We'll both tell people we won."] : many ? TALK.loseMany : TALK.lose) : (win ? 'BDB watched the whole thing and learned nothing.' : draw ? 'A draw. BDB is counting it as a win for him anyway.' : 'BDB says he could have won that one. He could not.');
   const c = B.cpu, wasCpu = B.mode === 'cpu', ladder = wasCpu && !c.rand, nextUp = ladder && win && c.level < LEVELS && c.level + 1 <= P.ladder + 1, odds = B.odds || 1;
   // the troop that did the most damage for this player: from the sim where it ran here, from the last event where it ran on the host
   const mvs = B.sim && B.sim.mvp ? B.sim.mvp() : B.mv, mv = Array.isArray(mvs) && Array.isArray(mvs[B.me]) && UNITS[mvs[B.me][0]] ? mvs[B.me] : null;
@@ -1706,9 +1781,10 @@ function finish(w, cr, why){
     .concat(got.map((g, i) => `<div class="rw cardz" data-i="${i}"><div class="rw-pic"></div><b>${esc(CARDS[g.id].name)}</b><small>${esc(g.tag === 'New' ? 'New card' : g.tag)}</small></div>`))
     .concat(pack ? [`<div class="rw"><div class="rw-pic"><div class="foil" style="--pc:${pack.col}"><img alt="" src="${chestPic(pack)}"></div></div><b>${esc(pack.name)}</b><small>${pack.n} cards inside</small></div>`] : [])
     .concat(tokens ? [`<div class="rw"><div class="rw-pic"><span class="tokbig"></span></div><b>+${tokens}</b><small>Upgrade ${tokens > 1 ? 'tokens' : 'token'}</small></div>`] : []);
-  const b = dlg(`<div class="res ${win ? 'win' : draw ? 'draw' : 'loss'}">
-    <div class="res-top"><div class="res-crowns${win ? ' paid' : ''}" aria-hidden="true">${crownRow(mine)}</div><h3>${title}</h3>
-      <div class="res-score"><span>${esc(P.name)}<b>${mine}</b></span><em>towers</em><span><b>${theirN}</b>${esc(B.oppName || 'BDB')}</span></div></div>
+  const ringList = ring ? `<ol class="res-ring">${rs.place.map((pl, t) => ({t, pl:pl || (t === B.team ? place : 0)})).sort((a, b) => (a.pl || .5) - (b.pl || .5)).map(q => `<li style="--tc:${RCOL[q.t]}"${q.t === B.team ? ' class="me"' : ''}><em>${q.pl ? PLC[q.pl] : 'In'}</em><b>${esc(q.t === B.team ? P.name : B.rnames[q.t])}</b><small>${rs.crowns[q.t] ? `${rs.crowns[q.t]} KO` : ''}</small></li>`).join('')}</ol>` : '';
+  const b = dlg(`<div class="res ${win ? 'win' : draw ? 'draw' : ring && place <= 3 ? 'draw' : 'loss'}">
+    <div class="res-top">${ring ? `<h3>${title}</h3>${ringList}` : `<div class="res-crowns${win ? ' paid' : ''}" aria-hidden="true">${crownRow(mine)}</div><h3>${title}</h3>
+      <div class="res-score"><span>${esc(P.name)}<b>${mine}</b></span><em>towers</em><span><b>${theirN}</b>${esc(B.oppName || 'BDB')}</span></div>`}</div>
     <div class="res-say"><span class="av"></span><p>${esc(line)}</p></div>
     ${mv ? `<div class="res-mvp">${mvCard ? `<img alt="" src="${artOf(mvCard)}">` : ''}<p><b>${esc(UNITS[mv[0]].name)}</b> did the most damage for you: ${fmt(mv[1])}.</p></div>` : ''}
     <div class="res-loot">${rw.join('')}</div>
@@ -1722,7 +1798,8 @@ function finish(w, cr, why){
   const a2 = b.querySelector('#rsAgain2'), tm = b.querySelector('#rsTeam');
   if (a2){ a2.onclick = playAgain; againUI(); }
   if (tm) tm.onclick = e => { const q = e.target.closest('button'); if (!q || !OL || q.disabled) return; if (q.dataset.sk) OL.skill = q.dataset.sk; else if (q.dataset.co) OL.coop = +q.dataset.co; for (const o of q.parentNode.children) o.setAttribute('aria-pressed', o === q); BDB.sfx.tick(); };
-  const again = () => { leave(); preCpu(c.rand ? randomCpu(c.skill, myTower()) : ladderCpu(nextUp ? c.level + 1 : c.level), odds); };      // the same odds as last time, until you change them
+  const skillWas = B.skill;
+  const again = () => { leave(); if (ring) return preRing(skillWas); preCpu(c.rand ? randomCpu(c.skill, myTower()) : ladderCpu(nextUp ? c.level + 1 : c.level), odds); };      // the same odds as last time, until you change them
   b.querySelector('#rsBack').onclick = leave;
   const ra = b.querySelector('#rsAgain'), rp = b.querySelector('#rsPack');
   if (ra) ra.onclick = again;
@@ -2131,9 +2208,9 @@ window.__game = {
   get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? (P.onboarded ? 'hub' : 'onboard') : 'login'; }, get score(){ return P ? P.coins : 0; },
   get P(){ return P; }, get B(){ return B; }, get TR(){ return TR; }, get hall(){ return HALL; }, cloud:Cloud, get sim(){ return B && B.sim; }, get info(){ return B ? info() : null; }, get ready3d(){ return ready3d; }, get view(){ return V; }, get ol(){ return OL; }, get bubbles(){ return bubbles.length; },
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
-  ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
+  ff(n){ if (B && B.mode === 'cpu' && B.run){ for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, ev(l){ if (V) V.events(l); onEvents(l); }, tapField, order:(u, t) => sendOrder(u, t), get ordSel(){ return ordSel; }, goalsBox, boost:(slot, x, z) => tryBoost(slot, {x, z}), bselect, boostBox, boostShop, buyBoostBox, boosts:BOOSTS, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, ev(l){ if (V) V.events(l); onEvents(l); }, tapField, preRing, order:(u, t) => sendOrder(u, t), get ordSel(){ return ordSel; }, goalsBox, boost:(slot, x, z) => tryBoost(slot, {x, z}), bselect, boostBox, boostShop, buyBoostBox, boosts:BOOSTS, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach

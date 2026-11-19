@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119e';
-import { UNITS, MAPS, CARDS, TRAP_ART, TYPES, BOOSTS, BOOST_FX } from './cards.js?v=1119e';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119e';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119f';
+import { UNITS, MAPS, CARDS, TRAP_ART, TYPES, BOOSTS, BOOST_FX } from './cards.js?v=1119f';
+import { W, L, RIVER, TRIG, riverOf, RING, RING_DROP, ringAt, ringTowers, ringDrop } from './sim.js?v=1119f';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -108,7 +108,7 @@ export function createView(el, opt = {}){
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .86;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   el.appendChild(renderer.domElement);
-  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(38, 1, .5, 220);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(38, 1, .5, 320);
   if (GFX[gfx].ink) camera.layers.enable(1);                // ink outlines live on layer 1, so they can all be switched off at once
   { const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose(); }
   scene.environmentIntensity = .55;
@@ -134,11 +134,25 @@ export function createView(el, opt = {}){
   renderer.domElement.addEventListener('webglcontextrestored', () => { lostGL = false; });
 
   /* ---------- camera ---------- */
-  let side = false;
+  let side = false, ringOn = false;                // ringOn: Battle Royale, the octagon
   const camHome = new THREE.Vector3(), LOOKAT = new THREE.Vector3(0, 0, .8), fitCam = new THREE.PerspectiveCamera(), tv = new THREE.Vector3();
   const FIT = []; for (const sx of [-1, 1]) for (const sz of [-1, 1]) FIT.push(new THREE.Vector3(sx * 10.3, 0, sz * (L + 1.3))); FIT.push(new THREE.Vector3(0, 4.9, -(L - 2.4)), new THREE.Vector3(-9.9, 3.2, -L), new THREE.Vector3(9.9, 3.2, -L)); FIT.push(new THREE.Vector3(0, 4.9, L - 2.4), new THREE.Vector3(-9.9, 3.2, L), new THREE.Vector3(-5.5, 3.4, L - 6.5), new THREE.Vector3(-5.5, 3.4, 6.5 - L));
+  /* the octagon: every corner of the wall and the top of every tower in the picture, seen from behind your own tower */
+  const RFIT = []; for (let k = 0; k < 8; k++){ const an = (k + .5) * PI / 4, q = RING / Math.cos(PI / 8) + 1; RFIT.push(new THREE.Vector3(Math.cos(an) * q, 0, Math.sin(an) * q)); } for (let i = 0; i < 5; i++) for (const [k, x, z] of ringTowers(i)) RFIT.push(new THREE.Vector3(x, k === 'king' ? 4.6 : 3.6, z));
   function fit(){
     const a = camera.aspect;
+    if (ringOn){                                     // the octagon as big as it will go: under the standings (a strip along the top on a phone), over the Boost tray. Where the camera looks is tried a few ways and the closest kept
+      side = false; const narrow = (renderer.domElement.clientWidth || 800) < 760, top = narrow ? .66 : .9, bot = -.78, e = lerp(narrow ? 1.26 : 1.12, .98, clamp((a - .55) / .9, 0, 1)), dir = new THREE.Vector3(0, Math.sin(e), Math.cos(e));
+      fitCam.fov = camera.fov; fitCam.aspect = a; fitCam.near = 1; fitCam.far = 300; fitCam.updateProjectionMatrix();
+      let best = null;
+      for (let lz = -4; lz <= 3; lz += .5){
+        LOOKAT.set(0, 0, lz); let lo = 8, hi = 320;
+        for (let i = 0; i < 22; i++){ const d = (lo + hi) / 2; fitCam.position.copy(dir).multiplyScalar(d).add(LOOKAT); fitCam.lookAt(LOOKAT); fitCam.updateMatrixWorld(); fitCam.matrixWorldInverse.copy(fitCam.matrixWorld).invert();
+          if (RFIT.every(p => { tv.copy(p).project(fitCam); return Math.abs(tv.x) < (narrow ? 1.03 : .97) && tv.y < top && tv.y > bot; })) hi = d; else lo = d; }      // a phone may lose the very corners of the wall off the sides
+        if (!best || hi < best[1] - .01) best = [lz, hi];
+      }
+      LOOKAT.set(0, 0, best[0]); camHome.copy(dir).multiplyScalar(best[1]).add(LOOKAT); camDir.copy(dir); camDist = best[1]; return;
+    }
     side = a >= 1.2;                                  // wide screens watch from the sideline (the angle of the opening fly-in); tall ones from behind your king
     const el = side ? lerp(.78, .66, clamp((a - 1.2) / 1.4, 0, 1)) : lerp(1.0, .9, clamp((a - .55) / .5, 0, 1));
     const dir = side ? new THREE.Vector3(Math.cos(el), Math.sin(el), 0) : new THREE.Vector3(0, Math.sin(el), Math.cos(el));
@@ -154,7 +168,7 @@ export function createView(el, opt = {}){
   }
   /* the player can drag the view around and zoom in; pan is kept inside the arena */
   const camDir = new THREE.Vector3(0, .8, .6), look = new THREE.Vector3(), home = new THREE.Vector3(); let camDist = 60, zoomK = 1, panX = 0, panZ = 0;
-  const clampPan = () => { const k = 1 - 1 / zoomK; panX = clamp(panX, -11 * k, 11 * k); panZ = clamp(panZ, -(L + 3) * k, (L + 1) * k); };
+  const clampPan = () => { const k = 1 - 1 / zoomK, bx = ringOn ? RING : 11, b0 = ringOn ? RING : L + 3, b1 = ringOn ? RING : L + 1; panX = clamp(panX, -bx * k, bx * k); panZ = clamp(panZ, -b0 * k, b1 * k); };
   function zoomBy(f){ zoomK = clamp(zoomK * f, 1, 4.2); clampPan(); }
   function panBy(dx, dz){ panX += dx; panZ += dz; clampPan(); }
   function resetCam(){ zoomK = 1; panX = panZ = 0; }
@@ -294,6 +308,7 @@ export function createView(el, opt = {}){
   /* A painted arena. One floor picture is kept at a time: it is asked for before the match starts (needFloor) so the field is never bare. */
   let floorCur = null;
   function needFloor(id){
+    if (MAPS[id] && MAPS[id].ring) return needRing().then(m => !!m);
     if (!PAINT[id]) return Promise.resolve(true);
     if (floorCur && floorCur.id === id) return floorCur.ready;
     if (floorCur) floorCur.tex.dispose();
@@ -319,9 +334,33 @@ export function createView(el, opt = {}){
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0), new THREE.MeshStandardMaterial({map:floorCur.tex, roughness:.92, envMapIntensity:.12, transparent:true, depthWrite:false}));
     fl.rotation.x = -PI / 2; fl.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); fl.receiveShadow = true; fl.renderOrder = -20; stage.add(fl);        // drawn before every other see-through thing, so rings and sparks land on top of it
   }
+  /* Battle Royale: the octagon is one model (maps/ring.glb), laid out so the inside of its wall is the edge of the rules' floor. Loaded before the countdown, like a painted floor */
+  let ringLib = null;
+  function needRing(){
+    return ringLib || (ringLib = new Promise(res => new GLTFLoader().load('maps/ring.glb', g => {
+      g.scene.traverse(n => { if (n.isMesh){ const mp = n.material.map; if (mp) mp.anisotropy = low ? 4 : 8; n.material = new THREE.MeshStandardMaterial({map:mp, roughness:.9, metalness:0, envMapIntensity:.25}); n.castShadow = n.receiveShadow = true; n.userData.keep = true; n.geometry.userData = n.geometry.userData || {}; } });
+      res(g.scene);
+    }, undefined, () => res(null))));
+  }
+  const RLOOK = {bg:0x1b2130, ground:'#2a3040', dark:'#141924', light:'#3b4558'};
+  function ringMap(id){
+    scene.background = new THREE.Color(RLOOK.bg); scene.fog = new THREE.Fog(RLOOK.bg, 95, 210); sun.intensity = 1.75;
+    shadowBox(RING + 6, RING + 6); sun.color.set(0xfff0dc); hemi.intensity = .75;
+    const ap = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({map:hazeTex({bg:RLOOK.ground, dark:RLOOK.dark, light:RLOOK.light}), roughness:.95, envMapIntensity:.1})); ap.rotation.x = -PI / 2; ap.position.y = -.4; ap.receiveShadow = true; stage.add(ap);
+    const d = new THREE.Group(); stage.add(d);
+    needRing().then(m => { if (!m || mapId !== id || d.parent !== stage) return; const c = m.clone(); c.traverse(o => { if (o.isMesh) o.userData.keep = true; }); d.add(c); });
+    for (let t = 0; t < 5; t++){                                               // every side's ground: a ring in its colour round where it can summon
+      const [x, z] = ringDrop(t), col = TEAM[relOf(t)];
+      const e = new THREE.Mesh(new THREE.RingGeometry(RING_DROP - .09, RING_DROP, 64), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.55, depthWrite:false})); e.rotation.x = -PI / 2; e.position.set(x, .03, z); e.renderOrder = -5; d.add(e);
+      const f = new THREE.Mesh(new THREE.CircleGeometry(RING_DROP, 64), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.07, depthWrite:false})); f.rotation.x = -PI / 2; f.position.set(x, .025, z); f.renderOrder = -6; d.add(f);
+    }
+  }
+  /* the box the sun's shadows are drawn in: the long field, or the octagon */
+  function shadowBox(x, z){ const c = sun.shadow.camera; if (c.right === x && c.top === z) return; Object.assign(c, {left:-x, right:x, top:z, bottom:-z}); c.updateProjectionMatrix(); }
   function setMap(id){
-    mapId = id; flags.length = 0; sway.length = 0;
+    mapId = id; flags.length = 0; sway.length = 0; shadowBox(17, L + 5);
     for (const c of stage.children.slice()){ stage.remove(c); c.traverse(o => { if (o.geometry && !o.userData.keep) o.geometry.dispose(); }); }
+    if (MAPS[id] && MAPS[id].ring) return ringMap(id);
     if (PAINT[id]) return paintMap(id);
     const lk = LOOK[id], map = MAPS[id];
     scene.background = new THREE.Color(lk.bg); scene.fog = new THREE.Fog(lk.bg, 70, 150); sun.intensity = lk.sun; sun.color.set(0xfff0dc); hemi.intensity = id === 'lot' ? .45 : .7;
@@ -584,9 +623,10 @@ export function createView(el, opt = {}){
 
   /* ---------- entities ---------- */
   const recs = new Map(), barG = new THREE.PlaneGeometry(1, 1), iceG = new THREE.IcosahedronGeometry(1, 1);
-  const barBg = new THREE.MeshBasicMaterial({color:0x08101f, transparent:true, opacity:.85, depthTest:false}), barCol = [new THREE.MeshBasicMaterial({color:0x3fa0ff, depthTest:false, transparent:true}), new THREE.MeshBasicMaterial({color:0xff3b30, depthTest:false, transparent:true})];   // transparent so they draw after the dark backing
+  const barBg = new THREE.MeshBasicMaterial({color:0x08101f, transparent:true, opacity:.85, depthTest:false}), barCol = [0x3fa0ff, 0xff3b30, ...TEAM.slice(2)].map(c => new THREE.MeshBasicMaterial({color:c, depthTest:false, transparent:true}));   // transparent so they draw after the dark backing
   const shadowMat = new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:.3, depthWrite:false});
-  const ringMat = [0, 1].map(i => new THREE.MeshBasicMaterial({color:TEAM[i], transparent:true, opacity:.9, depthWrite:false}));
+  const ringMat = TEAM.map(c => new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:.9, depthWrite:false}));
+  const relOf = t => ringOn ? t : t === me ? 0 : 1;      // which colour a side is drawn in: yours, theirs. In Battle Royale (one player, always side 0) each side has its own
   const rageMat = new THREE.MeshBasicMaterial({color:0xff4fd8, transparent:true, opacity:.9, depthWrite:false});
   const iceMat = new THREE.MeshStandardMaterial({color:0xbfe9ff, transparent:true, opacity:.5, roughness:.05, metalness:.1, flatShading:true, depthWrite:false});
   const shMat = new THREE.MeshBasicMaterial({color:0x6fc4ff, transparent:true, opacity:.26, depthWrite:false, blending:THREE.AdditiveBlending}), shG = new THREE.SphereGeometry(1, 18, 12), hidMat = new THREE.MeshBasicMaterial({color:0x9a6bff, transparent:true, opacity:.9, depthWrite:false});
@@ -601,7 +641,7 @@ export function createView(el, opt = {}){
     const k = rel + '|' + lvl; if (badges[k]) return badges[k];
     const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d');
     x.fillStyle = '#0a1430'; x.beginPath(); x.roundRect(4, 4, 56, 56, 14); x.fill();
-    x.fillStyle = rel ? '#f0453c' : '#3f8cff'; x.beginPath(); x.roundRect(9, 9, 46, 46, 10); x.fill();
+    x.fillStyle = rel > 1 ? '#' + TEAM[rel].toString(16).padStart(6, '0') : rel ? '#f0453c' : '#3f8cff'; x.beginPath(); x.roundRect(9, 9, 46, 46, 10); x.fill();
     x.fillStyle = 'rgba(255,255,255,.3)'; x.beginPath(); x.roundRect(12, 11, 40, 17, 8); x.fill();
     x.font = '900 34px "Lilita One", "Arial Black", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 6; x.strokeStyle = '#0a1430'; x.strokeText(lvl, 32, 35); x.fillStyle = '#fff'; x.fillText(lvl, 32, 35);
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
@@ -609,11 +649,12 @@ export function createView(el, opt = {}){
   }
   function numTex(){ const c = document.createElement('canvas'); c.width = 128; c.height = 48; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return {c, t, v:-1}; }
   function make(e){
-    const rel = e.team === me ? 0 : 1, U = e.U, m = makeModel(e.key, rel, {face:rel === 1, aff:U.aff, ink:!low});
+    const rel = relOf(e.team), U = e.U, m = makeModel(e.key, rel, {face:rel !== 0, aff:U.aff, ink:!low});
     if (!U.twr){ m.s = (m.s || 1) * 1.2; m.h *= 1.2; }           // drawn a little larger than they collide, so they read from above
+    else if (ringOn){ m.s = (m.s || 1) * 1.3; m.h *= 1.3; }      // and in Battle Royale, where the camera sits further back, the towers too
     if (!low) outline(m.g);
     const g = new THREE.Group(); g.add(m.g); root.add(g);
-    const base = e.team === 0 ? PI : 0;
+    const base = ringOn ? (([x, z]) => Math.atan2(-x, -z))(ringAt(e.team)) : e.team === 0 ? PI : 0;      // facing the fight: in Battle Royale, the middle
     g.rotation.y = base;
     const r = {e, m, g, rel, x:e.x, z:e.z, yaw:base, base, atk:99, sum:99, ph:Math.random() * 6, age:U.twr ? 9 : 0, hp:e.hp, landed:!!U.twr, pop:0, ice:null};
     if (!U.twr){
@@ -1040,15 +1081,15 @@ export function createView(el, opt = {}){
         if (ev.k === 'zap' || ev.k === 'beam'){ zapLine(va.clone(), vb.clone(), ev.k === 'zap' ? 0xbfe8ff : 0xff8a2b, ev.k === 'zap' ? .07 : .05 + Math.min(.12, (r.rampN = (r.rampT === ev.t ? (r.rampN || 0) + 1 : 0)) * .012), ev.k === 'zap' ? .18 : .42); r.rampT = ev.t; }
         else shoot(ev.k, va, vb, ev.d, {tid:ev.t, th, arc:LOB.includes(ev.k) ? va.distanceTo(vb) * (ev.k === 'shell' ? .45 : .16) : 0, splash:U.splash || 0});
       } else if (ev.e === 'spell'){
-        const rel = ev.team === me ? 0 : 1, col = TEAM[rel];
+        const rel = relOf(ev.team), col = TEAM[rel], [hx, hz] = ringOn ? ringAt(ev.team) : [0, ev.team === 0 ? L - 3 : 3 - L], hd = Math.hypot(hx, hz) || 1, ux = hx / hd, uz = hz / hd;      // (ux, uz): the way back to whoever cast it
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .15, color:col, a:.9, hold:true});
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .15, color:col, fill:true, a:.16, hold:true});
         if (ev.k === 'rain'){
-          for (let i = 0; i < (low ? 10 : 18); i++){ const a = Math.random() * PI * 2, q = Math.sqrt(Math.random()) * ev.r; vb.set(ev.x + Math.cos(a) * q, .15, ev.z + Math.sin(a) * q); va.set(vb.x + (ev.team === 0 ? 3 : -3), 15, vb.z + (ev.team === 0 ? 9 : -9)); shoot('arrow', va, vb, .55, {delay:Math.max(0, ev.d - .5 + Math.random() * .5), quiet:i % 2}); }
+          for (let i = 0; i < (low ? 10 : 18); i++){ const a = Math.random() * PI * 2, q = Math.sqrt(Math.random()) * ev.r; vb.set(ev.x + Math.cos(a) * q, .15, ev.z + Math.sin(a) * q); va.set(vb.x + (ringOn ? ux * 9 : ev.team === 0 ? 3 : -3), 15, vb.z + uz * 9); shoot('arrow', va, vb, .55, {delay:Math.max(0, ev.d - .5 + Math.random() * .5), quiet:i % 2}); }
         } else if (ev.k === 'bomb'){
-          va.set(0, 3, ev.team === 0 ? L - 3 : 3 - L); vb.set(ev.x, .3, ev.z); shoot('fball', va, vb, ev.d, {arc:6, quiet:true});
+          va.set(hx, 3, hz); vb.set(ev.x, .3, ev.z); shoot('fball', va, vb, ev.d, {arc:6, quiet:true});
         } else if (ev.k === 'meteor'){
-          va.set(ev.x + (ev.team === 0 ? 5 : -5), 26, ev.z + (ev.team === 0 ? 12 : -12)); vb.set(ev.x, .3, ev.z); shoot('met', va, vb, ev.d, {quiet:true});
+          va.set(ev.x + (ringOn ? ux * 12 : ev.team === 0 ? 5 : -5), 26, ev.z + uz * 12); vb.set(ev.x, .3, ev.z); shoot('met', va, vb, ev.d, {quiet:true});
           flat(ev.x, ev.z, {r0:ev.r, r1:.3, dur:ev.d, color:0xff5a1f, a:.9, hold:true});
         } else if (ev.k === 'poison'){ linger(ev.x, ev.z, ev.r, ev.t, 0x7dff5a, 'cloud', ev.d); }
         else if (ev.k === 'heal'){ linger(ev.x, ev.z, ev.r, ev.t, 0x6dff9a, 'rise', ev.d); }
@@ -1080,7 +1121,7 @@ export function createView(el, opt = {}){
       } else if (ev.e === 'fuse'){
         flat(ev.x, ev.z, {r0:ev.r, dur:ev.d + .05, color:0xff3a2a, a:.9, hold:true, pulse:true}); flat(ev.x, ev.z, {r0:.2, r1:ev.r, dur:ev.d + .05, color:0xff3a2a, fill:true, a:.3, hold:true});
       } else if (ev.e === 'heal'){ const r = ev.id ? recs.get(ev.id) : null; if (r) flat(r.x, r.z, {r0:.4, r1:ev.r, dur:.6, color:0x6dff9a, a:.6, add:true}); else if (ev.x != null) flat(ev.x, ev.z, {r0:.4, r1:ev.r, dur:.7, color:0x6dff9a, a:.5, add:true}); }
-      else if (ev.e === 'summon'){ const r = recs.get(ev.id); if (r){ r.sum = 0; r.atk = 0; burst(r.x, .4, r.z + (r.e.team === 0 ? -1 : 1), 12, r.e.U.type === 'dark' ? 0xb18cff : 0xf2c14e, {spd:2, up:2.4, life:.5}); } }
+      else if (ev.e === 'summon'){ const r = recs.get(ev.id); if (r){ r.sum = 0; r.atk = 0; burst(r.x + (ringOn ? Math.sin(r.base) : 0), .4, r.z + (ringOn ? Math.cos(r.base) : r.e.team === 0 ? -1 : 1), 12, r.e.U.type === 'dark' ? 0xb18cff : 0xf2c14e, {spd:2, up:2.4, life:.5}); } }
       else if (ev.e === 'pool'){ linger(ev.x, ev.z, ev.r, ev.t, 0xff6a1f, 'fire'); }
       else if (ev.e === 'land'){
         const c = {stun:0xffe27a, fire:0xff7a1f, frost:0x9fdcff, shield:0x6fc4ff, summon:0xa678ff, slam:0xe9d8b4, roar:0xff9d3c}[ev.k] || 0xffffff;
@@ -1208,7 +1249,11 @@ export function createView(el, opt = {}){
     if (k !== gKey){ if (gM) ghost.remove(gM.g); gM = null; gKey = k; if (key){ gM = makeModel(key, 0, {aff}); gM.g.scale.setScalar((gM.s || 1) * 1.2); gM.g.rotation.y = PI; ghost.add(gM.g); } }
     if (gM) gM.g.visible = !!ok;
   }
+  const zoneG = new THREE.Group(); fxW.add(zoneG); zoneG.visible = false;      // Battle Royale: where you can summon, lit while you aim
+  { const f = new THREE.Mesh(discG, new THREE.MeshBasicMaterial({color:0x4ade80, transparent:true, opacity:.13, depthWrite:false})), e = new THREE.Mesh(dashG, new THREE.MeshBasicMaterial({color:0x8af5b0, transparent:true, opacity:.9, depthWrite:false}));
+    for (const m of [f, e]){ m.rotation.x = -PI / 2; m.position.y = .065; m.scale.setScalar(RING_DROP); zoneG.add(m); } zoneG.userData.e = e; }
   function setNoGo(on, pocket){
+    if (ringOn){ nogo.visible = false; zoneG.visible = !!on; if (on){ const [x, z] = ringDrop(me); zoneG.position.set(x, 0, z); } return; }
     nogo.visible = !!on; if (!on) return;
     const e = riverOf(MAPS[mapId]) + .6;
     const put = (m, x0, x1, z0, z1, vis) => { m.visible = vis; m.scale.set(x1 - x0, z1 - z0, 1); m.position.set((x0 + x1) / 2, .06, (z0 + z1) / 2); };
@@ -1248,6 +1293,7 @@ export function createView(el, opt = {}){
     time += dt;
     if (ents) sync(ents, dt);
     if (selId){ const r = recs.get(selId); selRing.visible = !!r && !r.gone; if (r){ selRing.position.set(r.x, .075, r.z); selRing.scale.setScalar(Math.max(.5, r.e.U.r) * (1.55 + Math.sin(time * 9) * .13)); } }
+    if (zoneG.visible) zoneG.userData.e.rotation.z += dt * .3;
     if (ghost.visible){ const p = 1 + Math.sin(time * 7) * .06; gRing.scale.setScalar(gRing.scale.x / (gRing.userData.p || 1) * p); gRing.userData.p = p; if (gM && gM.g.visible){ gM.g.position.y = (gM.fly || 0) + .5 + Math.sin(time * 5) * .14; gM.anim(time, {mv:false, ph:0, atk:99, sum:99, aim:0, active:true, chg:false}); } }
     stepShots(dt); stepFlats(dt); stepBeams(dt); stepZaps(dt); stepPools(dt); stepTraps(dt); glow.step(dt); smoke.step(dt); chunk.step(dt); shard.step(dt);
     if (waterTex) waterTex.offset.x = time * .035;
@@ -1256,7 +1302,7 @@ export function createView(el, opt = {}){
     for (let i = dying.length - 1; i >= 0; i--){ const d = dying[i]; d.t += dt; if (stepDeath(d, dt)){ root.remove(d.p); dying.splice(i, 1); } }
     for (let i = 0; i < sway.length; i++){ sway[i].rotation.z = Math.sin(time * 1.1 + i * 1.7) * .028; sway[i].rotation.x = Math.sin(time * .8 + i) * .02; }
     for (let i = 0; i < flags.length; i++){ flags[i].rotation.y = Math.sin(time * 3.2 + i * 1.7) * .4; flags[i].scale.x = 1 + Math.sin(time * 5 + i) * .06; }
-    if ((amb += dt) > (low ? .45 : .16)){ amb = 0; tc.set(PAINT[mapId] ? PAINT[mapId].amb : AMB[mapId] || 0xffffff); glow.emit((Math.random() * 2 - 1) * 9, .4 + Math.random() * 2.5, (Math.random() * 2 - 1) * 16, (Math.random() - .5) * .4, .2 + Math.random() * .35, (Math.random() - .5) * .4, 2.6, tc, 0); }
+    if ((amb += dt) > (low ? .45 : .16)){ amb = 0; tc.set(PAINT[mapId] ? PAINT[mapId].amb : AMB[mapId] || (ringOn ? 0xffe6a8 : 0xffffff)); glow.emit((Math.random() * 2 - 1) * (ringOn ? 12 : 9), .4 + Math.random() * 2.5, (Math.random() * 2 - 1) * (ringOn ? 12 : 16), (Math.random() - .5) * .4, .2 + Math.random() * .35, (Math.random() - .5) * .4, 2.6, tc, 0); }
     if (PAINT[mapId] && PAINT[mapId].riv && Math.random() < dt * (low ? 5 : 11)){ tc.set(PAINT[mapId].riv); const rw = riverOf(MAPS[mapId]);      // sparks off the lava, wisps off the green
       glow.emit((Math.random() * 2 - 1) * 12, .1, (Math.random() * 2 - 1) * rw * .7, (Math.random() - .5) * .3, .5 + Math.random() * .9, (Math.random() - .5) * .3, 1.1 + Math.random(), tc, -.4); }
     look.set(LOOKAT.x + panX, 0, LOOKAT.z + panZ); home.copy(camDir).multiplyScalar(camDist / zoomK).add(look); camera.position.copy(home);
@@ -1273,6 +1319,7 @@ export function createView(el, opt = {}){
     pace();
   }
   function reset(team, map){
+    ringOn = !!(MAPS[map] && MAPS[map].ring);
     me = team; root.rotation.y = team === 0 ? 0 : PI;
     for (const r of [...recs.values()]) drop(r);
     for (const c of root.children.slice()) if (c.userData.rubble) root.remove(c);

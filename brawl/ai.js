@@ -1,12 +1,13 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul, BOOSTS, BOOST_HAND, BOOST_R } from './cards.js?v=1119e';
-import { TPS, W, L, riverOf, manaRate } from './sim.js?v=1119e';
+import { CARDS, lvlMul, BOOSTS, BOOST_HAND, BOOST_R } from './cards.js?v=1119f';
+import { TPS, W, L, riverOf, manaRate, RING_DROP, ringClamp, ringDrop } from './sim.js?v=1119f';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 export function createAI(sim, team, prof, rnd = Math.random, pid = team){
-  const s = team === 0 ? 1 : -1;                 // f = z * s is "how deep on my own side"
+  const ring = !!sim.ring;                       // Battle Royale: no halves, so the field is taken as it lies (s = 1) and he has rules of his own further down
+  const s = ring ? 1 : team === 0 ? 1 : -1;      // f = z * s is "how deep on my own side"
   const edge = riverOf(sim.map) + .8;
   let wait = Math.round((1.5 + prof.react) * TPS), hot = null;      // hot: the lane the other side last pushed down
   const urgent = Math.round(Math.min(prof.react, .45 + prof.react * .3) * TPS);      // how soon he looks up when something is at his towers
@@ -14,7 +15,18 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
   const P = () => sim.players[pid];
   const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
+  /* Battle Royale: a card goes where he wants it, or as near to there as his own ground reaches */
+  function putRing(h, x, z){
+    const [kx, kz] = ringDrop(team, sim.map.sides), free = h.card.kind === 'spell' || (h.U && h.U.any), R = RING_DROP - .2;
+    const fit = () => { if (!free){ const dx = x - kx, dz = z - kz, d = Math.hypot(dx, dz); if (d > R){ x = kx + dx / d * R; z = kz + dz / d * R; } } [x, z] = ringClamp(x, z, .7); };
+    for (let i = 0; i < 6; i++){
+      fit(); if (sim.play(pid, h.i, x, z)) return true;
+      x += (rnd() - .5) * 2.6; z += (rnd() - .5) * 2.6;                          // blocked (a building in the way): nudge
+    }
+    return false;
+  }
   function put(h, x, f){
+    if (ring) return putRing(h, x, f);
     x = clamp(x, -W + 1, W - 1); f = clamp(f, -L + 1, L - 1);
     if (h.card.kind !== 'spell' && !sim.canPlace(team, h.card, x, f * s)) f = Math.max(f, edge);
     for (let k = 0; k < 6; k++){
@@ -251,6 +263,156 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
       if (any) return put(any, any.U.bld ? laneX * .45 : laneX, any.U.bld ? edge + 3 + rnd() * 2 : L - 3);
     }
   }
+  /* ---------- Battle Royale ----------
+     Four other towers, and everyone is fair game. He looks after his own corner first, then picks one tower to go for and keeps at it for a while:
+     the weak, the near, whoever has been at his own, and not whoever everyone else is already on. Troops go down at the edge of his ground on that side,
+     and walk to the nearest tower from there, which is the one he chose. */
+  let aim = null; const grudge = {};
+  function decideRing(){
+    const p = P(), hand = handNow(), king = sim.towers[team][0];
+    if (!hand.length || !king || king.hp <= 0) return;
+    const foes = [], mine = [], eTw = [], eBld = [], myBld = [], myTw = sim.towers[team].filter(o => o.hp > 0);
+    for (const e of sim.ents){ if (e.hp <= 0 || (e.hid && e.team !== team)) continue; if (e.U.twr){ if (e.team !== team) eTw.push(e); } else if (e.U.bld) (e.team === team ? myBld : eBld).push(e); else (e.team === team ? mine : foes).push(e); }
+    if (!eTw.length) return;
+    const [dx0, dz0] = ringDrop(team, sim.map.sides), me = {x:dx0, z:dz0};      // the middle of his ground: everything he puts down is measured from here
+    const is = (h, f) => h.U && f(h.U), kind = k => hand.find(h => h.card.kind === 'spell' && h.card.spell.kind === k);
+    const home = o => myTw.reduce((a, t) => Math.min(a, dist(o, t)), 1e9) + 1.5;      // how close something is to the nearest of his towers
+    eTw.sort((a, b) => dist(a, me) - dist(b, me));      // nearest first: a spell with no better idea goes for that one
+    const toward = (o, d) => { const dx = o.x - me.x, dz = o.z - me.z, q = Math.hypot(dx, dz) || 1; return [me.x + dx / q * d, me.z + dz / q * d]; };      // a spot d out from the middle of his ground, in the direction of o
+    const EDGE = RING_DROP - .3;
+
+    if (rnd() < prof.derp){                       // the careless play: whatever comes to hand, somewhere in his corner
+      if (p.el < Math.min(prof.hold, 9.5)) return;
+      const any = hand.filter(h => h.U && !h.U.mana);
+      if (any.length){ const h = any[Math.floor(rnd() * any.length)], a = rnd() * 6.283, q = 1.8 + rnd() * (EDGE - 1.8); return put(h, me.x + Math.cos(a) * q, me.z + Math.sin(a) * q); }
+    }
+
+    // 1. a spell that finishes a tower or lands on a crowd. Two other sides fighting each other in one circle is the best crowd there is
+    let pick = null, ps = 0;
+    for (const h of hand){
+      if (h.card.kind !== 'spell') continue;
+      const c = cast(h, foes, eTw, eBld, mine, myTw); if (!c) continue;
+      const sc = c.v / (h.card.cost * 95);
+      if (sc >= 1.75 - prof.smart * .6 && sc > ps){ ps = sc; pick = {h, x:c.x, f:c.f}; }
+    }
+    if (pick && (ps >= 1.6 || p.el >= 6)) return put(pick.h, pick.x, pick.f);
+    const wardH = kind('ward');
+    const weakT = myTw.filter(o => o.hp < o.max * .38 && !(o.sh > 0)).sort((a, b) => a.hp - b.hp)[0];
+    if (wardH && weakT && (seen.size || foes.some(o => dist(o, weakT) < 6)) && rnd() < prof.smart) return put(wardH, weakT.x, weakT.z);
+
+    // 2. his own corner: anything near his tower, or on its way to it
+    const threats = foes.filter(o => o.dep <= 0 && (home(o) < 8.2 || (myTw.some(t => t.id === o.tgt) && home(o) < 11)));
+    if (threats.length){
+      threats.sort((a, b) => home(a) - home(b));
+      const lead = threats[0], near = home(lead) < 5.6;
+      grudge[lead.team] = sim.tick;
+      const onFoot = threats.filter(o => !o.U.fly), big = onFoot.find(o => o.max >= 700) || onFoot[0];
+      const ahead = (o, h) => { const d = dist(o, me), a = Math.max(2.2, d - Math.min(d * .7, o.U.spd * h.card.trap.arm + .2)); return put(h, ...toward(o, a)); };      // where it will be standing when the trap arms
+      if (onFoot.length && myTraps() < 2 && rnd() < .25 + prof.smart * .6){
+        const tr = k => hand.find(h => h.card.kind === 'trap' && h.card.trap.kind === k), mir = tr('mirror'), bnc = tr('bounce'), snp = tr('snap'), slp = tr('slip');
+        if (mir && near) return put(mir, ...toward(lead, 2.1));
+        if (bnc && big.max >= 700) return ahead(big, bnc);
+        if (slp && onFoot.length >= 3) return ahead(onFoot[0], slp);
+        if (snp) return ahead(big, snp);
+        if (slp) return ahead(onFoot[0], slp);
+      }
+      const close = o => home(o) < 9 && (dist(o, lead) < 7 || threats.some(t => dist(o, t) < 5.5)) && (o.U.air || threats.some(t => !t.U.fly));
+      const power = threats.reduce((a, o) => a + o.hp * .4 + o.dmg, 0), have = mine.filter(close).reduce((a, o) => a + o.hp * .4 + o.dmg, 0) + myBld.reduce((a, o) => a + (o.U.dmg && dist(o, lead) < o.U.rng + 3 ? o.hp * .3 + o.dmg : 0), 0);
+      if (have < power * 1.15 && (near || p.el >= prof.hold - 2.5 || power > 900)){
+        const air = threats.filter(o => o.U.fly).length / threats.length, many = threats.length >= 4, huge = threats.some(o => o.hp > 800), pull = threats.some(o => o.U.only === 'b'), worth = power / 260;
+        let best = null, bs = -1;
+        for (const h of hand){
+          if (!h.U) continue;
+          const U = h.U, n = h.card.n;
+          if (U.mana || U.only === 'b' || (!U.air && air > .99)) continue;
+          let sc = 1 + (rnd() - .5) * (1.2 - prof.smart);
+          if (!U.air) sc *= 1 - air * .95;
+          if (!U.dmg) sc *= U.spawn ? .6 : pull && U.bld && !U.heal && !U.aura ? 1.9 : .05;
+          if (many && (U.splash || U.chain)) sc *= 1.7;
+          if (many && n >= 3) sc *= .8;
+          if (huge && (n >= 3 || dpsOf(U, n) > 110 || U.ramp)) sc *= U.ramp ? 1.9 : 1.45;
+          if (pull && U.bld && U.dmg) sc *= 1.6;
+          if (U.land && (U.land.dmg || U.land.stun || U.land.slow) && threats.filter(o => dist(o, lead) <= U.land.r).length >= 2) sc *= 1.6;
+          if (U.taunt || U.thorns || U.numb) sc *= 1.2;
+          if (U.stealth || U.any) sc *= .6;
+          if (h.card.cost > worth + 2.5) sc *= .55;
+          sc = sc * prof.smart + (1 - prof.smart) * (.6 + rnd() * .8);
+          if (sc > bs){ bs = sc; best = h; }
+        }
+        if (best && bs > .12){
+          const U = best.U, d = dist(lead, me), back = U.bld ? 99 : U.land && (U.land.dmg || U.land.stun || U.land.slow) ? 0 : U.rng > 2 ? 3.6 : 1.4;
+          let [x, z] = toward(lead, U.bld ? Math.min(3.4, Math.max(2.6, d - 2)) : Math.max(1.9, d - back));      // between them and the tower: a shooter further back, a building right in front of it
+          if (!U.bld && U.rng <= 2 && rnd() < prof.smart){          // a fighter goes down on whoever is shooting from the back
+            const soft = threats.filter(o => o.U.rng > 2 && o.max < 700 && home(o) < EDGE && (!o.U.fly || U.air)).sort((a, b) => a.hp - b.hp)[0];
+            if (soft && !(lead.max >= 900 && d < 4)){ x = soft.x; z = soft.z; }
+          }
+          return put(best, x, z);
+        }
+        if (near){
+          let sp = null, sv = 0; for (const h of hand){ if (h.card.kind !== 'spell') continue; const c = cast(h, threats, [], [], mine, myTw); if (c && c.v / (h.card.cost * 95) > sv){ sv = c.v / (h.card.cost * 95); sp = {h, x:c.x, f:c.f}; } }
+          if (sp && sv >= .7) return put(sp.h, sp.x, sp.f);
+          if (!threats.every(o => o.U.only === 'b')){
+            const body = hand.filter(h => h.U && !h.U.mana && !h.U.bld && h.U.only !== 'b').sort((a, b) => b.U.hp * b.card.n / b.card.cost - a.U.hp * a.card.n / a.card.cost)[0];
+            if (body && rnd() < .5 + prof.smart * .5) return put(body, ...toward(lead, 2.2));
+          }
+        }
+      }
+    }
+
+    // 3. nothing urgent: a Mana farm beside the tower, a mechanic for it, a trap on the way in
+    const quiet = !threats.some(o => home(o) < 6.5), farms = myBld.filter(o => o.U.mana).length + mine.filter(o => o.U.mana).length, side = rnd() < .5 ? -1 : 1;
+    const beside = q => { const d = Math.hypot(king.x, king.z) || 1; return [king.x + side * (king.z / d) * q, king.z - side * (king.x / d) * q]; };      // along the wall from his King Tower, either way
+    const farm = hand.find(h => is(h, U => !!U.mana));
+    if (farm && quiet && farms < 2 && p.el >= farm.card.cost + (prof.smart > .6 ? 1 : 3) && rnd() < .35 + prof.smart * .6) return put(farm, ...beside(3 + rnd()));
+    const fix = hand.find(h => is(h, U => U.heal && U.heal.bld));
+    const hurtT = myTw.filter(o => o.hp < o.max * .75).sort((a, b) => a.hp / a.max - b.hp / b.max)[0];
+    if (fix && hurtT && quiet && p.el >= fix.card.cost + 2 && rnd() < prof.smart) return put(fix, hurtT.x + (rnd() - .5), hurtT.z + (rnd() - .5));
+
+    // 4. attack. Pick a tower, and stay on it unless something clearly better turns up
+    const rate = sim.rate, hold = Math.max(4, prof.hold - (rate - 1) * 1.2);
+    if (p.el < hold && p.el < 9.6) return;
+    const spot = t => toward(t, EDGE), goes = t => { const [x, z] = spot(t), d = Math.hypot(t.x - x, t.z - z); return eTw.every(o => o === t || Math.hypot(o.x - x, o.z - z) >= d - .05); };      // a tower he can actually send troops at: the nearest one from where they would go down
+    const score = t => {
+      const others = foes.filter(o => o.team !== t.team && dist(o, t) < 6.5).length, there = mine.filter(o => dist(o, t) < 8).length;
+      return (1 - t.hp / t.max) * 2.4 + (t.key === 'king' ? .8 : 0) + (grudge[t.team] != null && sim.tick - grudge[t.team] < 20 * TPS ? 1.1 : 0) + Math.min(1, there * .4) - Math.min(1.4, others * .3) - dist(t, me) / 16 + rnd() * (1.5 - prof.smart);
+    };
+    const cand = eTw.filter(goes).map(t => ({t, v:score(t)})).sort((a, b) => b.v - a.v);
+    if (!cand.length) return;
+    const cur = aim && cand.find(c => c.t.id === aim.id);
+    if (!cur || sim.tick > aim.until || cand[0].v > cur.v + .9) aim = {id:cand[0].t.id, until:sim.tick + Math.round((14 + rnd() * 10) * TPS)};
+    const tgt = cand.find(c => c.t.id === aim.id).t, [ex, ez] = spot(tgt);
+    const front = mine.filter(o => dist(o, tgt) < home(tgt)).sort((a, b) => dist(a, tgt) - dist(b, tgt))[0];      // his troop nearest that tower
+    const isTank = U => !U.bld && (U.only === 'b' || U.hp >= 900);
+    const tanks = hand.filter(h => h.U && isTank(h.U)), hasTank = mine.some(o => o.max >= 900 && dist(o, tgt) < home(tgt) + 2);
+    const troops = hand.filter(h => h.U && !h.U.bld && !h.U.mana);
+    const saving = p.hand.some(c => { const k = CARDS[c.id], U = k.U; return U && isTank(U) && k.cost > p.el; });
+    const gh = p.hand.map((c, i) => ({i, c, card:CARDS[c.id], U:CARDS[c.id].U || null})).find(h => h.card.rar === 'g' && h.U);      // a God: when there is a crowd to land on, or an army to lead
+    if (gh && p.el >= gh.card.cost && rnd() < .35 + prof.smart * .65){
+      const U = gh.U, out = foes.filter(o => o.dep <= 0), bulk = out.reduce((a, o) => a + o.hp, 0), army = mine.length;
+      if (U.smite ? out.length >= 5 || bulk >= 2200 : U.reap ? bulk >= 2600 || out.length >= 6 : army >= 3 || p.el >= 9.7) return put(gh, ex, ez);
+    }
+    const drop = hand.find(h => is(h, U => !!U.any));
+    if (drop && rnd() < prof.smart){
+      const soft = eBld.filter(o => o.U.mana)[0] || foes.filter(o => o.U.rng > 2 && o.max < 700 && home(o) > 8).sort((a, b) => a.hp - b.hp)[0];
+      if (soft) return put(drop, soft.x + (rnd() - .5), soft.z + (rnd() - .5));
+    }
+    if (!hasTank && !tanks.length && saving && p.el < 9.6 && rnd() < prof.smart) return;
+    if (tanks.length && !hasTank) return put(tanks[Math.floor(rnd() * tanks.length)], ex, ez);
+    if (front && troops.length){
+      const sup = troops.filter(h => h.U.rng > 2 || h.U.splash || h.card.n >= 3 || h.U.heal || h.U.aura), h = (sup.length ? sup : troops)[Math.floor(rnd() * (sup.length || troops.length))];
+      return put(h, ex + (rnd() - .5) * 1.6, ez + (rnd() - .5) * 1.6);
+    }
+    const bl = hand.filter(h => h.U && h.U.bld && (h.U.spawn || (front && (h.U.aura || h.U.heal))));
+    if (bl.length && rnd() < .6) return put(bl[0], ...toward(tgt, 2.8 + rnd()));
+    if (troops.length){ const h = troops.sort((a, b) => b.card.cost - a.card.cost)[rnd() < .6 ? 0 : troops.length - 1]; return put(h, ex + (rnd() - .5), ez + (rnd() - .5)); }
+    const trapH = hand.find(h => h.card.kind === 'trap');
+    if (trapH && myTraps() < 2 && rnd() < .3 + prof.smart * .3) return put(trapH, ...toward(tgt, trapH.card.trap.kind === 'counter' || trapH.card.trap.kind === 'mirror' ? 2 : 3 + rnd() * 2));
+    if (p.el >= 9.5){                             // only spells and buildings left and a full bar: a defence, a spell at the tower, or the cheapest thing in hand
+      const d = hand.find(h => h.U && h.U.bld && h.U.dmg); if (d) return put(d, ...toward(tgt, 3));
+      const sh = hand.find(h => h.card.kind === 'spell' && h.card.spell.dmg > 0 && h.card.spell.twr > 0); if (sh) return put(sh, tgt.x, tgt.z);
+      const any = hand.filter(h => h.U).sort((a, b) => a.card.cost - b.card.cost)[0]; if (any) return put(any, ...toward(tgt, 3));
+    }
+  }
   /* Boosts: once a second he looks at what he is holding. Each wants a troop of its type in the right spot of bother: hurt for the ones that mend, in a fight for
      the ones that protect or hit harder, stuck for the one that frees. With a full hand he is less fussy, since nothing more arrives until he uses one. */
   function boosts(){
@@ -276,16 +438,16 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     if (best && (full || best.v >= 120 * (1.6 - prof.smart))) sim.boost(pid, best.slot, best.x, best.z);
   }
   /* is anything of theirs deep in his half? */
-  const alarm = () => { for (const e of sim.ents) if (e.team !== team && e.hp > 0 && e.dep <= 0 && !e.U.twr && !e.U.bld && !e.hid && e.z * s > 5.5) return true; return false; };
+  const alarm = () => { const ks = ring ? sim.towers[team].filter(o => o.hp > 0) : null; for (const e of sim.ents) if (e.team !== team && e.hp > 0 && e.dep <= 0 && !e.U.twr && !e.U.bld && !e.hid && (ring ? ks.some(k => dist(e, k) < 6.5) : e.z * s > 5.5)) return true; return false; };
 
   return { tick(){
-    if (sim.over) return;
+    if (sim.over || (ring && !sim.alive[team])) return;
     if (prof.smart >= .35) reflex(); else for (const zn of sim.zones) if (zn.team !== team && zn.spell) seen.add(zn.kind);
     if ((sim.tick + pid * 7) % 20 === 0) boosts();
     if (wait > urgent && (sim.tick + pid) % 5 === 0 && alarm()) wait = urgent;          // a push at his towers does not wait for his next thought
     if (--wait > 0) return;
     const el = P().el;                                                                  // and with Mana piling up he thinks faster: nothing is gained by sitting on a full bar
     wait = Math.max(4, Math.round(prof.react * (.7 + rnd() * .6) * TPS * (el >= 8.5 ? .45 : el >= 6.5 ? .7 : 1)));
-    decide();
+    if (ring) decideRing(); else decide();
   } };
 }
