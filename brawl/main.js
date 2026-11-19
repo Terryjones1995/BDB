@@ -1,13 +1,13 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT,
-  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119d';
-import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119d';
-import { createAI } from './ai.js?v=1119d';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119d';
-import { Cloud, cloudWhy } from './cloud.js?v=1119d';
-import { sayFor, sayWhen } from './talk.js?v=1119d';
-import { createAudio } from './audio.js?v=1119d';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, SELL_GOD, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT,
+  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119e';
+import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119e';
+import { createAI } from './ai.js?v=1119e';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119e';
+import { Cloud, cloudWhy } from './cloud.js?v=1119e';
+import { sayFor, sayWhen } from './talk.js?v=1119e';
+import { createAudio } from './audio.js?v=1119e';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -81,7 +81,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119d'), import('./models.js?v=1119d')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119e'), import('./models.js?v=1119e')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -2125,7 +2125,7 @@ function drawTrade(){
 addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) $('sheet').hidden = true; });
 $('lvPct').textContent = Math.round(LVL_STEP * 100); $('lvMax').textContent = MAX_LVL; $('dealPct').textContent = Math.round((1 - DEAL) * 100);      // the numbers in the Market's small print come from the rules, so they cannot drift from them
 listUI('own', () => Object.keys(P.cards), 'Your cards');
-$('sellRates').innerHTML = RAR_IDS.map(r => `<span class="r-${r}">${RAR[r].name} ${COIN}${fmt(SELL[r])}</span>`).join('');
+$('sellRates').innerHTML = RAR_IDS.map(r => `<span class="r-${r}">${RAR[r].name} ${SELL[r] ? COIN + fmt(SELL[r]) : Math.round(SELL_GOD * 100) + '% of its price'}</span>`).join('');
 listUI('shop', () => CARD_IDS, 'All cards');
 window.__game = {
   get state(){ return B ? (B.done ? 'done' : B.over ? 'over' : B.pz ? 'paused' : B.run ? 'play' : 'wait') : P ? (P.onboarded ? 'hub' : 'onboard') : 'login'; }, get score(){ return P ? P.coins : 0; },
