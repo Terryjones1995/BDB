@@ -772,6 +772,53 @@ export function rollJobs(rnd, o = {}){
   return out;
 }
 export const jobPay = (id, ladder = 0) => Math.round(JOBS[id].pay * (1 + Math.floor(Math.min(ladder, LEVELS - 1) / 100) * .5) / 10) * 10;
+/* ---------- rampage ----------
+   A troop that takes down three enemies without dying is on a rampage, and its type decides what that is worth. Six, and it steps up again (the second step replaces
+   the first). dmg, spd, hit: multipliers. grd: how much of each hit still lands. leech: the share of its damage it heals. regen: health a second, as a share of its own.
+   dodge: the chance a hit misses. burn: its hits set alight, for this share of its damage a second. chill: its hits slow, for this many seconds.
+   heal, shield: at once, as a share of its health. mana: paid to its owner at once. */
+export const RAMP_AT = [3, 6];
+export const RAMPAGE = {
+  dragon: {name:'Dragon Fury',  text:'Hits harder and gets health back.',            t:[{dmg:1.25, heal:.3},      {dmg:1.5, heal:1}]},
+  fire:   {name:'Wildfire',     text:'Every hit sets its target alight.',            t:[{burn:.4},                {burn:.7, dmg:1.2}]},
+  frost:  {name:'Cold Snap',    text:'Every hit slows its target.',                  t:[{chill:2},                {chill:3, dmg:1.25}]},
+  arcane: {name:'Mana Surge',   text:'Pays you Mana and attacks faster.',            t:[{mana:1, hit:1.15},       {mana:2, hit:1.3}]},
+  dark:   {name:'Soul Feast',   text:'Heals itself with every hit it lands.',        t:[{leech:.3},               {leech:.5}]},
+  shadow: {name:'Smoke',        text:'Hits aimed at it start to miss, and it speeds up.', t:[{dodge:.25, spd:1.15}, {dodge:.4, spd:1.25}]},
+  beast:  {name:'On the Scent', text:'Moves faster and attacks faster.',             t:[{spd:1.25, hit:1.2},      {spd:1.4, hit:1.35}]},
+  nature: {name:'Overgrowth',   text:'Gets health back, and keeps mending.',         t:[{heal:.25, regen:.03},    {heal:.4, regen:.06}]},
+  horde:  {name:'War Frenzy',   text:'Hits a lot harder.',                           t:[{dmg:1.3},                {dmg:1.6}]},
+  order:  {name:'Rally',        text:'Picks up a shield.',                           t:[{shield:.3},              {shield:.6, grd:.9}]},
+  tech:   {name:'Overclock',    text:'Shrugs off part of every hit.',                t:[{grd:.75},                {grd:.6, hit:1.15}]},
+  crew:   {name:'Coffee Break', text:'Gets health back and hits harder.',            t:[{heal:.35, dmg:1.15},     {heal:.6, dmg:1.3}]}
+};
+/* ---------- goals ----------
+   Four things to do with every card, each paid once. What a card is asked for depends on what it can do: something that deals no damage is not asked for kills,
+   and something that never reaches a tower is not asked to finish one. Progress is counted per card whatever its build.
+   play: times played. win: wins with it in the deck. kill: enemies it (or whatever it summons) finished. crown: towers your side took with it in the deck.
+   tower: towers it finished. dmg: damage it did. sweep: wins by all three towers with it in the deck. */
+export const GOAL_PAY = {c:100, r:150, e:250, l:500, g:1500};
+const GOAL_MUL = {play:1, win:1.5, kill:1.5, crown:1.5, tower:2, dmg:2, sweep:2};
+const goalCache = {};
+export function goalsOf(b){
+  if (goalCache[b]) return goalCache[b];
+  const c = CARDS[b + '-std']; if (!c) return [];
+  const us = c.U ? (c.us || [c.u]).map(k => UNITS[k]) : [], hits = u => u.dmg > 0 || !!u.spawn || !!u.death || !!(u.land && (u.land.dmg || u.land.summon)) || !!u.smite || !!u.reap || !!u.wrath;
+  const canKill = c.kind === 'spell' ? c.spell.dmg > 0 || !!c.spell.u : c.kind === 'trap' ? c.trap.dmg > 0 || c.trap.burst > 0 : us.some(hits);
+  const canTower = c.kind === 'spell' ? (c.spell.dmg > 0 && (c.spell.twr ?? 1) > 0) || !!c.spell.u : c.kind === 'unit' ? us.some(u => u.dmg > 0 || !!u.spawn) : c.kind === 'build' ? us.some(u => !!u.spawn) : false;
+  const list = [{k:'play', n:c.cost <= 2 ? 25 : c.cost <= 4 ? 18 : 12}, {k:'win', n:8},
+    canKill ? {k:'kill', n:c.kind === 'spell' ? 25 : c.kind === 'trap' ? 8 : c.n >= 4 ? 40 : c.kind === 'unit' ? 20 : 15} : {k:'crown', n:15},
+    canTower ? {k:'tower', n:c.kind === 'unit' ? 3 : 2} : canKill ? {k:'dmg', n:c.kind === 'build' ? 6000 : clamp(Math.round(((c.spell || c.trap).dmg || 0) * 25 / 500) * 500, 1500, 6000)} : {k:'sweep', n:2}];
+  for (const g of list) g.pay = Math.round(GOAL_PAY[c.rar] * GOAL_MUL[g.k] / 10) * 10;
+  return goalCache[b] = list;
+}
+export function goalText(b, g){
+  const c = CARDS[b + '-std'], n = c.baseName, k = g.k, num = g.n.toLocaleString('en-CA');
+  return k === 'play' ? (c.kind === 'spell' ? `Cast ${n} ${num} times` : c.kind === 'trap' ? `Set ${n} ${num} times` : c.kind === 'build' ? `Put ${n} down ${num} times` : `Send ${n} out ${num} times`)
+    : k === 'win' ? `Win ${num} matches with ${n} in your deck` : k === 'kill' ? `Defeat ${num} enemies with ${n}` : k === 'crown' ? `Take ${num} towers with ${n} in your deck`
+    : k === 'tower' ? `Finish off ${num} towers with ${n}` : k === 'dmg' ? `Deal ${num} damage with ${n}` : `Win ${num} matches by all three towers with ${n} in your deck`;
+}
+export const GOAL_COUNT = BASE_IDS.length * 4;
 /* old saves held a card for every rarity of a character and used older names: where each of those went */
 export const OLD_BASE = {skels:'bonecrew', bench:'ironclad', shooters:'longshots', gobs:'orclings', bats:'gloombats', airball:'arrows', slime:'slime', hoop:'cannon', mascot:'mascot', barista:'hexa', golem:'clanker', ref:'nightbolt',
   coffee:'fireball', vending:'crypt', trainer:'tonic', fast:'gorehorn', dragon:'emberwing', ghost:'lostsoul', clockout:'freeze', overtime:'rage', buzzer:'magmaw', witch:'gravewitch', fivestar:'bdb', jumbo:'lich', bell:'bell',

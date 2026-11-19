@@ -2,8 +2,8 @@
    makeModel(key, team, opts) -> {g, h, fly, turret, anim(t, s)}.  Models face +z.
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
-import { AFF, UNITS } from './cards.js?v=1119b';
-import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1119b';
+import { AFF, UNITS } from './cards.js?v=1119c';
+import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1119c';
 
 const PI = Math.PI;
 export const TEAM = [0x3d8bff, 0xff4b47];

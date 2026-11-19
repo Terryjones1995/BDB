@@ -1077,6 +1077,39 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .selling .card.inuse{opacity:.55}
 .card.sellp{outline:4px solid #ffd23f;outline-offset:2px}
 .card.sellp::after{content:"Sell";position:absolute;z-index:6;left:50%;top:44%;transform:translate(-50%,-50%) rotate(-10deg);font:400 12px/1 var(--f-game);letter-spacing:.02em;white-space:nowrap;background:linear-gradient(180deg,#ffe066,#f59a1c);color:#fff;text-shadow:var(--stroke);border:2px solid var(--ink2);border-radius:7px;padding:4px 8px 3px}
+#sheet{z-index:45}      /* a card's sheet opens over whatever list or dialog it was opened from */
+/* card goals: a wide box on the Battle tab, four rows on every card sheet, and the list for the deck in use */
+.boon.wide{grid-column:1/-1}
+.boon .ic.goal{background:linear-gradient(180deg,#7ee06a,#2a8f3a)}
+.goals{width:100%;display:grid;gap:5px;text-align:left}
+.goals .gl{font:400 14px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);margin:2px 0 1px}
+.goal{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:3px 10px;align-items:center;padding:7px 10px 8px;border-radius:10px;background:#0a1e52;border:2px solid var(--ink2)}
+.goal .gt{font:700 12px/1.3 var(--f-body);color:#eef5ff}
+.goal .gn{font:800 11px/1 var(--f-body);color:#cfe1ff;white-space:nowrap}
+.goal .gp{display:inline-flex;align-items:center;gap:4px;font:400 14px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke);white-space:nowrap}
+.goal .gp .coin{width:14px;height:14px;margin:0}
+.goal .bar{grid-column:1/-1;height:6px;border-radius:3px;background:rgba(3,10,36,.7);overflow:hidden}
+.goal .bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#58c8ff,#7ee06a)}
+.goal.got{background:linear-gradient(180deg,#2f7d34,#1b5226)} .goal.got .gn{color:#d8ffd0} .goal.got .gp{opacity:.6} .goal.got .bar i{background:#ffd23f}
+.goalwrap{display:grid;gap:10px;width:100%;margin-bottom:12px}
+.gcard{display:grid;gap:5px;padding:9px;border-radius:14px;border:2.5px solid var(--ink2);background:rgba(6,18,58,.45);text-align:left}
+.gcard .gh{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:9px;align-items:center}
+.gcard .gh img{width:38px;height:38px;border-radius:9px;border:2px solid var(--ink2);background:#0a1e52;object-fit:cover}
+.gcard .gh b{font:400 17px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcard .gh .k-btn{padding:6px 12px 5px;font-size:14px}
+#dlgBox:has(.goalwrap){width:min(560px,100%);max-width:min(560px,100%)}
+@media (min-width:700px){ #dlgBox:has(.goalwrap){width:min(820px,100%);max-width:min(820px,100%)} .goalwrap{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* a troop's rampage perk: on its card sheet, and in the box that comes up when it is tapped in a match */
+.abil li.ramp{border-color:var(--ty,#ffd23f);background:linear-gradient(180deg,color-mix(in srgb,var(--ty,#ffd23f) 22%,#0a1e52),#0a1e52)}
+.abil li.ramp::before{background:var(--ty,#ffd23f)}
+.abil li.ramp b{color:#fff}
+.insp p.iramp{margin:7px 0 0;padding:6px 8px;border-radius:9px;background:rgba(6,14,40,.55);border-left:4px solid var(--ty,#ffd23f)}
+.insp p.iramp.on{background:color-mix(in srgb,var(--ty,#ffd23f) 38%,rgba(6,14,40,.7))}
+.insp p.iord{margin:7px 0 0;padding:6px 8px;border-radius:9px;background:#fff;color:#0a1e52;font-weight:800}
+.insp.pick{left:62px;right:62px;width:auto;padding:8px 10px 9px}
+.insp.pick .ih{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.insp.pick .ih b{font-size:17px}
+.insp.pick p{margin-top:6px;font-size:11.5px;line-height:1.3}
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
@@ -1304,7 +1337,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <button type="button" class="hubtoast" id="hubToast" hidden></button>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1119b"></script>
+<script type="module" src="main.js?v=1119c"></script>
 <script>
 /* If the copy of the game kept on this device ever goes bad and the game does not start, throw the copy away and load again. Once, so a real outage does not loop. */
 setTimeout(function(){

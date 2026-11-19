@@ -1,12 +1,12 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
-  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE } from './cards.js?v=1119b';
-import { createSim, decodeEnts, decodeTraps, canPlace, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119b';
-import { createAI } from './ai.js?v=1119b';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119b';
-import { Cloud, cloudWhy } from './cloud.js?v=1119b';
-import { sayFor, sayWhen } from './talk.js?v=1119b';
-import { createAudio } from './audio.js?v=1119b';
+  lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT } from './cards.js?v=1119c';
+import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA } from './sim.js?v=1119c';
+import { createAI } from './ai.js?v=1119c';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119c';
+import { Cloud, cloudWhy } from './cloud.js?v=1119c';
+import { sayFor, sayWhen } from './talk.js?v=1119c';
+import { createAudio } from './audio.js?v=1119c';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -80,7 +80,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119b'), import('./models.js?v=1119b')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119c'), import('./models.js?v=1119c')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -258,6 +258,41 @@ function jobsBox(){
     save(); hub(); jobsBox();
   };
 }
+/* ---------- goals: four for every card, each paid once (the list is made in cards.js) ----------
+   P.goals holds how far each has got, by card: [a, b, c, d]. One that has reached its number is done and was paid when it got there. */
+const goalAt = (b, i) => Math.min(goalsOf(b)[i].n, (P.goals[b] || [])[i] || 0);
+const goalsDone = () => { let n = 0; for (const b in P.goals){ const G = goalsOf(b); for (let i = 0; i < G.length; i++) if (goalAt(b, i) >= G[i].n) n++; } return n; };
+const goalRow = (b, i) => { const g = goalsOf(b)[i], v = goalAt(b, i), done = v >= g.n; return `<div class="goal${done ? ' got' : ''}"><span class="gt">${esc(goalText(b, g))}</span><span class="gn">${done ? 'Done' : `${fmt(v)} of ${fmt(g.n)}`}</span><span class="gp">${COIN}${fmt(g.pay)}</span><div class="bar"><i style="width:${v / g.n * 100}%"></i></div></div>`; };
+/* A match is over: move every goal that belongs to a card in the deck that played it. ft: what each of this player's cards did (plays, kills, damage, towers finished).
+   Returns the goals this finished, each with its pay. The caller hands over the coins. */
+function goalTick(ft, o){
+  const done = [], num = (v, hi) => Number.isFinite(v) ? clamp(Math.round(v), 0, hi) : 0;
+  for (const b of new Set(o.deck.map(id => CARDS[id] && CARDS[id].base).filter(Boolean))){
+    const G = goalsOf(b), f = (ft && typeof ft === 'object' && ft[b]) || {}, v = [0, 1, 2, 3].map(i => goalAt(b, i)); let moved = false;
+    G.forEach((g, i) => {
+      if (v[i] >= g.n) return;
+      const add = g.k === 'play' ? num(f.p, 400) : g.k === 'win' ? +o.win : g.k === 'kill' ? num(f.k, 4000) : g.k === 'crown' ? o.crowns : g.k === 'tower' ? num(f.t, 3) : g.k === 'dmg' ? num(f.d, 5e6) : +(o.win && o.crowns >= 3);
+      if (add > 0){ v[i] = Math.min(g.n, v[i] + add); moved = true; if (v[i] >= g.n) done.push({b, i, pay:g.pay, text:goalText(b, g)}); }
+    });
+    if (moved) P.goals[b] = v;
+  }
+  return done;
+}
+/* the goals nearest to done among the cards of the deck in use: what the Battle tab shows */
+function goalsNear(n = 3){
+  const out = [];
+  for (const id of curDeck()){ const b = CARDS[id].base; goalsOf(b).forEach((g, i) => { const v = goalAt(b, i); if (v < g.n) out.push({b, i, k:v / g.n}); }); }
+  return out.sort((x, y) => y.k - x.k).slice(0, n);
+}
+function goalsBox(){
+  const deck = curDeck(), total = deck.reduce((s, id) => s + goalsOf(CARDS[id].base).reduce((q, g, i) => q + (goalAt(CARDS[id].base, i) >= g.n ? 0 : g.pay), 0), 0);
+  const b = dlg(`<div class="k-eyebrow">Card goals</div><h3>${fmt(goalsDone())} of ${fmt(GOAL_COUNT)} done</h3>
+    <p class="note" style="margin:0 0 10px">Every card has four, and each pays once. They count in any match, whichever build of the card you play. ${deck.length ? `The cards in this deck still have ${fmt(total)} coins to give.` : 'Put some cards in a deck to start on them.'}</p>
+    <div class="goalwrap">${deck.map(id => { const c = CARDS[id]; return `<div class="gcard r-${c.rar}"><div class="gh"><img alt="" loading="lazy" src="${artOf(c)}"><b>${esc(c.baseName)}</b><button type="button" class="k-btn" data-id="${id}">Card</button></div>${[0, 1, 2, 3].map(i => goalRow(c.base, i)).join('')}</div>`; }).join('')}</div>
+    <div class="k-row"><button type="button" class="k-btn" id="glX">Close</button></div>`);
+  b.querySelector('#glX').onclick = dlgClose;
+  for (const q of b.querySelectorAll('button[data-id]')) q.onclick = () => sheet(q.dataset.id);
+}
 /* milestones: career totals with rungs. msDue: the ones with a rung reached and not yet collected. */
 const msAt = k => (P.ms && P.ms[k]) || 0;
 const msDue = () => MS_IDS.filter(k => { const M = MILESTONES[k], n = msAt(k); return n < M.at.length && M.of(P) >= M.at[n]; });
@@ -286,7 +321,9 @@ function boonsUI(){
     <div class="boon${jDue ? ' go' : ''}"><div class="ic job">${jGot}</div><div><b>Today's jobs</b><small>${jDue ? `${esc(JOBS[jDue.id].text)}: done. ${fmt(jobPay(jDue.id, P.ladder))} coins to collect.` : jNext ? `${esc(JOBS[jNext.id].text)}: ${jNext.n} of ${JOBS[jNext.id].need}.` : 'All three done. New jobs tomorrow.'}</small><div class="pips">${J.map(j => `<i${j.got ? ' class="on"' : j.n >= JOBS[j.id].need ? ' class="due"' : ''}></i>`).join('')}</div></div><button type="button" class="k-btn${jDue ? ' primary' : ''}" id="jobGo">${jDue ? 'Collect' : 'See'}</button></div>
     <div class="boon"><div class="ic fire${P.streak ? '' : ' cold'}">${P.streak}</div><div><b>Win streak</b><small>${P.streak ? `${P.streak} in a row${P.best > P.streak ? `, best ${P.best}` : ''}. ${sb ? `The next win pays ${sb}% more coins.` : ''}` : 'Win two in a row and every win after pays extra coins, up to half as much again.'}</small></div></div>
     <div class="boon${full ? ' go' : ''}"><div class="ic pack" style="--pc:${bp.col}">${Math.min(P.bounty, BOUNTY)}</div><div><b>Tower bounty</b><small>${full ? `Ten towers down. A ${esc(bp.name)} is yours.` : `${P.bounty} of ${BOUNTY} enemy towers taken. Ten earns a ${esc(bp.name)}.`}</small><div class="bar"><i style="width:${Math.min(100, P.bounty / BOUNTY * 100)}%"></i></div></div>${full ? '<button type="button" class="k-btn primary" id="bntGo">Open</button>' : ''}</div>`;
-  const dg = $('dayGo'), bg = $('bntGo'); if (dg) dg.onclick = claimDaily; if (bg) bg.onclick = claimBounty; $('jobGo').onclick = jobsBox;
+  const gd = goalsDone(), gn = goalsNear(1)[0], gg = gn && goalsOf(gn.b)[gn.i];
+  el.innerHTML += `<div class="boon wide"><div class="ic goal">${gd}</div><div><b>Card goals</b><small>${gg ? `${esc(goalText(gn.b, gg))}: ${fmt(goalAt(gn.b, gn.i))} of ${fmt(gg.n)}. Pays ${fmt(gg.pay)} coins.` : curDeck().length ? 'Every goal for the cards in this deck is done. Try some others.' : 'Every card has four goals, and each one pays coins once.'}</small><div class="bar"><i style="width:${gg ? gn.k * 100 : curDeck().length ? 100 : 0}%"></i></div></div><button type="button" class="k-btn" id="goalGo">See</button></div>`;
+  const dg = $('dayGo'), bg = $('bntGo'); if (dg) dg.onclick = claimDaily; if (bg) bg.onclick = claimBounty; $('jobGo').onclick = jobsBox; $('goalGo').onclick = goalsBox;
 }
 
 /* ---------- card sheet: what it is, what it does, buy, upgrade, put in deck ---------- */
@@ -427,6 +464,7 @@ const statHTML = rows => rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</
 function sheet(id){
   const c = CARDS[id]; if (!c) return;
   const L = lvl(id), R = RAR[c.rar], price = priceNow(id), up = upgradeCost(id, L), box = $('sheetBox'), U = c.U, lines = U ? abil(U, lvlMul(Math.max(1, L))) : [];
+  const ramp = U && !U.bld && c.kind === 'unit' && (c.us || [c.u]).some(k => UNITS[k].dmg > 0) ? RAMPAGE[c.type] : null;
   const pct = Math.round(LVL_STEP * 100), G = gradeOf(Math.max(1, L)), up2 = L < MAX_LVL && gradeOf(L + 1) > G ? ` and moves it up to ${GRADES[gradeOf(L + 1)]}` : '';
   const lvNote = !L ? 'You do not own this card yet.' : `Level ${L} of ${MAX_LVL}, ${GRADES[G]} grade. ` + (L >= MAX_LVL ? 'Maxed out.' : c.trap ? (c.trap.dmg || c.trap.burst || c.trap.heal ? `The next level adds ${pct}% to what it does${up2}.` : 'Levels do not change this trap.') : c.spell && !(c.spell.dmg || c.spell.heal || c.spell.shield) ? 'Levels do not change this spell.' : `The next level adds ${pct}% health and damage${up2}.`);
   box.className = 'k-box sheetx r-' + c.rar;
@@ -434,8 +472,9 @@ function sheet(id){
       <div class="chips">${typeChip(c.type)}${U ? `<span class="rchip">${esc(ROLE_NAME[U.role] || 'Troop')}</span>` : ''}</div></div></div>
     <p class="sdesc">${esc(c.desc)}</p><p class="quote" style="--ty:${TYPES[c.type].col}">${esc(sayFor(c.base, c.type, hash(c.base)))}</p>
     <div class="stats">${statHTML(statRows(id, Math.max(1, L)))}</div>
-    ${lines.length ? `<ul class="abil">${lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}${c.note ? `<p class="bnote2">${esc(c.note)}</p>` : ''}
+    ${lines.length || ramp ? `<ul class="abil">${lines.map(l => `<li>${esc(l)}</li>`).join('')}${ramp ? `<li class="ramp" style="--ty:${TYPES[c.type].col}"><b>Rampage: ${esc(ramp.name)}.</b> ${RAMP_AT[0]} enemies down in one life and it goes on one. ${esc(ramp.text)} At ${RAMP_AT[1]} it steps up again.</li>` : ''}</ul>` : ''}${c.note ? `<p class="bnote2">${esc(c.note)}</p>` : ''}
     <div style="width:100%"><div class="note" style="margin-bottom:6px">${lvNote}</div><div class="prog"><i style="width:${L / MAX_LVL * 100}%"></i></div></div>
+    ${P && P.onboarded ? `<div class="goals"><div class="gl">Goals for ${esc(c.baseName)}</div>${[0, 1, 2, 3].map(i => goalRow(c.base, i)).join('')}</div>` : ''}
     <div class="k-row" id="shAct"></div><div class="note" id="shNote"></div>`;
   box.querySelector('.sheet-top > div').replaceWith(cardEl(id, {div:true, lvl:L, now:true}));
   const act = box.querySelector('#shAct');
@@ -632,7 +671,7 @@ function profile(){
   $('pLv').textContent = done ? `All ${fmt(LEVELS)} levels beaten.` : `Level ${fmt(lv)} of ${fmt(LEVELS)}.` + (ti < TIERS.length - 1 ? ` ${TIERS[ti + 1].name} starts at ${fmt((ti + 1) * 100 + 1)}.` : ' The last tier.');
   $('pTiles').innerHTML = [[fmt(s.w), 'BDB beaten'], [played ? Math.round(s.w / played * 100) + '%' : '0%', 'Win rate'], [fmt(P.best), 'Best streak'], [fmt(s.ow), 'Online wins'], [fmt(own), `Cards of ${fmt(CARD_IDS.length)}`], [fmt(P.trophies), 'Trophies']]
     .map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('');
-  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)], ['Cards sold', fmt(s.sold || 0)]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
+  $('pStats').innerHTML = [['Lost to BDB', fmt(s.l)], ['Online losses', fmt(s.ol)], ['Cards won from BDB', fmt(s.won)], ['Chests opened', fmt(s.packs)], ['Card upgrades', fmt(s.up)], ['Trades made', fmt(s.tr || 0)], ['Cards sold', fmt(s.sold || 0)], ['Card goals done', `${fmt(goalsDone())} of ${fmt(GOAL_COUNT)}`]].map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join('');
   const riv = Object.entries(P.vs || {}).map(([n, v]) => ({n, w:v[0], l:v[1], d:v[2], g:v[0] + v[1] + v[2]})).filter(o => o.g).sort((a, b) => b.g - a.g || b.w - a.w).slice(0, 12);
   msUI();
   $('vsPanel').hidden = !riv.length;
@@ -837,20 +876,22 @@ function whatsNew(){
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
   return true;
 }
-/* a save from before the odds, the crowns that pay, team matches at a level and real sound is told once */
+/* a save from before orders, rampages and card goals is told once (and one from before the odds and real sound hears about those too) */
 function newsNote(){
-  if (P.flags.n16) return false;
-  const old = !P.flags.n15, due = msDue().length;                   // old: has not seen the note before this one either
-  P.flags.n15 = P.flags.n16 = 1; save();
-  const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More to play for, ${esc(P.name)}</h3>
-    <ul class="abil"><li><b>Milestones.</b> Your Profile keeps eight career totals. Every rung is a chest, and the higher ones bring upgrade tokens.${due ? ` You have ${due === 1 ? 'one' : due} waiting.` : ''}</li>
-    <li><b>Head to head.</b> Every one against one online adds to a running score against that person. It is on their row in Who's on and on your Profile.</li>
-    <li><b>Trading</b> has been rebuilt: a proper list of your cards with a search box, and Lock and Confirm always on screen.</li>
-    ${old ? `<li><b>Raise the odds.</b> Before a match, pick two or three BDBs at once for double or triple, and every tower you take raises the pay: x${CROWN_PAY[1]}, x${CROWN_PAY[2]}, x${CROWN_PAY[3]}.</li>
-    <li><b>Sound.</b> Music and proper effects. The speaker button at the top mutes it, and Profile has a switch for each.</li>` : ''}
-    <li><b>No signal, no problem.</b> Once it has been opened, the game opens again at once and plays against BDB with no connection.</li></ul>
-    <div class="k-row"><button type="button" class="k-btn primary" id="nnOk">${due ? 'Show me' : 'Got it'}</button></div>`);
-  b.querySelector('#nnOk').onclick = () => { dlgClose(); if (due){ tab('Profile'); $('msPanel').scrollIntoView({block:'start'}); } };
+  if (P.flags.n17) return false;
+  const old = !P.flags.n16, due = msDue().length;                   // old: has not seen the note before this one either
+  P.flags.n15 = P.flags.n16 = P.flags.n17 = 1; save();
+  const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More ways to win, ${esc(P.name)}</h3>
+    <ul class="abil"><li><b>Give orders.</b> In a match, tap one of your troops, then tap an enemy troop, building or tower. It goes for that and nothing else. Tap the troop again to call it off.</li>
+    <li><b>Rampage.</b> A troop that takes down ${RAMP_AT[0]} enemies in one life goes on a rampage. Its type decides what it gets, and at ${RAMP_AT[1]} it steps up again. Every troop's card says which.</li>
+    <li><b>Card goals.</b> Every card has four goals that each pay coins once, ${fmt(GOAL_COUNT)} in all. They are on the Battle tab and on every card.</li>
+    <li><b>Sell cards.</b> The Deck tab has a Sell cards button, and so does every card you own. The price goes by rarity.</li>
+    <li><b>Better endings.</b> Troops go down the way they were beaten: thrown, burnt, frozen, melted, or in a way of their type's own.</li>
+    ${old ? `<li><b>Milestones.</b> Your Profile keeps eight career totals, and every rung is a chest.${due ? ` You have ${due === 1 ? 'one' : due} waiting.` : ''}</li>
+    <li><b>Raise the odds.</b> Before a match, pick two or three BDBs at once for double or triple, and every tower you take raises the pay: x${CROWN_PAY[1]}, x${CROWN_PAY[2]}, x${CROWN_PAY[3]}.</li>
+    <li><b>Sound.</b> Music and proper effects. The speaker button at the top mutes it.</li>` : ''}</ul>
+    <div class="k-row"><button type="button" class="k-btn primary" id="nnOk">Got it</button></div>`);
+  b.querySelector('#nnOk').onclick = dlgClose;
   return true;
 }
 /* a save from before the rebalance is told once what changed */
@@ -1064,7 +1105,7 @@ async function begin(o){
   const me = B = {...o, team:o.mode === 'guest' && !o.coop ? 1 : 0, me:o.mode === 'guest' ? 1 : 0, sel:-1, over:false, run:false, acc:0, ents:[], traps:[], prev:new Map(), netEv:[], handKey:'', info:null, said:{}, pz:null, pzUsed:[false, false], ready:null};
   B.coach = o.mode === 'cpu' && (Q.get('coach') || (!P.flags.coach && !Q.get('skip') && !Q.get('fast') && P.stats.w + P.stats.l + P.stats.d === 0)) ? {step:0, at:0} : null; B.hold = !!B.coach; coachOff();
   if (o.mode === 'host') B.ready = new Promise(res => { B.rdRes = res; });
-  show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
+  ordSel = 0; show('scrBattle'); $('emoPanel').hidden = true; $('insp').hidden = true; $('btPause').disabled = false; $('hand').innerHTML = ''; $('nextCard').innerHTML = '';
   $('oppName').textContent = o.oppName; $('meName').textContent = P.name; $('meDot').textContent = P.name[0].toUpperCase();
   $('oppDot').style.cssText = o.mode === 'cpu' ? '' : 'background:#5a1320;display:grid;place-items:center;font:800 11px/1 var(--f-body)'; $('oppDot').textContent = o.mode === 'cpu' ? '' : o.oppName[0].toUpperCase();
   const w = $('wait'), tip = `<p class="tip"><em>Tip</em>${esc(pick(TIPS))}</p>`; w.hidden = false; w.innerHTML = vsCard(o, tip + '<p class="ld">Bringing both decks onto the field.</p>');
@@ -1192,6 +1233,8 @@ function hear(e){
   else if (k === 'summon') fx('raise');
   else if (k === 'warp' || k === 'morph') fx('warp');
   else if (k === 'leap' || k === 'charge' || k === 'dodge') fx('throw', {rate:k === 'charge' ? .8 : 1, vol:1.3});
+  else if (k === 'rampage'){ const o = entOf(e.id); fx('rage', {pan:o ? panAt(o.x, o.z) : 0, vol:e.n > 1 ? 1 : .75, rate:e.n > 1 ? .85 : 1.12, gap:.25}); }
+  else if (k === 'order'){ if (e.pid === B.me) fx('place', {vol:.7, rate:1.25}, BDB.sfx.tick); }
   else if (k === 'reflect' || k === 'shbreak' || k === 'trapx') fx('clang', {vol:k === 'shbreak' ? 1 : .6});
 }
 function hearDeath(o, how){                              // the view calls this as a troop or a building goes, with what became of it
@@ -1220,6 +1263,7 @@ function onEvents(ev){
       if (c && e.e === 'drop' && e.u && c.kind === 'unit' && (c.rar !== 'c' || Math.random() < .6)){ const uid = e.u, line = sayFor(c.base, c.type), mine = e.team === B.team, big = c.rar === 'l' || c.rar === 'e' || c.rar === 'g'; setTimeout(() => { if (B && !B.over) bubble(uid, line, mine, big); }, 420); }
     }
     else if (e.e === 'grow'){ if (Math.random() < .45) bubble(e.id, sayWhen('kill'), true); }
+    else if (e.e === 'rampage'){ const o = entOf(e.id), R = RAMPAGE[e.k]; if (o && R){ const mine = o.team === B.team; note(`${mine ? 'Your' : B.mode === 'cpu' ? 'His' : 'Their'} ${o.U.name} ${e.n > 1 ? 'is unstoppable' : 'is on a rampage'}: ${R.name}`); if (mine){ bubble(e.id, sayWhen('kill'), true, true); buzz(18); } else if (B.mode === 'cpu' && e.n > 1) talk(TALK.legend); } }
     else if (e.e === 'revive'){ bubble(e.id, sayWhen('low'), true); }
     else if (e.e === 'trapset'){ if (e.team === B.team) SND.trapSet(); else { note(B.mode === 'cpu' ? 'He set a trap' : 'They set a trap'); if (B.mode === 'cpu') talk(TALK.trapSet); } }
     else if (e.e === 'trap'){
@@ -1228,7 +1272,7 @@ function onEvents(ev){
     } else if (e.e === 'negate'){ const mine = e.team !== B.team; SND.negate(); stamp(mine ? 'Waved off!' : 'No basket!', !mine); if (e.burn && e.pid === B.me) note(`You lose ${e.burn} Mana`); if (B.mode === 'cpu') talk(mine ? TALK.foulOnHim : TALK.foulOnYou, true); }
     else if (e.e === 'trapx'){ note(e.team === B.team ? 'Your trap was cleared' : 'You cleared a trap'); }
     else if (e.e === 'shbreak'){ if (e.twr) note(e.team === B.team ? 'Your tower shield broke' : 'His tower shield broke'); }
-    else if (e.e === 'over' && !B.over){ B.over = true; B.mv = e.mv; A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
+    else if (e.e === 'over' && !B.over){ B.over = true; B.mv = e.mv; B.ft = e.ft; A.music('off'); if (V){ V.setGhost(false); V.setNoGo(false); } const w = e.w, cr = e.cr; setTimeout(() => finish(w, cr), Q.get('fast') ? 50 : 1700); }
   }
 }
 const info = () => { if (B.mode === 'guest') return B.info; const s = B.sim; if (!s) return null; const p = s.players[B.me]; return {el:p.el, hand:p.hand, next:p.next, left:s.left, phase:s.phase, crowns:s.crowns, pocket:s.pocket(B.team), bonus:p.idle > PATIENT}; };
@@ -1262,6 +1306,7 @@ function hud(force){
 /* ---------- playing cards: drag from the hand, or tap a card then tap the floor ---------- */
 let aim = null;
 function select(i){
+  if (i >= 0 && ordSel){ ordPick(0); $('insp').hidden = true; }
   B.sel = i; for (const c of $('hand').children) c.classList.toggle('sel', +c.dataset.slot === i);
   const I = info(), c = i >= 0 && I ? CARDS[I.hand[i].id] : null; if (V){ V.setNoGo(!!c && c.kind !== 'spell' && !(c.U && c.U.any), I ? I.pocket : null); if (i < 0) V.setGhost(false); }
 }
@@ -1329,12 +1374,38 @@ const arenaUp = e => {
   ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0;
   if (!B) return;
   if (floorAim){ floorAim = false; const p = ghostAt(e.clientX, e.clientY); if (!tryPlay(B.sel, p) && V) V.setGhost(false); }
-  else if (pan){ const moved = pan.moved; pan = null; if (!moved && e.type === 'pointerup') inspect(e.clientX, e.clientY); }
+  else if (pan){ const moved = pan.moved; pan = null; if (!moved && e.type === 'pointerup') tapField(e.clientX, e.clientY); }
 };
 $('arena').addEventListener('pointerup', arenaUp); $('arena').addEventListener('pointercancel', arenaUp);
 $('arena').addEventListener('wheel', e => { if (!B || !V) return; e.preventDefault(); V.zoomBy(e.deltaY < 0 ? 1.14 : 1 / 1.14); }, {passive:false});
 $('btView').onclick = () => { if (V) V.resetCam(); };
 
+/* Orders. Tap one of your side's troops (or a building that shoots), then tap what it should go for: an enemy troop, building or tower. It goes for that, past
+   anything nearer, until one of them is gone. Tap the troop again to call the order off; tap the ground to let go of it. */
+let ordSel = 0;
+const WHYNOT = {air:'It cannot reach anything that flies', only:'It only goes for buildings and towers', far:'That is out of its reach', gone:'It cannot get at that', none:'That one does not take orders'};
+const unitNow = id => !B ? null : (B.mode === 'guest' ? B.ents : B.sim ? B.sim.ents : []).find(o => o.id === id) || null;
+function ordPick(id){ ordSel = id || 0; if (V) V.setSel(ordSel); }
+function sendOrder(uid, tid){
+  if (B.mode === 'guest'){ room.send('o', {u:uid, t:tid}, OL.opp); return true; }
+  return B.sim.order(B.me, uid, tid);
+}
+function tapField(cx, cy){
+  const e = V && V.entityAt(cx, cy), live = B.run && !B.over && !B.pz;
+  if (ordSel && live){
+    const u = unitNow(ordSel);
+    if (!u || u.hp <= 0) ordPick(0);
+    else if (e && e.team !== B.team){                                        // the order itself
+      const why = orderProblem(u, e); if (why){ note(WHYNOT[why] || WHYNOT.gone); BDB.sfx.bad(); return; }
+      if (!sendOrder(u.id, e.id)){ note(WHYNOT.gone); BDB.sfx.bad(); return; }
+      buzz(12); ordPick(0); $('insp').hidden = true; return;
+    }
+    else if (e && e.id === ordSel){ const had = u.ord; if (had || B.mode === 'guest') sendOrder(u.id, 0); if (had) note('Order called off'); ordPick(0); $('insp').hidden = true; return; }
+    else if (!e){ ordPick(0); $('insp').hidden = true; return; }
+  }
+  ordPick(e && live && e.team === B.team && !e.U.twr && e.U.dmg > 0 ? e.id : 0);
+  inspect(cx, cy);
+}
 /* tap any character or tower on the field: who it is, what it does, how much health it has left */
 let inspT = 0;
 function inspect(cx, cy){
@@ -1353,9 +1424,15 @@ function inspect(cx, cy){
   if (!U.bld) rows.push(['Speed', SPD(U.spd)]);
   rows.push(['Targets', U.only ? 'Buildings' : !U.dmg ? 'None' : U.air ? 'Air and ground' : 'Ground']);
   const what = U.twr ? (U.key === 'king' ? 'The king tower. Lose it and the match is over. It only wakes up once it is hit or a guard tower falls.' : 'A guard tower. It fires at anything in range, ground or air.') : c ? c.desc + (c.note ? ' ' + c.note : '') : 'Summoned by another card.';
-  box.className = 'insp ' + (mine ? 'mine' : 'theirs') + (c ? ' r-' + c.rar : '');
-  box.innerHTML = `<div class="ih"><b>${esc(c && (!c.n || c.n === 1) ? c.name : (AFF[U.aff].name ? AFF[U.aff].name + ' ' : '') + U.name)}</b><span>${mine ? 'Yours' : 'Enemy'}, level ${e.lvl || 1}${c ? ', ' + RAR[c.rar].name + ' ' + TYPES[c.type].name : ''}</span></div><p>${esc(what)}</p><div class="ig">${rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>`;
-  box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; }, 7000);
+  const R = !U.twr && !U.bld && U.dmg ? RAMPAGE[U.type] : null, tg = e.ord ? unitNow(e.ord) : null;
+  const more = (R ? `<p class="iramp${e.ram ? ' on' : ''}" style="--ty:${TYPES[U.type].col}"><b>${e.ram ? (e.ram > 1 ? 'Unstoppable' : 'On a rampage') : `Rampage at ${RAMP_AT[0]} kills${e.kc ? `, ${Math.min(e.kc, RAMP_AT[0])} so far` : ''}`}: ${esc(R.name)}.</b> ${esc(R.text)}</p>` : '')
+    + (ordSel === e.id ? `<p class="iord">${tg ? `Sent after ${esc(tg.U.name)}. Tap it again to call that off, or tap` : 'Tap'} an enemy troop, building or tower to send it there.</p>` : '');
+  const pick = ordSel === e.id, title = c && (!c.n || c.n === 1) ? c.name : (AFF[U.aff].name ? AFF[U.aff].name + ' ' : '') + U.name;
+  box.className = 'insp ' + (mine ? 'mine' : 'theirs') + (c ? ' r-' + c.rar : '') + (pick ? ' pick' : '');
+  // a troop picked to be given an order gets a short box that leaves the field in view: the full facts are on its card
+  box.innerHTML = pick ? `<div class="ih"><b>${esc(title)}</b><span>Level ${e.lvl || 1}, ${Math.max(0, Math.ceil(e.hp))} of ${e.max} health</span></div>${more}`
+    : `<div class="ih"><b>${esc(title)}</b><span>${mine ? 'Yours' : 'Enemy'}, level ${e.lvl || 1}${c ? ', ' + RAR[c.rar].name + ' ' + TYPES[c.type].name : ''}</span></div><p>${esc(what)}</p><div class="ig">${rows.map(([k, v]) => `<div><small>${k}</small><b>${v}</b></div>`).join('')}</div>${more}`;
+  box.hidden = false; clearTimeout(inspT); inspT = setTimeout(() => { box.hidden = true; if (ordSel === e.id) ordPick(0); }, ordSel === e.id ? 9000 : 7000);      // a troop left picked and not sent anywhere is let go of
 }
 addEventListener('keydown', e => { if (!B || $('scrBattle').hidden) return; if (e.key >= '1' && e.key <= String(HAND)) select(B.sel === +e.key - 1 ? -1 : +e.key - 1); else if (e.key === 'Escape') select(-1); });
 new ResizeObserver(() => { if (V && !$('scrBattle').hidden) V.resize(); }).observe($('arena'));
@@ -1475,7 +1552,11 @@ function finish(w, cr, why){
   for (const t of jd) lines.push(`Job done: ${t}. Collect it on the Battle tab.`);
   for (const k of msDue()) if (!ms0.has(k)) lines.push(`Milestone: ${MILESTONES[k].name}, ${fmt(MILESTONES[k].at[msAt(k)])}. A ${msPrize(msAt(k)).pk.name} is waiting on your Profile.`);
   if (why) lines.unshift(why);
-  const coins = pay.coins; P.coins += coins; save();
+  // goals: counted from what each card in the deck did this match (from the rules where they ran here, from the host's last word where they did not)
+  const fts = B.sim && B.sim.feats ? B.sim.feats : B.ft, gdone = goalTick(Array.isArray(fts) ? fts[B.me] : null, {win, crowns:mine, deck:curDeck()}), gpay = gdone.reduce((a, g) => a + g.pay, 0);
+  for (const g of gdone.slice(0, 4)) pay.rows.push(['Goal: ' + g.text, '+' + fmt(g.pay)]);
+  if (gdone.length > 4) pay.rows.push([`${gdone.length - 4} more goal${gdone.length > 5 ? 's' : ''}`, '+' + fmt(gdone.slice(4).reduce((a, g) => a + g.pay, 0))]);
+  const coins = pay.coins + gpay; P.coins += coins; save();
   A.music('off'); fx(win ? 'win' : draw ? 'draw' : 'lose', null, win ? BDB.sfx.big : BDB.sfx.bad); buzz(win ? [30, 50, 30, 50, 120] : draw ? 60 : 180); if (win && coins > 0) fx('coins', {delay:2.6});
   setTimeout(() => { if (!B || B.done) A.music('menu'); }, 3800);
   const many = B.mode === 'cpu' && B.odds > 1;
@@ -1621,6 +1702,7 @@ function enterMatch(code, host, keepBox, coop, skill){
     else if (t === 'rd'){ if (B.mode === 'host' && B.rdRes) B.rdRes(); }
     else if (t === 's' && B.mode === 'guest') snap(d);
     else if (t === 'p' && B.mode === 'host'){ const s = d.slot, h = B.sim.players[1].hand; if (B.run && B.sim && Number.isInteger(s) && s >= 0 && s < HAND && h[s] && h[s].id === d.id && Number.isFinite(d.x) && Number.isFinite(d.z)) B.sim.play(1, s, d.x, d.z); }
+    else if (t === 'o' && B.mode === 'host'){ if (B.run && B.sim && Number.isInteger(d.u) && Number.isInteger(d.t) && d.u > 0 && d.t >= 0) B.sim.order(1, d.u, d.t); }
     else if (t === 'em') showEmote(d.i, false);
     else if (t === 'pq' && B.mode === 'host'){ if (['pause', 'resume', 'ext', 'yes', 'no'].includes(d.a)) pzDo(d.a, 1); }
     else if (t === 'pz' && B.mode === 'guest'){ B.pz = d.on ? {by:d.by === 1 ? 1 : 0, left:Math.max(0, Math.min(3600, +d.left || 0)), ask:[0, 1, 2].includes(d.ask) ? d.ask : 0} : null; if (!B.pz) $('wait').hidden = true; pzUI(); }
@@ -1914,7 +1996,7 @@ window.__game = {
   play:(slot, x, z) => tryPlay(slot, {x, z}), give(n){ P.coins += n; save(); hub(); }, card(id, l = 1){ P.cards[id] = l; save(); hub(); }, unlock(n = LEVELS){ P.ladder = n; save(); hub(); }, tokens(n){ P.tokens += n; save(); hub(); },
   ff(n){ if (B && B.mode === 'cpu' && B.run) for (let i = 0; i < n && !B.sim.over; i++){ for (const a of B.ais) a.tick(); B.sim.step(); pump(); } return B ? B.sim.tick : 0; },
   deck(ids){ if (deckProblem(ids, false)) return deckProblem(ids, false); for (const id of ids) P.cards[id] = Math.max(1, P.cards[id] || 0); P.decks[P.deck] = ids.slice(); save(); hub(); return ''; },
-  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
+  end(w){ if (B && B.sim){ B.over = true; finish(w, B.sim.crowns); } }, ev(l){ if (V) V.events(l); onEvents(l); }, tapField, order:(u, t) => sendOrder(u, t), get ordSel(){ return ordSel; }, goalsBox, tab, hub, preCpu, ladderCpu, randomCpu, sheet, showEmote, pzAct, buyPack, packs:PACKS, cards:CARDS, audio:A, fx, JOBS, sanitize, league
 };
 const last = Accounts.last(), sess0 = Cloud.session();
 if (sess0 && !Q.get('fresh')){                                   // signed in before: fetch the online save, fall back to this device's copy if the server is out of reach

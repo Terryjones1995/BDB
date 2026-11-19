@@ -7,9 +7,9 @@ import { EffectComposer } from './vendor/postprocessing/EffectComposer.js';
 import { RenderPass } from './vendor/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/postprocessing/OutputPass.js';
-import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119b';
-import { UNITS, MAPS, CARDS, TRAP_ART } from './cards.js?v=1119b';
-import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119b';
+import { makeModel, basketball, M, TEAM, TX, outline } from './models.js?v=1119c';
+import { UNITS, MAPS, CARDS, TRAP_ART, TYPES } from './cards.js?v=1119c';
+import { W, L, RIVER, TRIG, riverOf } from './sim.js?v=1119c';
 
 const PI = Math.PI, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
 const angTo = (a, b, k) => { let d = (b - a) % (PI * 2); if (d > PI) d -= PI * 2; if (d < -PI) d += PI * 2; return a + d * k; };
@@ -591,6 +591,11 @@ export function createView(el, opt = {}){
   const iceMat = new THREE.MeshStandardMaterial({color:0xbfe9ff, transparent:true, opacity:.5, roughness:.05, metalness:.1, flatShading:true, depthWrite:false});
   const shMat = new THREE.MeshBasicMaterial({color:0x6fc4ff, transparent:true, opacity:.26, depthWrite:false, blending:THREE.AdditiveBlending}), shG = new THREE.SphereGeometry(1, 18, 12), hidMat = new THREE.MeshBasicMaterial({color:0x9a6bff, transparent:true, opacity:.9, depthWrite:false});
   const baseRing = new THREE.RingGeometry(.86, 1.08, 30);
+  const auraG = new THREE.RingGeometry(.7, 1, 9, 1), auraMats = {};      // nine sides, so it reads as it turns
+  const auraMat = c => auraMats[c] || (auraMats[c] = new THREE.MeshBasicMaterial({color:c, transparent:true, opacity:.8, depthWrite:false, blending:THREE.AdditiveBlending}));
+  /* the troop a player has picked to give an order to */
+  let selId = 0; const selRing = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 40), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:.95, depthWrite:false})); selRing.rotation.x = -PI / 2; selRing.visible = false; selRing.renderOrder = 3; root.add(selRing);
+  function setSel(id){ selId = id || 0; if (!selId) selRing.visible = false; }
   const badges = {};
   function badgeMat(rel, lvl){
     const k = rel + '|' + lvl; if (badges[k]) return badges[k];
@@ -709,7 +714,7 @@ export function createView(el, opt = {}){
     }
     const iced = !!r.ice, w = r.why || NOWHY;
     bars.remove(r.bar); if (r.badge) bars.remove(r.badge); if (r.num){ r.num.t.dispose(); if (r.ns) r.ns.material.dispose(); r.num = null; } recs.delete(e.id);
-    if (r.ring) r.g.remove(r.ring); if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); setFlash(r, false);
+    if (r.ring) r.g.remove(r.ring); if (r.ice) r.g.remove(r.ice); if (r.shield) r.g.remove(r.shield); if (r.aura) r.g.remove(r.aura); setFlash(r, false);
     if (r.gone || r.quiet){ if (opt.onDie) opt.onDie(e); root.remove(r.g); return; }
     /* What is left of it. Some causes settle everything (ice, lightning, a reaping); otherwise the type decides, and a hard enough blow throws the body first. */
     const cz = CAUSE[w.k], bony = BONY.test(e.key), col = r.rel ? 0xff8a7a : 0x8fc4ff, tiny = U.role === 'swarm' || U.role === 'flock';
@@ -892,6 +897,12 @@ export function createView(el, opt = {}){
       if (!frozen) m.anim(time, {mv:e.mv, ph:r.ph, atk:r.atk, chg:e.chg, aim, sum:r.sum, active:e.active, spd:U.spd * (e.rage ? 1.35 : 1) * (e.slow ? .62 : 1)});
       if (frozen && !r.ice){ r.ice = new THREE.Mesh(iceG, iceMat); r.ice.scale.set(U.r * 1.25, m.h * .58, U.r * 1.25); r.ice.position.y = m.h * .5 + (m.fly || 0); r.g.add(r.ice); }
       else if (!frozen && r.ice){ r.g.remove(r.ice); r.ice = null; burst(r.x, m.h * .5, r.z, 8, 0xbfe9ff, {spd:2.5, up:2, life:.4}); }
+      if (e.ram && !gone){                                         // on a rampage: a broad ring in its type's colour, and sparks coming off it
+        const tcol = (TYPES[U.type] || TYPES.order).col;
+        if (!r.aura){ r.aura = new THREE.Mesh(auraG, auraMat(tcol)); r.aura.rotation.x = -PI / 2; r.aura.position.y = .052; r.g.add(r.aura); }
+        r.aura.scale.setScalar(U.r * (1.6 + Math.sin(time * 7 + e.id) * .13) * (e.ram > 1 ? 1.28 : 1)); r.aura.rotation.z = time * (e.ram > 1 ? 2.4 : 1.1);
+        if (Math.random() < dt * (e.ram > 1 ? 15 : 7)) burst(r.x, .15, r.z, 1, tcol, {spd:.5, up:2.6, life:.55, grav:-1.4, spread:U.r * 1.7});
+      } else if (r.aura){ r.g.remove(r.aura); r.aura = null; }
       if (r.ring){ r.ring.material = e.hid ? hidMat : e.rage ? rageMat : ringMat[r.rel]; r.ring.scale.setScalar(U.r * (e.rage ? 1.3 + Math.sin(time * 12) * .1 : e.dep ? .7 + (time * 2 % 1) * .5 : 1.12)); }
       const show = r.landed && !e.dep && !gone && (U.twr || e.hp < e.max - .5 || e.max >= 700);      // the big ones wear their health from the start
       r.bar.visible = show;
@@ -1077,7 +1088,15 @@ export function createView(el, opt = {}){
       }
       else if (ev.e === 'leap'){ const r = recs.get(ev.id); if (r){ r.leap = r.leapD = Math.max(.2, ev.t); burst(r.x, .2, r.z, 8, 0xe9e4d6, {smoke:true, spd:1.6, up:.8, life:.4, grav:-.3}); } }
       else if (ev.e === 'reveal' || ev.e === 'cloak'){ const r = recs.get(ev.id); if (r) burst(r.x, r.m.h * .5, r.z, 18, 0x9a6bff, {smoke:true, spd:1.8, up:1.6, life:.7, grav:-.5}); }
-      else if (ev.e === 'dead'){ const r = recs.get(ev.id); if (r) r.why = ev; }                    // it is gone from the next list of what is on the field: this is how
+      else if (ev.e === 'dead'){ const r = recs.get(ev.id); if (r) r.why = ev; }
+      else if (ev.e === 'rampage'){ const r = recs.get(ev.id); if (r){ const c = (TYPES[ev.k] || TYPES.order).col, R = r.e.U.r; r.pop = .22; tag(r, ev.n > 1 ? 'UNSTOPPABLE' : 'RAMPAGE', c);
+        burst(r.x, r.m.h * .6 + (r.m.fly || 0), r.z, 26, c, {spd:4, up:5, life:.7}); flat(r.x, r.z, {r0:.3, r1:R * 4 + 1, dur:.5, color:c, add:true}); flat(r.x, r.z, {r0:R * 2.4 + .4, dur:.7, color:c, fill:true, soft:true, a:.6, hold:true, add:true}); if (ev.n > 1) shake(.2); } }
+      else if (ev.e === 'order'){                                  // shown to the side that gave it: a line from the troop to what it was sent after, and a ring closing on the target
+        const r = recs.get(ev.id), t = ev.t ? recs.get(ev.t) : null;
+        if (r && r.rel === 0 && t){ va.set(r.x, r.m.h * .6 + (r.m.fly || 0), r.z); vb.set(t.x, t.m.h * .5 + (t.m.fly || 0), t.z); zapLine(va.clone(), vb.clone(), 0xffffff, .035, .32);
+          const R = Math.max(.6, t.e.U.r); flat(t.x, t.z, {r0:R * 3.4, r1:R * 1.3, dur:.4, color:0xffffff, a:.95}); flat(t.x, t.z, {r0:R * 1.3, dur:.9, delay:.35, color:0xff5a4a, a:.9, hold:true, pulse:true}); r.pop = .16; }
+        else if (r && r.rel === 0) flat(r.x, r.z, {r0:r.e.U.r * 2.4, r1:r.e.U.r * 1.2, dur:.3, color:0xcfd5e2, a:.8});
+      }                    // it is gone from the next list of what is on the field: this is how
       else if (ev.e === 'revive'){ const r = recs.get(ev.id); if (r){ r.pop = .22; r.hp = r.e.hp; burst(r.x, .3, r.z, 30, 0x7dffb0, {spd:2.4, up:7, life:.9, grav:1}); flat(r.x, r.z, {r0:.3, r1:2, dur:.6, color:0x7dffb0, add:true}); } }
       else if (ev.e === 'morph'){ const r = recs.get(ev.id); if (r){ r.quiet = true; burst(r.x, r.m.h * .5, r.z, 40, 0xc98a4b, {smoke:true, spd:3, up:3, life:.9, grav:-.6}); burst(r.x, r.m.h * .5, r.z, 20, 0xffe27a, {spd:4, up:4, life:.5}); shake(.3); } }
       else if (ev.e === 'raise'){ burst(ev.x, .2, ev.z, 14, 0xa678ff, {spd:1.6, up:4.5, life:.7, grav:1}); flat(ev.x, ev.z, {r0:.2, r1:.9, dur:.4, color:0xa678ff, add:true}); }
@@ -1221,6 +1240,7 @@ export function createView(el, opt = {}){
   function frame(dt, ents){
     time += dt;
     if (ents) sync(ents, dt);
+    if (selId){ const r = recs.get(selId); selRing.visible = !!r && !r.gone; if (r){ selRing.position.set(r.x, .075, r.z); selRing.scale.setScalar(Math.max(.5, r.e.U.r) * (1.55 + Math.sin(time * 9) * .13)); } }
     if (ghost.visible){ const p = 1 + Math.sin(time * 7) * .06; gRing.scale.setScalar(gRing.scale.x / (gRing.userData.p || 1) * p); gRing.userData.p = p; if (gM && gM.g.visible){ gM.g.position.y = (gM.fly || 0) + .5 + Math.sin(time * 5) * .14; gM.anim(time, {mv:false, ph:0, atk:99, sum:99, aim:0, active:true, chg:false}); } }
     stepShots(dt); stepFlats(dt); stepBeams(dt); stepZaps(dt); stepPools(dt); stepTraps(dt); glow.step(dt); smoke.step(dt); chunk.step(dt); shard.step(dt);
     if (waterTex) waterTex.offset.x = time * .035;
@@ -1255,7 +1275,7 @@ export function createView(el, opt = {}){
     for (const z of zaps){ root.remove(z.m); z.m.material.dispose(); } zaps.length = 0; pools.length = 0;
     for (const d of dying) root.remove(d.p); dying.length = 0; chunk.clear(); shard.clear(); intro = opt.reduced ? 9 : 0; punch.t = 0;
     for (const [id, r] of [...trapRecs]) dropTrap(id, r); for (const p of pops) root.remove(p.g); pops.length = 0;
-    resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false); pT = pN = pSlow = 0; pHold = 3500;
+    setSel(0); resetCam(); glow.clear(); smoke.clear(); crowd.length = 0; shakeAmt = 0; setGhost(false); setNoGo(false); pT = pN = pSlow = 0; pHold = 3500;
     resize(); setMap(map);
   }
 
@@ -1279,5 +1299,5 @@ export function createView(el, opt = {}){
     return TR.r.domElement.toDataURL('image/png');
   }
 
-  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, panOf, headOf, setGhost, setNoGo, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get dying(){ return dying.length; }, get gl(){ return renderer; } };
+  return { loadProps, needFloor, warm, setGfx, get gfx(){ return {mode:gMode, tier:gfx, name:GFX[gfx].name, card, soft}; }, reset, resize, frame, events, pick, pickWorld, entityAt, zoomBy, panBy, resetCam, get zoom(){ return zoomK; }, screenOf, panOf, headOf, setGhost, setNoGo, setSel, setTraps, thumb, shake, burst, legend, get dom(){ return renderer.domElement; }, get count(){ return recs.size; }, get dying(){ return dying.length; }, get gl(){ return renderer; } };
 }
