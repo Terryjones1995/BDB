@@ -1,13 +1,13 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
   lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, SELL_GOD, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT,
-  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119g';
-import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA, RING_MATCH, RING_SIDES, RING_DROP, ringDrop } from './sim.js?v=1119g';
-import { createAI } from './ai.js?v=1119g';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119g';
-import { Cloud, cloudWhy } from './cloud.js?v=1119g';
-import { sayFor, sayWhen } from './talk.js?v=1119g';
-import { createAudio } from './audio.js?v=1119g';
+  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119h';
+import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA, RING_MATCH, RING_SIDES, RING_DROP, ringDrop } from './sim.js?v=1119h';
+import { createAI } from './ai.js?v=1119h';
+import { Accounts, fresh, sanitize, isOwner, giftsFor, cardId } from './store.js?v=1119h';
+import { Cloud, cloudWhy } from './cloud.js?v=1119h';
+import { sayFor, sayWhen } from './talk.js?v=1119h';
+import { createAudio } from './audio.js?v=1119h';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -81,7 +81,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119g'), import('./models.js?v=1119g')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119h'), import('./models.js?v=1119h')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -971,14 +971,15 @@ function whatsNew(){
   b.querySelector('#wnOk').onclick = () => { dlgClose(); tab('Market'); };
   return true;
 }
-/* What is new is told once, and only the parts a save has not heard yet: Battle Royale (n19), Boosts (n18), then orders, rampages and card goals (n17), then the odds and real sound (n16). */
+/* What is new is told once, and only the parts a save has not heard yet: profiles and trade offers (n20), Battle Royale (n19), Boosts (n18), then orders, rampages and card goals (n17), then the odds and real sound (n16). */
 function newsNote(){
-  if (P.flags.n19) return false;
-  const mid = !P.flags.n17, old = !P.flags.n16, bst = !P.flags.n18, due = msDue().length;
-  P.flags.n15 = P.flags.n16 = P.flags.n17 = P.flags.n18 = P.flags.n19 = 1; save();
+  if (P.flags.n20) return false;
+  const mid = !P.flags.n17, old = !P.flags.n16, bst = !P.flags.n18, br = !P.flags.n19, due = msDue().length;
+  P.flags.n15 = P.flags.n16 = P.flags.n17 = P.flags.n18 = P.flags.n19 = P.flags.n20 = 1; save();
   const b = dlg(`<div class="k-eyebrow">New since you last played</div><h3>More ways to win, ${esc(P.name)}</h3>
-    <ul class="abil"><li><b>Battle Royale.</b> You and four BDBs in the Octagon, one tower each and no teams. Mana is x2 from the first second. Lose your tower and you are out; last one standing wins. It is on the Battle tab.</li>
-    ${bst ? `<li><b>Boosts.</b> A second, small deck that costs no Mana. One Boost is dealt every ${BOOST_EVERY} seconds of a match. Tap it, then tap your troops: it works on the type it names. Speed, a shield, health back, a second chance. You have been given twelve, and they are under your deck on the Deck tab. The Market has the other ${fmt(BOOST_IDS.length - 12)}.</li>` : ''}
+    <ul class="abil"><li><b>Profiles and trade offers.</b> Tap anyone in Who's on or the league table to see their level, record, achievements and decks. Make them an offer: your cards and coins for theirs, or just coins for a card. They can answer when they are next on: accept, counter or turn it down. What you offer is held until they answer, and comes back if they say no.</li>
+    ${br ? `<li><b>Battle Royale.</b> You and four BDBs in the Octagon, a King Tower and two guard towers each, and no teams. Mana is x2 from the first second. Lose your King Tower and you are out; last one standing wins. It is on the Battle tab.</li>` : ''}
+    ${bst ? `<li><b>Boosts.</b> A second, small deck that costs no Mana. One Boost is dealt every ${BOOST_EVERY} seconds of a match. Tap it, then tap your troops: it works on any of them, and the type it names gets half as much again. Speed, a shield, health back, a second chance. You have been given twelve, and they are under your deck on the Deck tab. The Market has the other ${fmt(BOOST_IDS.length - 12)}.</li>` : ''}
     ${mid ? `<li><b>Give orders.</b> In a match, tap one of your troops, then tap an enemy troop, building or tower. It goes for that and nothing else. Tap the troop again to call it off.</li>
     <li><b>Rampage.</b> A troop that takes down ${RAMP_AT[0]} enemies in one life goes on a rampage. Its type decides what it gets, and at ${RAMP_AT[1]} it steps up again. Every troop's card says which.</li>
     <li><b>Card goals.</b> Every card has four goals that each pay coins once, ${fmt(GOAL_COUNT)} in all. They are on the Battle tab and on every card.</li>
@@ -2023,9 +2024,12 @@ function hallStart(){
       if (came.length) hubToast(came.length === 1 ? `${came[0]} is on` : came.length === 2 ? `${came[0]} and ${came[1]} are on` : `${came[0]} and ${came.length - 1} more are on`, () => { if (curTab !== 'Battle') tab('Battle'); $('hall').scrollIntoView({block:'center', behavior:'smooth'}); });
       renderHall();
       for (const iv of r.invites || []) if (iv && !seenInv.has(iv.id)){ seenInv.add(iv.id); gotInvite(iv); }
+      if (Array.isArray(r.mail) && r.mail.length) applyMail(r.mail);
+      if (Number.isFinite(r.offers)){ const n = clamp(r.offers | 0, 0, 999); if (n > OFFERS_N) hubToast(n - OFFERS_N === 1 ? 'You have a new trade offer' : `You have ${n - OFFERS_N} new trade offers`, () => offersBox()); if (n !== OFFERS_N){ OFFERS_N = n; renderHall(); } }
     } catch(e){}
   };
   // in the menus an invite should land within a few seconds; in a match the ping only has to say "still here"
+  pingNow = tick;
   const loop = async () => { await tick(); if (gen === hallGen) hallT = setTimeout(loop, (+Q.get('ping') || (B ? 12 : 5)) * 1000); };
   loop();
   league();
@@ -2041,6 +2045,7 @@ async function league(force){
   catch(e){ if (e && e.kind === 'setup'){ leagueOff = true; return league(); } }
   leagueUI();
 }
+$('league').onclick = e => { const r = e.target.closest('.lg[data-p]'); if (r && !r.classList.contains('me') && !B) openProfile(r.dataset.p); };
 function leagueUI(){
   const box = $('leaguePanel'); if (!box) return;
   const rows = (LEAGUE || []).map(o => ({name:clean(o.name, 20), ladder:clamp(o.ladder | 0, 0, LEVELS), tr:Math.max(0, o.trophies | 0), wins:Math.max(0, o.wins | 0), on:!!o.on})).filter(o => o.name);
@@ -2048,7 +2053,7 @@ function leagueUI(){
   if (box.hidden) return;
   const me = P.name.toLowerCase(), at = rows.findIndex(o => o.name.toLowerCase() === me), show = rows.slice(0, 10); if (at >= 10) show.push(rows[at]);
   $('league').innerHTML = show.map(o => { const i = rows.indexOf(o), T = tierOf(Math.min(LEVELS, o.ladder + 1)), mine = i === at;
-    return `<div class="lg${mine ? ' me' : ''}"><span class="rk">${i + 1}</span><img alt="" src="${tierPic(T)}"><b><span>${esc(o.name)}</span>${o.on && !mine ? '<i title="On now"></i>' : ''}</b><small><em>Level ${fmt(o.ladder)}</em>${fmt(o.tr)} trophies, ${fmt(o.wins)} wins</small></div>`; }).join('');
+    return `<div class="lg${mine ? ' me' : ''}" data-p="${esc(o.name)}"><span class="rk">${i + 1}</span><img alt="" src="${tierPic(T)}"><b><span>${esc(o.name)}</span>${o.on && !mine ? '<i title="On now"></i>' : ''}</b><small><em>Level ${fmt(o.ladder)}</em>${fmt(o.tr)} trophies, ${fmt(o.wins)} wins</small></div>`; }).join('');
 }
 const ago = t => { const m = Math.max(1, Math.round((Date.now() - t) / 60000)); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 function renderHall(){
@@ -2057,13 +2062,17 @@ function renderHall(){
   const on = (HALL.online || []).map(o => ({name:clean(o.name, 20), status:o.status, tr:o.trophies | 0})).filter(o => o.name), names = new Set(on.map(o => o.name));
   const off = Object.keys(P.friends).filter(n => !names.has(n) && n.toLowerCase() !== P.name.toLowerCase()).sort((a, b) => P.friends[b] - P.friends[a]).slice(0, 12);
   $('hallLbl').textContent = `Who's on: ${on.length}`;
-  const html = (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
-    on.map(o => `<div class="pl on"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies${vsLine(o.name) ? ', ' + vsLine(o.name) : ''}</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">Team up</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
-    off.map(n => `<div class="pl"><i></i><div><b>${esc(n)}</b><small>Friend, seen ${ago(P.friends[n])}${vsLine(n) ? ', ' + vsLine(n) : ''}</small></div><div></div></div>`).join('');
+  const html = `<button type="button" class="k-btn${OFFERS_N ? ' primary' : ''} ofopen" id="ofOpen">Trade offers${OFFERS_N ? `: ${OFFERS_N} waiting` : ''}</button>` + (on.length ? '' : '<p class="note" style="margin:0 0 10px">Nobody else is on right now. They show up here the moment they sign in.</p>') +
+    on.map(o => `<div class="pl on" data-p="${esc(o.name)}"><i></i><div><b>${esc(o.name)}</b><small>${o.status === 'battle' ? 'In a match' : o.status === 'trading' ? 'Trading' : 'In the menus'}, ${fmt(o.tr)} trophies${vsLine(o.name) ? ', ' + vsLine(o.name) : ''}</small></div><div class="acts" data-n="${esc(o.name)}">${o.status === 'menu' ? '<button type="button" class="k-btn primary" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="coop">Team up</button><button type="button" class="k-btn" data-k="trade">Trade</button>' : ''}</div></div>`).join('') +
+    off.map(n => `<div class="pl" data-p="${esc(n)}"><i></i><div><b>${esc(n)}</b><small>Friend, seen ${ago(P.friends[n])}${vsLine(n) ? ', ' + vsLine(n) : ''}</small></div><div class="acts"><span class="plgo">Profile</span></div></div>`).join('');
   if (html !== hallHTML) box.innerHTML = hallHTML = html;      // only when something changed: a list rebuilt under a finger loses the tap
 }
 $('hall').onclick = e => {
-  const q = e.target.closest('button[data-k]'); if (!q || B) return; const to = q.parentNode.dataset.n;
+  if (B) return;
+  if (e.target.closest('#ofOpen')) return offersBox();
+  const q = e.target.closest('button[data-k]'), row = e.target.closest('.pl[data-p]');
+  if (!q){ if (row) openProfile(row.dataset.p); return; }
+  const to = q.parentNode.dataset.n;
   if (q.dataset.k !== 'coop') return sendInvite(to, q.dataset.k);
   if (noDeck()) return;
   const b = dlg(`<div class="k-eyebrow">Team up</div><h3>You and ${esc(to)}</h3><p>You share a side. Three BDBs is a handicap match: it pays double.</p>${teamOpts()}<div class="k-row"><button type="button" class="k-btn" id="tuX">Cancel</button></div>`);
@@ -2213,6 +2222,189 @@ function drawTrade(){
   for (const c of pool.querySelectorAll('.card')) c.classList.toggle('picked', me.cards.includes(c.dataset.id));
   const lk = q('tLock'); lk.textContent = me.lock ? 'Unlock' : 'Lock offer'; lk.classList.toggle('primary', !me.lock); lk.disabled = !linked || TR.okMine;
   q('tOk').disabled = !both || TR.okMine;
+}
+
+
+/* ---------- profiles and trade offers ----------
+   Tap a player (Who's on, the league table) for their profile: level, record, milestones and decks. From there, an offer: some of your cards and coins
+   for some of theirs, sent whether or not they are on. What you give leaves your save when the offer goes and is held on the server until they answer
+   (supabase.sql, brawl_offer). They accept, turn it down, or counter with an offer of their own. Whatever a trade sends you (what you got, or an offer
+   of yours coming back) arrives with the ping as mail, and goes into the save once (P.mail keeps the ids already counted). */
+let OFFERS_N = 0, pfTk = 0, pingNow = null;
+const TRADE_SETUP = 'Profiles and trade offers are not switched on yet on the game server. They will be soon.';      // the server has not had this version of supabase.sql run on it
+const OFFER_MAX = 5;
+const bundle = (list, coins) => ({coins:Math.max(0, Math.round(+coins || 0)), cards:list.map(c => typeof c === 'string' ? {id:c, lvl:lvl(c) || 1} : {id:c.id, lvl:c.lvl})});
+const bundleOf = b => ({coins:clamp(Math.round(+(b && b.coins) || 0), 0, 1e6), cards:(b && Array.isArray(b.cards) ? b.cards : []).filter(c => c && CARDS[c.id]).slice(0, OFFER_MAX).map(c => ({id:c.id, lvl:clamp(c.lvl | 0, 1, MAX_LVL)}))});
+const bundleText = b => { const p = b.cards.map(c => CARDS[c.id].name + (c.lvl > 1 ? ` (level ${c.lvl})` : '')); if (b.coins) p.push(fmt(b.coins) + ' coins'); return p.join(', ') || 'nothing'; };
+/* a card leaving the collection leaves every deck it was in: which decks came up short */
+function dropFromDecks(){ const short = []; P.decks = P.decks.map((d, i) => { const k = d.filter(id => P.cards[id]); if (k.length < d.length) short.push(i + 1); return k; }); return short; }
+const shortNote = s => s.length ? ` Deck ${s.join(' and ')} lost a card: top ${s.length > 1 ? 'them' : 'it'} up on the Deck tab.` : '';
+function applyMail(list){
+  const done = [], said = []; let short = [];
+  for (const m of Array.isArray(list) ? list : []){
+    if (!m || !Number.isSafeInteger(m.id)) continue;
+    done.push(m.id);
+    if (P.mail.includes(m.id)) continue;                                   // already counted: the note that it was collected got lost last time
+    const b = bundleOf(m.items), who = clean(m.who, 20) || 'someone'; let extra = 0;
+    P.coins += b.coins;
+    for (const c of b.cards){ const have = lvl(c.id); if (have){ P.cards[c.id] = Math.max(have, c.lvl); extra += sellPrice(c.id); } else P.cards[c.id] = c.lvl; }      // one you already have: the better copy stays and the other is sold for you
+    P.coins += extra;
+    if (m.why !== 'back') P.stats.tr = (P.stats.tr || 0) + 1;
+    said.push((m.why === 'got' ? `Trade done with ${who}: you got ${bundleText(b)}.` : m.why === 'paid' ? `${who} took your offer: you got ${bundleText(b)}.` : `Your offer to ${who} came back: ${bundleText(b)}.`) + (extra ? ` A card you already had was sold for ${fmt(extra)} coins.` : ''));
+    P.mail.push(m.id);
+  }
+  if (!done.length) return;
+  short = dropFromDecks(); P.mail = P.mail.slice(-200); save(); Cloud.mailDone(done);
+  if (!said.length) return;
+  BDB.sfx.big(); if (!B) hub();
+  const text = (said.length === 1 ? said[0] : `${said.length} trades came through. ${said[said.length - 1]}`) + shortNote(short);
+  if (!B && !TR && $('dlg').hidden && !$('scrHub').hidden) hubToast(text, () => offersBox()); else heldMail.push(text);
+}
+let heldMail = [];
+setInterval(() => { if (heldMail.length && P && !B && !TR && $('dlg').hidden && !$('scrHub').hidden){ const t = heldMail.splice(0).join(' '); msgBox('Trade', t); } }, 1500);
+/* what the server says about another player, checked: every number in range, every card one that exists */
+function profOf(r){
+  const p = r.p && typeof r.p === 'object' ? r.p : {}, cards = {}, st = p.stats && typeof p.stats === 'object' ? p.stats : {}, n = (v, hi = 1e9) => clamp(Math.round(+v || 0), 0, hi);
+  if (p.cards && typeof p.cards === 'object') for (const k in p.cards){ const id = cardId(k), v = n(p.cards[k], MAX_LVL); if (id && v) cards[id] = Math.max(cards[id] || 0, v); }
+  const decks = (Array.isArray(p.decks) ? p.decks : []).slice(0, DECK_SLOTS).map(d => Array.isArray(d) ? [...new Set(d.map(cardId))].filter(id => id && cards[id]).slice(0, DECK_SIZE) : []);
+  const ms = {}; if (p.ms && typeof p.ms === 'object') for (const k of MS_IDS) ms[k] = n(p.ms[k], MILESTONES[k].at.length);
+  return {name:clean(r.name, 20), on:!!r.on, status:String(r.status || ''), seen:n(r.seen, 9e15), cards, decks, ms, ladder:n(p.ladder, LEVELS), trophies:n(p.trophies), w:n(st.w), l:n(st.l), d:n(st.d), ow:n(st.ow), ol:n(st.ol), best:n(p.best)};
+}
+async function getProf(name){
+  let r; try { r = await Cloud.profile(name); } catch(e){ return {err:e && e.kind === 'setup' ? TRADE_SETUP : e && e.kind ? cloudWhy(e) : 'Could not reach the server. Try again in a bit.'}; }
+  if (!r || r.error || !r.p) return {err:r && r.error === 'no_player' ? 'There is no player by that name any more.' : 'Could not load their profile. Try again in a bit.'};
+  return {pr:profOf(r)};
+}
+async function openProfile(name){
+  if (!Cloud.session() || !name || name.toLowerCase() === P.name.toLowerCase()) return;
+  const tk = ++pfTk, b = dlg(`<div class="k-eyebrow">Player</div><h3>${esc(name)}</h3><p class="note">Loading their profile.</p><div class="k-row"><button type="button" class="k-btn" id="pfX">Close</button></div>`);
+  b.querySelector('#pfX').onclick = dlgClose;
+  const g = await getProf(name);
+  if (tk !== pfTk || $('dlg').hidden) return;
+  if (g.err) return msgBox(name, g.err);
+  showProfile(g.pr);
+}
+function showProfile(pr){
+  const lv = Math.min(LEVELS, pr.ladder + 1), T = tierOf(lv), played = pr.w + pr.l + pr.d, own = Object.keys(pr.cards).length, free = pr.on && pr.status === 'menu';
+  const ms = MS_IDS.filter(k => pr.ms[k] > 0).map(k => { const M = MILESTONES[k], r = pr.ms[k]; return `<div class="pfm"><b>${esc(M.name)}</b><span>${fmt(M.at[r - 1])}</span><i>${Array.from({length:M.at.length}, (_, i) => `<em${i < r ? ' class="on"' : ''}></em>`).join('')}</i></div>`; }).join('');
+  const decks = pr.decks.map((d, i) => d.length ? `<div class="pfdk"><span class="k-label">Deck ${i + 1}${d.length < DECK_SIZE ? `, ${d.length} of ${DECK_SIZE}` : ''}</span><div class="pfcards" data-d="${i}"></div></div>` : '').join('');
+  const b = dlg(`<div class="prof"><div class="pfh"><img alt="" src="${tierPic(T)}"><div><div class="k-eyebrow">${pr.on ? (pr.status === 'battle' ? 'In a match now' : pr.status === 'trading' ? 'Trading now' : 'On now') : pr.seen ? 'Seen ' + ago(pr.seen) : 'Player'}</div><h3>${esc(pr.name)}</h3><small style="color:${T.col}">${esc(T.name)} tier, level ${fmt(lv)}</small></div></div>
+    <div class="pftiles">${[[fmt(pr.trophies), 'Trophies'], [fmt(pr.w), 'BDB beaten'], [played ? Math.round(pr.w / played * 100) + '%' : '0%', 'Win rate'], [fmt(pr.ow), 'Online wins'], [fmt(pr.best), 'Best streak'], [fmt(own), 'Cards']].map(([v, k]) => `<div><b>${v}</b><small>${k}</small></div>`).join('')}</div>
+    <span class="k-label">Achievements</span>${ms ? `<div class="pfms">${ms}</div>` : '<p class="note">None collected yet.</p>'}
+    ${decks || '<p class="note">No decks yet.</p>'}
+    ${vsLine(pr.name) ? `<p class="note">Against you: ${esc(vsLine(pr.name))}.</p>` : ''}
+    <div class="k-row"><button type="button" class="k-btn primary" id="pfOffer">Make a trade offer</button>${free ? '<button type="button" class="k-btn" data-k="duel">Fight</button><button type="button" class="k-btn" data-k="trade">Trade live</button>' : ''}<button type="button" class="k-btn ghost" id="pfX">Close</button></div></div>`);
+  pr.decks.forEach((d, i) => { const el = b.querySelector(`.pfcards[data-d="${i}"]`); if (el) for (const id of d) el.appendChild(cardEl(id, {div:true, lvl:pr.cards[id], cls:lvl(id) ? 'have' : ''})); });
+  b.querySelector('.prof').onclick = e => { const c = e.target.closest('.pfcards .card'); if (c) sheet(c.dataset.id); };
+  b.querySelector('#pfX').onclick = dlgClose;
+  b.querySelector('#pfOffer').onclick = () => offerBox(pr);
+  for (const q of b.querySelectorAll('button[data-k]')) q.onclick = () => { dlgClose(); sendInvite(pr.name, q.dataset.k); };
+}
+/* the offer: up to five of your cards and some coins, for up to five of theirs and some coins. Either side can be just coins (cash for a card) */
+function offerBox(pr, init = {}){
+  if (init.held) pr = {...pr, cards:{...pr.cards, ...init.held}};      // a counter: what they offered is held on the server, not in their collection, but it is theirs to put in again
+  const O = {pr, give:(init.give || []).filter(id => P.cards[id]).slice(0, OFFER_MAX), gc:init.gc || 0, want:(init.want || []).filter(id => pr.cards[id]).slice(0, OFFER_MAX), wc:init.wc || 0, reply:init.reply || null, side:'theirs', find:'', max:0, busy:false, note:''};
+  const b = dlg(`<div class="trd ofb"><div class="k-eyebrow">${O.reply ? 'Counter offer' : 'Trade offer'}</div><h3>To ${esc(pr.name)}</h3>
+    <div class="trade"><div class="tside"><div class="thd"><span class="k-label">You give</span><label class="tcoin"><span class="coin"></span><input class="field" id="oGc" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="Coins you give"></label></div><div class="tg" id="oGive"></div></div>
+      <div class="tside"><div class="thd"><span class="k-label">You get</span><label class="tcoin"><span class="coin"></span><input class="field" id="oWc" type="number" inputmode="numeric" min="0" placeholder="0" aria-label="Coins you ask for"></label></div><div class="tg" id="oWant"></div></div></div>
+    <p class="note" id="oMsg" role="status"></p>
+    <div class="k-seg oftabs" id="oTabs" role="group" aria-label="Whose cards"><button type="button" data-s="theirs">${esc(pr.name)}'s cards</button><button type="button" data-s="mine">Your cards</button></div>
+    <div class="tfind"><input class="field" id="oFind" type="search" placeholder="Search cards" autocomplete="off" aria-label="Search cards"><span class="note" id="oCount"></span></div>
+    <div class="grid tpool" id="oPool"></div>
+    <div class="k-row"><button type="button" class="k-btn primary" id="oSend">Send offer</button><button type="button" class="k-btn ghost" id="oX">Cancel</button></div></div>`);
+  const q = id => b.querySelector('#' + id), used = new Set(P.decks.flat());
+  const coinsIn = () => { O.gc = clamp(Math.round(+q('oGc').value || 0), 0, Math.min(P.coins, 1e6)); O.wc = clamp(Math.round(+q('oWc').value || 0), 0, 1e6); };
+  const draw = () => {
+    const slots = (el, list, card) => { el.textContent = ''; for (let i = 0; i < OFFER_MAX; i++){ if (list[i]) el.appendChild(card(list[i])); else { const e = document.createElement('i'); e.className = 'tslot'; el.appendChild(e); } } };
+    slots(q('oGive'), O.give, id => cardEl(id, {lvl:lvl(id), now:true}));
+    slots(q('oWant'), O.want, id => cardEl(id, {lvl:pr.cards[id], now:true, cls:lvl(id) ? 'have' : ''}));
+    for (const t of q('oTabs').children) t.setAttribute('aria-pressed', t.dataset.s === O.side);
+    const inDk = O.give.filter(id => used.has(id)), have = O.want.filter(id => lvl(id));
+    q('oMsg').textContent = O.note || (inDk.length ? `${CARDS[inDk[0]].name}${inDk.length > 1 ? ` and ${inDk.length - 1} more are` : ' is'} in one of your decks: sending the offer takes ${inDk.length > 1 ? 'them' : 'it'} out. ` : '')
+      + (have.length ? `You already have ${CARDS[have[0]].name}${have.length > 1 ? ` and ${have.length - 1} more` : ''}: you keep the better copy and the other is sold for you. ` : '')
+      + (!inDk.length && !have.length ? 'Tap cards to put them in. Either side can be just coins. What you give is held until they answer, and comes back if they say no.' : '');
+    q('oSend').disabled = O.busy || (!O.give.length && !O.want.length && !O.gc && !O.wc);
+    pool();
+  };
+  const pool = () => {
+    const el = q('oPool'), mine = O.side === 'mine', src = mine ? P.cards : pr.cards, f = O.find.trim().toLowerCase(), pick = mine ? O.give : O.want;
+    const all = Object.keys(src).filter(id => CARDS[id] && (!f || CARDS[id].name.toLowerCase().includes(f) || TYPES[CARDS[id].type].name.toLowerCase().includes(f)))
+      .sort((a, c) => (mine ? used.has(a) - used.has(c) : !!lvl(a) - !!lvl(c)) || CARDS[c].price - CARDS[a].price || (a < c ? -1 : 1));
+    const show = all.slice(0, O.max || POOL_PAGE); el.textContent = ''; el.classList.toggle('want', !mine);
+    for (const id of show) el.appendChild(cardEl(id, {lvl:src[id], cls:(mine && used.has(id) ? 'inuse' : '') + (!mine && lvl(id) ? ' have' : '') + (pick.includes(id) ? ' picked' : '')}));
+    if (!all.length) el.innerHTML = `<p class="note">${f ? 'No cards match that.' : mine ? 'You have no cards.' : 'They have no cards.'}</p>`;
+    else if (all.length > show.length){ const m = document.createElement('button'); m.type = 'button'; m.className = 'k-btn'; m.id = 'oMore'; m.textContent = `Show ${Math.min(POOL_PAGE, all.length - show.length)} more`; el.appendChild(m); }
+    q('oCount').textContent = `${fmt(all.length)} cards`;
+  };
+  const toggle = (list, id) => { O.note = ''; const i = list.indexOf(id); if (i >= 0) list.splice(i, 1); else if (list.length >= OFFER_MAX){ BDB.sfx.bad(); O.note = 'Five cards a side is the most one offer can carry.'; } else list.push(id); BDB.sfx.tick(); draw(); };
+  q('oGc').value = O.gc || ''; q('oWc').value = O.wc || '';
+  q('oGc').onchange = q('oWc').onchange = () => { coinsIn(); q('oGc').value = O.gc || ''; q('oWc').value = O.wc || ''; draw(); };
+  q('oTabs').onclick = e => { const t = e.target.closest('button[data-s]'); if (!t || t.dataset.s === O.side) return; O.side = t.dataset.s; O.max = 0; BDB.sfx.tick(); draw(); q('oPool').scrollTop = 0; };
+  q('oFind').oninput = e => { O.find = e.target.value; O.max = 0; pool(); };
+  q('oPool').onclick = e => { if (e.target.closest('#oMore')){ O.max = (O.max || POOL_PAGE) + POOL_PAGE; return pool(); } const c = e.target.closest('.card'); if (c) toggle(O.side === 'mine' ? O.give : O.want, c.dataset.id); };
+  q('oGive').onclick = e => { const c = e.target.closest('.card'); if (c) toggle(O.give, c.dataset.id); };
+  q('oWant').onclick = e => { const c = e.target.closest('.card'); if (c) toggle(O.want, c.dataset.id); };
+  q('oX').onclick = () => showProfile(pr);
+  q('oSend').onclick = async () => {
+    coinsIn(); if (O.busy) return;
+    if (O.give.some(id => !P.cards[id]) || O.gc > P.coins){ O.note = 'Something you put in is no longer yours. Take it out and try again.'; return draw(); }
+    if (!O.give.length && !O.want.length && !O.gc && !O.wc) return;
+    O.busy = true; O.note = 'Sending.'; draw();
+    const give = bundle(O.give, O.gc), want = bundle(O.want.map(id => ({id, lvl:pr.cards[id]})), O.wc);
+    let r; try { r = await Cloud.offer(pr.name, give, want, O.reply); } catch(e){ r = {error:'net', why:e && e.kind ? cloudWhy(e) : ''}; }
+    if (!r || !r.ok){ O.busy = false; O.note = ({too_many:'You have ten offers waiting already. Cancel one first.', gone:'That offer was answered or taken back while you were making this one.', no_player:'That player is not around any more.', empty:'Put something in first.'})[r && r.error] || (r && r.why) || 'The offer did not go through. Try again.'; return draw(); }
+    for (const id of O.give) delete P.cards[id];
+    P.coins -= O.gc; const short = dropFromDecks(); save(); BDB.sfx.big(); hub();
+    msgBox(O.reply ? 'Counter sent' : 'Offer sent', `${pr.name} will see it next time they are on. You offered ${bundleText(give)} for ${bundleText(want)}. That is held until they answer, and comes back if they say no.${shortNote(short)}`);
+  };
+  draw();
+}
+/* every offer you have made or been made: answer the open ones, take back your own */
+async function offersBox(){
+  if (!Cloud.session()) return;
+  const tk = ++pfTk, b = dlg(`<div class="k-eyebrow">Trading</div><h3>Trade offers</h3><div id="ofList"><p class="note">Loading.</p></div><div class="k-row"><button type="button" class="k-btn" id="ofX">Close</button></div>`);
+  b.querySelector('#ofX').onclick = dlgClose;
+  let r, setup = false; try { r = await Cloud.offers(); } catch(e){ r = null; setup = e && e.kind === 'setup'; }
+  if (tk !== pfTk || $('dlg').hidden) return;
+  const el = $('ofList'); if (!el) return;
+  if (!r || !Array.isArray(r.offers)){ el.innerHTML = `<p class="note">${setup ? esc(TRADE_SETUP) : 'Could not load your offers. Try again in a bit.'}</p>`; return; }
+  const L = r.offers.filter(o => o && Number.isSafeInteger(o.id)).map(o => ({id:o.id, mine:!!o.mine, who:clean(o.mine ? o.to : o.from, 20), give:bundleOf(o.give), want:bundleOf(o.want), status:String(o.status || ''), at:+o.at || 0, closed:+o.closed || 0}));
+  OFFERS_N = L.filter(o => !o.mine && o.status === 'open').length; renderHall();
+  if (!L.length){ el.innerHTML = '<p class="note">No offers yet. Tap a player in Who\'s on or the league table to make one.</p>'; return; }
+  const STAT = {accepted:'Accepted', declined:'Turned down', cancelled:'Taken back', countered:'Countered', expired:'Nobody answered: it came back'};
+  const lack = o => { const miss = o.want.cards.filter(c => !P.cards[c.id]); return miss.length ? `You no longer have ${CARDS[miss[0].id].name}.` : o.want.coins > P.coins ? `You need ${fmt(o.want.coins)} coins.` : ''; };
+  el.innerHTML = L.map(o => { const open = o.status === 'open', why = !o.mine && open ? lack(o) : '';
+    return `<div class="ofr${open ? ' open' : ''}" data-id="${o.id}"><div class="ofh"><b>${o.mine ? 'To' : 'From'} ${esc(o.who)}</b><small>${open ? (o.mine ? 'Waiting for an answer' : 'Waiting for you') + ', ' + ago(o.at) : STAT[o.status] || o.status}</small></div>
+      <div class="ofs"><div><span class="k-label">${o.mine ? 'You give' : 'They give'}</span><div class="ofc" data-b="give"></div></div><div><span class="k-label">${o.mine ? 'You get' : 'They want'}</span><div class="ofc" data-b="want"></div></div></div>
+      ${why ? `<p class="note">${esc(why)}</p>` : ''}
+      ${open ? `<div class="k-row">${o.mine ? '<button type="button" class="k-btn" data-a="cancel">Take it back</button>' : `<button type="button" class="k-btn primary" data-a="yes"${why ? ' disabled' : ''}>Accept</button><button type="button" class="k-btn" data-a="counter">Counter</button><button type="button" class="k-btn ghost" data-a="no">Turn down</button>`}</div>` : ''}</div>`; }).join('');
+  for (const o of L){ const row = el.querySelector(`.ofr[data-id="${o.id}"]`); for (const k of ['give', 'want']){ const box = row.querySelector(`[data-b="${k}"]`); for (const c of o[k].cards) box.appendChild(cardEl(c.id, {div:true, lvl:c.lvl, cls:'mini' + (!o.mine && k === 'give' && lvl(c.id) ? ' have' : '')})); if (o[k].coins) box.insertAdjacentHTML('beforeend', `<span class="ofcoin">${COIN}${fmt(o[k].coins)}</span>`); if (!o[k].cards.length && !o[k].coins) box.innerHTML = '<span class="note">Nothing</span>'; } }
+  el.onclick = async e => {
+    const c = e.target.closest('.ofc .card'); if (c) return sheet(c.dataset.id);
+    const q = e.target.closest('button[data-a]'); if (!q || q.disabled) return; const o = L.find(x => x.id === +q.closest('.ofr').dataset.id); if (!o) return;
+    const a = q.dataset.a;
+    if (a === 'counter'){ const g = await getProf(o.who); if (g.err) return msgBox('Trade', g.err); return offerBox(g.pr, {give:o.want.cards.map(c => c.id), gc:o.want.coins, want:o.give.cards.map(c => c.id), wc:o.give.coins, reply:o.id, held:Object.fromEntries(o.give.cards.map(c => [c.id, c.lvl]))}); }
+    if (a === 'yes'){
+      const inDk = o.want.cards.filter(c => P.decks.some(d => d.includes(c.id)));
+      const cb = dlg(`<div class="k-eyebrow">Accept</div><h3>Trade with ${esc(o.who)}</h3><p>You give ${esc(bundleText(o.want))}.<br>You get ${esc(bundleText(o.give))}.</p>${inDk.length ? `<p class="note">${esc(CARDS[inDk[0].id].name)}${inDk.length > 1 ? ' and others are' : ' is'} in one of your decks and will leave it.</p>` : ''}<div class="k-row"><button type="button" class="k-btn primary" id="acY">Make the trade</button><button type="button" class="k-btn ghost" id="acN">Back</button></div>`);
+      cb.querySelector('#acN').onclick = () => offersBox();
+      cb.querySelector('#acY').onclick = async () => {
+        if (lack(o)) return msgBox('Trade', lack(o));
+        cb.querySelector('#acY').disabled = true;
+        let r2; try { r2 = await Cloud.answer(o.id, true); } catch(e){ r2 = null; }
+        if (!r2 || !r2.ok) return msgBox('Trade', r2 && r2.error === 'gone' ? 'That offer was taken back before you answered.' : 'The trade did not go through. Nothing changed. Try again.');
+        for (const k of o.want.cards) delete P.cards[k.id];
+        P.coins -= o.want.coins; dropFromDecks(); save(); dlgClose(); hub();
+        if (pingNow) pingNow();                                              // what you got comes as mail: fetch it now rather than in a few seconds
+      };
+      return;
+    }
+    q.disabled = true;
+    let r2; try { r2 = a === 'cancel' ? await Cloud.cancel(o.id) : await Cloud.answer(o.id, false); } catch(e){ r2 = null; }
+    if (!r2 || !r2.ok) return msgBox('Trade', r2 && r2.error === 'gone' ? 'That offer was already answered.' : 'That did not go through. Try again.');
+    if (pingNow) pingNow();
+    offersBox();
+  };
 }
 
 /* ---------- start ---------- */

@@ -1191,6 +1191,40 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 .res-ring li{display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;background:rgba(6,14,38,.45);border-left:6px solid var(--tc);text-align:left}
 .res-ring li.me{background:rgba(255,210,63,.18);outline:2px solid #ffd23f}
 .res-ring em{font:400 18px/1 var(--f-game);font-style:normal;color:#fff;text-shadow:var(--stroke)} .res-ring b{font:800 14px/1.2 var(--f-body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .res-ring small{font:700 12px/1 var(--f-body);color:#ffd23f}
+
+/* profiles and trade offers */
+.pl[data-p]{cursor:pointer} .pl[data-p]:hover{border-color:#ffd23f}
+.plgo{font:400 13px/1 var(--f-game);color:#a9c4f5;text-shadow:var(--stroke)}
+.ofopen{width:100%;margin:0 0 10px}
+.lg[data-p]:not(.me){cursor:pointer}
+.prof{text-align:left}
+.pfh{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.pfh img{width:72px;height:72px;flex:none;filter:drop-shadow(0 3px 0 var(--ink2))}
+.pfh h3{margin:2px 0 4px;text-align:left} .pfh small{font:400 15px/1 var(--f-game);text-shadow:var(--stroke)}
+.pftiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 14px}
+.pftiles div{background:#12357c;border:2px solid var(--ink2);border-radius:10px;padding:7px 6px;text-align:center}
+.pftiles b{display:block;font:400 19px/1 var(--f-game);color:#fff;text-shadow:var(--stroke)} .pftiles small{font:700 10px/1.2 var(--f-body);color:#cfe1ff}
+.pfms{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:4px 0 14px}
+.pfm{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;background:#12357c;border:2px solid var(--ink2);border-radius:10px;padding:6px 9px}
+.pfm b{font:800 12px/1.2 var(--f-body);color:#fff;min-width:0} .pfm span{font:400 15px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)}
+.pfm i{grid-column:1/-1;display:flex;gap:3px} .pfm em{width:12px;height:5px;border-radius:3px;background:rgba(255,255,255,.18)} .pfm em.on{background:#ffd23f}
+.pfdk{margin:4px 0 12px}
+.pfcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:8px 6px;padding:6px 2px 2px}
+.pfcards .card .nm{font-size:9px;padding-top:10px} .pfcards .card .cost{transform:scale(.8);transform-origin:0 0}
+.pfcards .card.have,.ofc .card.have,.tpool.want .card.have{outline:3px solid #4ade80;outline-offset:-1px}
+.ofb .tpool.want .card.picked::after{content:"Asked for"}
+.oftabs{display:flex;width:100%;margin:12px 0 8px} .oftabs button{flex:1;min-width:0}
+.ofr{background:#12357c;border:3px solid var(--ink2);border-radius:14px;padding:9px 11px 10px;margin:0 0 10px;text-align:left}
+.ofr.open{border-color:#ffd23f}
+.ofh{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ofh b{font:400 17px/1.1 var(--f-game);color:#fff;text-shadow:var(--stroke)} .ofh small{font:700 11px/1.2 var(--f-body);color:#cfe1ff}
+.ofs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.ofs > div{min-width:0}
+.ofc{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+.ofc .card.mini{width:62px;flex:none} .ofc .card.mini .nm{font-size:8.5px;padding-top:8px} .ofc .card.mini .cost{transform:scale(.75);transform-origin:0 0}
+.ofcoin{display:inline-flex;align-items:center;gap:4px;font:400 16px/1 var(--f-game);color:#ffd23f;text-shadow:var(--stroke)} .ofcoin .coin{width:18px;height:18px;margin:0}
+.ofr .k-row{margin-top:10px;justify-content:flex-start}
+@media (max-width:520px){ .ofb .trade{grid-template-columns:1fr} .ofs{grid-template-columns:1fr} .pftiles{grid-template-columns:repeat(3,minmax(0,1fr))} }
 </style>
 <script src="../assets/roasts.js"></script>
 <script src="../assets/kit.js"></script>
@@ -1432,7 +1466,7 @@ button.foil:hover{transform:translateY(-6px) rotate(-2deg)}
 <button type="button" class="hubtoast" id="hubToast" hidden></button>
 <div class="k-modal" id="dlg" hidden><div class="k-box" id="dlgBox"></div></div>
 
-<script type="module" src="main.js?v=1119g"></script>
+<script type="module" src="main.js?v=1119h"></script>
 <script>
 /* If the copy of the game kept on this device ever goes bad and the game does not start, throw the copy away and load again. Once, so a real outage does not loop. */
 setTimeout(function(){

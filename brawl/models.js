@@ -2,8 +2,8 @@
    makeModel(key, team, opts) -> {g, h, fly, turret, anim(t, s)}.  Models face +z.
    s = {mv, ph, atk, chg, aim}: moving, walk phase, seconds since the last attack, charging, turret yaw. */
 import * as THREE from 'three';
-import { AFF, UNITS } from './cards.js?v=1119g';
-import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1119g';
+import { AFF, UNITS } from './cards.js?v=1119h';
+import { needRigs, hasRig, makeRig, useRim } from './rigs.js?v=1119h';
 
 const PI = Math.PI;
 export const TEAM = [0x3d8bff, 0xff4b47, 0x3fcf62, 0xf2b630, 0xb36bff];      // you, them. In Battle Royale: you, then four others

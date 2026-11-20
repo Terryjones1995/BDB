@@ -1,7 +1,7 @@
 /* Break Room Brawl: online accounts, cloud saves, who's online and invites, through the SQL functions in supabase.sql.
    Everything is a plain fetch to Supabase's REST endpoint; no SDK. Every call can fail (offline, server not set up yet):
    callers catch that and the game carries on with the copy saved on this device. */
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1119g';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=1119h';
 
 const base = (new URLSearchParams(location.search).get('api') || SUPABASE_URL || '').replace(/\/+$/, '');
 const SKEY = 'brawl-session';
@@ -52,6 +52,13 @@ export const Cloud = {
   ping:status => rpc('brawl_ping', {...mine(), p_status:status}),
   top:() => rpc('brawl_top', mine()),                    // the league table (a server set up before it existed answers with kind 'setup')
   invite:(to, kind, code) => rpc('brawl_invite', {...mine(), p_to:to, p_kind:kind, p_code:code}),
-  inviteDone:id => rpc('brawl_invite_done', {...mine(), p_id:id}).catch(() => {})
+  inviteDone:id => rpc('brawl_invite_done', {...mine(), p_id:id}).catch(() => {}),
+  /* profiles and trade offers (a bundle is {coins, cards:[{id, lvl}]}) */
+  profile:who => rpc('brawl_profile', {...mine(), p_who:who}),
+  offer:(to, give, want, reply = null) => rpc('brawl_offer', {...mine(), p_to:to, p_give:give, p_want:want, p_reply:reply}),
+  offers:() => rpc('brawl_offers', mine()),
+  answer:(id, yes) => rpc('brawl_offer_answer', {...mine(), p_id:id, p_yes:!!yes}),
+  cancel:id => rpc('brawl_offer_cancel', {...mine(), p_id:id}),
+  mailDone:ids => rpc('brawl_mail_done', {...mine(), p_ids:ids}).catch(() => {})
 };
 addEventListener('pagehide', () => Cloud.flush(true));
