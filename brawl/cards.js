@@ -846,7 +846,9 @@ export const BOOST_FX_IDS = Object.keys(BOOST_FX);
 export const BOOSTS = {};
 for (const fx of BOOST_FX_IDS) for (const type of TYPE_IDS) for (let tier = 1; tier <= 3; tier++){ const F = BOOST_FX[fx], id = `b-${fx}-${type}-${tier}`; BOOSTS[id] = {id, fx, type, tier, name:F.name, v:F.v[tier - 1], t:F.t ? F.t[tier - 1] : 0, price:BOOST_PRICE[tier - 1]}; }
 export const BOOST_IDS = Object.keys(BOOSTS);
-export const boostText = id => { const b = BOOSTS[id], F = BOOST_FX[b.fx]; return `Every ${TYPES[b.type].name} troop of yours within reach. ${F.text(b.v, b.t)}`; };
+/* a Boost works on every troop of yours in reach, whatever its type. Its own type gets BOOST_MATCH times the effect */
+export const BOOST_MATCH = 1.5;
+export const boostText = id => { const b = BOOSTS[id], F = BOOST_FX[b.fx]; return `Every troop of yours within reach. ${F.text(b.v, b.t)} ${TYPES[b.type].name} troops get half as much again.`; };
 export const boostName = id => { const b = BOOSTS[id]; return `${b.name} ${TIER_NAME[b.tier - 1]}`; };
 /* which types a deck is made of, most cards first (troops only: a Boost does nothing for a spell or a building) */
 export function deckTypes(ids){

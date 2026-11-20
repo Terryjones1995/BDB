@@ -1,7 +1,7 @@
 /* Break Room Brawl: the CPU. It plays through the same sim.play() a person does and sees nothing a person cannot:
    no hidden traps, no cloaked assassins, not the other side's hand or Mana. prof: {react, hold, derp, smart} from cards.js. */
-import { CARDS, lvlMul, BOOSTS, BOOST_HAND, BOOST_R } from './cards.js?v=1119f';
-import { TPS, W, L, riverOf, manaRate, RING_DROP, ringClamp, ringDrop } from './sim.js?v=1119f';
+import { CARDS, lvlMul, BOOSTS, BOOST_HAND, BOOST_R } from './cards.js?v=1119g';
+import { TPS, W, L, riverOf, manaRate, RING_DROP, ringClamp, ringDrop } from './sim.js?v=1119g';
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
@@ -413,7 +413,7 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
       const any = hand.filter(h => h.U).sort((a, b) => a.card.cost - b.card.cost)[0]; if (any) return put(any, ...toward(tgt, 3));
     }
   }
-  /* Boosts: once a second he looks at what he is holding. Each wants a troop of its type in the right spot of bother: hurt for the ones that mend, in a fight for
+  /* Boosts: once a second he looks at what he is holding. Each wants a troop of his in the right spot of bother (his own type of it counts for more): hurt for the ones that mend, in a fight for
      the ones that protect or hit harder, stuck for the one that frees. With a full hand he is less fussy, since nothing more arrives until he uses one. */
   function boosts(){
     const p = P(); if (!p.bh || !p.bh.length || rnd() < prof.derp) return;
@@ -422,7 +422,6 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
     p.bh.forEach((id, slot) => {
       const B = BOOSTS[id], fx = B.fx;
       for (const u of mine){
-        if (u.U.type !== B.type) continue;
         const near = foes.some(o => dist(o, u) <= Math.max(3.2, u.U.rng + 1.2)), hurt = 1 - u.hp / u.max; let v = 0;
         if (fx === 'heal' || fx === 'regen') v = hurt > .35 ? hurt * u.max : 0;
         else if (fx === 'cleanse') v = u.frz > 0 || u.bt > 0 || u.pt > 0 || u.slow > 0 ? u.max * .6 : 0;
@@ -431,7 +430,7 @@ export function createAI(sim, team, prof, rnd = Math.random, pid = team){
         else if (fx === 'shield' || fx === 'guard' || fx === 'dodge' || fx === 'revive') v = near ? u.hp * (fx === 'revive' ? .35 + hurt : .5) : 0;
         else v = near ? u.dmg / u.U.hit * 6 : 0;                                            // power, haste, leech, flame, frost: worth it on something that is hitting
         if (v <= 0 && !full) continue;
-        v = (v + 1) * B.tier * mine.filter(o => o.U.type === B.type && dist(o, u) <= BOOST_R).length;
+        v = (v + 1) * B.tier * mine.filter(o => dist(o, u) <= BOOST_R).reduce((a, o) => a + (o.U.type === B.type ? 1.5 : 1), 0);      // any troop of his in reach, his own type of it counting for more
         if (!best || v > best.v) best = {v, slot, x:u.x, z:u.z};
       }
     });

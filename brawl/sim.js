@@ -1,6 +1,6 @@
 /* Break Room Brawl: the battle rules. No DOM, no drawing. One sim runs per match (on the host when online);
    screens read its entities and events. Team 0 defends z > 0, team 1 defends z < 0. */
-import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus, RAMPAGE, RAMP_AT, BOOSTS, BOOST_HAND, BOOST_EVERY, BOOST_R } from './cards.js?v=1119f';
+import { UNITS, CARDS, MAPS, lvlMul, unitVar, HAND, AFF_IDS, typeBonus, RAMPAGE, RAMP_AT, BOOSTS, BOOST_HAND, BOOST_EVERY, BOOST_R, BOOST_MATCH } from './cards.js?v=1119g';
 
 export const TPS = 20, DT = 1 / TPS, W = 9, L = 21, RIVER = 1;      // a long field: more ground to cover, more time to react
 export const riverOf = map => map.river ? map.rw || RIVER : 0;      // how far the river reaches either side of the halfway line: a painted map brings its own
@@ -341,15 +341,19 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
   function order(pid, uid, tid){
     const e = byId.get(uid), t = tid ? byId.get(tid) : null;
     if (over || !e || sides[e.pid] !== sides[pid] || !alive[sides[pid]] || e.hp <= 0 || e.U.twr || !e.U.dmg) return false;
-    if (!tid){ if (!e.ord) return false; e.ord = 0; e.lock = false; emit({e:'order', id:uid, t:0, pid}); return true; }
+    if (!tid){ if (!e.ord) return false; e.ord = 0; e.ordT = -1; e.lock = false; emit({e:'order', id:uid, t:0, pid}); return true; }
     if (orderProblem(e, t)) return false;
-    e.ord = tid; e.lock = false; if (!e.U.bld) e.tgt = tid; emit({e:'order', id:uid, t:tid, pid});
+    e.ord = tid; e.ordT = ring ? t.team : -1; e.lock = false; if (!e.U.bld) e.tgt = tid; emit({e:'order', id:uid, t:tid, pid});      // Battle Royale: sent after a player, not just one thing of theirs
     return true;
   }
   function acquire(e){
     const U = e.U, cur = byId.get(e.tgt);
     let want = null;
     if (e.ord){ want = byId.get(e.ord); if (!ok(e, want)){ e.ord = 0; want = null; } }      // what it was sent after is gone, hidden or out of its reach for good: back to its own judgment
+    if (!e.ord && e.ordT >= 0 && !U.bld){                                       // Battle Royale: unless it was sent after a player, and that player is still in. Then on to their nearest tower
+      let n = null, nd = 1e9; if (alive[e.ordT]) for (const k of towers[e.ordT]){ if (!ok(e, k)) continue; const d = gap(e, k); if (d < nd){ nd = d; n = k; } }
+      if (n){ e.ord = n.id; want = n; } else e.ordT = -1;
+    }
     if (e.lock && ok(e, cur) && gap(e, cur) <= U.rng + .3 && (!want || want === cur)) return;          // mid-fight: finish what you started
     e.lock = false;
     let best = null, bd = 1e9, twr = null, td = 1e9, call = null, cd = 1e9, help = null, hd = 1e9;
@@ -753,7 +757,8 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
      (castBoost and not boost: that name is taken by the tower option above, and a function of the same name would quietly replace it.) */
   const bset = (e, k, v, t) => { if (e.bf) e.bf = e.bf.filter(b => !(b.s === 'b' && b.k === k)); buff(e, k, v, t, 'b'); };      // the same Boost again starts it over: it does not stack on itself
   function boostOn(e, B){
-    const v = B.v, t = B.t, k = {speed:'spd', haste:'hit', power:'dmg', guard:'grd', regen:'regen', leech:'leech', dodge:'dodge', flame:'burn', frost:'chill'}[B.fx];
+    const t = B.t, mul = B.fx === 'speed' || B.fx === 'haste' || B.fx === 'power' || B.fx === 'guard';      // these are times something (1.3: 30% faster); the rest are amounts
+    const v = e.U.type !== B.type || B.fx === 'cleanse' || B.fx === 'revive' ? B.v : mul ? 1 + (B.v - 1) * BOOST_MATCH : B.v * BOOST_MATCH, k = {speed:'spd', haste:'hit', power:'dmg', guard:'grd', regen:'regen', leech:'leech', dodge:'dodge', flame:'burn', frost:'chill'}[B.fx];      // its own type gets half as much again
     if (k) bset(e, k, v, t);
     else if (B.fx === 'health'){ if (!e.xh){ e.xh = 1; const add = Math.round(e.max * v); e.max += add; e.hp += add; } }
     else if (B.fx === 'heal') e.hp = Math.min(e.max, e.hp + e.max * v);
@@ -762,7 +767,7 @@ export function createSim({map:mapId, decks, seed = 1, elMul = [1, 1], towerLvl 
     else if (B.fx === 'revive'){ e.rv = v; e.rvT = tick + T(t); }
     e.bz = Math.max(e.bz || 0, tick + T(t || (B.fx === 'cleanse' ? v : 1.5)));      // how long the screens show it as boosted
   }
-  const boostable = (e, team, B, x, z) => e.team === team && e.hp > 0 && e.dep <= 0 && !e.U.bld && !e.U.twr && e.U.type === B.type && near(e, x, z, BOOST_R);
+  const boostable = (e, team, B, x, z) => e.team === team && e.hp > 0 && e.dep <= 0 && !e.U.bld && !e.U.twr && near(e, x, z, BOOST_R);      // any troop: the type only makes it stronger
   function castBoost(pid, slot, x, z){
     const p = players[pid], id = p && p.bh[slot], B = id && BOOSTS[id];
     if (over || !B || !Number.isFinite(x) || !Number.isFinite(z) || !alive[tm(pid)]) return false;

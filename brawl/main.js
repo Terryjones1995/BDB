@@ -1,13 +1,13 @@
 /* Break Room Brawl: screens, saves, the match loop and online play. Rules live in sim.js, drawing in view.js. */
 import { CARDS, CARD_IDS, BASE_IDS, baseName, baseOf, UNITS, AFF, AFF_IDS, RAR, RAR_IDS, TYPES, TYPE_IDS, typeBonus, typeCount, SET_AT, SET_MUL, ROLE_NAME, MAPS, MAP_IDS, DECK_SIZE, HAND, MAX_LEGEND, MAX_GOD, DECK_SLOTS, MAX_LVL, START_COINS, START_GIFT, FREE_RARES,
   lvlMul, LVL_STEP, GRADES, gradeOf, capProblem, RAR_CAP, PACE, upgradeCost, SELL, SELL_GOD, sellPrice, deckProblem, DRAW_W, weightedPick, rollCard, crateRoll, STARTER_DECKS, SKILLS, randomCpu, ladderCpu, levelPrize, tierOf, LEVELS, TIERS, PACKS, TYPE_PACK, openPack, THEME_DECKS, PERKS, PERK_IDS, unitsOf, ODDS, TEAM_ODDS, TEAM_TOWERS, CROWN_PAY, backupCpus, brainName, JOBS, rollJobs, jobPay, MILESTONES, MS_IDS, MS_PRIZE, RAMPAGE, RAMP_AT, goalsOf, goalText, GOAL_COUNT,
-  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119f';
-import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA, RING_MATCH, RING_SIDES } from './sim.js?v=1119f';
-import { createAI } from './ai.js?v=1119f';
-import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119f';
-import { Cloud, cloudWhy } from './cloud.js?v=1119f';
-import { sayFor, sayWhen } from './talk.js?v=1119f';
-import { createAudio } from './audio.js?v=1119f';
+  BOOSTS, BOOST_IDS, BOOST_FX, BOOST_DECK, BOOST_HAND, BOOST_EVERY, BOOST_R, TIER_NAME, boostName, deckTypes, starterBoosts, pickBoosts, cpuBoosts, BOOST_BOX, openBoostBox } from './cards.js?v=1119g';
+import { createSim, decodeEnts, decodeTraps, canPlace, orderProblem, DT, MAX_EL, manaRate, PATIENT, TRIG, OT_MANA, RING_MATCH, RING_SIDES, RING_DROP, ringDrop } from './sim.js?v=1119g';
+import { createAI } from './ai.js?v=1119g';
+import { Accounts, fresh, sanitize, isOwner, giftsFor } from './store.js?v=1119g';
+import { Cloud, cloudWhy } from './cloud.js?v=1119g';
+import { sayFor, sayWhen } from './talk.js?v=1119g';
+import { createAudio } from './audio.js?v=1119g';
 import { openTransport } from '../chess/net.js';
 
 const $ = id => document.getElementById(id), Q = new URLSearchParams(location.search), BDB = window.BDB;
@@ -81,7 +81,7 @@ const NOVIEW = Q.get('noview') === '1';
 async function initView(){
   if (NOVIEW) return;
   try {
-    const [vw, md] = await Promise.all([import('./view.js?v=1119f'), import('./models.js?v=1119f')]);
+    const [vw, md] = await Promise.all([import('./view.js?v=1119g'), import('./models.js?v=1119g')]);
     await md.preload(); MD = md;
     V = vw.createView($('arena'), {low:SMALL, reduced:BDB.reduced, numbers:true, pid:() => B ? B.me : -1, onDie:hearDeath, gfx:Q.get('gfx') != null ? +Q.get('gfx') : null, onGfx:() => { if (curTab === 'Profile' && !B) gfxUI(); }});
     ready3d = true;
@@ -274,11 +274,11 @@ const BICON = {
   cleanse:'<path d="M10 2l2.300 6.700L19 11l-6.700 2.300L10 20l-2.300-6.700L1 11l6.700-2.300zM19 14.500l1.100 2.900 2.900 1.100-2.900 1.100-1.100 2.900-1.100-2.900-2.900-1.100 2.900-1.100z"/>',
   revive:'<path d="M12 1.500 19.500 10H15v6.500H9V10H4.500zM5 19h14v3.200H5z"/>'
 };
-const bIcon = fx => `<svg viewBox="0 0 24 24" aria-hidden="true">${BICON[fx] || ''}</svg>`;
+const bIcon = fx => BICON[fx] ? `<img src="ui/boost/${fx}.webp" alt="" draggable="false" decoding="async">` : '';      // one rendered picture per effect (made in 3D: _tmp/bart/art.html)
 const curBoosts = () => (P.bdecks[P.deck] || []).filter(id => BOOSTS[id] && P.boosts[id]).slice(0, BOOST_DECK);
 const boostSay = id => { const b = BOOSTS[id]; return BOOST_FX[b.fx].text(b.v, b.t); };
-const boostRow = (id, tail, cls) => { const b = BOOSTS[id]; return `<div class="brow${cls ? ' ' + cls : ''}" style="--ty:${TYPES[b.type].col}" data-id="${id}"><span class="bic">${bIcon(b.fx)}</span><div><b>${esc(b.name)}<i>${TIER_NAME[b.tier - 1]}</i></b><small><em>${esc(TYPES[b.type].name)}.</em> ${esc(boostSay(id))}</small></div>${tail || ''}</div>`; };
-const boostTile = (id, cls) => { const b = BOOSTS[id]; return `<button type="button" class="btile${cls ? ' ' + cls : ''}" style="--ty:${TYPES[b.type].col}" data-id="${id}" title="${esc(boostName(id))}, ${esc(TYPES[b.type].name)}. ${esc(boostSay(id))}" aria-label="${esc(boostName(id))}, ${esc(TYPES[b.type].name)}">${bIcon(b.fx)}<span class="pip">${'<i></i>'.repeat(b.tier)}</span></button>`; };
+const boostRow = (id, tail, cls) => { const b = BOOSTS[id]; return `<div class="brow${cls ? ' ' + cls : ''}" style="--ty:${TYPES[b.type].col}" data-id="${id}"><span class="bic">${bIcon(b.fx)}</span><div><b>${esc(b.name)}<i>${TIER_NAME[b.tier - 1]}</i></b><small>${esc(boostSay(id))} <em>${esc(TYPES[b.type].name)} +50%.</em></small></div>${tail || ''}</div>`; };
+const boostTile = (id, cls) => { const b = BOOSTS[id]; return `<button type="button" class="btile${cls ? ' ' + cls : ''}" style="--ty:${TYPES[b.type].col}" data-id="${id}" title="${esc(boostName(id))}. ${esc(boostSay(id))} ${esc(TYPES[b.type].name)} troops get half as much again." aria-label="${esc(boostName(id))}, ${esc(TYPES[b.type].name)}">${bIcon(b.fx)}<span class="pip">${'<i></i>'.repeat(b.tier)}</span></button>`; };
 /* once for every account, old or new: the starter set, and a Boost deck picked for every deck that has cards in it */
 function boostStart(){
   if (!P || !P.onboarded || P.flags.bs1) return false;
@@ -305,7 +305,7 @@ function boostBox(){
   const show = rest.filter(id => bstType ? BOOSTS[id].type === bstType : ty.includes(BOOSTS[id].type)).sort((a, b) => (bstType ? 0 : ty.indexOf(BOOSTS[a].type) - ty.indexOf(BOOSTS[b].type)) || fxI(a) - fxI(b) || BOOSTS[b].tier - BOOSTS[a].tier);
   const full = d.length >= BOOST_DECK;
   const b = dlg(`<div class="k-eyebrow">Boosts for Deck ${P.deck + 1}</div><h3>${d.length} of ${BOOST_DECK} in</h3>
-    <p class="note" style="margin:0">A Boost costs no Mana. In a match one is dealt every ${BOOST_EVERY} seconds and you hold ${BOOST_HAND} at most. Drop it on your troops: it only works on the type it names.</p>
+    <p class="note" style="margin:0">A Boost costs no Mana. In a match one is dealt every ${BOOST_EVERY} seconds and you hold ${BOOST_HAND} at most. Drop it on your troops: it works on any of them, and the type it names gets half as much again.</p>
     <div class="bsec">In this deck</div><div class="brows" id="bbIn">${d.length ? d.map(id => boostRow(id, '<button type="button" class="k-btn" data-a="out">Take out</button>', ty.includes(BOOSTS[id].type) ? '' : 'off')).join('') : '<p class="note" style="margin:0">Nothing yet. Add some from below.</p>'}</div>
     <div class="bsec">Your other Boosts</div>
     <div class="tfilter" id="bbF" role="group" aria-label="Type"><button type="button" data-t="" aria-pressed="${!bstType}">This deck's types</button>${types.map(t => `<button type="button" data-t="${t}" style="--ty:${TYPES[t].col}" aria-pressed="${bstType === t}">${esc(TYPES[t].name)}</button>`).join('')}</div>
@@ -1213,7 +1213,7 @@ function preRing(sk = ringSk){
   const b = dlg(`<div class="k-eyebrow">${esc(MAPS.ring.name)}. Battle Royale</div><h3>You against four BDBs</h3>
     <div class="br-seats">${seats.map((c, i) => `<div class="br-seat" style="--tc:${RCOL[i]}"><span class="av${i ? ' bdb' : ''}">${i ? '' : esc(P.name[0].toUpperCase())}</span><b>${esc(i ? c.name.replace(/ BDB$/, '') : 'You')}</b></div>`).join('')}</div>
     <div class="k-seg br-sk" id="brSk" role="group" aria-label="How good the BDBs are">${SKILLS.map(k => `<button type="button" data-sk="${k.id}" aria-pressed="${k.id === ringSk}">${esc(k.name)}</button>`).join('')}</div>
-    <ul class="br-rules"><li>Five towers and no teams. Anyone can hit anyone.</li><li>Mana comes in at x2 from the first second.</li><li>Summon inside your own ring. Tap a troop, then a target, to send it anywhere.</li><li>Lose your tower and you are out. Last one standing wins.</li><li>After ${RING_MATCH / 60} minutes every tower starts to crumble.</li></ul>
+    <ul class="br-rules"><li>Five towers and no teams. Anyone can hit anyone.</li><li>Mana comes in at x2 from the first second.</li><li>Summon inside your own ring. Tap one of your troops, then another player's corner, to send it after them.</li><li>Lose your tower and you are out. Last one standing wins.</li><li>After ${RING_MATCH / 60} minutes every tower starts to crumble.</li></ul>
     <dl class="br-pay">${[1, 2, 3, 4, 5].map(pl => `<div${pl === 1 ? ' class="br1"' : ''}><dt>${PLC[pl]}</dt><dd>${COIN}${fmt(ringPay(S, pl))}${pl === 1 && S.pack ? `, ${esc(PACK[S.pack].name)}` : ''}${pl === 1 && S.card ? ', one of their cards' : ''}</dd></div>`).join('')}<div class="ko"><dt>Each side you knock out</dt><dd>+${COIN}${fmt(Math.round(S.coins * RING_KO / 5) * 5)}</dd></div></dl>
     <div class="k-row"><button type="button" class="k-btn primary big" id="brGo">Start</button><button type="button" class="k-btn" id="brNo">Back</button></div>`);
   b.querySelector('#brSk').onclick = e => { const q = e.target.closest('button[data-sk]'); if (!q || q.dataset.sk === ringSk) return; BDB.sfx.tick(); preRing(q.dataset.sk); };
@@ -1430,7 +1430,7 @@ function onEvents(ev){
       if (c && e.e === 'drop' && e.u && c.kind === 'unit' && (c.rar !== 'c' || Math.random() < .6)){ const uid = e.u, line = sayFor(c.base, c.type), mine = e.team === B.team, big = c.rar === 'l' || c.rar === 'e' || c.rar === 'g'; setTimeout(() => { if (B && !B.over) bubble(uid, line, mine, big); }, 420); }
     }
     else if (e.e === 'grow'){ if (Math.random() < .45) bubble(e.id, sayWhen('kill'), true); }
-    else if (e.e === 'bdeal'){ if (e.pid === B.me && !P.flags.bt1){ P.flags.bt1 = 1; save(); note('A Boost arrived. Tap it, then tap your troops of its type'); } }
+    else if (e.e === 'bdeal'){ if (e.pid === B.me && !P.flags.bt1){ P.flags.bt1 = 1; save(); note('A Boost arrived. Tap it, then tap your troops'); } }
     else if (e.e === 'boost'){ const b = BOOSTS[e.id]; if (b && e.team !== B.team) note(`${B.mode === 'cpu' ? 'He' : 'They'} used ${b.name} on ${B.mode === 'cpu' ? 'his' : 'their'} ${TYPES[b.type].name} troops`); }
     else if (e.e === 'rampage'){ const o = entOf(e.id), R = RAMPAGE[e.k]; if (o && R){ const mine = o.team === B.team; note(`${mine ? 'Your' : B.mode === 'cpu' ? 'His' : 'Their'} ${o.U.name} ${e.n > 1 ? 'is unstoppable' : 'is on a rampage'}: ${R.name}`); if (mine){ bubble(e.id, sayWhen('kill'), true, true); buzz(18); } else if (B.mode === 'cpu' && e.n > 1) talk(TALK.legend); } }
     else if (e.e === 'revive'){ bubble(e.id, sayWhen('low'), true); }
@@ -1484,19 +1484,19 @@ function hud(force){
 
 /* ---------- playing cards: drag from the hand, or tap a card then tap the floor ---------- */
 let aim = null;
-/* a Boost is picked from the tray the same way a card is, and dropped on the field: the circle is green when a troop of its type is inside it */
+/* a Boost is picked from the tray the same way a card is, and dropped on the field: the circle is green when a troop of yours is inside it */
 function bselect(i){
   if (i >= 0){ if (B.sel >= 0) select(-1); if (ordSel){ ordPick(0); $('insp').hidden = true; } }
   B.bsel = i; for (const c of $('bstTray').children) c.classList.toggle('sel', +c.dataset.slot === i);
   if (V && i < 0) V.setGhost(false);
 }
-const boostHits = (id, p) => { const b = BOOSTS[id]; return (B.mode === 'guest' ? B.ents : B.sim.ents).filter(e => e.team === B.team && e.hp > 0 && !e.dep && !e.U.bld && !e.U.twr && e.U.type === b.type && Math.hypot(e.x - p.x, e.z - p.z) <= BOOST_R + e.U.r * .5).length; };
+const boostHits = (id, p) => { const b = BOOSTS[id]; return (B.mode === 'guest' ? B.ents : B.sim.ents).filter(e => e.team === B.team && e.hp > 0 && !e.dep && !e.U.bld && !e.U.twr && Math.hypot(e.x - p.x, e.z - p.z) <= BOOST_R + e.U.r * .5).length; };
 function tryBoost(slot, p){
   if (!B || !B.run || B.over || B.pz || slot < 0 || !p) return false;
   const I = info(), id = I && I.bh && I.bh[slot]; if (!id) return false;
   const b = BOOSTS[id]; let ok = boostHits(id, p) > 0;
   if (ok){ if (B.mode === 'guest') room.send('b', {slot, id, x:Math.round(p.x * 100) / 100, z:Math.round(p.z * 100) / 100}, OL.opp); else ok = B.sim.boost(B.me, slot, p.x, p.z); }
-  if (!ok){ BDB.sfx.bad(); note(`No ${TYPES[b.type].name} troops of yours there`); const el = $('bstTray').children[slot]; if (el){ el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); } return false; }
+  if (!ok){ BDB.sfx.bad(); note('No troops of yours there'); const el = $('bstTray').children[slot]; if (el){ el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope'); } return false; }
   buzz(10); bselect(-1); return true;
 }
 $('bstTray').addEventListener('pointerdown', e => {
@@ -1593,6 +1593,17 @@ function sendOrder(uid, tid){
   if (B.mode === 'guest'){ room.send('o', {u:uid, t:tid}, OL.opp); return true; }
   return B.sim.order(B.me, uid, tid);
 }
+/* Battle Royale: whose corner a spot on the screen is in (the player still in whose ground or towers are nearest, if near enough), or -1 */
+function ringSideAt(cx, cy){
+  const p = V && V.pick(cx, cy); if (!p || !B.sim) return -1;
+  let best = -1, bd = 1e9;
+  for (let t = 0; t < B.sim.towers.length; t++){
+    if (t === B.team || !B.sim.alive[t]) continue;
+    const [gx, gz] = ringDrop(t), d = Math.min(Math.hypot(p.x - gx, p.z - gz) - RING_DROP, ...B.sim.towers[t].filter(o => o.hp > 0).map(o => Math.hypot(p.x - o.x, p.z - o.z) - 2.5));
+    if (d < bd){ bd = d; best = t; }
+  }
+  return bd <= 3 ? best : -1;
+}
 function tapField(cx, cy){
   const e = V && V.entityAt(cx, cy), live = B.run && !B.over && !B.pz;
   if (ordSel && live){
@@ -1604,6 +1615,12 @@ function tapField(cx, cy){
       buzz(12); ordPick(0); $('insp').hidden = true; return;
     }
     else if (e && e.id === ordSel){ const had = u.ord; if (had || B.mode === 'guest') sendOrder(u.id, 0); if (had) note('Order called off'); ordPick(0); $('insp').hidden = true; return; }
+    else if (!e && B.ring){                                                   // Battle Royale: a tap in someone's corner sends it after that player, at their nearest tower it can hit
+      const t = ringSideAt(cx, cy), k = t >= 0 ? B.sim.towers[t].filter(o => !orderProblem(u, o)).sort((a, b) => Math.hypot(a.x - u.x, a.z - u.z) - Math.hypot(b.x - u.x, b.z - u.z))[0] : null;
+      if (k && sendOrder(u.id, k.id)){ note(`Sent after ${B.rnames[t]}`); buzz(12); ordPick(0); $('insp').hidden = true; return; }
+      if (t < 0){ note('Tap an enemy, or anywhere in another player\'s corner'); BDB.sfx.bad(); return; }
+      ordPick(0); $('insp').hidden = true; return;
+    }
     else if (!e){ ordPick(0); $('insp').hidden = true; return; }
   }
   ordPick(e && live && e.team === B.team && !e.U.twr && e.U.dmg > 0 ? e.id : 0);
@@ -1629,7 +1646,7 @@ function inspect(cx, cy){
   const what = U.twr ? (U.key === 'king' ? 'The king tower. Lose it and the match is over. It only wakes up once it is hit or a guard tower falls.' : 'A guard tower. It fires at anything in range, ground or air.') : c ? c.desc + (c.note ? ' ' + c.note : '') : 'Summoned by another card.';
   const R = !U.twr && !U.bld && U.dmg ? RAMPAGE[U.type] : null, tg = e.ord ? unitNow(e.ord) : null;
   const more = (R ? `<p class="iramp${e.ram ? ' on' : ''}" style="--ty:${TYPES[U.type].col}"><b>${e.ram ? (e.ram > 1 ? 'Unstoppable' : 'On a rampage') : `Rampage at ${RAMP_AT[0]} kills${e.kc ? `, ${Math.min(e.kc, RAMP_AT[0])} so far` : ''}`}: ${esc(R.name)}.</b> ${esc(R.text)}</p>` : '')
-    + (ordSel === e.id ? `<p class="iord">${tg ? `Sent after ${esc(tg.U.name)}. Tap it again to call that off, or tap` : 'Tap'} an enemy troop, building or tower to send it there.</p>` : '');
+    + (ordSel === e.id ? `<p class="iord">${tg ? `Sent after ${esc(tg.U.name)}. Tap it again to call that off, or tap` : 'Tap'} an enemy troop, building or tower to send it there${B.ring ? ', or anywhere in a player\'s corner to send it after them' : ''}.</p>` : '');
   const pick = ordSel === e.id, title = c && (!c.n || c.n === 1) ? c.name : (AFF[U.aff].name ? AFF[U.aff].name + ' ' : '') + U.name;
   box.className = 'insp ' + (mine ? 'mine' : 'theirs') + (c ? ' r-' + c.rar : '') + (pick ? ' pick' : '');
   // a troop picked to be given an order gets a short box that leaves the field in view: the full facts are on its card
