@@ -1,16 +1,16 @@
 /* BDB Craft: the world on the page. Keeps the chunks near the player, asks the workers to make and mesh them, turns meshes into three.js objects, and
    tracks every block anyone changes (mods: the whole chunk, kept for good once one block in it changes; that is what gets saved and sent to friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c13';
-import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS, SHAPE } from './blocks.js?v=c13';
-import { boxes, solidBoxes } from './shapes.js?v=c13';
-import { PW, PH, PAD, pidx } from './mesh.js?v=c13';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c15';
+import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS, SHAPE } from './blocks.js?v=c15';
+import { boxes, solidBoxes } from './shapes.js?v=c15';
+import { PW, PH, PAD, pidx } from './mesh.js?v=c15';
 const key = (cx, cz) => cx + ',' + cz;
-export function createWorld({seed, kind, scene, matSolid, matClear, workers = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)), wait}){
+export function createWorld({seed, kind, scene, matSolid, matClear, workers = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)), wait, onGen}){
   const chunks = new Map(), mods = new Map(), dirty = new Set(), pool = [], jobs = new Map(), queue = new Map(), far = new Set();
   function drain(k, v){ const q = queue.get(k); if (!q) return; for (let j = 0; j < q.length; j += 2) v[q[j]] = q[j + 1]; queue.delete(k); mods.set(k, v); dirty.add(k); }
   let nid = 0, R = 8, centre = [0, 0], busyGen = 0, busyMesh = 0, alive = true, stats = {gen:0, mesh:0};
   for (let i = 0; i < workers; i++){
-    const w = new Worker(new URL('./worker.js?v=c13', import.meta.url), {type:'module'});
+    const w = new Worker(new URL('./worker.js?v=c15', import.meta.url), {type:'module'});
     w.onmessage = e => done(e.data); w.busy = 0; pool.push(w);
   }
   const free = () => pool.reduce((a, w) => w.busy < a.busy ? w : a, pool[0]);
@@ -75,7 +75,7 @@ export function createWorld({seed, kind, scene, matSolid, matClear, workers = Ma
         if (mods.has(k)){ c.v = mods.get(k); drain(k, c.v); continue; }
         if (wait && wait(k)) continue;                                  // a friend's change to this chunk is still on its way
         c.busy = true; busyGen++;
-        send({t:'gen', seed, cx, cz, kind}, null, m => { busyGen--; c.busy = false; stats.gen++; if (!chunks.has(k)) return; c.v = mods.get(k) || m.v; drain(k, c.v); });
+        send({t:'gen', seed, cx, cz, kind}, null, m => { busyGen--; c.busy = false; stats.gen++; if (!chunks.has(k)) return; c.v = mods.get(k) || m.v; drain(k, c.v); if (onGen) onGen(cx, cz, c.v); });
       }
     }
     // mesh: the nearest chunk that needs it and has all eight neighbours, edits first
@@ -110,7 +110,7 @@ export function createWorld({seed, kind, scene, matSolid, matClear, workers = Ma
   const nbOf = (x, y, z) => (dx, dy, dz) => Math.max(0, get(x + dx, y + dy, z + dz));
   /* the block the player is looking at, and the empty spot in front of it (for placing): a step-by-step walk through the grid.
      Shaped blocks are only hit where they really are, so you can look past a torch or over a slab. hp is the point hit */
-  function ray(o, dir, max = 6){
+  function ray(o, dir, max = 6, wet = false){
     let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z); const sx = Math.sign(dir.x), sy = Math.sign(dir.y), sz = Math.sign(dir.z);
     const tdx = Math.abs(1 / dir.x), tdy = Math.abs(1 / dir.y), tdz = Math.abs(1 / dir.z);
     let tx = (sx > 0 ? x + 1 - o.x : o.x - x) * tdx, ty = (sy > 0 ? y + 1 - o.y : o.y - y) * tdy, tz = (sz > 0 ? z + 1 - o.z : o.z - z) * tdz, t = 0, face = null, px = x, py = y, pz = z;
@@ -120,7 +120,7 @@ export function createWorld({seed, kind, scene, matSolid, matClear, workers = Ma
         let best = null; for (const bx of boxes(b, nbOf(x, y, z))){ const h = hitBox(o, dir, x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]); if (h && (!best || h[0] < best[0])) best = h; }
         if (best && best[0] <= max){ const f = [0, 0, 0]; f[best[1]] = -Math.sign([dir.x, dir.y, dir.z][best[1]]); const hp = {x:o.x + dir.x * best[0], y:o.y + dir.y * best[0], z:o.z + dir.z * best[0]};
           return {x, y, z, b, px:x + f[0], py:y + f[1], pz:z + f[2], face:f, t:best[0], hp, shaped:true}; }
-      } else if (b > 0 && !LIQUID[b]) return {x, y, z, b, px, py, pz, face, t, hp:{x:o.x + dir.x * t, y:o.y + dir.y * t, z:o.z + dir.z * t}};
+      } else if (b > 0 && (!LIQUID[b] || wet)) return {x, y, z, b, px, py, pz, face, t, hp:{x:o.x + dir.x * t, y:o.y + dir.y * t, z:o.z + dir.z * t}};
       px = x; py = y; pz = z;
       if (tx < ty && tx < tz){ x += sx; t = tx; tx += tdx; face = [-sx, 0, 0]; } else if (ty < tz){ y += sy; t = ty; ty += tdy; face = [0, -sy, 0]; } else { z += sz; t = tz; tz += tdz; face = [0, 0, -sz]; }
     }

@@ -159,6 +159,10 @@ shape('rail_powered', 'Powered Rail', 'rail_powered', 'redstone', SH.rail, 12, {
 /* things you hold that are not blocks: shown flat, never put in the world as they are */
 const item = (k, n, cat, o = {}) => add('item_' + k, n, 'item_' + k, cat, {kind:'item', ...o});
 item('minecart', 'Minecart', 'redstone'); item('flint', 'Flint and Steel', 'tools');
+/* moving water and lava: levels 1 to 7 spreading (weaker further out) and 8 falling. Never in the inventory: buckets put sources down */
+for (let lv = 1; lv <= 8; lv++) add(lv === 1 ? 'water_flow' : 'water_flow#' + lv, 'Water', 'water', '', {kind:'liquid', self:true, level:lv});
+for (let lv = 1; lv <= 8; lv++) add(lv === 1 ? 'lava_flow' : 'lava_flow#' + lv, 'Lava', 'lava', '', {kind:'liquid', lava:true, glow:8, self:true, level:lv});
+item('water_bucket', 'Water Bucket', 'tools'); item('lava_bucket', 'Lava Bucket', 'tools'); item('bucket', 'Bucket', 'tools');
 
 L.forEach((b, i) => { b.id = i; b.kind = b.kind || 'solid'; });
 /* textures: one layer each in the texture array, every name a block uses, in the order first used */
@@ -171,11 +175,11 @@ export const N = L.length;
 export const MAXID = 8192;
 export const OPAQUE = new Uint8Array(MAXID), SOLID = new Uint8Array(MAXID), CUTOUT = new Uint8Array(MAXID), PLANT = new Uint8Array(MAXID), LIQUID = new Uint8Array(MAXID), SELF = new Uint8Array(MAXID), GLOW = new Uint8Array(MAXID), TRANS = new Uint8Array(MAXID), EMIT = new Uint8Array(MAXID);
 export const FACE = new Uint16Array(MAXID * 6), FROT = new Uint8Array(MAXID * 6);      // FROT: the picture on this face is turned a quarter (logs lying down)
-export const ITEM = new Uint8Array(MAXID), SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
+export const LEVEL = new Uint8Array(MAXID), ITEM = new Uint8Array(MAXID), SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
 for (const b of L){
   const i = b.id; if (!i) continue;
   const shaped = b.kind === 'shape' || b.kind === 'shapecut' || b.kind === 'shapeglass';
-  ITEM[i] = b.kind === 'item' ? 1 : 0;
+  ITEM[i] = b.kind === 'item' ? 1 : 0; LEVEL[i] = b.level | 0;
   OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || b.kind === 'shapeglass' || (b.kind === 'liquid' && !b.lava) ? 1 : 0;
   CUTOUT[i] = b.kind === 'cutout' || b.kind === 'shapecut' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? (b.lava ? 2 : 1) : 0;
   SELF[i] = b.self ? 1 : 0; GLOW[i] = b.glow ? 1 : 0; EMIT[i] = b.glow === true ? 8 : (b.glow | 0);

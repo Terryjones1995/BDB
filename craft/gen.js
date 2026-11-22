@@ -1,7 +1,7 @@
 /* BDB Craft: making the world. One chunk column at a time (16 x 128 x 16), the same every time for the same seed, so the page only has to keep the blocks
    people have changed. Kinds: 'normal' (oceans, plains, forests, desert, snow, mountains, caves and ore) and 'flat' (a classic flat building world). */
-import { CH, H, SEA, B } from './blocks.js?v=c13';
-import { makeNoise, hash3 } from './noise.js?v=c13';
+import { CH, H, SEA, B } from './blocks.js?v=c15';
+import { makeNoise, hash3 } from './noise.js?v=c15';
 export const idx = (x, y, z) => (y * CH + z) * CH + x;
 const cache = new Map();
 function noiseFor(seed){ let n = cache.get(seed); if (!n){ n = {a:makeNoise(seed), b:makeNoise(seed ^ 0x5bd1e995), c:makeNoise(seed + 7919)}; cache.set(seed, n); } return n; }
@@ -78,6 +78,9 @@ export function genChunk(seed, cx, cz, kind = 'normal'){
       const t1 = a.n3(wx * .028, y * .042, wz * .028), t2 = b.n3(wx * .028 + 91, y * .042, wz * .028 - 47), room = a.n3(wx * .012 + 500, y * .025, wz * .012);
       if (t1 * t1 + t2 * t2 < .0075 + (y < 30 ? .004 : 0) || room > .62 - (y < 24 ? .08 : 0)){ const i = idx(x, y, z); if (v[i] !== B.bedrock) v[i] = 0; }
     }
+    // springs: now and then a cliff face has water (or, low down, lava) coming out of it; the host lets it run when the chunk loads, so it falls
+    if (h > SEA + 6){ const lowest = Math.min(C(x + 1, z).h, C(x - 1, z).h, C(x, z + 1).h, C(x, z - 1).h);
+      if (h - lowest >= 4 && hash3(wx, 5, wz, seed) < .06){ const y = lowest + 1 + Math.floor(hash3(wx, 6, wz, seed) * Math.max(1, h - lowest - 2)); if (y < h - 1) v[idx(x, y, z)] = hash3(wx, 8, wz, seed) < .12 && y < 70 ? B.lava : B.water; } }
     // ore, deeper is rarer
     for (let y = 2; y < Math.min(h - 3, 110); y++){
       const i = idx(x, y, z); if (v[i] !== B.stone) continue; const r = hash3(wx, y, wz, seed ^ 99);

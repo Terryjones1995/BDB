@@ -5,8 +5,8 @@
    (torches, lanterns, glowstone, lava: up to 8 blocks out, one level less each block). The border is as wide as light can reach, so nothing changes at
    the edge of a chunk. Output: two meshes, the solid one (leaves and plants cut out by the shader) and the see-through one (water, stained glass).
    Each corner carries [sky, block] light; the shader picks the brighter of the sky (times the time of day) and the warm block light. */
-import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH, FIRST, B } from './blocks.js?v=c13';
-import { boxes, dustLinks } from './shapes.js?v=c13';
+import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH, FIRST, B, LEVEL } from './blocks.js?v=c15';
+import { boxes, dustLinks } from './shapes.js?v=c15';
 export const PAD = 8, PW = CH + 2 * PAD, PH = H + 2;
 export const pidx = (x, y, z) => ((y + 1) * PW + (z + PAD)) * PW + (x + PAD);
 const LSTEP = .2, SKY_ROUNDS = 5;      // sky light lost for each block it spreads sideways out of the open sky
@@ -161,7 +161,7 @@ export function meshChunk(v){
   // water and lava: the top sits a little low unless there is more of it above. Lava is drawn solid and glows
   for (let y = 0; y < H; y++) for (let z = 0; z < CH; z++) for (let x = 0; x < CH; x++){
     const b0 = v[pidx(x, y, z)], b = WET[b0] ? WATER : b0; if (!LIQUID[b]) continue;
-    const up = at(x, y + 1, z), same = n => (LIQUID[n] || (WET[n] ? 1 : 0)) === LIQUID[b], top = same(up) ? 1 : .875, ls = .25 + .75 * sk(x, y, z), lbv = GLOW[b] ? 1 : bk(x, y, z), out = TRANS[b] ? clear : solid, W = FACE[b * 6 + 2];
+    const up = at(x, y + 1, z), same = n => (LIQUID[n] || (WET[n] ? 1 : 0)) === LIQUID[b], lv = LEVEL[b0], top = same(up) || lv === 8 ? 1 : lv ? Math.max(.12, (8 - lv) / 9) : .875, ls = .25 + .75 * sk(x, y, z), lbv = GLOW[b] ? 1 : bk(x, y, z), out = TRANS[b] ? clear : solid, W = FACE[b * 6 + 2];
     for (let f = 0; f < 6; f++){
       const d = f >> 1, s = f & 1 ? -1 : 1, n = at(x + AX[d][0] * s, y + AX[d][1] * s, z + AX[d][2] * s);
       if (same(n) || (OPAQUE[n] && !(f === 2 && top < 1))) continue;

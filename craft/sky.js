@@ -1,7 +1,7 @@
 /* BDB Craft: the sky. A day lasts 20 minutes (like the real thing): the sun comes up in the east, sets in the west in orange, the moon follows it with
    its phase changing night to night, and stars come out. Clouds are blocky 3D puffs that drift, lit by the time of day.
    time: 0 sunrise, .25 noon, .5 sunset, .75 midnight. light() is how bright the world is (the block shader multiplies by it). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c13';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c15';
 
 export const DAY_SECONDS = 1200;
 const C = h => new THREE.Color(h);

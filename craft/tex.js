@@ -1,7 +1,7 @@
 /* BDB Craft: every block texture, drawn pixel by pixel in code at 16 x 16 and doubled to 32 (the BDB Block is the one drawn at full size, from his photo).
    Nothing is copied from any other game: each one is a little recipe of colours, noise and shapes. Also the cube icons for the hotbar and inventory. */
-import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH } from './blocks.js?v=c13';
-import { boxes } from './shapes.js?v=c13';
+import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH } from './blocks.js?v=c15';
+import { boxes } from './shapes.js?v=c15';
 export const TS = 32;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -224,7 +224,7 @@ Object.assign(R, {
   mycelium_top:s => { const p = P(s).fill(rgb('#73636b'), .18); p.speck(rgb('#9a8a96'), 20, .15); p.speck(rgb('#564a50'), 14, .15); return p; },
   mycelium_side:s => { const p = R.dirt(s); for (let x = 0; x < 16; x++){ const h = 2 + (p.r() * 3 | 0); for (let y = 0; y < h; y++) p.set(x, y, mul(rgb('#73636b'), .85 + p.r() * .3)); } return p; },
   rooted_dirt:s => { const p = R.dirt(s); for (let k = 0; k < 5; k++){ let x = p.r() * 16 | 0; for (let y = p.r() * 6 | 0; y < 16; y += 1){ p.set(x, y, rgb('#a58b6a')); if (p.r() < .3) x++; if (p.r() < .4) y++; } } return p; },
-  mud:s => noiseFill(P(s), '#3c3936', .1, '#2e2b29', '#4a4643'), moss:s => noiseFill(P(s), '#5a7c2a', .22, '#46651e', '#73983a', 9, 8),
+  mud:s => noiseFill(P(s), '#5a4f45', .1, '#4a4038', '#6a5e52'), moss:s => noiseFill(P(s), '#5a7c2a', .22, '#46651e', '#73983a', 9, 8),
   red_sand:s => P(s).fill(rgb('#be6621'), .1).speck(rgb('#a65819'), 16, .1).speck(rgb('#d88a44'), 10, .05),
   packed_ice:s => { const p = P(s).fill(rgb('#8db4ec'), .05); for (let k = 0; k < 5; k++){ const x0 = p.r() * 16 | 0, y0 = p.r() * 16 | 0; for (let i = 0; i < 4; i++) p.set(x0 + i, y0 + (i >> 1), rgb('#c0d8fa')); } return p; },
   blue_ice:s => { const p = P(s).fill(rgb('#73a9f3'), .06); for (let k = 0; k < 6; k++){ const x0 = p.r() * 16 | 0, y0 = p.r() * 16 | 0; for (let i = 0; i < 3; i++) p.set(x0 + i, y0 - i, rgb('#b3d4ff')); } return p; },
@@ -354,6 +354,15 @@ Object.assign(R, {
   item_minecart:s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); for (let y = 5; y < 11; y++) for (let x = 2; x < 14; x++){ const edge = y === 5 || x === 2 || x === 13; p.set(x, y, edge ? rgb('#8a8f96') : rgb('#5a5f66')); } for (const cx of [4, 11]) for (let y = 10; y < 14; y++) for (let x = cx - 1; x <= cx + 1; x++) p.set(x, y, rgb('#2a2a2a')); return p; },
   item_flint:s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); for (let i = 0; i < 8; i++){ p.set(3 + i, 12 - i, rgb('#9a9a9a')); p.set(4 + i, 12 - i, rgb('#6a6a6a')); } for (const [x, y] of [[10, 3], [11, 3], [12, 4], [11, 5], [10, 4]]) p.set(x, y, rgb('#2a2a2a')); for (const [x, y] of [[4, 4], [5, 5], [3, 5]]) p.set(x, y, rgb('#ffb23a')); return p; },
 });
+
+/* ---------- buckets ---------- */
+function bucketPic(s, fill){ const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0));
+  for (let y = 5; y < 14; y++){ const w = 6 - Math.floor((y - 5) / 3); for (let x = 8 - w; x < 8 + w; x++){ const edge = x === 8 - w || x === 8 + w - 1 || y === 13; p.set(x, y, edge ? rgb('#6a6a6a') : rgb('#a8a8a8')); } }
+  for (let x = 2; x < 14; x++) p.set(x, 5, rgb('#5a5a5a'));
+  if (fill) for (let x = 3; x < 13; x++){ p.set(x, 6, mul(rgb(fill), 1.1)); p.set(x, 7, rgb(fill)); }
+  for (let x = 4; x < 12; x++) p.set(x, 2, rgb('#7a7a7a')); p.set(3, 3, rgb('#7a7a7a')); p.set(12, 3, rgb('#7a7a7a')); p.set(2, 4, rgb('#7a7a7a')); p.set(13, 4, rgb('#7a7a7a'));
+  return p; }
+Object.assign(R, {item_bucket:s => bucketPic(s), item_water_bucket:s => bucketPic(s, '#2f63c8'), item_lava_bucket:s => bucketPic(s, '#ff8a1e')});
 
 /* all the textures, as one block of rgba: layer after layer, TS x TS each */
 export function paintAll(){

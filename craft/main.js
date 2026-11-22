@@ -1,21 +1,23 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c13';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE } from './blocks.js?v=c13';
-import { paintAll, icon, TS } from './tex.js?v=c13';
-import { column } from './gen.js?v=c13';
-import { createWorld } from './world.js?v=c13';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c13';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c13';
-import { createHand } from './hand.js?v=c13';
-import { createPlayer, EYE } from './player.js?v=c13';
-import { createAnimals } from './animals.js?v=c13';
-import { createRedstone } from './redstone.js?v=c13';
-import { createCarts } from './carts.js?v=c13';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c13';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c13';
-import { openParty, newCode, cleanCode } from './party.js?v=c13';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c15';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE } from './blocks.js?v=c15';
+import { paintAll, icon, TS } from './tex.js?v=c15';
+import { column } from './gen.js?v=c15';
+import { column as column2, villagesNear } from './gen2.js?v=c15';
+import { createWorld } from './world.js?v=c15';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c15';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c15';
+import { createHand } from './hand.js?v=c15';
+import { createPlayer, EYE } from './player.js?v=c15';
+import { createAnimals } from './animals.js?v=c15';
+import { createRedstone } from './redstone.js?v=c15';
+import { createCarts } from './carts.js?v=c15';
+import { createLiquids } from './liquids.js?v=c15';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c15';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c15';
+import { openParty, newCode, cleanCode } from './party.js?v=c15';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -53,7 +55,7 @@ function toast(t, ms = 2200){ const e = $('toast'); e.textContent = t; e.hidden 
 /* ---------- the start screen, with a world turning slowly behind it ---------- */
 let G = null, backdrop = null, tab = 'mine', lists = {mine:[], local:[], live:[], cloudErr:null};
 function startBackdrop(){
-  if (backdrop) return; const w = createWorld({seed:hashSeed('bdb craft'), kind:'normal', scene, matSolid:mats.solid, matClear:mats.clear, workers:2}); w.R = 6;
+  if (backdrop) return; const w = createWorld({seed:hashSeed('bdb craft'), kind:'normal2', scene, matSolid:mats.solid, matClear:mats.clear, workers:2}); w.R = 6;
   backdrop = {w, a:0}; mats.fog(6 * 16 * .55, 6 * 16 - 4);
 }
 function stopBackdrop(){ if (backdrop){ backdrop.w.dispose(); backdrop = null; } }
@@ -243,22 +245,26 @@ $('csave').onclick = async () => {
 /* ---------- playing a world ---------- */
 const HOTBAR0 = ['grass', 'stone', 'planks_oak', 'log_oak', 'glass', 'bricks', 'wool_red', 'lamp', 'quartz'].map(k => B[k] || B.stone);
 function makeGame(opt){
+  // worlds made before the world update keep the old land; new ones get the bigger world (biomes, rivers, villages)
+  opt.gen = opt.gen || (opt.meta && opt.meta.gen) || (opt.fresh ? 2 : 1); const wkind = opt.kind === 'normal' && opt.gen === 2 ? 'normal2' : opt.kind, col = opt.gen === 2 ? column2 : column;
   // opt: {name, seed, kind, where, id, chunks, meta, guest, party}
-  const world = createWorld({seed:opt.seed, kind:opt.kind, scene, matSolid:mats.solid, matClear:mats.clear, wait:opt.wait});
+  let gref = null;
+  const world = createWorld({seed:opt.seed, kind:wkind, scene, matSolid:mats.solid, matClear:mats.clear, wait:opt.wait, onGen:(cx, cz, v) => { if (gref && !opt.guest) gref.liq.wake(cx, cz, v); }});
   world.R = S.dist;
   const p = createPlayer(world), meta = opt.meta || {};
   const g = {opt, world, p, bar:(Array.isArray(meta.bar) && meta.bar.length === 9 ? meta.bar.map(b => (b > 0 && b < N && BLOCKS[b].kind !== 'air') ? b : B.stone) : HOTBAR0.slice()), sel:meta.sel | 0 || 0,
     keys:{}, ready:false, spawned:false, lastSave:performance.now(), avatars:new Map(), party:opt.party || null, code:opt.code || null, hud:true, dbg:false, lastTapSpace:0, lastTapW:0, liveT:0, posT:0, saving:null};
   g.animals = createAnimals(scene, world);
   g.red = createRedstone(world, (x, y, z, b) => edit(x, y, z, b, true), {ignite:(x, y, z) => ignite(g, x, y, z, 4)});
-  g.carts = createCarts(scene, world); g.tnts = []; g.pushes = new Map();
+  g.carts = createCarts(scene, world); g.tnts = []; g.pushes = new Map(); g.falling = [];
+  g.liq = createLiquids(world, (x, y, z, b) => edit(x, y, z, b, 'liq'), (x, y, z, toY, b) => fallBlock(g, x, y, z, toY, b)); gref = g;
   g.time = typeof meta.time === 'number' ? meta.time % 1 : .08; g.day = meta.day | 0;
   if (meta.p){ Object.assign(p, {x:meta.p[0], y:meta.p[1], z:meta.p[2], yaw:meta.p[3] || 0, pitch:meta.p[4] || 0, fly:!!meta.p[5]}); g.spawned = true; }
   else if (opt.spawn){ Object.assign(p, opt.spawn); g.spawned = true; g.needUp = true; }
   else {
     // the nearest dry land to the middle, from the land shape alone (no chunks needed yet)
     let best = null;
-    for (let r = 0; r < 400 && !best; r += 8) for (let a = 0; a < Math.max(1, r); a += 8){ const ang = a / Math.max(1, r) * Math.PI * 2, x = Math.round(Math.cos(ang) * r) + 8, z = Math.round(Math.sin(ang) * r) + 8, c = column(opt.seed, x, z); if (opt.kind === 'flat' || (c.h > 63 && c.h < 100 && !['ocean', 'frozen', 'peak'].includes(c.biome))){ best = {x, z}; break; } }
+    for (let r = 0; r < 400 && !best; r += 8) for (let a = 0; a < Math.max(1, r); a += 8){ const ang = a / Math.max(1, r) * Math.PI * 2, x = Math.round(Math.cos(ang) * r) + 8, z = Math.round(Math.sin(ang) * r) + 8, c = col(opt.seed, x, z); if (opt.kind === 'flat' || (c.h > 63 && c.h < 100 && !c.river && !['ocean', 'frozen', 'peak', 'warmocean', 'snowpeak', 'swamp', 'mushroom'].includes(c.biome))){ best = {x, z}; break; } }
     best = best || {x:8, z:8}; p.x = best.x + .5; p.z = best.z + .5; p.y = 120; g.needUp = true;
   }
   for (const c of opt.chunks || []) if (c.v) world.mods.set(c.cx + ',' + c.cz, c.v);
@@ -268,7 +274,7 @@ function makeGame(opt){
     hand.set(g.bar[g.sel]);
   };
   g.pick = (i, quiet) => { g.sel = (i + 9) % 9; g.refreshBar(); if (!quiet){ const e = $('bname'); e.textContent = g.bar[g.sel] ? BLOCKS[g.bar[g.sel]].name : ''; e.style.opacity = 1; clearTimeout(g.bnT); g.bnT = setTimeout(() => e.style.opacity = 0, 1600); } };
-  g.metaNow = () => ({time:+g.time.toFixed(4), day:g.day, p:[+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), p.fly ? 1 : 0], bar:g.bar, sel:g.sel});
+  g.metaNow = () => ({gen:opt.gen, time:+g.time.toFixed(4), day:g.day, p:[+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), p.fly ? 1 : 0], bar:g.bar, sel:g.sel});
   return g;
 }
 async function playWorld(w){
@@ -283,7 +289,7 @@ async function playWorld(w){
       data = {...w, ...r, where:w.where, chunks, meta:r.meta || {}};
     } catch(e){ msg('Could not open that world', w.where === 'cloud' ? 'The BDB server did not answer. Check your connection and try again.' : 'This browser could not read it.'); return; }
   }
-  enter(makeGame({name:data.name, seed:+data.seed, kind:data.kind, where:w.where, id:data.id, chunks:data.chunks, meta:data.meta}));
+  enter(makeGame({name:data.name, seed:+data.seed, kind:data.kind, where:w.where, id:data.id, chunks:data.chunks, meta:data.meta, fresh:!!w.fresh}));
 }
 let joinTimer = 0;
 async function joinWorld(code){
@@ -299,7 +305,7 @@ async function joinWorld(code){
       hi(d){
         clearTimeout(joinTimer);
         waiting = new Set(d.mods || []); total = waiting.size;
-        g = makeGame({name:d.name, seed:+d.seed, kind:d.kind, where:'guest', guest:true, party, code, spawn:d.spawn ? {x:d.spawn[0], y:d.spawn[1], z:d.spawn[2]} : null, wait:k => waiting.has(k)});
+        g = makeGame({name:d.name, seed:+d.seed, kind:d.kind, gen:d.gen || 1, where:'guest', guest:true, party, code, spawn:d.spawn ? {x:d.spawn[0], y:d.spawn[1], z:d.spawn[2]} : null, wait:k => waiting.has(k)});
         g.host = d.host; g.waiting = waiting; if (Array.isArray(d.time)){ g.timeHost = +d.time[0] || 0; g.time = g.timeHost; g.day = d.time[1] | 0; g.timeAt = d.time[2] ? performance.now() : 0; }
         $('ltitle').textContent = 'Joining ' + d.host + "'s world"; $('lnote').textContent = total ? `Getting the parts that were built on: 0 of ${total}` : '';
         for (const c of early) this.chunk(c); early = [];
@@ -375,9 +381,9 @@ async function openToFriends(){
       async welcome(){
         const mods = [...g.world.mods.keys()], chunks = [];
         for (const k of mods){ const v = g.world.mods.get(k).slice(); chunks.push({k, d:await pack(v)}); }
-        return {hi:{name:g.opt.name, seed:g.opt.seed, kind:g.opt.kind, host:g.party.list()[0].name, time:[g.time, g.day, S.cycle ? 1 : 0], mods, spawn:[+(g.p.x + 1).toFixed(2), +g.p.y.toFixed(2), +g.p.z.toFixed(2)]}, chunks};
+        return {hi:{name:g.opt.name, seed:g.opt.seed, kind:g.opt.kind, host:g.party.list()[0].name, gen:g.opt.gen, time:[g.time, g.day, S.cycle ? 1 : 0], mods, spawn:[+(g.p.x + 1).toFixed(2), +g.p.y.toFixed(2), +g.p.z.toFixed(2)]}, chunks};
       },
-      edit(x, y, z, b){ if (!(b >= 0 && b < N) || ITEM[b]) return false; g.world.set(x, y, z, b); g.red.mark(x, y, z); if (SHAPE[b] === SH.button && STATE[b] % 12 >= 6) g.red.release(x, y, z); return true; },
+      edit(x, y, z, b){ if (!(b >= 0 && b < N) || ITEM[b]) return false; g.world.set(x, y, z, b); g.red.mark(x, y, z); g.liq.mark(x, y, z); if (SHAPE[b] === SH.button && STATE[b] % 12 >= 6) g.red.release(x, y, z); return true; },
       act(d, from){ cartAct(g, d, from); },
       pos(id, d){ seeFriend(id, d); },
       people(l){ peopleChanged(l); },
@@ -534,6 +540,8 @@ function use(what){
   // things you hold that are not blocks
   if (ITEM[held]){
     if (held === B.item_minecart && hs === SH.rail) cartDo(g, {a:'put', x:hit.x, y:hit.y, z:hit.z});
+    else if (held === B.item_water_bucket || held === B.item_lava_bucket){ const t = g.world.get(hit.px, hit.py, hit.pz); if (t === 0 || (t > 0 && (LIQUID[t] || PLANT[t]))) edit(hit.px, hit.py, hit.pz, held === B.item_water_bucket ? B.water : B.lava); }
+    else if (held === B.item_bucket){ const wh = g.world.ray(eye, dir, 6, true); if (wh && LIQUID[wh.b]) edit(wh.x, wh.y, wh.z, 0); }
     else if (held === B.item_flint && hb === B.tnt) cartDo(g, {a:'ignite', x:hit.x, y:hit.y, z:hit.z});
     hand.swing(); return;
   }
@@ -640,15 +648,20 @@ function explode(g, cx, cy, cz){
   boom(cx, cy, cz);
 }
 const booms = [];
+/* a block of sand or gravel dropping */
+function fallBlock(g, x, y, z, toY, b){
+  const mats = [0, 1, 2, 3, 4, 5].map(f => new THREE.MeshLambertMaterial({map:faceTex(FACE[b * 6 + f])}));
+  const m = new THREE.Mesh(tntGeo, mats); m.position.set(x + .5, y + .5, z + .5); scene.add(m); g.falling.push({x, y, z, toY, b, m, vy:0});
+}
 function boom(x, y, z){
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), new THREE.MeshBasicMaterial({color:0xffe2a0, transparent:true, opacity:.9, depthWrite:false}));
   m.position.set(x, y, z); scene.add(m); booms.push({m, t:0});
 }
 /* which way you are looking, as 0 north (-z), 1 east, 2 south, 3 west */
 function lookFacing(yaw){ const dx = -Math.sin(yaw), dz = -Math.cos(yaw); return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0); }
-function edit(x, y, z, b, fromRed){
+function edit(x, y, z, b, src){
   const g = G; if (!g || !g.world.set(x, y, z, b)) return;
-  if (!g.opt.guest && !fromRed) g.red.mark(x, y, z);
+  if (!g.opt.guest){ if (src !== true && src !== 'red') g.red.mark(x, y, z); if (src !== 'liq') g.liq.mark(x, y, z); }
   // a plant, torch or carpet standing on a block that just went goes with it
   if (!b || LIQUID[b]){ const up = g.world.get(x, y + 1, z); if (up > 0 && (PLANT[up] || (SHAPE[up] === SH.torch && STATE[up] === 0) || SHAPE[up] === SH.carpet)){ g.world.set(x, y + 1, z, 0); if (g.party) g.party.edit(x, y + 1, z, 0); } }
   if (g.party) g.party.edit(x, y, z, b);
@@ -776,6 +789,9 @@ function frame(t){
       if (!c){ g.riding = null; }
       else if (g.keys.down){ cartDo(g, {a:'leave'}); p.y = c.y + 1; p.vy = 0; p.x = c.x; p.z = c.z; }
       else { p.x = c.x; p.z = c.z; p.y = c.y + .35; p.vx = p.vy = p.vz = 0; p.fly = false; } }
+    for (let i = g.falling.length - 1; i >= 0; i--){ const f = g.falling[i]; f.vy -= 32 * dt; f.y += f.vy * dt; f.m.position.y = f.y + .5;
+      if (f.y <= f.toY){ scene.remove(f.m); g.falling.splice(i, 1); const there = g.world.get(f.x, f.toY, f.z); if (there === 0 || (there > 0 && (LIQUID[there] || PLANT[there]))) edit(f.x, f.toY, f.z, f.b); } }
+    if (!g.opt.guest && g.started) g.liq.update(dt);
     for (let i = booms.length - 1; i >= 0; i--){ const b = booms[i]; b.t += dt; b.m.scale.setScalar(1 + b.t * 14); b.m.material.opacity = Math.max(0, .9 - b.t * 2.6); if (b.t > .4){ scene.remove(b.m); b.m.geometry.dispose(); booms.splice(i, 1); } }
     g.cartHit = active() || NOLOCK ? g.carts.pick(eye, dir, g.hit ? g.hit.t : 5) : null;
     if (g.started && S.animals){
@@ -817,4 +833,4 @@ requestAnimationFrame(frame);
 if (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches){ $('bnew').disabled = true; $('bjoin').disabled = true; }
 
 /* a handle for the tests */
-window.craft = {hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};
+window.craft = {gen2:{column:column2, villagesNear}, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};
