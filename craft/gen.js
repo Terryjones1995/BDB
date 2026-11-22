@@ -1,7 +1,7 @@
 /* BDB Craft: making the world. One chunk column at a time (16 x 128 x 16), the same every time for the same seed, so the page only has to keep the blocks
    people have changed. Kinds: 'normal' (oceans, plains, forests, desert, snow, mountains, caves and ore) and 'flat' (a classic flat building world). */
-import { CH, H, SEA, B } from './blocks.js?v=c1';
-import { makeNoise, hash3 } from './noise.js?v=c1';
+import { CH, H, SEA, B } from './blocks.js?v=c2';
+import { makeNoise, hash3 } from './noise.js?v=c2';
 export const idx = (x, y, z) => (y * CH + z) * CH + x;
 const cache = new Map();
 function noiseFor(seed){ let n = cache.get(seed); if (!n){ n = {a:makeNoise(seed), b:makeNoise(seed ^ 0x5bd1e995), c:makeNoise(seed + 7919)}; cache.set(seed, n); } return n; }

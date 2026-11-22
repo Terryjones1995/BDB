@@ -3,7 +3,7 @@
    light are merged into one big rectangle ("greedy" meshing). Every corner gets a little shadow where blocks meet (ambient occlusion) and light from the sky,
    which leaves and water dim and solid blocks stop, so caves are dark and trees cast shade. Input: the chunk plus a one-block border from its eight neighbours.
    Output: two meshes, the solid one (leaves and plants cut out by the shader) and the see-through one (water, stained glass). */
-import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, FACE, T } from './blocks.js?v=c1';
+import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, FACE, T } from './blocks.js?v=c2';
 export const PAD = 4, PW = CH + 2 * PAD, PH = H + 2;
 export const pidx = (x, y, z) => ((y + 1) * PW + (z + PAD)) * PW + (x + PAD);
 const LSTEP = .2;      // light lost for each block it spreads sideways out of the open sky (under a roof, into a doorway, into a cave mouth)

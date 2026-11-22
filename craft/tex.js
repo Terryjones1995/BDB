@@ -1,6 +1,6 @@
 /* BDB Craft: every block texture, drawn pixel by pixel in code at 16 x 16 and doubled to 32 (the BDB Block is the one drawn at full size, from his photo).
    Nothing is copied from any other game: each one is a little recipe of colours, noise and shapes. Also the cube icons for the hotbar and inventory. */
-import { TEX, T, COLOURS, BLOCKS, FACE } from './blocks.js?v=c1';
+import { TEX, T, COLOURS, BLOCKS, FACE } from './blocks.js?v=c2';
 export const TS = 32;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -109,7 +109,11 @@ const R = {
   hay_top:s => { const p = new Pic(s).fill(rgb('#c9a83b'), .18); p.each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); if (Math.floor(d * 1.3) % 2) p.set(x, y, mul(p.get(x, y), .85)); }); return p; },
   smooth_stone:s => { const p = new Pic(s).fill(rgb('#a3a3a3'), .04); for (let i = 0; i < 16; i++){ p.set(i, 0, rgb('#b8b8b8')); p.set(0, i, rgb('#b8b8b8')); p.set(i, 15, rgb('#808080')); p.set(15, i, rgb('#808080')); } return p; },
   terracotta:s => new Pic(s).fill(rgb('#9c5a3c'), .08).speck(rgb('#8c4e32'), 10, .05),
-  bdb:s => { const p = new Pic(s).fill(rgb('#f5c934'), .05); return p; },
+  chiseled:s => { const p = new Pic(s).fill(rgb('#7d7d7d'), .06), hi = rgb('#9a9a9a'), lo = rgb('#555555');
+    p.each((x, y) => { if (x === 0 || y === 0) p.set(x, y, hi); else if (x === 15 || y === 15) p.set(x, y, lo); });
+    for (let i = 3; i <= 12; i++){ p.set(i, 3, lo); p.set(3, i, lo); p.set(i, 12, hi); p.set(12, i, hi); }
+    for (let i = 6; i <= 9; i++){ p.set(i, 6, lo); p.set(6, i, lo); p.set(i, 9, hi); p.set(9, i, hi); }
+    return p; },
   tall_grass:s => cross(new Pic(s), p => { for (let k = 0; k < 7; k++){ let x = 1 + p.r() * 14, h = 7 + p.r() * 8; const dx = (p.r() - .5) * .5, c = mul(rgb('#5c9e35'), .75 + p.r() * .5); for (let y = 15; y > 15 - h; y--){ p.set(x | 0, y, mul(c, .8 + (15 - y) / h * .4)); x += dx; } } }),
   flower_red:s => cross(new Pic(s), p => { for (let y = 8; y < 16; y++) p.set(8, y, rgb('#3f7f2a')); p.set(7, 12, rgb('#4f9a33')); p.set(9, 11, rgb('#4f9a33')); for (const [x, y] of [[8, 4], [7, 5], [9, 5], [8, 6], [7, 4], [9, 6], [6, 5], [10, 5], [8, 3], [7, 6], [9, 4]]) p.set(x, y, mul(rgb('#d8282e'), .9 + p.r() * .2)); p.set(8, 5, rgb('#f5d23a')); }),
   flower_yellow:s => cross(new Pic(s), p => { for (let y = 9; y < 16; y++) p.set(8, y, rgb('#3f7f2a')); p.set(9, 13, rgb('#4f9a33')); for (const [x, y] of [[8, 6], [7, 7], [9, 7], [8, 8], [7, 6], [9, 8], [6, 7], [10, 7], [8, 5]]) p.set(x, y, mul(rgb('#f2cf2b'), .9 + p.r() * .2)); p.set(8, 7, rgb('#c46b1a')); }),
@@ -138,15 +142,6 @@ export function paintAll(){
     for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++){ const s = ((y / k | 0) * 16 + (x / k | 0)) * 4, t = o + (y * TS + x) * 4; out[t] = Math.max(0, Math.min(255, d[s])); out[t + 1] = Math.max(0, Math.min(255, d[s + 1])); out[t + 2] = Math.max(0, Math.min(255, d[s + 2])); out[t + 3] = d[s + 3]; }
   });
   return out;
-}
-/* the BDB Block: his photo, cropped square and framed in gold, written over that layer */
-export function paintFace(out, img){
-  const c = document.createElement('canvas'); c.width = c.height = TS; const x = c.getContext('2d');
-  x.fillStyle = '#f5c934'; x.fillRect(0, 0, TS, TS);
-  const s = Math.min(img.width, img.height) * .74, sx = (img.width - s) / 2, sy = Math.max(0, (img.height - s) * .3);
-  x.imageSmoothingQuality = 'high'; x.drawImage(img, sx, sy, s, s, 2, 2, TS - 4, TS - 4);
-  x.strokeStyle = '#a8790f'; x.lineWidth = 2; x.strokeRect(1, 1, TS - 2, TS - 2);
-  const d = x.getImageData(0, 0, TS, TS).data; out.set(d, T.bdb * TS * TS * 4);
 }
 /* a cube icon (three faces, lit from the top left), or the flat picture for a plant: a data URL for the hotbar and inventory */
 export function icon(layers, id, size = 64){

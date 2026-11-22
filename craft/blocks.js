@@ -7,7 +7,7 @@ export const COLOURS = [['white', '#e9ecec'], ['orange', '#f07613'], ['magenta',
 export const TEX = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobble', 'planks_oak', 'planks_birch', 'planks_spruce', 'log_oak', 'log_oak_top', 'log_birch', 'log_birch_top', 'log_spruce', 'log_spruce_top',
   'leaves_oak', 'leaves_birch', 'leaves_spruce', 'sand', 'sandstone', 'sandstone_top', 'gravel', 'snow', 'grass_snow', 'ice', 'water', 'glass', 'bricks', 'stone_bricks', 'mossy_cobble', 'clay',
   'ore_coal', 'ore_iron', 'ore_gold', 'ore_diamond', 'ore_emerald', 'ore_ruby', 'block_gold', 'block_iron', 'block_diamond', 'block_emerald', 'bookshelf', 'lamp', 'obsidian', 'bedrock',
-  'cactus_side', 'cactus_top', 'pumpkin_side', 'pumpkin_top', 'melon_side', 'melon_top', 'hay_side', 'hay_top', 'smooth_stone', 'terracotta', 'bdb', 'tall_grass', 'flower_red', 'flower_yellow',
+  'cactus_side', 'cactus_top', 'pumpkin_side', 'pumpkin_top', 'melon_side', 'melon_top', 'hay_side', 'hay_top', 'smooth_stone', 'terracotta', 'chiseled', 'tall_grass', 'flower_red', 'flower_yellow',
   'dead_bush', 'mushroom', 'quartz', 'quartz_top', 'planks_dark', 'log_dark', 'log_dark_top', 'leaves_dark', 'basalt', 'granite', 'mud_bricks', 'crate', 'brick_red', 'tiles',
   ...COLOURS.map(c => 'wool_' + c[0]), ...COLOURS.map(c => 'concrete_' + c[0]), ...COLOURS.map(c => 'glass_' + c[0])];
 export const T = Object.fromEntries(TEX.map((n, i) => [n, i]));
@@ -31,7 +31,7 @@ add('block_gold', 'Block of Gold', 'block_gold', 'ores'); add('block_iron', 'Blo
 add('bookshelf', 'Bookshelf', {top:'planks_oak', side:'bookshelf'}, 'decor'); add('lamp', 'Lamp', 'lamp', 'decor', {glow:true}); add('obsidian', 'Obsidian', 'obsidian', 'build'); add('bedrock', 'Bedrock', 'bedrock', 'build');
 add('cactus', 'Cactus', {top:'cactus_top', side:'cactus_side'}, 'nature'); add('pumpkin', 'Pumpkin', {top:'pumpkin_top', side:'pumpkin_side'}, 'decor'); add('melon', 'Melon', {top:'melon_top', side:'melon_side'}, 'decor');
 add('hay', 'Hay Bale', {top:'hay_top', side:'hay_side'}, 'decor'); add('smooth_stone', 'Smooth Stone', 'smooth_stone', 'build'); add('terracotta', 'Terracotta', 'terracotta', 'build');
-add('bdb', 'BDB Block', 'bdb', 'decor');
+add('chiseled', 'Chiseled Stone Bricks', 'chiseled', 'build');      // this slot was once a block with a face on it; worlds saved then show this instead
 add('tall_grass', 'Tall Grass', 'tall_grass', 'nature', {kind:'plant'}); add('flower_red', 'Red Flower', 'flower_red', 'nature', {kind:'plant'}); add('flower_yellow', 'Yellow Flower', 'flower_yellow', 'nature', {kind:'plant'});
 add('dead_bush', 'Dead Bush', 'dead_bush', 'nature', {kind:'plant'}); add('mushroom', 'Red Mushroom', 'mushroom', 'nature', {kind:'plant'});
 add('quartz', 'Quartz Block', {top:'quartz_top', side:'quartz'}, 'build'); add('planks_dark', 'Dark Oak Planks', 'planks_dark', 'build'); add('log_dark', 'Dark Oak Log', {top:'log_dark_top', side:'log_dark'}, 'nature');

@@ -4,7 +4,7 @@
    so the only blocks that travel are the chunks someone has changed.
    Messages: hi (host to a new friend: the world and which chunks changed), ch (one changed chunk), me (my name), p (where I am), e (a block changed),
    c (chat), pl (who is here, from the host). */
-import { openTransport } from '../chess/net.js?v=c1';
+import { openTransport } from '../chess/net.js?v=c2';
 const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => ABC[b % ABC.length]).join('');
 export const cleanCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);

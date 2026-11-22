@@ -1,15 +1,15 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c1';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c1';
-import { paintAll, paintFace, icon, TS } from './tex.js?v=c1';
-import { column } from './gen.js?v=c1';
-import { createWorld } from './world.js?v=c1';
-import { blockMaterials, sky, clouds, outline, avatar, HORIZON } from './render.js?v=c1';
-import { createPlayer, EYE } from './player.js?v=c1';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c1';
-import { openParty, newCode, cleanCode } from './party.js?v=c1';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c2';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c2';
+import { paintAll, icon, TS } from './tex.js?v=c2';
+import { column } from './gen.js?v=c2';
+import { createWorld } from './world.js?v=c2';
+import { blockMaterials, sky, clouds, outline, avatar, HORIZON } from './render.js?v=c2';
+import { createPlayer, EYE } from './player.js?v=c2';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c2';
+import { openParty, newCode, cleanCode } from './party.js?v=c2';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -31,7 +31,6 @@ scene.add(new THREE.HemisphereLight(0xdfeeff, 0x6b5a45, 2.2)); const sunL = new 
 const layers = paintAll(), mats = blockMaterials(layers), theSky = sky(scene), cloud = clouds(scene, 1234), hl = outline(scene);
 const icons = []; const iconOf = id => icons[id] || (icons[id] = icon(layers, id, 64));
 const faceImg = new Image(); faceImg.src = '../assets/face.jpg';
-faceImg.onload = () => { paintFace(layers, faceImg); mats.refresh(); icons[B.bdb] = null; hand.drop(B.bdb); if (G) G.refreshBar(); };
 function resize(){ const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); handCam.aspect = w / h; handCam.updateProjectionMatrix(); }
 
 /* the block in your hand, bottom right, drawn on top of everything */
@@ -72,7 +71,7 @@ function startBackdrop(){
   backdrop = {w, a:0}; mats.fog(6 * 16 * .55, 6 * 16 - 4);
 }
 function stopBackdrop(){ if (backdrop){ backdrop.w.dispose(); backdrop = null; } }
-const ICON_W = () => iconOf(B.grass), ICON_F = () => iconOf(B.grass), ICON_L = () => iconOf(B.bdb);
+const ICON_W = () => iconOf(B.grass), ICON_F = () => iconOf(B.grass), ICON_L = () => iconOf(B.bricks);
 const SVG = {
   pen:'<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
   bin:'<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
@@ -172,7 +171,7 @@ async function sign(reg){
 }
 
 /* ---------- playing a world ---------- */
-const HOTBAR0 = ['grass', 'stone', 'planks_oak', 'log_oak', 'glass', 'bricks', 'wool_red', 'lamp', 'bdb'].map(k => B[k] || B.stone);
+const HOTBAR0 = ['grass', 'stone', 'planks_oak', 'log_oak', 'glass', 'bricks', 'wool_red', 'lamp', 'quartz'].map(k => B[k] || B.stone);
 function makeGame(opt){
   // opt: {name, seed, kind, where, id, chunks, meta, guest, party}
   const world = createWorld({seed:opt.seed, kind:opt.kind, scene, matSolid:mats.solid, matClear:mats.clear, wait:opt.wait});
