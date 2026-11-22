@@ -1,25 +1,25 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c19';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c19';
-import { paintAll, icon, TS } from './tex.js?v=c19';
-import { column } from './gen.js?v=c19';
-import { column as column2, villagesNear, citiesNear } from './gen2.js?v=c19';
-import { createCitySigns } from './city.js?v=c19';
-import { createWorld } from './world.js?v=c19';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c19';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c19';
-import { createHand } from './hand.js?v=c19';
-import { createPlayer, EYE } from './player.js?v=c19';
-import { createMobs } from './mobs.js?v=c19';
-import { createRedstone } from './redstone.js?v=c19';
-import { createCarts } from './carts.js?v=c19';
-import { createLiquids } from './liquids.js?v=c19';
-import { createWeather, tearUp } from './weather.js?v=c19';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c19';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c19';
-import { openParty, newCode, cleanCode } from './party.js?v=c19';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c20';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c20';
+import { paintAll, icon, TS } from './tex.js?v=c20';
+import { column } from './gen.js?v=c20';
+import { column as column2, villagesNear, citiesNear, cityLanding } from './gen2.js?v=c20';
+import { createCitySigns } from './city.js?v=c20';
+import { createWorld } from './world.js?v=c20';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c20';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c20';
+import { createHand } from './hand.js?v=c20';
+import { createPlayer, EYE } from './player.js?v=c20';
+import { createMobs } from './mobs.js?v=c20';
+import { createRedstone } from './redstone.js?v=c20';
+import { createCarts } from './carts.js?v=c20';
+import { createLiquids } from './liquids.js?v=c20';
+import { createWeather, tearUp } from './weather.js?v=c20';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c20';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c20';
+import { openParty, newCode, cleanCode } from './party.js?v=c20';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -50,7 +50,7 @@ handScene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.6));
 const hand = createHand(handScene, layers);
 
 /* ---------- screens ---------- */
-const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'keysp', 'inv', 'msg', 'dead'];
+const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'keysp', 'telep', 'inv', 'msg', 'dead'];
 function show(...ids){ for (const s of screens) $(s).hidden = !ids.includes(s); }
 let toastT = 0;
 let titleT = 0;
@@ -517,8 +517,7 @@ addEventListener('keydown', e => {
       for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (const c of citiesNear(g.opt.seed, (rx + dx) * 1024 + 512, (rz + dz) * 1024 + 512)){ if (seen.has(c)) continue; seen.add(c);
         const d = Math.hypot(c.x - g.p.x, c.z - g.p.z); if (want ? c.name.toLowerCase().startsWith(want) && d < bd : d < bd && d > c.r){ bd = d; best = c; } }
       if (!best){ sys(want ? 'No city called that near here. Cities near you: ' + [...seen].sort((a, b) => Math.hypot(a.x - g.p.x, a.z - g.p.z) - Math.hypot(b.x - g.p.x, b.z - g.p.z)).slice(0, 6).map(c => c.name).join(', ') + '.' : 'No city near here.'); lock(); return; }
-      const ax = g.p.x - best.x, az = g.p.z - best.z, k = (best.r + 30) / Math.max(1, Math.hypot(ax, az)); g.p.x = best.x + ax * k; g.p.z = best.z + az * k; g.p.y = best.y + 40; g.p.vx = g.p.vy = g.p.vz = 0; g.p.fly = true;
-      g.p.yaw = Math.atan2(g.p.x - best.x, g.p.z - best.z); g.p.pitch = -.15; sys('Off to ' + best.name + '.'); lock(); return; }
+      goCity(best); lock(); return; }
     if (t && g){ chatLine(session() ? session().name : g.party ? g.party.list()[0].name : 'You', t); if (g.party) g.party.chat(t); else if (!g.party) sys('No one else is here. Invite friends from the pause screen.'); } lock(); }
     if (e.key === 'Escape'){ $('chatin').value = ''; $('chatin').hidden = true; setTimeout(() => { if (!active()) pause(); }, 0); }
     return;
@@ -772,6 +771,25 @@ function openKeys(back){ keysBack = back; rebind = null; renderKeys(); show('key
 $('kreset').onclick = () => { S.keys = {}; buildKeys(); saveSettings(); renderKeys(); };
 $('kdone').onclick = () => { rebind = null; show(keysBack); };
 $('pkeys').onclick = () => openKeys('pause');
+/* teleport: every city and town near you, nearest first; pick one and you are standing on a street corner in the middle of it */
+const SIZE_NAME = {town:'Town', city:'City', mega:'Huge city'};
+function citiesAround(g){ const rx = Math.floor(g.p.x / 1024), rz = Math.floor(g.p.z / 1024), seen = new Set();
+  for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (const c of citiesNear(g.opt.seed, (rx + dx) * 1024 + 512, (rz + dz) * 1024 + 512)) seen.add(c);
+  return [...seen].sort((a, b) => Math.hypot(a.x - g.p.x, a.z - g.p.z) - Math.hypot(b.x - g.p.x, b.z - g.p.z)); }
+function goCity(c){ const g = G, at = cityLanding(c); g.p.x = at.x; g.p.y = at.y; g.p.z = at.z; g.p.vx = g.p.vy = g.p.vz = 0; g.p.fly = true; g.p.yaw = 0; g.p.pitch = .08; g.cityT = 0; sys('Off to ' + c.name + '.'); }
+function renderTele(){
+  const g = G, box = $('telelist'), want = $('telefind').value.trim().toLowerCase(); box.innerHTML = '';
+  const list = citiesAround(g).filter(c => !want || c.name.toLowerCase().includes(want) || c.place.toLowerCase().includes(want));
+  if (!list.length){ box.innerHTML = '<p class="note">' + (want ? 'No city by that name near here.' : 'No cities near here.') + '</p>'; return; }
+  for (const c of list){ const d = Math.hypot(c.x - g.p.x, c.z - g.p.z), here = Math.max(Math.abs(g.p.x - c.x), Math.abs(g.p.z - c.z)) <= c.r;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'telerow';
+    b.innerHTML = `<span><b>${esc(c.name)}</b><small>${esc(c.place)}</small></span><em>${SIZE_NAME[c.size]}<br>${here ? 'You are here' : Math.round(d / 10) * 10 + ' blocks'}</em>`;
+    b.onclick = () => { goCity(c); lock(); }; box.append(b); }
+}
+function openTele(){ const g = G; if (!g) return; if (g.opt.gen !== 2 || g.opt.kind !== 'normal'){ $('telelist').innerHTML = '<p class="note">This world has no cities. Make a new world to get them.</p>'; $('telefind').hidden = true; }
+  else { $('telefind').hidden = false; $('telefind').value = ''; renderTele(); } show('telep'); if (!$('telefind').hidden) setTimeout(() => $('telefind').focus(), 0); }
+$('ptele').onclick = openTele; $('teledone').onclick = () => show('pause'); $('telefind').oninput = renderTele;
+$('telefind').onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter'){ const first = $('telelist').querySelector('.telerow'); if (first) first.click(); } if (e.key === 'Escape') show('pause'); };
 $('skeys').onclick = () => openKeys('settings');
 
 /* settings */

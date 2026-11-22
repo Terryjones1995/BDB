@@ -1,8 +1,8 @@
 /* BDB Craft: minecarts. Put one on a rail, right click to get in, W to push it along, Shift to get out. Carts follow straight rails, corners and
    slopes, roll downhill and slow uphill, speed up on powered rails that are switched on and brake on ones that are off, and stop at the end of the
    line. The host (or a player on their own) moves them and sends where they are, five times a second; friends ride by asking the host. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c19';
-import { SHAPE, STATE, FIRST, OPAQUE, SH, B } from './blocks.js?v=c19';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c20';
+import { SHAPE, STATE, FIRST, OPAQUE, SH, B } from './blocks.js?v=c20';
 
 const N = [0, -1], E = [1, 0], S = [0, 1], Wd = [-1, 0];
 // the two ways each rail goes: straight n-s, e-w, sloping up east, west, north, south, then the corners se, sw, nw, ne

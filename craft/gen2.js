@@ -3,8 +3,8 @@
    desert, badlands (bands of coloured terracotta), swamp, cherry groves, mushroom islands, stony and snowy peaks; beaches, stony shores, rivers;
    oceans warm (coral), cold and frozen (icebergs). Under it: caves, lava pools deep down, deepslate below 12, every ore, mineshafts with rails.
    On it: waterfalls and lava falls from cliffs, villages (houses, paths, a well, lamp posts, farms), desert wells, igloos, ruined portals, shipwrecks. */
-import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c19';
-import { makeNoise, hash3 } from './noise.js?v=c19';
+import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c20';
+import { makeNoise, hash3 } from './noise.js?v=c20';
 export const idx = (x, y, z) => (y * CH + z) * CH + x;
 const cache = new Map();
 function noiseFor(seed){ let n = cache.get(seed); if (!n){ n = {a:makeNoise(seed), b:makeNoise(seed ^ 0x5bd1e995), c:makeNoise(seed + 7919), d:makeNoise(seed * 31 + 17)}; cache.set(seed, n); } return n; }
@@ -259,6 +259,15 @@ const PALS = {
   desert:[{frame:'sandstone', floor:'smooth_sandstone', roof:'cut_sandstone', base:'cut_sandstone', brick:true}, {frame:'terracotta_white', floor:'smooth_sandstone', roof:'terracotta_orange', base:'cut_sandstone', brick:true},
     {wall:'glass_brown', frame:'smooth_sandstone', floor:'smooth_stone', roof:'cut_sandstone', base:'smooth_sandstone'}],
 };
+/* where to put someone who teleports to a city: a street corner near the middle that is not under water or a landmark */
+export function cityLanding(city){
+  const x0 = city.x - city.r, z0 = city.z - city.r, gx = Math.round((city.x - x0) / BLOCK), gz = Math.round((city.z - z0) / BLOCK);
+  for (let ring = 0; ring < 6; ring++) for (let a = -ring; a <= ring; a++) for (const [i, j] of [[gx + a, gz - ring], [gx + a, gz + ring], [gx - ring, gz + a], [gx + ring, gz + a]]){
+    const x = x0 + i * BLOCK + 1, z = z0 + j * BLOCK + 1;
+    if (Math.max(Math.abs(x - city.x), Math.abs(z - city.z)) < city.r - 4 && !isWater(city, x - city.x, z - city.z) && !markAt(city, x, z)) return {x:x + .5, y:city.y + 1, z:z + .5};
+  }
+  return {x:city.x + .5, y:city.y + 40, z:city.z + .5};
+}
 function lotOf(city, wx, wz){ const lx = wx - (city.x - city.r), lz = wz - (city.z - city.r), bx = Math.floor(lx / BLOCK), bz = Math.floor(lz / BLOCK); return {bx, bz, ix:lx - bx * BLOCK, iz:lz - bz * BLOCK}; }
 const markAt = (city, wx, wz) => city.marks.find(m => wx >= m.x0 && wx <= m.x1 && wz >= m.z0 && wz <= m.z1);
 function building(city, bx, bz, seed){

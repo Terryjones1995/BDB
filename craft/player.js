@@ -1,8 +1,8 @@
 /* BDB Craft: you. A 0.6 by 1.8 box that walks, sprints, sneaks, swims, climbs ladders, jumps and (this is creative) flies, and never goes through
    anything solid: whole blocks or the boxes of shaped ones (slabs, stairs, fences, doors). It steps up slabs and stair steps on its own, and sneaking
    keeps you from walking off an edge. Eye height 1.62, like the real thing. */
-import { LIQUID } from './blocks.js?v=c19';
-import { CLIMB } from './shapes.js?v=c19';
+import { LIQUID } from './blocks.js?v=c20';
+import { CLIMB } from './shapes.js?v=c20';
 export const W = .3, HGT = 1.8, EYE = 1.62, STEP = .6;
 export function createPlayer(world){
   const p = {x:.5, y:80, z:.5, vx:0, vy:0, vz:0, yaw:0, pitch:0, fly:false, ground:false, sprint:false, sneak:false, inWater:false, eyeWater:false,
