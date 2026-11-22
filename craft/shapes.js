@@ -2,7 +2,7 @@
    the picture is slid up, so a wall torch still shows the torch). Fences, walls and panes join up with what is next to them, so they need to see their
    neighbours: nb(dx, dy, dz) gives the block there. Facing: 0 north (-z), 1 east (+x), 2 south (+z), 3 west (-x); the way you look when you place it.
    Shared by the mesher (in the workers), collision and picking (on the page). */
-import { SH, SHAPE, STATE, OPAQUE, FIRST, B } from './blocks.js?v=c20';
+import { SH, SHAPE, STATE, OPAQUE, FIRST, B } from './blocks.js?v=c21';
 
 /* turn a box a quarter clockwise (seen from above) f times about the middle of the cell */
 export function turn(b, f){

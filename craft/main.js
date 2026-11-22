@@ -1,25 +1,25 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c20';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c20';
-import { paintAll, icon, TS } from './tex.js?v=c20';
-import { column } from './gen.js?v=c20';
-import { column as column2, villagesNear, citiesNear, cityLanding } from './gen2.js?v=c20';
-import { createCitySigns } from './city.js?v=c20';
-import { createWorld } from './world.js?v=c20';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c20';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c20';
-import { createHand } from './hand.js?v=c20';
-import { createPlayer, EYE } from './player.js?v=c20';
-import { createMobs } from './mobs.js?v=c20';
-import { createRedstone } from './redstone.js?v=c20';
-import { createCarts } from './carts.js?v=c20';
-import { createLiquids } from './liquids.js?v=c20';
-import { createWeather, tearUp } from './weather.js?v=c20';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c20';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c20';
-import { openParty, newCode, cleanCode } from './party.js?v=c20';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c21';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c21';
+import { paintAll, icon, TS } from './tex.js?v=c21';
+import { column } from './gen.js?v=c21';
+import { column as column2, villagesNear, citiesNear, cityLanding } from './gen2.js?v=c21';
+import { createCitySigns } from './city.js?v=c21';
+import { createWorld } from './world.js?v=c21';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c21';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c21';
+import { createHand } from './hand.js?v=c21';
+import { createPlayer, EYE } from './player.js?v=c21';
+import { createMobs } from './mobs.js?v=c21';
+import { createRedstone } from './redstone.js?v=c21';
+import { createCarts } from './carts.js?v=c21';
+import { createLiquids } from './liquids.js?v=c21';
+import { createWeather, tearUp } from './weather.js?v=c21';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c21';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c21';
+import { openParty, newCode, cleanCode } from './party.js?v=c21';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -495,7 +495,7 @@ addEventListener('wheel', e => { if (!active()) return; const now = performance.
   if (Math.abs(wheelSum) >= 50 && now - wheelT > 90){ G.pick(G.sel + (wheelSum > 0 ? 1 : -1)); wheelSum = 0; wheelT = now; } else if (Math.abs(wheelSum) >= 50) wheelSum = Math.sign(wheelSum) * 49; }, {passive:true});
 /* the keys: every action, what it does, its key. Changed on the Controls screen and kept in the settings. Arrow keys always walk too */
 const ACTIONS = [['f', 'Walk forward', 'KeyW'], ['b', 'Walk back', 'KeyS'], ['l', 'Step left', 'KeyA'], ['r', 'Step right', 'KeyD'], ['up', 'Jump, swim up, fly up (double tap to fly)', 'Space'],
-  ['down', 'Sneak, fly down (with Jump: slowly, with Sprint: fast)', 'ShiftLeft'], ['sprint', 'Sprint', 'ControlLeft'], ['inv', 'Every block (inventory)', 'KeyE'], ['chat', 'Chat', 'KeyT'], ['cmd', 'Type a command', 'Slash'],
+  ['down', 'Sneak, fly down (with Jump: slowly, with Sprint: fast). Space + Down arrow also flies down slowly', 'ShiftLeft'], ['sprint', 'Sprint', 'ControlLeft'], ['inv', 'Every block (inventory)', 'KeyE'], ['chat', 'Chat', 'KeyT'], ['cmd', 'Type a command', 'Slash'],
   ['view', 'See yourself (behind, in front)', 'F5'], ['hud', 'Hide the screen extras', 'F1'], ['dbg', 'Where you are, speed', 'F3'],
   ['break', 'Break a block, hit', 'Mouse0'], ['place', 'Place, use (doors, levers, carts)', 'Mouse2'], ['pick', 'Pick the block you look at', 'Mouse1']];
 const MOVE = ['f', 'b', 'l', 'r', 'up', 'down', 'sprint'];
@@ -534,6 +534,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape' && NOLOCK){ pause(); return; }
   if (e.code === 'Tab' || /^F\d+$/.test(e.code) || e.code === 'Space' || e.ctrlKey) e.preventDefault();
   const k = KEYMAP[e.code];
+  if (e.code === 'ArrowDown') g.keys.ad = true;
   if (k && MOVE.includes(k)){
     if (k === 'up' && !e.repeat){ const t = performance.now(); if (t - g.lastTapSpace < 300){ g.p.fly = !g.p.fly; g.p.vy = 0; g.lastTapSpace = 0; } else g.lastTapSpace = t; }
     if (k === 'f' && !e.repeat){ const t = performance.now(); if (t - g.lastTapW < 280) g.p.sprint = true; g.lastTapW = t; }
@@ -547,7 +548,7 @@ addEventListener('keydown', e => {
   if (k === 'dbg'){ g.dbg = !g.dbg; $('dbg').hidden = !g.dbg; return; }
   if (k === 'view'){ g.view = ((g.view | 0) + 1) % 3; return; }
 });
-addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k && MOUSE_ACTS.includes(k)) press(k, false); else if (k && G) G.keys[k] = false; });
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (e.code === 'ArrowDown' && G) G.keys.ad = false; if (k && MOUSE_ACTS.includes(k)) press(k, false); else if (k && G) G.keys[k] = false; });
 addEventListener('blur', () => { if (G){ G.keys = {}; mouse.l = mouse.r = false; } });
 
 /* break, place, pick */

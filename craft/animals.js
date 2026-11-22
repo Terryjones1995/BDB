@@ -1,8 +1,8 @@
 /* BDB Craft: animals. Cows, pigs, sheep and chickens wander the grass near you, stop to graze, step up single blocks, keep out of water, and bolt
    when someone gets close or slaps them. Blocky, with pixel faces drawn here. In a shared world only the host moves them and sends where they are
    (5 times a second); friends just draw them. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c20';
-import { B, SOLID, LIQUID } from './blocks.js?v=c20';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c21';
+import { B, SOLID, LIQUID } from './blocks.js?v=c21';
 
 function pic(w, h, fill){ const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = fill; x.fillRect(0, 0, w, h); return {c, px(a, b, col, ww = 1, hh = 1){ x.fillStyle = col; x.fillRect(a, b, ww, hh); }}; }
 const tex = p => { const t = new THREE.CanvasTexture(p.c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; };

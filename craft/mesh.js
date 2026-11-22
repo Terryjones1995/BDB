@@ -5,8 +5,8 @@
    (torches, lanterns, glowstone, lava: up to 8 blocks out, one level less each block). The border is as wide as light can reach, so nothing changes at
    the edge of a chunk. Output: two meshes, the solid one (leaves and plants cut out by the shader) and the see-through one (water, stained glass).
    Each corner carries [sky, block] light; the shader picks the brighter of the sky (times the time of day) and the warm block light. */
-import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH, FIRST, B, LEVEL } from './blocks.js?v=c20';
-import { boxes, dustLinks } from './shapes.js?v=c20';
+import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH, FIRST, B, LEVEL } from './blocks.js?v=c21';
+import { boxes, dustLinks } from './shapes.js?v=c21';
 export const PAD = 8, PW = CH + 2 * PAD, PH = H + 2;
 export const pidx = (x, y, z) => ((y + 1) * PW + (z + PAD)) * PW + (x + PAD);
 const LSTEP = .2, SKY_ROUNDS = 5;      // sky light lost for each block it spreads sideways out of the open sky
