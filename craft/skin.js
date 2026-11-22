@@ -1,7 +1,7 @@
 /* BDB Craft: your character. Skin, hair, eyes, mouth, clothes and shoes, picked once when you first sign in and changed any time from the start screen.
    A character is a handful of small numbers (indexes into the lists below), so it is tiny to save and to send to friends.
    body() builds the blocky figure from it: every face of every box is its own little pixel picture, drawn here on a canvas. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c18';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c19';
 
 export const SKIN = ['#f6d5b8', '#ebb98f', '#d49b6c', '#b07548', '#8a5634', '#5c3a22'];
 export const HAIR = ['#1c1410', '#4a2d18', '#7a4a24', '#c08a3e', '#ead07a', '#b5381f', '#9a9a9a', '#f2f2f2', '#3a5fcf', '#d24f9a', '#3fae5a'];

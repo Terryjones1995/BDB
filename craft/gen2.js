@@ -3,8 +3,8 @@
    desert, badlands (bands of coloured terracotta), swamp, cherry groves, mushroom islands, stony and snowy peaks; beaches, stony shores, rivers;
    oceans warm (coral), cold and frozen (icebergs). Under it: caves, lava pools deep down, deepslate below 12, every ore, mineshafts with rails.
    On it: waterfalls and lava falls from cliffs, villages (houses, paths, a well, lamp posts, farms), desert wells, igloos, ruined portals, shipwrecks. */
-import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c18';
-import { makeNoise, hash3 } from './noise.js?v=c18';
+import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c19';
+import { makeNoise, hash3 } from './noise.js?v=c19';
 export const idx = (x, y, z) => (y * CH + z) * CH + x;
 const cache = new Map();
 function noiseFor(seed){ let n = cache.get(seed); if (!n){ n = {a:makeNoise(seed), b:makeNoise(seed ^ 0x5bd1e995), c:makeNoise(seed + 7919), d:makeNoise(seed * 31 + 17)}; cache.set(seed, n); } return n; }
@@ -355,8 +355,8 @@ function cityColumn(v, x, z, wx, wz, city, seed){
   const top = Y + b.h + 1;
   if (b.pal.house){
     // a pitched roof on houses
-    const across = Math.min(ax, az) === ax ? 'x' : 'z', d = b.half - Math.min(ax, az) + .5;
-    for (let s = 0; s <= Math.ceil(b.half); s++){ if (s <= d) put(top + s, s === Math.floor(d) || s === Math.ceil(d - .5) ? b.pal.roof : (s === 0 ? b.pal.floor : 0)); }
+    const d = Math.floor(b.half - Math.max(ax, az) + .5);                 // a hipped roof: one step up for each block in from the walls
+    put(top, d === 0 ? b.pal.roof : b.pal.floor); if (d > 0) put(top + d, b.pal.roof);
     return;
   }
   put(top, edge ? b.pal.frame : b.pal.roof); if (edge) put(top + 1, b.pal.frame);

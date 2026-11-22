@@ -2,8 +2,8 @@
    setting is on) zombies, skeletons, creepers and spiders come out, chase whoever is near, hit them, shoot arrows or blow up; endermen leave you
    alone unless you hit them. Everything has health and shows a bar over its head when hurt. Built from boxes with little pixel faces drawn here.
    In a shared world only the host runs them and sends where they are; friends draw them and send their hits to the host. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c18';
-import { B, SOLID, LIQUID, OPAQUE } from './blocks.js?v=c18';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c19';
+import { B, SOLID, LIQUID, OPAQUE } from './blocks.js?v=c19';
 
 /* ---------- looks ---------- */
 function pic(w, h, fill){ const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = fill; x.fillRect(0, 0, w, h); return {c, px(a, b, col, ww = 1, hh = 1){ x.fillStyle = col; x.fillRect(a, b, ww, hh); }}; }

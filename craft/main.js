@@ -1,25 +1,25 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c18';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c18';
-import { paintAll, icon, TS } from './tex.js?v=c18';
-import { column } from './gen.js?v=c18';
-import { column as column2, villagesNear, citiesNear } from './gen2.js?v=c18';
-import { createCitySigns } from './city.js?v=c18';
-import { createWorld } from './world.js?v=c18';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c18';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c18';
-import { createHand } from './hand.js?v=c18';
-import { createPlayer, EYE } from './player.js?v=c18';
-import { createMobs } from './mobs.js?v=c18';
-import { createRedstone } from './redstone.js?v=c18';
-import { createCarts } from './carts.js?v=c18';
-import { createLiquids } from './liquids.js?v=c18';
-import { createWeather, tearUp } from './weather.js?v=c18';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c18';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c18';
-import { openParty, newCode, cleanCode } from './party.js?v=c18';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c19';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c19';
+import { paintAll, icon, TS } from './tex.js?v=c19';
+import { column } from './gen.js?v=c19';
+import { column as column2, villagesNear, citiesNear } from './gen2.js?v=c19';
+import { createCitySigns } from './city.js?v=c19';
+import { createWorld } from './world.js?v=c19';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c19';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c19';
+import { createHand } from './hand.js?v=c19';
+import { createPlayer, EYE } from './player.js?v=c19';
+import { createMobs } from './mobs.js?v=c19';
+import { createRedstone } from './redstone.js?v=c19';
+import { createCarts } from './carts.js?v=c19';
+import { createLiquids } from './liquids.js?v=c19';
+import { createWeather, tearUp } from './weather.js?v=c19';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c19';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c19';
+import { openParty, newCode, cleanCode } from './party.js?v=c19';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);

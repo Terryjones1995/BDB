@@ -3,7 +3,7 @@
    lava makes obsidian (lava source) or cobblestone (flowing lava); lava running onto water makes stone. Sand, red sand, gravel and concrete powder
    fall when nothing holds them up, and concrete powder touching water sets into concrete.
    Levels: 0 a source, 1 to 7 flowing (higher is weaker), 8 falling. Only the host (or a player on their own) runs this; friends get the block changes. */
-import { B, BLOCKS, LIQUID, LEVEL, SOLID, OPAQUE, PLANT, SHAPE, WET, COLOURS } from './blocks.js?v=c18';
+import { B, BLOCKS, LIQUID, LEVEL, SOLID, OPAQUE, PLANT, SHAPE, WET, COLOURS } from './blocks.js?v=c19';
 
 const H4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const k3 = (x, y, z) => x + ',' + y + ',' + z;
