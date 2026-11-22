@@ -16,7 +16,7 @@ add('log_oak', 'Oak Log', {top:'log_oak_top', side:'log_oak'}, 'nature'); add('l
 add('leaves_oak', 'Oak Leaves', 'leaves_oak', 'nature', {kind:'cutout'}); add('leaves_birch', 'Birch Leaves', 'leaves_birch', 'nature', {kind:'cutout'}); add('leaves_spruce', 'Spruce Leaves', 'leaves_spruce', 'nature', {kind:'cutout'});
 add('sand', 'Sand', 'sand', 'nature'); add('sandstone', 'Sandstone', {top:'sandstone_top', side:'sandstone'}, 'build'); add('gravel', 'Gravel', 'gravel', 'nature');
 add('snow', 'Snow', 'snow', 'nature'); add('grass_snow', 'Snowy Grass', {top:'snow', side:'grass_snow', bottom:'dirt'}, 'nature'); add('ice', 'Ice', 'ice', 'nature');
-add('water', 'Water', 'water', 'nature', {kind:'liquid', self:true}); add('glass', 'Glass', 'glass', 'build', {kind:'cutout', self:true});
+add('water', 'Water', 'water', 'nature', {kind:'liquid', self:true}); add('glass', 'Glass', 'glass', 'build', {kind:'glass', self:true});
 add('bricks', 'Bricks', 'bricks', 'build'); add('stone_bricks', 'Stone Bricks', 'stone_bricks', 'build'); add('mossy_cobble', 'Mossy Cobblestone', 'mossy_cobble', 'build'); add('clay', 'Clay', 'clay', 'nature');
 add('ore_coal', 'Coal Ore', 'ore_coal', 'ores'); add('ore_iron', 'Iron Ore', 'ore_iron', 'ores'); add('ore_gold', 'Gold Ore', 'ore_gold', 'ores'); add('ore_diamond', 'Diamond Ore', 'ore_diamond', 'ores');
 add('ore_emerald', 'Emerald Ore', 'ore_emerald', 'ores'); add('ore_ruby', 'Ruby Ore', 'ore_ruby', 'ores');
@@ -135,7 +135,7 @@ shape('fence_nether', 'Nether Brick Fence', texOf('nether_bricks'), 'build', SH.
 for (const w of WOODS) shape('gate_' + w, nameOf('planks_' + w) + ' Fence Gate', texOf('planks_' + w), 'build', SH.gate, 8);
 for (const m of ['cobble', 'mossy_cobble', 'stone_bricks', 'mossy_stone_bricks', 'andesite', 'diorite', 'granite', 'cobbled_deepslate', 'polished_deepslate', 'deepslate_bricks', 'deepslate_tiles', 'tuff',
   'bricks', 'mud_bricks', 'sandstone', 'red_sandstone', 'prismarine', 'nether_bricks', 'red_nether_bricks', 'blackstone', 'polished_blackstone', 'blackstone_bricks', 'end_stone_bricks']) shape('wall_' + m, nameOf(m) + ' Wall', texOf(m), 'build', SH.wall, 1);
-shape('pane_glass', 'Glass Pane', 'glass', 'build', SH.pane, 1, {kind:'shapecut'});
+shape('pane_glass', 'Glass Pane', 'glass', 'build', SH.pane, 1, {kind:'shapeglass'});
 for (const [c] of COLOURS) shape('pane_' + c.replace(' ', '_'), c[0].toUpperCase() + c.slice(1) + ' Stained Glass Pane', 'glass_' + c, 'colour', SH.pane, 1, {kind:'shapeglass'});
 shape('iron_bars', 'Iron Bars', 'iron_bars', 'build', SH.pane, 1, {kind:'shapecut'});
 for (const w of [...WOODS, 'iron']) shape('door_' + w, (w === 'iron' ? 'Iron' : nameOf('planks_' + w)) + ' Door', {top:'door_' + w + '_top', side:'door_' + w + '_bottom'}, 'build', SH.door, 16, {kind:'shapecut'});

@@ -1,21 +1,21 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c12';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE } from './blocks.js?v=c12';
-import { paintAll, icon, TS } from './tex.js?v=c12';
-import { column } from './gen.js?v=c12';
-import { createWorld } from './world.js?v=c12';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c12';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c12';
-import { createHand } from './hand.js?v=c12';
-import { createPlayer, EYE } from './player.js?v=c12';
-import { createAnimals } from './animals.js?v=c12';
-import { createRedstone } from './redstone.js?v=c12';
-import { createCarts } from './carts.js?v=c12';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c12';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c12';
-import { openParty, newCode, cleanCode } from './party.js?v=c12';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c13';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE } from './blocks.js?v=c13';
+import { paintAll, icon, TS } from './tex.js?v=c13';
+import { column } from './gen.js?v=c13';
+import { createWorld } from './world.js?v=c13';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c13';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c13';
+import { createHand } from './hand.js?v=c13';
+import { createPlayer, EYE } from './player.js?v=c13';
+import { createAnimals } from './animals.js?v=c13';
+import { createRedstone } from './redstone.js?v=c13';
+import { createCarts } from './carts.js?v=c13';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c13';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c13';
+import { openParty, newCode, cleanCode } from './party.js?v=c13';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);

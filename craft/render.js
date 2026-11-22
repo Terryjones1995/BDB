@@ -1,9 +1,9 @@
 /* BDB Craft: how things look. The block shader (every texture sits in one texture array, so a whole chunk is one draw), the sky, the clouds, the outline
    round the block you are pointing at, and your friends' blocky bodies with name tags. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c12';
-import { TS } from './tex.js?v=c12';
-import { TEX } from './blocks.js?v=c12';
-import { body } from './skin.js?v=c12';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c13';
+import { TS } from './tex.js?v=c13';
+import { TEX } from './blocks.js?v=c13';
+import { body } from './skin.js?v=c13';
 
 const VS = `in vec3 position; in vec3 tex; in vec2 light;
 uniform mat4 modelViewMatrix, projectionMatrix;
