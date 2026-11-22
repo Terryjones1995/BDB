@@ -1,15 +1,16 @@
 /* BDB Craft: the world on the page. Keeps the chunks near the player, asks the workers to make and mesh them, turns meshes into three.js objects, and
    tracks every block anyone changes (mods: the whole chunk, kept for good once one block in it changes; that is what gets saved and sent to friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c9';
-import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS } from './blocks.js?v=c9';
-import { PW, PH, PAD, pidx } from './mesh.js?v=c9';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c10';
+import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS, SHAPE } from './blocks.js?v=c10';
+import { boxes, solidBoxes } from './shapes.js?v=c10';
+import { PW, PH, PAD, pidx } from './mesh.js?v=c10';
 const key = (cx, cz) => cx + ',' + cz;
 export function createWorld({seed, kind, scene, matSolid, matClear, workers = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)), wait}){
   const chunks = new Map(), mods = new Map(), dirty = new Set(), pool = [], jobs = new Map(), queue = new Map(), far = new Set();
   function drain(k, v){ const q = queue.get(k); if (!q) return; for (let j = 0; j < q.length; j += 2) v[q[j]] = q[j + 1]; queue.delete(k); mods.set(k, v); dirty.add(k); }
   let nid = 0, R = 8, centre = [0, 0], busyGen = 0, busyMesh = 0, alive = true, stats = {gen:0, mesh:0};
   for (let i = 0; i < workers; i++){
-    const w = new Worker(new URL('./worker.js?v=c9', import.meta.url), {type:'module'});
+    const w = new Worker(new URL('./worker.js?v=c10', import.meta.url), {type:'module'});
     w.onmessage = e => done(e.data); w.busy = 0; pool.push(w);
   }
   const free = () => pool.reduce((a, w) => w.busy < a.busy ? w : a, pool[0]);
@@ -96,23 +97,51 @@ export function createWorld({seed, kind, scene, matSolid, matClear, workers = Ma
   }
   function drop(c){ for (const part of ['solid', 'clear']){ const o = c[part]; if (o){ scene.remove(o); o.geometry.dispose(); c[part] = null; } } }
   /* the block the player is looking at, and the empty spot in front of it (for placing): a step-by-step walk through the grid */
+  /* where a ray first meets a box: [t, axis] or null (slab test) */
+  function hitBox(o, dir, x0, y0, z0, x1, y1, z1){
+    let tmin = -Infinity, tmax = Infinity, ax = 0; const lo = [x0, y0, z0], hi = [x1, y1, z1], O = [o.x, o.y, o.z], D = [dir.x, dir.y, dir.z];
+    for (let i = 0; i < 3; i++){
+      if (Math.abs(D[i]) < 1e-9){ if (O[i] < lo[i] || O[i] > hi[i]) return null; continue; }
+      let a = (lo[i] - O[i]) / D[i], b = (hi[i] - O[i]) / D[i]; if (a > b){ const t = a; a = b; b = t; }
+      if (a > tmin){ tmin = a; ax = i; } if (b < tmax) tmax = b; if (tmin > tmax) return null;
+    }
+    return tmax < 0 ? null : [Math.max(0, tmin), ax];
+  }
+  const nbOf = (x, y, z) => (dx, dy, dz) => Math.max(0, get(x + dx, y + dy, z + dz));
+  /* the block the player is looking at, and the empty spot in front of it (for placing): a step-by-step walk through the grid.
+     Shaped blocks are only hit where they really are, so you can look past a torch or over a slab. hp is the point hit */
   function ray(o, dir, max = 6){
     let x = Math.floor(o.x), y = Math.floor(o.y), z = Math.floor(o.z); const sx = Math.sign(dir.x), sy = Math.sign(dir.y), sz = Math.sign(dir.z);
     const tdx = Math.abs(1 / dir.x), tdy = Math.abs(1 / dir.y), tdz = Math.abs(1 / dir.z);
     let tx = (sx > 0 ? x + 1 - o.x : o.x - x) * tdx, ty = (sy > 0 ? y + 1 - o.y : o.y - y) * tdy, tz = (sz > 0 ? z + 1 - o.z : o.z - z) * tdz, t = 0, face = null, px = x, py = y, pz = z;
     while (t <= max){
       const b = get(x, y, z);
-      if (b > 0 && !LIQUID[b]) return {x, y, z, b, px, py, pz, face, t};
+      if (b > 0 && SHAPE[b]){
+        let best = null; for (const bx of boxes(b, nbOf(x, y, z))){ const h = hitBox(o, dir, x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]); if (h && (!best || h[0] < best[0])) best = h; }
+        if (best && best[0] <= max){ const f = [0, 0, 0]; f[best[1]] = -Math.sign([dir.x, dir.y, dir.z][best[1]]); const hp = {x:o.x + dir.x * best[0], y:o.y + dir.y * best[0], z:o.z + dir.z * best[0]};
+          return {x, y, z, b, px:x + f[0], py:y + f[1], pz:z + f[2], face:f, t:best[0], hp, shaped:true}; }
+      } else if (b > 0 && !LIQUID[b]) return {x, y, z, b, px, py, pz, face, t, hp:{x:o.x + dir.x * t, y:o.y + dir.y * t, z:o.z + dir.z * t}};
       px = x; py = y; pz = z;
       if (tx < ty && tx < tz){ x += sx; t = tx; tx += tdx; face = [-sx, 0, 0]; } else if (ty < tz){ y += sy; t = ty; ty += tdy; face = [0, -sy, 0]; } else { z += sz; t = tz; tz += tdz; face = [0, 0, -sz]; }
     }
     return null;
   }
+  /* what you bump into in one cell, in world units */
+  function boxesAt(x, y, z){
+    const b = get(x, y, z); if (b < 0) return [[x, y, z, x + 1, y + 1, z + 1]]; if (!b) return null;
+    if (SHAPE[b]) return solidBoxes(b, nbOf(x, y, z)).map(q => [x + q[0], y + q[1], z + q[2], x + q[3], y + q[4], z + q[5]]);
+    return SOLID[b] ? [[x, y, z, x + 1, y + 1, z + 1]] : null;
+  }
+  /* the outline round a block: all its boxes in one */
+  function bounds(x, y, z){
+    const b = get(x, y, z); if (!(b > 0) || !SHAPE[b]) return [0, 0, 0, 1, 1, 1];
+    const q = boxes(b, nbOf(x, y, z)); return [Math.min(...q.map(a => a[0])), Math.min(...q.map(a => a[1])), Math.min(...q.map(a => a[2])), Math.max(...q.map(a => a[3])), Math.max(...q.map(a => a[4])), Math.max(...q.map(a => a[5]))];
+  }
   const solidAt = (x, y, z) => { const b = get(x, y, z); return b < 0 ? true : SOLID[b] === 1; };
   function loadedAround(px, pz, r = 1){ const cx = Math.floor(px / CH), cz = Math.floor(pz / CH); for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++){ const c = chunks.get(key(cx + dx, cz + dz)); if (!c || !c.solid && !c.clear) return false; } return true; }
   function surface(x, z){ for (let y = H - 1; y > 0; y--){ const b = get(x, y, z); if (b > 0 && SOLID[b]) return y + 1; } return -1; }
   return {
-    get, set, ray, update, solidAt, loadedAround, surface, mods, dirty, chunks, stats,
+    get, set, ray, update, solidAt, boxesAt, bounds, loadedAround, surface, mods, dirty, chunks, stats,
     get R(){ return R; }, set R(v){ R = v; },
     setMod(k, v){ mods.set(k, v); drain(k, v); const c = chunks.get(k); if (c){ c.v = v; c.need = true; c.soon = true; const [cx, cz] = k.split(',').map(Number); for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++){ const n = chunks.get(key(cx + dx, cz + dz)); if (n) n.need = true; } } },
     loaded:() => [...chunks.values()].filter(c => c.solid || c.clear).length,

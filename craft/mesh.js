@@ -5,7 +5,8 @@
    (torches, lanterns, glowstone, lava: up to 8 blocks out, one level less each block). The border is as wide as light can reach, so nothing changes at
    the edge of a chunk. Output: two meshes, the solid one (leaves and plants cut out by the shader) and the see-through one (water, stained glass).
    Each corner carries [sky, block] light; the shader picks the brighter of the sky (times the time of day) and the warm block light. */
-import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE } from './blocks.js?v=c9';
+import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH } from './blocks.js?v=c10';
+import { boxes } from './shapes.js?v=c10';
 export const PAD = 8, PW = CH + 2 * PAD, PH = H + 2;
 export const pidx = (x, y, z) => ((y + 1) * PW + (z + PAD)) * PW + (x + PAD);
 const LSTEP = .2, SKY_ROUNDS = 5;      // sky light lost for each block it spreads sideways out of the open sky
@@ -23,7 +24,7 @@ class Mesh {
     return {pos:this.p.out(), tex:this.t.out(), light:this.l.out(), idx};
   }
 }
-const AX = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], UV = [[2, 1], [0, 2], [0, 1]], DIM = [CH, H, CH];
+const AX = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], UV = [[2, 1], [0, 2], [0, 1]], DIM = [CH, H, CH], WATER = 20;
 const LV = [0, .2, .36, .5, .63, .75, .85, .93, 1];      // block light level -> brightness
 
 export function meshChunk(v){
@@ -66,7 +67,7 @@ export function meshChunk(v){
         mask.fill(0);
         for (let iv = 0; iv < V; iv++) for (let iu = 0; iu < U; iu++){
           const x = d === 0 ? k : iu, y = d === 1 ? k : iv, z = d === 2 ? k : d === 0 ? iu : iv;
-          const ci = pidx(x, y, z), b = v[ci]; if (!b || PLANT[b] || LIQUID[b]) continue;
+          const ci = pidx(x, y, z), b = v[ci]; if (!b || PLANT[b] || LIQUID[b] || SHAPE[b]) continue;
           const ai = ci + sd, n = v[ai];
           if (OPAQUE[n] || (SELF[b] && n === b)) continue;
           let skey = 0, bkey = 0;
@@ -78,7 +79,7 @@ export function meshChunk(v){
             const a = sh * AOF[ao], Ls = GLOW[b] ? 1 : a * (.28 + .72 * ss / cnt), Lb = GLOW[b] ? 1 : (.45 + .55 * sh) * AOF[ao] * bs / cnt;      // block light cares less which way a face points
             skey += Math.min(63, Math.round(Ls * 63)) * MS[c]; bkey += Math.min(63, Math.round(Lb * 63)) * MS[c];
           }
-          const m = iv * U + iu; mask[m] = skey * 16777216 + bkey + 1; lay[m] = FACE[b * 6 + f]; tran[m] = TRANS[b];
+          const m = iv * U + iu; mask[m] = skey * 16777216 + bkey + 1; lay[m] = FACE[b * 6 + f] | FROT[b * 6 + f] << 15; tran[m] = TRANS[b];
         }
         for (let iv = 0; iv < V; iv++) for (let iu = 0; iu < U; ){
           const m0 = iv * U + iu, key = mask[m0]; if (!key){ iu++; continue; }
@@ -91,12 +92,34 @@ export function meshChunk(v){
           const pl = s > 0 ? k + 1 : k, P = [];
           for (const [cu, cv] of [[iu, iv], [iu + w, iv], [iu + w, iv + h], [iu, iv + h]]){ const p = [0, 0, 0]; p[d] = pl; p[uA] = cu; p[vA] = cv; P.push(p); }
           const tu = cu => d === 1 ? cu : (f === 0 || f === 5 ? -cu : cu), tv = cv => d === 1 ? cv : -cv;      // pictures stand upright on the sides
-          const uvs = [[iu, iv], [iu + w, iv], [iu + w, iv + h], [iu, iv + h]].map(([a, b2]) => [tu(a), tv(b2)]);
+          const rot = L0 >> 15, uvs = [[iu, iv], [iu + w, iv], [iu + w, iv + h], [iu, iv + h]].map(([a, b2]) => rot ? [tv(b2), tu(a)] : [tu(a), tv(b2)]);
           let order = [0, 1, 2, 3]; const ccw = (d === 2) === (s > 0);      // the corners as listed face -x, -y and +z: turn them round for the other three
           if (!ccw) order = [0, 3, 2, 1];
           const br = c => Math.max(L[c * 2], L[c * 2 + 1]), flip = br(order[0]) + br(order[2]) < br(order[1]) + br(order[3]);
-          (T0 ? clear : solid).quad(order.flatMap(i => P[i]), order.flatMap(i => uvs[i]), L0, order.flatMap(i => [L[i * 2], L[i * 2 + 1]]), flip);
+          (T0 ? clear : solid).quad(order.flatMap(i => P[i]), order.flatMap(i => uvs[i]), L0 & 32767, order.flatMap(i => [L[i * 2], L[i * 2 + 1]]), flip);
         }
+      }
+    }
+  }
+  // shaped blocks: each box drawn face by face; a face on the edge of the cell is left out when a solid block covers it
+  for (let y = 0; y < H; y++) for (let z = 0; z < CH; z++) for (let x = 0; x < CH; x++){
+    const ci = pidx(x, y, z), b = v[ci]; if (!SHAPE[b]) continue;
+    const nb = (dx, dy, dz) => at(x + dx, y + dy, z + dz), out = TRANS[b] ? clear : solid, door = SHAPE[b] === SH.door, upper = door && STATE[b] >> 3;
+    const ownS = .28 + .72 * sky[ci], ownB = bl(ci);
+    for (const bx of boxes(b, nb)){
+      const [x0, y0, z0, x1, y1, z1] = bx, dv = bx[6] || 0;
+      for (let f = 0; f < 6; f++){
+        const d = f >> 1, pos = !(f & 1), edge = pos ? [x1, y1, z1][d] >= 1 : [x0, y0, z0][d] <= 0;
+        let ls = ownS, lb = ownB;
+        if (edge){ const o = [0, 0, 0]; o[d] = pos ? 1 : -1; const n = nb(o[0], o[1], o[2]); if (OPAQUE[n]) continue; if (y + o[1] >= 0 && y + o[1] < H){ const ni = pidx(x + o[0], y + o[1], z + o[2]); ls = .28 + .72 * sky[ni]; lb = bl(ni); } }
+        const sh = SHADE[f], Ls = .98 * sh * ls, Lb = (.45 + .55 * sh) * lb, X0 = x + x0, X1 = x + x1, Y0 = y + y0, Y1 = y + y1, Z0 = z + z0, Z1 = z + z1;
+        const P = f === 0 ? [X1, Y0, Z1, X1, Y0, Z0, X1, Y1, Z0, X1, Y1, Z1] : f === 1 ? [X0, Y0, Z0, X0, Y0, Z1, X0, Y1, Z1, X0, Y1, Z0] :
+          f === 2 ? [X0, Y1, Z1, X1, Y1, Z1, X1, Y1, Z0, X0, Y1, Z0] : f === 3 ? [X0, Y0, Z0, X1, Y0, Z0, X1, Y0, Z1, X0, Y0, Z1] :
+          f === 4 ? [X0, Y0, Z1, X1, Y0, Z1, X1, Y1, Z1, X0, Y1, Z1] : [X1, Y0, Z0, X0, Y0, Z0, X0, Y1, Z0, X1, Y1, Z0];
+        const uv = []; for (let k = 0; k < 4; k++){ const px = P[k * 3], py = P[k * 3 + 1] - dv, pz = P[k * 3 + 2];
+          if (d === 1) uv.push(px, pz); else if (d === 0) uv.push(f === 0 ? -pz : pz, -py); else uv.push(f === 5 ? -px : px, -py); }
+        const layer = door ? FACE[b * 6 + (upper ? 2 : 0)] : FACE[b * 6 + f];
+        out.quad(P, uv, layer, [Ls, Lb, Ls, Lb, Ls, Lb, Ls, Lb], false);
       }
     }
   }
@@ -111,8 +134,8 @@ export function meshChunk(v){
   }
   // water and lava: the top sits a little low unless there is more of it above. Lava is drawn solid and glows
   for (let y = 0; y < H; y++) for (let z = 0; z < CH; z++) for (let x = 0; x < CH; x++){
-    const b = v[pidx(x, y, z)]; if (!LIQUID[b]) continue;
-    const up = at(x, y + 1, z), same = n => LIQUID[n] && LIQUID[n] === LIQUID[b], top = same(up) ? 1 : .875, ls = .25 + .75 * sk(x, y, z), lbv = GLOW[b] ? 1 : bk(x, y, z), out = TRANS[b] ? clear : solid, W = FACE[b * 6 + 2];
+    const b0 = v[pidx(x, y, z)], b = WET[b0] ? WATER : b0; if (!LIQUID[b]) continue;
+    const up = at(x, y + 1, z), same = n => (LIQUID[n] || (WET[n] ? 1 : 0)) === LIQUID[b], top = same(up) ? 1 : .875, ls = .25 + .75 * sk(x, y, z), lbv = GLOW[b] ? 1 : bk(x, y, z), out = TRANS[b] ? clear : solid, W = FACE[b * 6 + 2];
     for (let f = 0; f < 6; f++){
       const d = f >> 1, s = f & 1 ? -1 : 1, n = at(x + AX[d][0] * s, y + AX[d][1] * s, z + AX[d][2] * s);
       if (same(n) || (OPAQUE[n] && !(f === 2 && top < 1))) continue;

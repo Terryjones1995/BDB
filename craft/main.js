@@ -1,19 +1,19 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c9';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c9';
-import { paintAll, icon, TS } from './tex.js?v=c9';
-import { column } from './gen.js?v=c9';
-import { createWorld } from './world.js?v=c9';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c9';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c9';
-import { createHand } from './hand.js?v=c9';
-import { createPlayer, EYE } from './player.js?v=c9';
-import { createAnimals } from './animals.js?v=c9';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c9';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c9';
-import { openParty, newCode, cleanCode } from './party.js?v=c9';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c10';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT } from './blocks.js?v=c10';
+import { paintAll, icon, TS } from './tex.js?v=c10';
+import { column } from './gen.js?v=c10';
+import { createWorld } from './world.js?v=c10';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c10';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c10';
+import { createHand } from './hand.js?v=c10';
+import { createPlayer, EYE } from './player.js?v=c10';
+import { createAnimals } from './animals.js?v=c10';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c10';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c10';
+import { openParty, newCode, cleanCode } from './party.js?v=c10';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -43,7 +43,7 @@ handScene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.6));
 const hand = createHand(handScene, layers);
 
 /* ---------- screens ---------- */
-const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'inv', 'msg'];
+const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'keysp', 'inv', 'msg'];
 function show(...ids){ for (const s of screens) $(s).hidden = !ids.includes(s); }
 let toastT = 0;
 function toast(t, ms = 2200){ const e = $('toast'); e.textContent = t; e.hidden = false; e.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { e.style.opacity = 0; setTimeout(() => e.hidden = true, 400); }, ms); }
@@ -460,7 +460,15 @@ canvas.addEventListener('mousedown', e => {
 addEventListener('mouseup', e => { if (e.button === 0) mouse.l = false; if (e.button === 2) mouse.r = false; });
 addEventListener('contextmenu', e => { if (G && G.started) e.preventDefault(); });
 addEventListener('wheel', e => { if (!active()) return; G.pick(G.sel + (e.deltaY > 0 ? 1 : -1)); }, {passive:true});
-const KEYMAP = {KeyW:'f', ArrowUp:'f', KeyS:'b', ArrowDown:'b', KeyA:'l', ArrowLeft:'l', KeyD:'r', ArrowRight:'r', Space:'up', ShiftLeft:'down', ShiftRight:'down', ControlLeft:'sprint', ControlRight:'sprint'};
+/* the keys: every action, what it does, its key. Changed on the Controls screen and kept in the settings. Arrow keys always walk too */
+const ACTIONS = [['f', 'Walk forward', 'KeyW'], ['b', 'Walk back', 'KeyS'], ['l', 'Step left', 'KeyA'], ['r', 'Step right', 'KeyD'], ['up', 'Jump, swim up, fly up (double tap to fly)', 'Space'],
+  ['down', 'Sneak, fly down', 'ShiftLeft'], ['sprint', 'Sprint', 'ControlLeft'], ['inv', 'Every block (inventory)', 'KeyE'], ['chat', 'Chat', 'KeyT'], ['cmd', 'Type a command', 'Slash'],
+  ['view', 'See yourself (behind, in front)', 'F5'], ['hud', 'Hide the screen extras', 'F1'], ['dbg', 'Where you are, speed', 'F3']];
+const MOVE = ['f', 'b', 'l', 'r', 'up', 'down', 'sprint'];
+let KEYMAP = {};
+function buildKeys(){ S.keys = Object.assign(Object.fromEntries(ACTIONS.map(a => [a[0], a[2]])), S.keys || {}); KEYMAP = {ArrowUp:'f', ArrowDown:'b', ArrowLeft:'l', ArrowRight:'r', ShiftRight:'down', ControlRight:'sprint'}; for (const [a, c] of Object.entries(S.keys)) KEYMAP[c] = a; }
+buildKeys();
+const keyName = c => !c ? '' : c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : ({Space:'Space', ShiftLeft:'Left Shift', ShiftRight:'Right Shift', ControlLeft:'Left Ctrl', ControlRight:'Right Ctrl', AltLeft:'Left Alt', Slash:'/', Enter:'Enter', Tab:'Tab', Backquote:'`', CapsLock:'Caps Lock'}[c] || c);
 addEventListener('keydown', e => {
   const g = G;
   if (e.target === $('chatin')){
@@ -469,28 +477,29 @@ addEventListener('keydown', e => {
     if (e.key === 'Escape'){ $('chatin').value = ''; $('chatin').hidden = true; setTimeout(() => { if (!active()) pause(); }, 0); }
     return;
   }
+  if (rebind){ e.preventDefault(); if (e.code !== 'Escape'){ for (const [a, c] of Object.entries(S.keys)) if (c === e.code) S.keys[a] = ''; S.keys[rebind] = e.code; saveSettings(); buildKeys(); } rebind = null; renderKeys(); return; }
   if (e.target && (e.target.tagName === 'INPUT') && e.target.id !== 'invq') return;
   if (!$('inv').hidden){
-    if (e.code === 'Escape' || (e.code === 'KeyE' && e.target.id !== 'invq')){ e.preventDefault(); closeInv(); }
+    if (e.code === 'Escape' || (KEYMAP[e.code] === 'inv' && e.target.id !== 'invq')){ e.preventDefault(); closeInv(); }
     else if (/^Digit[1-9]$/.test(e.code) && e.target.id !== 'invq'){ g.pick(+e.code.slice(5) - 1, true); renderInvBar(); }
     return;
   }
   if (!g || !g.started) return;
   if (!active()){ if (e.code === 'Escape' && !$('pause').hidden && NOLOCK) lock(); return; }
   if (e.code === 'Escape' && NOLOCK){ pause(); return; }
-  if (e.code === 'Tab' || e.code === 'F1' || e.code === 'F3' || e.code === 'F5' || e.code === 'Space' || e.ctrlKey && e.code === 'KeyW') e.preventDefault();
+  if (e.code === 'Tab' || /^F\d+$/.test(e.code) || e.code === 'Space' || e.ctrlKey) e.preventDefault();
   const k = KEYMAP[e.code];
-  if (k){
+  if (k && MOVE.includes(k)){
     if (k === 'up' && !e.repeat){ const t = performance.now(); if (t - g.lastTapSpace < 300){ g.p.fly = !g.p.fly; g.p.vy = 0; g.lastTapSpace = 0; } else g.lastTapSpace = t; }
     if (k === 'f' && !e.repeat){ const t = performance.now(); if (t - g.lastTapW < 280) g.p.sprint = true; g.lastTapW = t; }
     g.keys[k] = true; return;
   }
   if (/^Digit[1-9]$/.test(e.code)){ g.pick(+e.code.slice(5) - 1); return; }
-  if (e.code === 'KeyE'){ openInv(); return; }
-  if (e.code === 'KeyT' || e.code === 'Enter' || e.code === 'Slash'){ e.preventDefault(); $('chatin').hidden = false; if (e.code === 'Slash') $('chatin').value = '/'; if (!NOLOCK && document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $('chatin').focus(), 0); return; }
-  if (e.code === 'F1'){ g.hud = !g.hud; $('hud').classList.toggle('off', !g.hud); return; }
-  if (e.code === 'F3'){ g.dbg = !g.dbg; $('dbg').hidden = !g.dbg; return; }
-  if (e.code === 'F5'){ g.view = ((g.view | 0) + 1) % 3; return; }
+  if (k === 'inv'){ openInv(); return; }
+  if (k === 'chat' || k === 'cmd' || e.code === 'Enter'){ e.preventDefault(); $('chatin').hidden = false; if (k === 'cmd') $('chatin').value = '/'; if (!NOLOCK && document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $('chatin').focus(), 0); return; }
+  if (k === 'hud'){ g.hud = !g.hud; $('hud').classList.toggle('off', !g.hud); return; }
+  if (k === 'dbg'){ g.dbg = !g.dbg; $('dbg').hidden = !g.dbg; return; }
+  if (k === 'view'){ g.view = ((g.view | 0) + 1) % 3; return; }
 });
 addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k && G) G.keys[k] = false; });
 addEventListener('blur', () => { if (G){ G.keys = {}; mouse.l = mouse.r = false; } });
@@ -500,21 +509,61 @@ function use(what){
   const g = G; if (!g) return;
   if (what === 'break' && g.critter){ const a = g.critter; hand.swing(); if (g.opt.guest) g.party.slap(a.id); else g.animals.slap(a, g.p); return; }
   const hit = g.hit; if (!hit) return;
-  if (what === 'break'){ if (hit.y < 1) return; edit(hit.x, hit.y, hit.z, 0); hand.swing(); return; }
-  if (what === 'pick'){ const b = hit.b; const i = g.bar.indexOf(b); if (i >= 0) g.pick(i); else { g.bar[g.sel] = b; g.pick(g.sel); } return; }
+  if (what === 'break'){
+    if (hit.y < 1) return;
+    const b = hit.b; edit(hit.x, hit.y, hit.z, WET[b] ? B.water : 0);       // a waterlogged block leaves its water behind
+    if (SHAPE[b] === SH.door){ const oy = STATE[b] >> 3 ? -1 : 1, o = g.world.get(hit.x, hit.y + oy, hit.z); if (o > 0 && SHAPE[o] === SH.door) edit(hit.x, hit.y + oy, hit.z, WET[o] ? B.water : 0); }
+    hand.swing(); return;
+  }
+  if (what === 'pick'){ const b = ROOT[hit.b] || hit.b; const i = g.bar.indexOf(b); if (i >= 0) g.pick(i); else { g.bar[g.sel] = b; g.pick(g.sel); } return; }
+  // doors, trapdoors and gates open and shut with a right click (sneak to place against them instead)
+  const hb = hit.b, hs = SHAPE[hb];
+  if (!g.p.sneak && (hs === SH.door || hs === SH.trapdoor || hs === SH.gate) && !BLOCKS[FIRST[hb]].key.includes('iron')){
+    const flip = id => { const st = STATE[id], n = BLOCKS[FIRST[id]].n, bit = hs === SH.door ? 4 : hs === SH.trapdoor ? 8 : 4; return FIRST[id] + (WET[id] ? n : 0) + (st ^ bit); };
+    edit(hit.x, hit.y, hit.z, flip(hb));
+    if (hs === SH.door){ const oy = STATE[hb] >> 3 ? -1 : 1, o = g.world.get(hit.x, hit.y + oy, hit.z); if (o > 0 && SHAPE[o] === SH.door) edit(hit.x, hit.y + oy, hit.z, flip(o)); }
+    hand.swing(); return;
+  }
   const b = g.bar[g.sel]; if (!b) return;
   let x = hit.px, y = hit.py, z = hit.pz;
   if (PLANT[hit.b]){ x = hit.x; y = hit.y; z = hit.z; }                     // clicking tall grass swaps it for the block
+  const face = hit.face || [0, 1, 0], fy = face[1], frac = hit.hp ? hit.hp.y - Math.floor(hit.hp.y) : .5;
+  // a slab on a slab of the same kind makes the whole block
+  const sh = SHAPE[b];
+  if (sh === SH.slab){
+    const tryJoin = (cx, cy, cz) => { const t = g.world.get(cx, cy, cz); return t > 0 && SHAPE[t] === SH.slab && FIRST[t] === b; };
+    if (SHAPE[hit.b] === SH.slab && FIRST[hit.b] === b && ((STATE[hit.b] === 0 && fy === 1) || (STATE[hit.b] === 1 && fy === -1))){ edit(hit.x, hit.y, hit.z, FULL[b]); hand.swing(); return; }
+    if (tryJoin(x, y, z)){ edit(x, y, z, FULL[b]); hand.swing(); return; }
+  }
   if (y < 1 || y > 127) return;
   const there = g.world.get(x, y, z); if (there > 0 && !LIQUID[there] && !PLANT[there]) return;
-  if (SOLID[b] && g.p.overlaps(x, y, z)) return;
+  if ((SOLID[b] || (sh && sh !== SH.torch && sh !== SH.ladder && sh !== SH.carpet)) && g.p.overlaps(x, y, z)) return;
   if (PLANT[b]){ const under = g.world.get(x, y - 1, z); if (!(under > 0 && SOLID[under])) return; }
-  edit(x, y, z, b); hand.swing();
+  const F = lookFacing(g.p.yaw), wall = face[0] === 1 ? 3 : face[0] === -1 ? 1 : face[2] === 1 ? 0 : face[2] === -1 ? 2 : -1;
+  const wetAdd = (LIQUID[there] === 1 || WET[there]) && sh && BLOCKS[b].wet === 0 && BLOCKS[b + BLOCKS[b].n] && BLOCKS[b + BLOCKS[b].n].wet === 1 ? BLOCKS[b].n : 0;
+  let id = b;
+  if (sh === SH.slab) id = b + (fy === -1 || (fy === 0 && frac > .5) ? 1 : 0);
+  else if (sh === SH.stairs) id = b + F + (fy === -1 || (fy === 0 && frac > .5) ? 4 : 0);
+  else if (sh === SH.trapdoor) id = b + F + (fy === -1 || (fy === 0 && frac > .5) ? 4 : 0);
+  else if (sh === SH.gate) id = b + F;
+  else if (sh === SH.torch){ if (fy === -1) return; id = b + (fy === 1 ? 0 : 1 + wall); }
+  else if (sh === SH.lantern) id = b + (fy === -1 ? 1 : 0);
+  else if (sh === SH.ladder){ if (wall < 0) return; id = b + wall; }
+  else if (sh === SH.door){
+    const above = g.world.get(x, y + 1, z); if (y > 126 || (above > 0 && !LIQUID[above] && !PLANT[above])) return;
+    const wetUp = (LIQUID[above] === 1) ? BLOCKS[b].n : 0;
+    edit(x, y, z, b + F + wetAdd); edit(x, y + 1, z, b + F + 8 + wetUp); hand.swing(); return;
+  }
+  else if (TURN[b * 4 + 1]){ const front = (F + 2) % 4, r = [2, 1, 0, 3][front]; id = r ? TURN[b * 4 + r] : b; }
+  else if (AXIS[b * 3 + 1]){ id = face[0] ? AXIS[b * 3 + 1] : face[2] ? AXIS[b * 3 + 2] : b; }
+  edit(x, y, z, id + wetAdd); hand.swing();
 }
+/* which way you are looking, as 0 north (-z), 1 east, 2 south, 3 west */
+function lookFacing(yaw){ const dx = -Math.sin(yaw), dz = -Math.cos(yaw); return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0); }
 function edit(x, y, z, b){
   const g = G; if (!g.world.set(x, y, z, b)) return;
-  // a plant standing on a block that just went goes with it
-  if (b === 0){ const up = g.world.get(x, y + 1, z); if (up > 0 && PLANT[up]){ g.world.set(x, y + 1, z, 0); if (g.party) g.party.edit(x, y + 1, z, 0); } }
+  // a plant, torch or carpet standing on a block that just went goes with it
+  if (!b || LIQUID[b]){ const up = g.world.get(x, y + 1, z); if (up > 0 && (PLANT[up] || (SHAPE[up] === SH.torch && STATE[up] === 0) || SHAPE[up] === SH.carpet)){ g.world.set(x, y + 1, z, 0); if (g.party) g.party.edit(x, y + 1, z, 0); } }
   if (g.party) g.party.edit(x, y, z, b);
 }
 
@@ -542,6 +591,24 @@ function renderGrid(){
   if (!grid.children.length) grid.innerHTML = '<div class="empty" style="grid-column:1/-1">No blocks match that.</div>';
 }
 $('invq').oninput = renderGrid;
+
+/* the controls screen: every key, click one and press the new key */
+let rebind = null, keysBack = 'settings';
+function renderKeys(){
+  const box = $('keylist'); box.innerHTML = '';
+  for (const [a, label] of ACTIONS){
+    const row = document.createElement('div'); row.className = 'keyrow';
+    row.innerHTML = `<span>${label}</span><button type="button" class="kb${rebind === a ? ' wait' : ''}">${rebind === a ? 'Press a key' : esc(keyName(S.keys[a]) || 'None')}</button>`;
+    row.querySelector('button').onclick = () => { rebind = a; renderKeys(); }; box.append(row);
+  }
+  for (const [k, label] of [['Left click', 'Break a block, hit an animal'], ['Right click', 'Place the block in your hand, open doors and gates'], ['Middle click', 'Pick the block you are looking at'],
+    ['Scroll wheel, 1 to 9', 'Choose from the hotbar'], ['Esc', 'Pause']]){ const row = document.createElement('div'); row.className = 'keyrow fixed'; row.innerHTML = `<span>${label}</span><b>${k}</b>`; box.append(row); }
+}
+function openKeys(back){ keysBack = back; rebind = null; renderKeys(); show('keysp'); }
+$('kreset').onclick = () => { S.keys = {}; buildKeys(); saveSettings(); renderKeys(); };
+$('kdone').onclick = () => { rebind = null; show(keysBack); };
+$('pkeys').onclick = () => openKeys('pause');
+$('skeys').onclick = () => openKeys('settings');
 
 /* settings */
 function renderSettings(){
@@ -592,7 +659,7 @@ function frame(t){
     }
     camera.position.set(p.x, p.eye, p.z); camera.rotation.set(p.pitch, p.yaw, 0);
     camera.getWorldDirection(dir); eye.copy(camera.position);
-    g.hit = g.started ? w.ray(eye, dir, 6) : null; hl.show(active() || NOLOCK ? g.hit : null);
+    g.hit = g.started ? w.ray(eye, dir, 6) : null; hl.show(active() || NOLOCK ? g.hit : null, g.hit && w.bounds(g.hit.x, g.hit.y, g.hit.z));
     // F5: you, from behind or from the front. The camera backs off until a block is in the way
     const view = g.view | 0;
     if (view && g.started){
@@ -622,7 +689,14 @@ function frame(t){
   let time = .2, day = 0;
   if (g){ if (g.started && S.cycle && !g.opt.guest){ g.time += dt / DAY_SECONDS; if (g.time >= 1){ g.time -= 1; g.day++; } } if (g.opt.guest && g.timeAt){ g.time = (g.timeHost + (t - g.timeAt) / 1000 / DAY_SECONDS) % 1; } time = g.time; day = g.day; }
   const sk = theSky.update(camera, time, day);
-  for (const m of [mats.solid, mats.clear]){ m.uniforms.bright.value = sk.light; m.uniforms.fogColor.value.set(sk.hor.r, sk.hor.g, sk.hor.b); }
+  const under = g && g.started && !(g.view | 0) ? (g.p.eyeLava ? 2 : g.p.eyeWater ? 1 : 0) : 0, far = (G ? S.dist : 6) * 16 - 2;
+  for (const m of [mats.solid, mats.clear]){
+    m.uniforms.bright.value = sk.light;
+    if (under === 1){ m.uniforms.fogColor.value.set(.08 * sk.light + .02, .2 * sk.light + .04, .45 * sk.light + .08); m.uniforms.fogNear.value = 1; m.uniforms.fogFar.value = 26; }       // under water: blue and murky
+    else if (under === 2){ m.uniforms.fogColor.value.set(.9, .35, .05); m.uniforms.fogNear.value = 0; m.uniforms.fogFar.value = 2.5; }
+    else { m.uniforms.fogColor.value.set(sk.hor.r, sk.hor.g, sk.hor.b); m.uniforms.fogNear.value = Math.max(16, far * .62); m.uniforms.fogFar.value = far; }
+  }
+  document.body.classList.toggle('wet', under === 1);
   hemi.intensity = 2.2 * sk.light; sunL.intensity = 1.4 * sk.light; hand.light(.35 + .65 * sk.light);
   cloud.group.visible = S.clouds; cloud.far = Math.max(260, (G ? S.dist : 6) * 16 * 2.2); cloud.update(camera, dt, sk);
   if (g && g.party && !g.opt.guest && t - (g.tmT || 0) > 5000){ g.tmT = t; g.party.time([g.time, g.day, S.cycle ? 1 : 0]); }

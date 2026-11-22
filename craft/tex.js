@@ -1,6 +1,7 @@
 /* BDB Craft: every block texture, drawn pixel by pixel in code at 16 x 16 and doubled to 32 (the BDB Block is the one drawn at full size, from his photo).
    Nothing is copied from any other game: each one is a little recipe of colours, noise and shapes. Also the cube icons for the hotbar and inventory. */
-import { TEX, T, COLOURS, BLOCKS, FACE } from './blocks.js?v=c9';
+import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH } from './blocks.js?v=c10';
+import { boxes } from './shapes.js?v=c10';
 export const TS = 32;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -306,6 +307,31 @@ Object.assign(R, {
 for (const [k, c, d] of [['coal', '#2b2b2b', '#151515'], ['iron', '#d8af93', '#a87e62'], ['gold', '#f6d33d', '#c49a1c'], ['diamond', '#6ff0e4', '#2fb5ab'], ['emerald', '#3ee07a', '#1d9a4c'], ['copper', '#e0864e', '#9c5430'], ['lapis', '#2a4fc4', '#1a3088'], ['redstone', '#e0261e', '#901410']]) R['deep_ore_' + k] = s => oreOn(deepslate(s), c, d);
 for (const [c, h] of COLOURS){ R['powder_' + c] = s => powderC(s, h); R['terracotta_' + c] = s => terracottaC(s, h); R['glazed_' + c] = s => glazed(s, h); }
 
+/* ---------- shaped blocks: doors, trapdoors, torches, lanterns, ladders, bars, chains ---------- */
+const DOORC = {oak:'#a3824f', birch:'#d5c58c', spruce:'#6f5233', dark:'#4b3219', jungle:'#a07450', acacia:'#b05d34', mangrove:'#773933', cherry:'#e3b3ad', crimson:'#6b344a', warped:'#2b6963', bamboo:'#c9b55a', iron:'#c8c8c8'};
+const clearPic = s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); return p; };
+for (const [w, c] of Object.entries(DOORC)){
+  const iron = w === 'iron', frame = mul(rgb(c), .7);
+  const door = (s, top) => { const p = iron ? metal(s, c, '#ececec', '#8a8a8a') : planks(new Pic(s), c);
+    if (!iron) p.each((x, y) => { if (x === 0 || x === 15 || (top ? y === 0 : y === 15)) p.set(x, y, frame); });
+    if (top) for (let y = 3; y < 13; y++) for (let x = 3; x < 13; x++){ if (x === 7 || x === 8 || y === 7 || y === 8) p.set(x, y, frame); else if (iron || ['oak', 'birch', 'jungle', 'acacia', 'cherry', 'bamboo'].includes(w)) p.set(x, y, [0, 0, 0], 0); }
+    else { for (let x = 3; x < 13; x++){ p.set(x, 3, frame); p.set(x, 12, frame); } for (let y = 3; y < 13; y++){ p.set(3, y, frame); p.set(12, y, frame); } p.set(12, 1, iron ? rgb('#5a5a5a') : rgb('#3a3a3a')); }
+    return p; };
+  R['door_' + w + '_top'] = s => door(s, true); R['door_' + w + '_bottom'] = s => door(s, false);
+  R['trapdoor_' + w] = s => { const p = iron ? metal(s, c, '#ececec', '#8a8a8a') : planks(new Pic(s), c);
+    p.each((x, y) => { if (x === 0 || y === 0 || x === 15 || y === 15) p.set(x, y, frame); else if ((x % 5 === 2 || x % 5 === 3) && (y % 5 === 2 || y % 5 === 3) && w !== 'spruce' && w !== 'dark') p.set(x, y, [0, 0, 0], 0); }); return p; };
+}
+Object.assign(R, {
+  torch:s => { const p = clearPic(s); for (let y = 9; y < 16; y++){ p.set(7, y, rgb('#7a5a34')); p.set(8, y, rgb('#5f4527')); } for (let y = 6; y < 9; y++){ p.set(7, y, rgb(y === 6 ? '#fff6b0' : '#ffb23a')); p.set(8, y, rgb(y === 6 ? '#ffe070' : '#ff8a1e')); } return p; },
+  soul_torch:s => { const p = clearPic(s); for (let y = 9; y < 16; y++){ p.set(7, y, rgb('#7a5a34')); p.set(8, y, rgb('#5f4527')); } for (let y = 6; y < 9; y++){ p.set(7, y, rgb(y === 6 ? '#d8fcff' : '#5ad8e8')); p.set(8, y, rgb(y === 6 ? '#a8f2ff' : '#2ab8d0')); } return p; },
+  lantern:s => { const p = clearPic(s); for (let y = 9; y < 16; y++) for (let x = 5; x < 11; x++){ const edge = x === 5 || x === 10 || y === 9 || y === 15; p.set(x, y, edge ? rgb('#3a3a40') : rgb(y < 12 ? '#ffe38a' : '#ffb24a')); }
+    for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) if (p.alpha(x, y) === 0) p.set(x, y, rgb('#2f2f35')); for (let y = 6; y < 9; y++) for (let x = 7; x < 9; x++) p.set(x, y, rgb('#4a4a52')); return p; },
+  soul_lantern:s => { const p = R.lantern(s); p.each((x, y) => { const c = p.get(x, y); if (p.alpha(x, y) && c[0] > 200) p.set(x, y, mix(c, rgb('#5ad8e8'), .8)); }); return p; },
+  ladder:s => { const p = clearPic(s), c = rgb('#8a6a3a'); for (let y = 0; y < 16; y++){ p.set(2, y, mul(c, .85)); p.set(3, y, c); p.set(12, y, c); p.set(13, y, mul(c, .85)); } for (const y of [1, 5, 9, 13]) for (let x = 2; x < 14; x++){ p.set(x, y, mul(c, 1.1)); p.set(x, y + 1, mul(c, .8)); } return p; },
+  iron_bars:s => { const p = clearPic(s); for (const x of [1, 5, 9, 13]) for (let y = 0; y < 16; y++){ p.set(x, y, rgb('#9a9a9a')); p.set(x + 1, y, rgb('#6a6a6a')); } for (let x = 0; x < 16; x++){ p.set(x, 0, rgb('#8a8a8a')); p.set(x, 15, rgb('#6a6a6a')); } return p; },
+  chain:s => { const p = clearPic(s); for (let y = 0; y < 16; y++){ const link = Math.floor(y / 4) % 2; if (link){ p.set(7, y, rgb('#4a4f5a')); p.set(8, y, rgb('#3a3f4a')); } else if (y % 4 === 0 || y % 4 === 3){ p.set(7, y, rgb('#5a606c')); p.set(8, y, rgb('#5a606c')); } else { p.set(6, y, rgb('#4a4f5a')); p.set(9, y, rgb('#3a3f4a')); } } return p; },
+});
+
 /* all the textures, as one block of rgba: layer after layer, TS x TS each */
 export function paintAll(){
   const out = new Uint8Array(TEX.length * TS * TS * 4), k = TS / 16;
@@ -321,12 +347,17 @@ export function icon(layers, id, size = 64){
   const b = BLOCKS[id], c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d');
   const face = l => { const t = document.createElement('canvas'); t.width = t.height = TS; const ctx = t.getContext('2d'); const im = ctx.createImageData(TS, TS); im.data.set(layers.subarray(l * TS * TS * 4, (l + 1) * TS * TS * 4)); ctx.putImageData(im, 0, 0); return t; };
   x.imageSmoothingEnabled = false;
-  if (b.kind === 'plant'){ x.drawImage(face(FACE[id * 6]), size * .1, size * .1, size * .8, size * .8); return c.toDataURL(); }
-  const s = size / 2, top = face(FACE[id * 6 + 2]), side = face(FACE[id * 6]), w = s * .86, h = s * .5;
-  const draw = (img, a, b2, c2, d, e, f, shade) => { x.save(); x.setTransform(a, b2, c2, d, e, f); x.drawImage(img, 0, 0, 1, 1); if (shade){ x.fillStyle = `rgba(0,0,0,${shade})`; x.fillRect(0, 0, 1, 1); } x.restore(); };
-  const cx = size / 2, top0 = size * .1;
-  draw(top, w, h, -w, h, cx, top0, 0);                                         // the top: a diamond
-  draw(side, w, h, 0, s, cx - w, top0 + h, .22);                                // the left face
-  draw(side, w, -h, 0, s, cx, top0 + 2 * h, .4);                                // the right face
+  const sh = SHAPE[id];
+  if (b.kind === 'plant' || sh === SH.torch || sh === SH.ladder || sh === SH.chain || sh === SH.pane){ x.drawImage(face(FACE[id * 6]), size * .1, size * .1, size * .8, size * .8); return c.toDataURL(); }
+  if (sh === SH.door){ x.drawImage(face(FACE[id * 6 + 2]), size * .3, size * .04, size * .4, size * .46); x.drawImage(face(FACE[id * 6]), size * .3, size * .5, size * .4, size * .46); return c.toDataURL(); }
+  const s = size / 2, w = s * .86, h = s * .5, cx = size / 2, top0 = size * .1, top = face(FACE[id * 6 + 2]), front = face(FACE[id * 6 + 4]), side = face(FACE[id * 6]);
+  const P = (px, py, pz) => [cx + (px - pz) * w, top0 + (px + pz) * h + (1 - py) * s];
+  const quad = (img, o, U, V, su, sv, sw, shh, shade) => { x.save(); x.setTransform(U[0], U[1], V[0], V[1], o[0], o[1]); x.drawImage(img, su * TS, sv * TS, Math.max(1, sw * TS), Math.max(1, shh * TS), 0, 0, 1, 1); if (shade){ x.fillStyle = `rgba(0,0,0,${shade})`; x.fillRect(0, 0, 1, 1); } x.restore(); };
+  const bx = sh ? boxes(id, () => 0).slice().sort((a, b2) => (a[0] + a[2]) - (b2[0] + b2[2]) || a[1] - b2[1]) : [[0, 0, 0, 1, 1, 1]];
+  for (const [x0, y0, z0, x1, y1, z1] of bx){
+    quad(top, P(x0, y1, z0), [(x1 - x0) * w, (x1 - x0) * h], [-(z1 - z0) * w, (z1 - z0) * h], x0, z0, x1 - x0, z1 - z0, 0);                         // the top
+    quad(front, P(x0, y1, z1), [(x1 - x0) * w, (x1 - x0) * h], [0, (y1 - y0) * s], x0, 1 - y1, x1 - x0, y1 - y0, .22);                              // the left face
+    quad(side, P(x1, y1, z1), [(z1 - z0) * w, -(z1 - z0) * h], [0, (y1 - y0) * s], 1 - z1, 1 - y1, z1 - z0, y1 - y0, .4);                         // the right face
+  }
   return c.toDataURL();
 }

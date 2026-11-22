@@ -1,9 +1,9 @@
 /* BDB Craft: how things look. The block shader (every texture sits in one texture array, so a whole chunk is one draw), the sky, the clouds, the outline
    round the block you are pointing at, and your friends' blocky bodies with name tags. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c9';
-import { TS } from './tex.js?v=c9';
-import { TEX } from './blocks.js?v=c9';
-import { body } from './skin.js?v=c9';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c10';
+import { TS } from './tex.js?v=c10';
+import { TEX } from './blocks.js?v=c10';
+import { body } from './skin.js?v=c10';
 
 const VS = `in vec3 position; in vec3 tex; in vec2 light;
 uniform mat4 modelViewMatrix, projectionMatrix;
@@ -63,7 +63,7 @@ export function outline(scene){
   const e = .004, g = new THREE.EdgesGeometry(new THREE.BoxGeometry(1 + e * 2, 1 + e * 2, 1 + e * 2));
   const l = new THREE.LineSegments(g, new THREE.LineBasicMaterial({color:0x000000, transparent:true, opacity:.55, fog:false}));
   l.visible = false; scene.add(l);
-  return {show(hit){ if (!hit){ l.visible = false; return; } l.visible = true; l.position.set(hit.x + .5, hit.y + .5, hit.z + .5); }};
+  return {show(hit, b){ if (!hit){ l.visible = false; return; } b = b || [0, 0, 0, 1, 1, 1]; l.visible = true; l.scale.set(b[3] - b[0], b[4] - b[1], b[5] - b[2]); l.position.set(hit.x + (b[0] + b[3]) / 2, hit.y + (b[1] + b[4]) / 2, hit.z + (b[2] + b[5]) / 2); }};
 }
 /* a friend (or you, seen from behind): their own blocky character from skin.js, and their name floating over it */
 export function avatar(scene, name, skinData){

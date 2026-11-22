@@ -105,24 +105,75 @@ st('mushroom_block_red', 'Red Mushroom Block', null, 'nature'); st('mushroom_blo
 st('dried_kelp', 'Dried Kelp Block', {top:'dried_kelp_top', side:'dried_kelp'}, 'decor'); st('honeycomb', 'Honeycomb Block', null, 'decor'); st('reinforced_deepslate', 'Reinforced Deepslate', {top:'reinforced_top', side:'reinforced_side'}, 'build');
 st('tinted_glass', 'Tinted Glass', null, 'build', {kind:'glass', self:true});
 
+/* ---------- turned blocks: furnaces and the like face you, logs and pillars lie on their side ---------- */
+const keyOf = k => L.find(b => b.key === k);
+for (const k of ['furnace', 'chest', 'jack_o_lantern', 'loom', 'beehive', 'dispenser', 'observer', 'crafting_table', 'pumpkin']){
+  const b0 = keyOf(k); for (let r = 1; r < 4; r++) L.push({...b0, key:k + '#f' + r, cat:'', turn:r, base:b0.id === undefined ? null : null, of:k});
+}
+for (const k of L.filter(b => /^(log_|stripped_)/.test(b.key) || ['quartz_pillar', 'purpur_pillar', 'bone_block', 'polished_basalt', 'hay', 'bamboo_block', 'basalt', 'deepslate'].includes(b.key)).map(b => b.key)){
+  const b0 = keyOf(k); for (const ax of [1, 2]) L.push({...b0, key:k + '#a' + ax, cat:'', axis:ax, of:k});
+}
+
+/* ---------- shaped blocks. Each one takes a run of ids: one per state (which way it faces, open or shut, top or bottom), and the same again
+   standing in water ("waterlogged", so you can build them under water). Only the first id of a run shows in the inventory ---------- */
+export const SH = {slab:1, stairs:2, fence:3, gate:4, wall:5, pane:6, door:7, trapdoor:8, carpet:9, torch:10, lantern:11, ladder:12, chain:13};
+const texOf = k => { const b = keyOf(k); if (!b) throw new Error('no block ' + k); return b.tex; };
+function shape(key, name, tex, cat, sh, n, o = {}){
+  const runs = o.wet === false ? 1 : 2, first = L.length;
+  for (let w = 0; w < runs; w++) for (let s = 0; s < n; s++) L.push({key:s || w ? key + '#' + (w * n + s) : key, name, tex, cat:s || w ? '' : cat, kind:o.kind || 'shape', shape:sh, state:s, wet:w, first, n, glow:o.glow, full:o.full, mat:o.mat});
+}
+const MATS = ['stone', 'cobble', 'mossy_cobble', 'smooth_stone', 'stone_bricks', 'mossy_stone_bricks', 'andesite', 'polished_andesite', 'diorite', 'polished_diorite', 'granite', 'polished_granite',
+  'cobbled_deepslate', 'polished_deepslate', 'deepslate_bricks', 'deepslate_tiles', 'tuff', 'bricks', 'mud_bricks', 'sandstone', 'cut_sandstone', 'smooth_sandstone', 'red_sandstone', 'cut_red_sandstone',
+  'smooth_red_sandstone', 'quartz', 'smooth_quartz', 'prismarine', 'prismarine_bricks', 'dark_prismarine', 'nether_bricks', 'red_nether_bricks', 'blackstone', 'polished_blackstone', 'blackstone_bricks',
+  'end_stone_bricks', 'purpur', 'cut_copper', 'planks_oak', 'planks_birch', 'planks_spruce', 'planks_dark', 'planks_jungle', 'planks_acacia', 'planks_mangrove', 'planks_cherry', 'planks_crimson', 'planks_warped', 'planks_bamboo'];
+const nameOf = k => keyOf(k).name.replace(/ Block$/, '').replace(/^Block of /, '').replace(/ Planks$/, '');
+for (const m of MATS) shape('slab_' + m, nameOf(m) + ' Slab', texOf(m), 'build', SH.slab, 2, {full:m, mat:m});
+for (const m of MATS) shape('stairs_' + m, nameOf(m) + ' Stairs', texOf(m), 'build', SH.stairs, 8, {mat:m});
+const WOODS = ['oak', 'birch', 'spruce', 'dark', 'jungle', 'acacia', 'mangrove', 'cherry', 'crimson', 'warped', 'bamboo'];
+for (const w of WOODS) shape('fence_' + w, nameOf('planks_' + w) + ' Fence', texOf('planks_' + w), 'build', SH.fence, 1, {mat:'planks_' + w});
+shape('fence_nether', 'Nether Brick Fence', texOf('nether_bricks'), 'build', SH.fence, 1);
+for (const w of WOODS) shape('gate_' + w, nameOf('planks_' + w) + ' Fence Gate', texOf('planks_' + w), 'build', SH.gate, 8);
+for (const m of ['cobble', 'mossy_cobble', 'stone_bricks', 'mossy_stone_bricks', 'andesite', 'diorite', 'granite', 'cobbled_deepslate', 'polished_deepslate', 'deepslate_bricks', 'deepslate_tiles', 'tuff',
+  'bricks', 'mud_bricks', 'sandstone', 'red_sandstone', 'prismarine', 'nether_bricks', 'red_nether_bricks', 'blackstone', 'polished_blackstone', 'blackstone_bricks', 'end_stone_bricks']) shape('wall_' + m, nameOf(m) + ' Wall', texOf(m), 'build', SH.wall, 1);
+shape('pane_glass', 'Glass Pane', 'glass', 'build', SH.pane, 1, {kind:'shapecut'});
+for (const [c] of COLOURS) shape('pane_' + c.replace(' ', '_'), c[0].toUpperCase() + c.slice(1) + ' Stained Glass Pane', 'glass_' + c, 'colour', SH.pane, 1, {kind:'shapeglass'});
+shape('iron_bars', 'Iron Bars', 'iron_bars', 'build', SH.pane, 1, {kind:'shapecut'});
+for (const w of [...WOODS, 'iron']) shape('door_' + w, (w === 'iron' ? 'Iron' : nameOf('planks_' + w)) + ' Door', {top:'door_' + w + '_top', side:'door_' + w + '_bottom'}, 'build', SH.door, 16, {kind:'shapecut'});
+for (const w of [...WOODS, 'iron']) shape('trapdoor_' + w, (w === 'iron' ? 'Iron' : nameOf('planks_' + w)) + ' Trapdoor', 'trapdoor_' + w, 'build', SH.trapdoor, 16, {kind:'shapecut'});
+for (const [c] of COLOURS) shape('carpet_' + c.replace(' ', '_'), c[0].toUpperCase() + c.slice(1) + ' Carpet', 'wool_' + c, 'colour', SH.carpet, 1, {wet:false});
+shape('carpet_moss', 'Moss Carpet', 'moss', 'nature', SH.carpet, 1, {wet:false});
+shape('torch', 'Torch', 'torch', 'decor', SH.torch, 5, {kind:'shapecut', glow:8, wet:false}); shape('soul_torch', 'Soul Torch', 'soul_torch', 'decor', SH.torch, 5, {kind:'shapecut', glow:6, wet:false});
+shape('lantern', 'Lantern', 'lantern', 'decor', SH.lantern, 2, {kind:'shapecut', glow:8}); shape('soul_lantern', 'Soul Lantern', 'soul_lantern', 'decor', SH.lantern, 2, {kind:'shapecut', glow:6});
+shape('ladder', 'Ladder', 'ladder', 'decor', SH.ladder, 4, {kind:'shapecut'}); shape('chain', 'Chain', 'chain', 'decor', SH.chain, 1, {kind:'shapecut'});
+
 L.forEach((b, i) => { b.id = i; b.kind = b.kind || 'solid'; });
 /* textures: one layer each in the texture array, every name a block uses, in the order first used */
 export const TEX = [...new Set(L.slice(1).flatMap(b => typeof b.tex === 'string' ? [b.tex] : [b.tex.top, b.tex.side, b.tex.bottom || b.tex.top, b.tex.front || b.tex.side]))];
 export const T = Object.fromEntries(TEX.map((n, i) => [n, i]));
 export const BLOCKS = L;
-export const B = Object.fromEntries(L.map(b => [b.key, b.id]));
+export const B = Object.fromEntries(L.map(b => [b.key, b.id]));      // the first id of each block (the one in the inventory)
 export const N = L.length;
 /* flat tables for the hot loops */
-export const MAXID = 4096;
+export const MAXID = 8192;
 export const OPAQUE = new Uint8Array(MAXID), SOLID = new Uint8Array(MAXID), CUTOUT = new Uint8Array(MAXID), PLANT = new Uint8Array(MAXID), LIQUID = new Uint8Array(MAXID), SELF = new Uint8Array(MAXID), GLOW = new Uint8Array(MAXID), TRANS = new Uint8Array(MAXID), EMIT = new Uint8Array(MAXID);
-export const FACE = new Uint16Array(MAXID * 6);
+export const FACE = new Uint16Array(MAXID * 6), FROT = new Uint8Array(MAXID * 6);      // FROT: the picture on this face is turned a quarter (logs lying down)
+export const SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
 for (const b of L){
   const i = b.id; if (!i) continue;
-  OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || (b.kind === 'liquid' && !b.lava) ? 1 : 0;
-  CUTOUT[i] = b.kind === 'cutout' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? (b.lava ? 2 : 1) : 0;
+  const shaped = b.kind === 'shape' || b.kind === 'shapecut' || b.kind === 'shapeglass';
+  OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || b.kind === 'shapeglass' || (b.kind === 'liquid' && !b.lava) ? 1 : 0;
+  CUTOUT[i] = b.kind === 'cutout' || b.kind === 'shapecut' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? (b.lava ? 2 : 1) : 0;
   SELF[i] = b.self ? 1 : 0; GLOW[i] = b.glow ? 1 : 0; EMIT[i] = b.glow === true ? 8 : (b.glow | 0);
+  if (shaped){ SHAPE[i] = b.shape; STATE[i] = b.state; FIRST[i] = b.first; WET[i] = b.wet; if (b.full) FULL[i] = B[b.full]; GLOW[i] = 0; }
+  ROOT[i] = b.of ? B[b.of] : shaped ? b.first : i;
   const t = typeof b.tex === 'string' ? {top:b.tex, side:b.tex, bottom:b.tex} : {top:b.tex.top, side:b.tex.side, bottom:b.tex.bottom || b.tex.top, front:b.tex.front};
   for (const n of [t.top, t.side, t.bottom]) if (T[n] == null) throw new Error('no texture ' + n);
-  FACE[i * 6] = FACE[i * 6 + 1] = FACE[i * 6 + 5] = T[t.side]; FACE[i * 6 + 4] = T[t.front || t.side]; FACE[i * 6 + 2] = T[t.top]; FACE[i * 6 + 3] = T[t.bottom];
+  const f = [T[t.side], T[t.side], T[t.top], T[t.bottom], T[t.front || t.side], T[t.side]];
+  if (b.turn){ const fronts = [4, 0, 5, 1]; f[4] = T[t.side]; f[fronts[b.turn]] = T[t.front || t.side]; }      // the front on +z, then +x, -z, -x
+  if (b.axis === 1){ f[0] = f[1] = T[t.top]; f[2] = f[3] = f[4] = f[5] = T[t.side]; for (const k of [2, 3, 4, 5]) FROT[i * 6 + k] = 1; }       // lying along x
+  if (b.axis === 2){ f[4] = f[5] = T[t.top]; f[0] = f[1] = f[2] = f[3] = T[t.side]; for (const k of [0, 1]) FROT[i * 6 + k] = 1; }            // lying along z
+  for (let k = 0; k < 6; k++) FACE[i * 6 + k] = f[k];
 }
+for (const b of L){ if (b.turn) TURN[B[b.of] * 4 + b.turn] = b.id; if (b.axis) AXIS[B[b.of] * 3 + b.axis] = b.id; }
+for (const b of L) if (!b.turn && !b.axis && b.id){ TURN[b.id * 4] = b.id; AXIS[b.id * 3] = b.id; }
 export const CATS = [['build', 'Building'], ['colour', 'Colours'], ['nature', 'Nature'], ['ores', 'Ores and minerals'], ['decor', 'Lights and decoration']];
