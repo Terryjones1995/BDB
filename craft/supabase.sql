@@ -1,4 +1,4 @@
--- BDB Craft: worlds saved on the server, and the list of worlds friends are playing in right now.
+-- BDB Craft: worlds saved on the server, the list of worlds friends are playing in right now, and each player's character.
 -- Run this once in the Supabase SQL editor, after brawl/supabase.sql (Craft uses the same accounts). It is safe to run again.
 -- Like Brawl, the tables have row level security on and no policies: the page can only call the functions below.
 
@@ -23,6 +23,13 @@ create table if not exists public.craft_chunks (
   d          text not null,                               -- the 16 x 16 x 128 blocks, deflated, base64
   primary key (world_id, cx, cz)
 );
+-- each player's character (skin, hair, clothes: small numbers, see craft/skin.js)
+create table if not exists public.craft_profiles (
+  name_key   text primary key references public.brawl_players(name_key) on delete cascade,
+  skin       jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.craft_profiles enable row level security;
 alter table public.craft_worlds enable row level security;
 alter table public.craft_chunks enable row level security;
 
@@ -125,7 +132,25 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+create or replace function public.craft_me(p_name text, p_token uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare k text := craft_who(p_name, p_token);
+begin
+  if k is null then return jsonb_build_object('error', 'bad_token'); end if;
+  return jsonb_build_object('name', (select name from brawl_players where name_key = k), 'skin', (select skin from craft_profiles where name_key = k));
+end $$;
+
+create or replace function public.craft_set_skin(p_name text, p_token uuid, p_skin jsonb)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare k text := craft_who(p_name, p_token);
+begin
+  if k is null then return jsonb_build_object('error', 'bad_token'); end if;
+  if p_skin is null or jsonb_typeof(p_skin) <> 'object' or pg_column_size(p_skin) > 1000 then return jsonb_build_object('error', 'bad_input'); end if;
+  insert into craft_profiles (name_key, skin) values (k, p_skin) on conflict (name_key) do update set skin = excluded.skin, updated_at = now();
+  return jsonb_build_object('ok', true);
+end $$;
+
 revoke all on function public.craft_who(text, uuid) from public, anon, authenticated;
 grant execute on function public.craft_list(text, uuid), public.craft_new(text, uuid, text, bigint, text), public.craft_rename(text, uuid, bigint, text),
   public.craft_delete(text, uuid, bigint), public.craft_load(text, uuid, bigint, int), public.craft_save(text, uuid, bigint, jsonb, jsonb),
-  public.craft_live(text, uuid, bigint, text) to anon, authenticated;
+  public.craft_live(text, uuid, bigint, text), public.craft_me(text, uuid), public.craft_set_skin(text, uuid, jsonb) to anon, authenticated;

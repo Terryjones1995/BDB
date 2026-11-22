@@ -109,6 +109,20 @@ body.k{background:#0b1426}
 #invbar .slot.on{border-color:#fff}
 #invname{min-height:20px;text-align:center;font-weight:700}
 #load .bar{height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+#charp .panel{width:min(860px,100%)}
+.charwrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:18px;min-height:0}
+#charview{width:270px;height:380px;border-radius:12px;background:radial-gradient(ellipse 70% 55% at 50% 40%,rgba(255,138,43,.22),transparent 70%),rgba(0,0,0,.25);cursor:grab;touch-action:none}
+#charview:active{cursor:grabbing}
+.opts{overflow:auto;max-height:min(56vh,440px);display:flex;flex-direction:column;gap:11px;padding-right:4px}
+.opt{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px;align-items:center}
+.opt > span{font-weight:700;font-size:13px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips .sw{width:28px;height:28px;border-radius:6px;border:2px solid rgba(255,255,255,.14);cursor:pointer;padding:0}
+.chips .sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--orange)}
+.chips .tx{height:30px;padding:0 11px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);font:700 13px var(--f-body);cursor:pointer}
+.chips .tx.on{background:var(--orange);color:#1a0d02;border-color:var(--orange)}
+.chips input{width:74px;height:30px;border-radius:7px;border:1px solid var(--edge);background:rgba(0,0,0,.3);color:var(--ink);font:600 15px var(--f-body);padding:0 8px}
+@media (max-width:720px){.charwrap{grid-template-columns:1fr}#charview{width:100%;height:260px}}
 #load .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--gold));transition:width .2s}
 .desk{display:none}
 @media (pointer:coarse) and (max-width:900px){.desk{display:block}}
@@ -166,13 +180,26 @@ body.k{background:#0b1426}
 
 <section class="screen dim" id="signp" hidden>
   <form class="panel" id="signf">
-    <h2>Sign in</h2>
-    <p>Same account as Break Room Brawl. Signed in, your worlds are kept online and friends can find the ones you open to them.</p>
+    <h2 id="stitle">Sign in</h2>
+    <p id="stext">Same account as Break Room Brawl. Your character and worlds are kept on it, and friends can find the worlds you open to them.</p>
     <div class="field"><label for="sname">Name</label><input id="sname" maxlength="20" required autocomplete="username"></div>
-    <div class="field"><label for="spass">Password</label><input id="spass" type="password" maxlength="72" required autocomplete="current-password"></div>
+    <div class="field"><label for="spass">Password</label><input id="spass" type="password" maxlength="72" autocomplete="current-password"></div>
     <p class="note" id="snote"></p>
-    <div class="btns"><button type="submit" class="k-btn primary">Sign in</button><button type="button" class="k-btn" id="sreg">Make an account</button><button type="button" class="k-btn" data-close>Cancel</button></div>
+    <div class="btns"><button type="submit" class="k-btn primary">Sign in</button><button type="button" class="k-btn" id="sreg">Make an account</button><button type="button" class="k-btn" id="scancel" data-close>Cancel</button></div>
+    <div class="btns" id="slocal-f" hidden><button type="button" class="k-btn" id="slocal">Play on this computer only</button></div>
   </form>
+</section>
+
+<section class="screen dim" id="charp" hidden>
+  <div class="panel">
+    <h2 id="ctitle">Make your character</h2>
+    <p id="ctext"></p>
+    <div class="charwrap">
+      <canvas id="charview" aria-label="Your character. Drag to turn it."></canvas>
+      <div class="opts" id="copts"></div>
+    </div>
+    <div class="btns"><button type="button" class="k-btn primary" id="csave">Save character</button><button type="button" class="k-btn" id="crand">Random</button><button type="button" class="k-btn" id="cback">Cancel</button></div>
+  </div>
 </section>
 
 <section class="screen dim" id="load" hidden>
@@ -189,7 +216,7 @@ body.k{background:#0b1426}
   <div class="panel">
     <h2 id="ptitle">Paused</h2>
     <div class="btns"><button type="button" class="k-btn primary big" id="presume">Back to building</button></div>
-    <div class="btns"><button type="button" class="k-btn" id="pinvite">Invite friends</button><button type="button" class="k-btn" id="psettings">Settings</button></div>
+    <div class="btns"><button type="button" class="k-btn" id="pinvite">Invite friends</button><button type="button" class="k-btn" id="pchar">Character</button><button type="button" class="k-btn" id="psettings">Settings</button></div>
     <div class="keys">
       <kbd>WASD</kbd><span>Walk. Ctrl or double tap W to sprint</span>
       <kbd>Space</kbd><span>Jump. Double tap to fly, then Space and Shift go up and down</span>
@@ -199,6 +226,7 @@ body.k{background:#0b1426}
       <kbd>1 to 9</kbd><span>Choose from the hotbar, or use the scroll wheel</span>
       <kbd>E</kbd><span>Every block</span>
       <kbd>T</kbd><span>Chat</span>
+      <kbd>F5</kbd><span>See yourself, from behind or in front</span>
       <kbd>F1 F3</kbd><span>Hide the screen extras, show where you are</span>
     </div>
     <p class="note" id="psave"></p>
@@ -227,6 +255,7 @@ body.k{background:#0b1426}
     <label class="check"><input type="checkbox" id="sinv"> Invert mouse up and down</label>
     <label class="check"><input type="checkbox" id="sclouds"> Clouds</label>
     <label class="check"><input type="checkbox" id="shand"> Show the block in your hand</label>
+    <label class="check"><input type="checkbox" id="sanimals"> Animals</label>
     <div class="btns"><button type="button" class="k-btn" data-back>Done</button></div>
   </div>
 </section>
@@ -245,6 +274,6 @@ body.k{background:#0b1426}
   <div class="panel"><h2 id="mtitle"></h2><p id="mtext"></p><div class="btns"><button type="button" class="k-btn primary" id="mok">Back to the start</button></div></div>
 </section>
 
-<script type="module" src="main.js?v=c2"></script>
+<script type="module" src="main.js?v=c4"></script>
 </body>
 </html>

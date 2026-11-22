@@ -1,8 +1,9 @@
 /* BDB Craft: how things look. The block shader (every texture sits in one texture array, so a whole chunk is one draw), the sky, the clouds, the outline
    round the block you are pointing at, and your friends' blocky bodies with name tags. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c2';
-import { TS } from './tex.js?v=c2';
-import { TEX } from './blocks.js?v=c2';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c4';
+import { TS } from './tex.js?v=c4';
+import { TEX } from './blocks.js?v=c4';
+import { body } from './skin.js?v=c4';
 
 const VS = `in vec3 position; in vec3 tex; in float light;
 uniform mat4 modelViewMatrix, projectionMatrix;
@@ -63,24 +64,9 @@ export function outline(scene){
   l.visible = false; scene.add(l);
   return {show(hit){ if (!hit){ l.visible = false; return; } l.visible = true; l.position.set(hit.x + .5, hit.y + .5, hit.z + .5); }};
 }
-/* a friend: a blocky body in their colour, BDB's face on the front of the head, and their name floating over it */
-const SKIN = ['#3c78d8', '#e0663b', '#4fb35a', '#b85fd0', '#e0b43b', '#3bbfc0', '#d04f78', '#7d8a99'];
-export function avatar(scene, name, faceImg, n = 0){
-  const g = new THREE.Group(), col = new THREE.Color(SKIN[n % SKIN.length]), lam = c => new THREE.MeshLambertMaterial({color:c});
-  const skin = lam('#e9b48a'), shirt = lam(col), pants = lam('#2a3550'), dark = lam('#5b3a24');
-  const box = (w, h, d, mats, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats); m.position.set(x, y, z); g.add(m); return m; };
-  let faceMat = skin;
-  if (faceImg && faceImg.complete && faceImg.naturalWidth){
-    const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), s = Math.min(faceImg.width, faceImg.height) * .74;
-    x.drawImage(faceImg, (faceImg.width - s) / 2, Math.max(0, (faceImg.height - s) * .3), s, s, 0, 0, 64, 64);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; faceMat = new THREE.MeshLambertMaterial({map:t});
-  }
-  const head = new THREE.Group(); head.position.set(0, 1.5, 0); g.add(head);
-  const hm = new THREE.Mesh(new THREE.BoxGeometry(.5, .5, .5), [skin, skin, dark, skin, faceMat, skin]); hm.position.y = .25; head.add(hm);       // +z is the front
-  box(.5, .75, .26, shirt, 0, 1.125, 0);
-  const arm = x => { const a = new THREE.Group(); a.position.set(x, 1.45, 0); const m = new THREE.Mesh(new THREE.BoxGeometry(.24, .72, .24), [shirt, shirt, shirt, skin, shirt, shirt]); m.position.y = -.33; a.add(m); g.add(a); return a; };
-  const leg = x => { const a = new THREE.Group(); a.position.set(x, .75, 0); const m = new THREE.Mesh(new THREE.BoxGeometry(.25, .75, .25), pants); m.position.y = -.375; a.add(m); g.add(a); return a; };
-  const la = arm(-.37), ra = arm(.37), ll = leg(-.125), rl = leg(.125);
+/* a friend (or you, seen from behind): their own blocky character from skin.js, and their name floating over it */
+export function avatar(scene, name, skinData){
+  const bd = body(skinData), g = bd.group, {head, la, ra, ll, rl} = bd;
   // the name tag
   const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d');
   x.font = '600 34px Figtree, system-ui, sans-serif'; const w = Math.min(250, x.measureText(name).width + 28);
@@ -89,17 +75,17 @@ export function avatar(scene, name, faceImg, n = 0){
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({map:tt, depthTest:false, transparent:true})); tag.scale.set(1.6, .4, 1); tag.position.y = 2.25; tag.renderOrder = 5; g.add(tag);
   scene.add(g);
   let walk = 0, last = null;
-  const a = {group:g, target:null, name,
+  const a = {group:g, target:null, name, tag, snap:false,
     set(p){ a.target = p; if (!last){ g.position.set(p.x, p.y, p.z); last = {...p}; } },
     update(dt){
       const p = a.target; if (!p) return;
-      const k = 1 - Math.exp(-dt * 14), ox = g.position.x, oz = g.position.z;
+      const k = a.snap ? 1 : 1 - Math.exp(-dt * 14), ox = g.position.x, oz = g.position.z;
       g.position.x += (p.x - g.position.x) * k; g.position.y += (p.y - g.position.y) * k; g.position.z += (p.z - g.position.z) * k;
       let dy = p.yaw + Math.PI - g.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); g.rotation.y += dy * k;
       head.rotation.x = -(p.pitch || 0) * .8;
       const sp = Math.hypot(g.position.x - ox, g.position.z - oz) / Math.max(dt, 1e-3); walk += dt * Math.min(sp, 8) * 2.2;
       const sw = Math.sin(walk) * Math.min(1, sp / 3) * .7; la.rotation.x = sw; ra.rotation.x = -sw; ll.rotation.x = -sw; rl.rotation.x = sw;
     },
-    dispose(){ scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }};
+    dispose(){ scene.remove(g); bd.dispose(); tt.dispose(); }};
   return a;
 }
