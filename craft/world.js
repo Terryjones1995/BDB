@@ -1,15 +1,15 @@
 /* BDB Craft: the world on the page. Keeps the chunks near the player, asks the workers to make and mesh them, turns meshes into three.js objects, and
    tracks every block anyone changes (mods: the whole chunk, kept for good once one block in it changes; that is what gets saved and sent to friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c6';
-import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS } from './blocks.js?v=c6';
-import { PW, PH, PAD, pidx } from './mesh.js?v=c6';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c9';
+import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS } from './blocks.js?v=c9';
+import { PW, PH, PAD, pidx } from './mesh.js?v=c9';
 const key = (cx, cz) => cx + ',' + cz;
 export function createWorld({seed, kind, scene, matSolid, matClear, workers = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)), wait}){
   const chunks = new Map(), mods = new Map(), dirty = new Set(), pool = [], jobs = new Map(), queue = new Map(), far = new Set();
   function drain(k, v){ const q = queue.get(k); if (!q) return; for (let j = 0; j < q.length; j += 2) v[q[j]] = q[j + 1]; queue.delete(k); mods.set(k, v); dirty.add(k); }
   let nid = 0, R = 8, centre = [0, 0], busyGen = 0, busyMesh = 0, alive = true, stats = {gen:0, mesh:0};
   for (let i = 0; i < workers; i++){
-    const w = new Worker(new URL('./worker.js?v=c6', import.meta.url), {type:'module'});
+    const w = new Worker(new URL('./worker.js?v=c9', import.meta.url), {type:'module'});
     w.onmessage = e => done(e.data); w.busy = 0; pool.push(w);
   }
   const free = () => pool.reduce((a, w) => w.busy < a.busy ? w : a, pool[0]);
@@ -42,7 +42,7 @@ export function createWorld({seed, kind, scene, matSolid, matClear, workers = Ma
   }
   function remesh(c, soon){ c.need = true; if (soon) c.soon = true; }
   function padded(cx, cz){
-    const v = new Uint8Array(PW * PH * PW);
+    const v = new Uint16Array(PW * PH * PW);
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++){
       const n = chunks.get(key(cx + dx, cz + dz)).v, x0 = dx < 0 ? CH - PAD : 0, x1 = dx > 0 ? PAD - 1 : CH - 1, z0 = dz < 0 ? CH - PAD : 0, z1 = dz > 0 ? PAD - 1 : CH - 1;
       for (let y = 0; y < H; y++) for (let z = z0; z <= z1; z++){ const row = (y * CH + z) * CH; for (let x = x0; x <= x1; x++) v[pidx(x + dx * CH, y, z + dz * CH)] = n[row + x]; }
@@ -55,7 +55,7 @@ export function createWorld({seed, kind, scene, matSolid, matClear, workers = Ma
       const old = c[part]; if (old){ scene.remove(old); old.geometry.dispose(); c[part] = null; }
       const m = r[part]; if (!m.idx.length) continue;
       const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.BufferAttribute(m.pos, 3)); g.setAttribute('tex', new THREE.BufferAttribute(m.tex, 3)); g.setAttribute('light', new THREE.BufferAttribute(m.light, 1));
+      g.setAttribute('position', new THREE.BufferAttribute(m.pos, 3)); g.setAttribute('tex', new THREE.BufferAttribute(m.tex, 3)); g.setAttribute('light', new THREE.BufferAttribute(m.light, 2));
       g.setIndex(new THREE.BufferAttribute(m.idx, 1)); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(CH / 2, H / 2, CH / 2), Math.hypot(CH, H, CH) / 2);
       const o = new THREE.Mesh(g, mat); o.position.set(c.cx * CH, 0, c.cz * CH); o.matrixAutoUpdate = false; o.updateMatrix(); if (part === 'clear') o.renderOrder = 1;
       scene.add(o); c[part] = o;

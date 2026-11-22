@@ -1,7 +1,7 @@
 /* BDB Craft: where worlds are kept. Signed in (the same account as Break Room Brawl), worlds live on the BDB server in Supabase, so they follow you to
    any computer and friends can join. Not signed in, or the server is not set up for Craft yet, they live in this browser (IndexedDB).
    A world is its settings (name, seed, type, where you were standing) plus every chunk anyone changed, each squeezed with deflate and sent as base64. */
-import { SUPABASE_URL, SUPABASE_KEY } from '../brawl/config.js?v=c6';
+import { SUPABASE_URL, SUPABASE_KEY } from '../brawl/config.js?v=c9';
 const base = (new URLSearchParams(location.search).get('api') || SUPABASE_URL || '').replace(/\/+$/, '');
 const SKEY = 'brawl-session';
 export function session(){ try { const s = JSON.parse(localStorage.getItem(SKEY)); if (s && typeof s.name === 'string' && typeof s.token === 'string') return s; } catch(e){} return null; }
@@ -11,8 +11,12 @@ function keep(s){ try { if (s) localStorage.setItem(SKEY, JSON.stringify(s)); el
 async function pipe(bytes, stream){ const r = new Response(new Blob([bytes]).stream().pipeThrough(stream)); return new Uint8Array(await r.arrayBuffer()); }
 const b64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
 const unb64 = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
-export async function pack(v){ return b64(await pipe(v, new CompressionStream('deflate-raw'))); }
-export async function unpack(s){ const u = await pipe(unb64(s), new DecompressionStream('deflate-raw')); if (u.length !== 32768) throw new Error('bad chunk'); return u; }
+export async function pack(v){ return b64(await pipe(new Uint8Array(v.buffer, v.byteOffset, v.byteLength), new CompressionStream('deflate-raw'))); }
+/* chunks are 16 x 16 x 128 block numbers of two bytes each; worlds saved before there were more than 256 blocks have one byte each and are widened here */
+export async function unpack(s){ const u = await pipe(unb64(s), new DecompressionStream('deflate-raw'));
+  if (u.length === 65536) return new Uint16Array(u.buffer, u.byteOffset, 32768).slice();
+  if (u.length === 32768) return Uint16Array.from(u);
+  throw new Error('bad chunk'); }
 
 /* the server */
 async function rpc(fn, args){

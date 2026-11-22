@@ -4,7 +4,7 @@
    so the only blocks that travel are the chunks someone has changed.
    Messages: hi (host to a new friend: the world and which chunks changed), ch (one changed chunk), me (my name and character), p (where I am), e (a block changed),
    c (chat), pl (who is here, from the host), an (where the animals are, from the host), sl (I hit an animal, to the host). */
-import { openTransport } from '../chess/net.js?v=c6';
+import { openTransport } from '../chess/net.js?v=c9';
 const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => ABC[b % ABC.length]).join('');
 export const cleanCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -33,7 +33,7 @@ export async function openParty({local, code, host, name, skin, on}){
     if (t === 'pl' && from === hostId){ for (const [id, nm, sk] of d) if (id !== net.selfId && !people.has(id)) people.set(id, {name:String(nm).slice(0, 20), n:++n, skin:sk && typeof sk === 'object' ? sk : null}); on.people && on.people(list()); return; }
     if (t === 'p'){ on.pos && on.pos(from, d); return; }
     if (t === 'e'){
-      const x = d[0] | 0, y = d[1] | 0, z = d[2] | 0, b = d[3] | 0; if (b < 0 || b > 255 || y < 1 || y > 127) return;
+      const x = d[0] | 0, y = d[1] | 0, z = d[2] | 0, b = d[3] | 0; if (b < 0 || b > 4095 || y < 1 || y > 127) return;
       if (host){ if (on.edit(x, y, z, b, from) !== false) room.send('e', [x, y, z, b]); }        // the host checks it, then everyone gets it
       else if (from === hostId) on.edit(x, y, z, b, from);
       return;

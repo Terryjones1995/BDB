@@ -1,5 +1,6 @@
 /* BDB Craft: you. A 0.6 by 1.8 box that walks, jumps, sprints and (this is creative) flies, and never goes through a solid block.
    Moves one axis at a time and stops at the first block in the way; walks up nothing taller than a jump. Eye height 1.62, like the real thing. */
+import { LIQUID } from './blocks.js?v=c9';
 export const W = .3, HGT = 1.8, EYE = 1.62;
 export function createPlayer(world){
   const p = {x:.5, y:80, z:.5, vx:0, vy:0, vz:0, yaw:0, pitch:0, fly:false, ground:false, sprint:false, inWater:false,
@@ -15,7 +16,7 @@ export function createPlayer(world){
     let mx = (k.r ? 1 : 0) - (k.l ? 1 : 0), mz = (k.b ? 1 : 0) - (k.f ? 1 : 0); const ml = Math.hypot(mx, mz); if (ml){ mx /= ml; mz /= ml; }
     if (!k.f) p.sprint = false; else if (k.sprint) p.sprint = true;
     const wx = mx * cos + mz * sin, wz = -mx * sin + mz * cos;
-    const feet = world.get(Math.floor(p.x), Math.floor(p.y + .4), Math.floor(p.z)); p.inWater = feet === 20;
+    const feet = world.get(Math.floor(p.x), Math.floor(p.y + .4), Math.floor(p.z)); p.inWater = feet > 0 && LIQUID[feet] > 0;
     if (p.fly){
       const sp = p.sprint ? 21.6 : 10.9, a = 1 - Math.exp(-dt * 10);
       p.vx += (wx * sp - p.vx) * a; p.vz += (wz * sp - p.vz) * a; p.vy += (((k.up ? 1 : 0) - (k.down ? 1 : 0)) * 8 - p.vy) * a;

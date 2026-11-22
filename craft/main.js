@@ -1,19 +1,19 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c6';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c6';
-import { paintAll, icon, TS } from './tex.js?v=c6';
-import { column } from './gen.js?v=c6';
-import { createWorld } from './world.js?v=c6';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c6';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c6';
-import { createHand } from './hand.js?v=c6';
-import { createPlayer, EYE } from './player.js?v=c6';
-import { createAnimals } from './animals.js?v=c6';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c6';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c6';
-import { openParty, newCode, cleanCode } from './party.js?v=c6';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c9';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c9';
+import { paintAll, icon, TS } from './tex.js?v=c9';
+import { column } from './gen.js?v=c9';
+import { createWorld } from './world.js?v=c9';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c9';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c9';
+import { createHand } from './hand.js?v=c9';
+import { createPlayer, EYE } from './player.js?v=c9';
+import { createAnimals } from './animals.js?v=c9';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c9';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c9';
+import { openParty, newCode, cleanCode } from './party.js?v=c9';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);

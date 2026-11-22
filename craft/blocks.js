@@ -1,16 +1,9 @@
 /* BDB Craft: every block, what it looks like and how it behaves. Shared by the page and the workers, so no DOM here.
-   A block id is one byte. Faces go +x, -x, +y, -y, +z, -z. Every texture is drawn in code by tex.js: nothing here comes from any other game. */
+   A block id is two bytes (ids are kept forever: new blocks only ever go on the end, or saved worlds would change). Faces go +x, -x, +y, -y, +z, -z. Every texture is drawn in code by tex.js: nothing here comes from any other game. */
 export const CH = 16, H = 128, SEA = 62;
 export const COLOURS = [['white', '#e9ecec'], ['orange', '#f07613'], ['magenta', '#bd44b3'], ['light blue', '#3aafd9'], ['yellow', '#f8c527'], ['lime', '#70b919'], ['pink', '#ed8dac'], ['grey', '#3e4447'],
   ['light grey', '#8e8e86'], ['cyan', '#158991'], ['purple', '#792aac'], ['blue', '#35399d'], ['brown', '#724728'], ['green', '#546d1b'], ['red', '#a12722'], ['black', '#141519']];
-/* textures: one layer each in the texture array, in this order */
-export const TEX = ['stone', 'dirt', 'grass_top', 'grass_side', 'cobble', 'planks_oak', 'planks_birch', 'planks_spruce', 'log_oak', 'log_oak_top', 'log_birch', 'log_birch_top', 'log_spruce', 'log_spruce_top',
-  'leaves_oak', 'leaves_birch', 'leaves_spruce', 'sand', 'sandstone', 'sandstone_top', 'gravel', 'snow', 'grass_snow', 'ice', 'water', 'glass', 'bricks', 'stone_bricks', 'mossy_cobble', 'clay',
-  'ore_coal', 'ore_iron', 'ore_gold', 'ore_diamond', 'ore_emerald', 'ore_ruby', 'block_gold', 'block_iron', 'block_diamond', 'block_emerald', 'bookshelf', 'lamp', 'obsidian', 'bedrock',
-  'cactus_side', 'cactus_top', 'pumpkin_side', 'pumpkin_top', 'melon_side', 'melon_top', 'hay_side', 'hay_top', 'smooth_stone', 'terracotta', 'chiseled', 'tall_grass', 'flower_red', 'flower_yellow',
-  'dead_bush', 'mushroom', 'quartz', 'quartz_top', 'planks_dark', 'log_dark', 'log_dark_top', 'leaves_dark', 'basalt', 'granite', 'mud_bricks', 'crate', 'brick_red', 'tiles',
-  ...COLOURS.map(c => 'wool_' + c[0]), ...COLOURS.map(c => 'concrete_' + c[0]), ...COLOURS.map(c => 'glass_' + c[0])];
-export const T = Object.fromEntries(TEX.map((n, i) => [n, i]));
+
 /* the blocks. tex: one name for all six faces, or {top, side, bottom}. kind: solid (default), cutout (leaves, clear glass: holes you see through), glass (tinted,
    drawn see-through after everything else), plant (an X of two pictures, walk-through), liquid. self: no faces between two of the same. cat: the creative tab it sits in */
 const L = [];
@@ -28,7 +21,7 @@ add('bricks', 'Bricks', 'bricks', 'build'); add('stone_bricks', 'Stone Bricks', 
 add('ore_coal', 'Coal Ore', 'ore_coal', 'ores'); add('ore_iron', 'Iron Ore', 'ore_iron', 'ores'); add('ore_gold', 'Gold Ore', 'ore_gold', 'ores'); add('ore_diamond', 'Diamond Ore', 'ore_diamond', 'ores');
 add('ore_emerald', 'Emerald Ore', 'ore_emerald', 'ores'); add('ore_ruby', 'Ruby Ore', 'ore_ruby', 'ores');
 add('block_gold', 'Block of Gold', 'block_gold', 'ores'); add('block_iron', 'Block of Iron', 'block_iron', 'ores'); add('block_diamond', 'Block of Diamond', 'block_diamond', 'ores'); add('block_emerald', 'Block of Emerald', 'block_emerald', 'ores');
-add('bookshelf', 'Bookshelf', {top:'planks_oak', side:'bookshelf'}, 'decor'); add('lamp', 'Lamp', 'lamp', 'decor', {glow:true}); add('obsidian', 'Obsidian', 'obsidian', 'build'); add('bedrock', 'Bedrock', 'bedrock', 'build');
+add('bookshelf', 'Bookshelf', {top:'planks_oak', side:'bookshelf'}, 'decor'); add('lamp', 'Lamp', 'lamp', 'decor', {glow:8}); add('obsidian', 'Obsidian', 'obsidian', 'build'); add('bedrock', 'Bedrock', 'bedrock', 'build');
 add('cactus', 'Cactus', {top:'cactus_top', side:'cactus_side'}, 'nature'); add('pumpkin', 'Pumpkin', {top:'pumpkin_top', side:'pumpkin_side'}, 'decor'); add('melon', 'Melon', {top:'melon_top', side:'melon_side'}, 'decor');
 add('hay', 'Hay Bale', {top:'hay_top', side:'hay_side'}, 'decor'); add('smooth_stone', 'Smooth Stone', 'smooth_stone', 'build'); add('terracotta', 'Terracotta', 'terracotta', 'build');
 add('chiseled', 'Chiseled Stone Bricks', 'chiseled', 'build');      // this slot was once a block with a face on it; worlds saved then show this instead
@@ -40,19 +33,96 @@ add('crate', 'Break Room Crate', 'crate', 'decor'); add('brick_red', 'Red Brick 
 for (const [c] of COLOURS) add('wool_' + c.replace(' ', '_'), c[0].toUpperCase() + c.slice(1) + ' Wool', 'wool_' + c, 'colour');
 for (const [c] of COLOURS) add('concrete_' + c.replace(' ', '_'), c[0].toUpperCase() + c.slice(1) + ' Concrete', 'concrete_' + c, 'colour');
 for (const [c] of COLOURS) add('glass_' + c.replace(' ', '_'), c[0].toUpperCase() + c.slice(1) + ' Stained Glass', 'glass_' + c, 'colour', {kind:'glass', self:true});
+
+/* ---------- everything added in the big block update (ids from 110 on) ---------- */
+const cap = s => s.split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+// woods: the four old ones get stripped logs; the new ones get the lot
+for (const [w, n] of [['oak', 'Oak'], ['birch', 'Birch'], ['spruce', 'Spruce'], ['dark', 'Dark Oak']]) add('stripped_' + w, 'Stripped ' + n + ' Log', {top:'stripped_' + w + '_top', side:'stripped_' + w}, 'nature');
+for (const [w, n, leaf] of [['jungle', 'Jungle', 'Leaves'], ['acacia', 'Acacia', 'Leaves'], ['mangrove', 'Mangrove', 'Leaves'], ['cherry', 'Cherry', 'Leaves'], ['crimson', 'Crimson', 'Wart Block'], ['warped', 'Warped', 'Wart Block']]){
+  const stem = w === 'crimson' || w === 'warped';
+  add('planks_' + w, n + ' Planks', 'planks_' + w, 'build');
+  add('log_' + w, n + (stem ? ' Stem' : ' Log'), {top:'log_' + w + '_top', side:'log_' + w}, 'nature');
+  add('stripped_' + w, 'Stripped ' + n + (stem ? ' Stem' : ' Log'), {top:'stripped_' + w + '_top', side:'stripped_' + w}, 'nature');
+  add('leaves_' + w, stem ? (w === 'crimson' ? 'Nether Wart Block' : 'Warped Wart Block') : n + ' Leaves', 'leaves_' + w, 'nature', stem ? {} : {kind:'cutout'});
+}
+add('planks_bamboo', 'Bamboo Planks', 'planks_bamboo', 'build'); add('bamboo_block', 'Block of Bamboo', {top:'bamboo_block_top', side:'bamboo_block'}, 'build');
+// stones
+const st = (k, n, t, cat = 'build', o) => add(k, n, t || k, cat, o);
+st('andesite', 'Andesite'); st('polished_andesite', 'Polished Andesite'); st('diorite', 'Diorite'); st('polished_diorite', 'Polished Diorite'); st('polished_granite', 'Polished Granite');
+st('deepslate', 'Deepslate', {top:'deepslate_top', side:'deepslate'}); st('cobbled_deepslate', 'Cobbled Deepslate'); st('deepslate_bricks', 'Deepslate Bricks'); st('deepslate_tiles', 'Deepslate Tiles');
+st('polished_deepslate', 'Polished Deepslate'); st('chiseled_deepslate', 'Chiseled Deepslate'); st('tuff', 'Tuff'); st('calcite', 'Calcite');
+st('blackstone', 'Blackstone', {top:'blackstone_top', side:'blackstone'}); st('polished_blackstone', 'Polished Blackstone'); st('blackstone_bricks', 'Polished Blackstone Bricks'); st('gilded_blackstone', 'Gilded Blackstone');
+st('netherrack', 'Netherrack', null, 'nature'); st('nether_bricks', 'Nether Bricks'); st('red_nether_bricks', 'Red Nether Bricks'); st('end_stone', 'End Stone', null, 'nature'); st('end_stone_bricks', 'End Stone Bricks');
+st('purpur', 'Purpur Block'); st('purpur_pillar', 'Purpur Pillar', {top:'purpur_pillar_top', side:'purpur_pillar'}); st('prismarine', 'Prismarine'); st('prismarine_bricks', 'Prismarine Bricks'); st('dark_prismarine', 'Dark Prismarine');
+st('red_sandstone', 'Red Sandstone', {top:'red_sandstone_top', side:'red_sandstone'}); st('cut_sandstone', 'Cut Sandstone', {top:'sandstone_top', side:'cut_sandstone'}); st('chiseled_sandstone', 'Chiseled Sandstone', {top:'sandstone_top', side:'chiseled_sandstone'});
+st('smooth_sandstone', 'Smooth Sandstone', 'sandstone_top'); st('cut_red_sandstone', 'Cut Red Sandstone', {top:'red_sandstone_top', side:'cut_red_sandstone'}); st('smooth_red_sandstone', 'Smooth Red Sandstone', 'red_sandstone_top');
+st('smooth_quartz', 'Smooth Quartz Block', 'quartz_top'); st('quartz_bricks', 'Quartz Bricks'); st('quartz_pillar', 'Quartz Pillar', {top:'quartz_pillar_top', side:'quartz_pillar'}); st('chiseled_quartz', 'Chiseled Quartz Block', {top:'quartz_top', side:'chiseled_quartz'});
+st('mossy_stone_bricks', 'Mossy Stone Bricks'); st('cracked_stone_bricks', 'Cracked Stone Bricks'); st('packed_mud', 'Packed Mud'); st('crying_obsidian', 'Crying Obsidian', null, 'build', {glow:4});
+st('amethyst', 'Block of Amethyst'); st('copper_block', 'Block of Copper', null, 'ores'); st('copper_exposed', 'Exposed Copper', null, 'ores'); st('copper_weathered', 'Weathered Copper', null, 'ores'); st('copper_oxidized', 'Oxidized Copper', null, 'ores');
+st('cut_copper', 'Cut Copper', null, 'ores'); st('smooth_basalt', 'Smooth Basalt'); st('polished_basalt', 'Polished Basalt', {top:'polished_basalt_top', side:'polished_basalt'});
+// colours: concrete powder, terracotta and glazed terracotta in all 16
+for (const [c] of COLOURS) add('powder_' + c.replace(' ', '_'), cap(c) + ' Concrete Powder', 'powder_' + c, 'colour');
+for (const [c] of COLOURS) add('terracotta_' + c.replace(' ', '_'), cap(c) + ' Terracotta', 'terracotta_' + c, 'colour');
+for (const [c] of COLOURS) add('glazed_' + c.replace(' ', '_'), cap(c) + ' Glazed Terracotta', 'glazed_' + c, 'colour');
+// natural
+st('coarse_dirt', 'Coarse Dirt', null, 'nature'); st('podzol', 'Podzol', {top:'podzol_top', side:'podzol_side', bottom:'dirt'}, 'nature'); st('mycelium', 'Mycelium', {top:'mycelium_top', side:'mycelium_side', bottom:'dirt'}, 'nature');
+st('rooted_dirt', 'Rooted Dirt', null, 'nature'); st('mud', 'Mud', null, 'nature'); st('moss', 'Moss Block', null, 'nature'); st('red_sand', 'Red Sand', null, 'nature');
+st('packed_ice', 'Packed Ice', null, 'nature'); st('blue_ice', 'Blue Ice', null, 'nature'); st('magma', 'Magma Block', null, 'nature', {glow:3}); st('soul_sand', 'Soul Sand', null, 'nature'); st('soul_soil', 'Soul Soil', null, 'nature');
+st('sponge', 'Sponge', null, 'nature'); st('dirt_path', 'Dirt Path', {top:'dirt_path_top', side:'dirt_path_side', bottom:'dirt'}, 'nature');
+st('crimson_nylium', 'Crimson Nylium', {top:'crimson_nylium', side:'crimson_nylium_side', bottom:'netherrack'}, 'nature'); st('warped_nylium', 'Warped Nylium', {top:'warped_nylium', side:'warped_nylium_side', bottom:'netherrack'}, 'nature');
+st('bone_block', 'Bone Block', {top:'bone_block_top', side:'bone_block'}, 'nature');
+for (const [k, n] of [['tube', 'Tube'], ['brain', 'Brain'], ['bubble', 'Bubble'], ['fire', 'Fire'], ['horn', 'Horn']]) add('coral_' + k, n + ' Coral Block', 'coral_' + k, 'nature');
+add('lava', 'Lava', 'lava', 'nature', {kind:'liquid', lava:true, glow:8, self:true});
+// lights
+st('glowstone', 'Glowstone', null, 'decor', {glow:8}); st('sea_lantern', 'Sea Lantern', null, 'decor', {glow:8}); st('shroomlight', 'Shroomlight', null, 'decor', {glow:8});
+st('jack_o_lantern', "Jack o'Lantern", {top:'pumpkin_top', side:'pumpkin_side', front:'jack_face'}, 'decor', {glow:8}); st('redstone_lamp', 'Redstone Lamp', null, 'decor', {glow:8});
+st('froglight_ochre', 'Ochre Froglight', {top:'froglight_ochre_top', side:'froglight_ochre'}, 'decor', {glow:8}); st('froglight_verdant', 'Verdant Froglight', {top:'froglight_verdant_top', side:'froglight_verdant'}, 'decor', {glow:8});
+st('froglight_pearl', 'Pearlescent Froglight', {top:'froglight_pearl_top', side:'froglight_pearl'}, 'decor', {glow:8}); st('beacon', 'Beacon', null, 'decor', {kind:'cutout', glow:8});
+// ores and minerals
+for (const [k, n] of [['coal', 'Coal'], ['iron', 'Iron'], ['gold', 'Gold'], ['diamond', 'Diamond'], ['emerald', 'Emerald'], ['copper', 'Copper'], ['lapis', 'Lapis Lazuli'], ['redstone', 'Redstone']]) add('deep_ore_' + k, 'Deepslate ' + n + ' Ore', 'deep_ore_' + k, 'ores');
+st('ore_copper', 'Copper Ore', null, 'ores'); st('ore_lapis', 'Lapis Lazuli Ore', null, 'ores'); st('ore_redstone', 'Redstone Ore', null, 'ores'); st('ore_nether_gold', 'Nether Gold Ore', null, 'ores'); st('ore_quartz', 'Nether Quartz Ore', null, 'ores');
+st('ancient_debris', 'Ancient Debris', {top:'ancient_debris_top', side:'ancient_debris'}, 'ores');
+st('block_coal', 'Block of Coal', null, 'ores'); st('block_lapis', 'Block of Lapis Lazuli', null, 'ores'); st('block_redstone', 'Block of Redstone', null, 'ores'); st('block_netherite', 'Block of Netherite', null, 'ores');
+st('raw_iron', 'Block of Raw Iron', null, 'ores'); st('raw_gold', 'Block of Raw Gold', null, 'ores'); st('raw_copper', 'Block of Raw Copper', null, 'ores'); st('block_ruby', 'Block of Ruby', null, 'ores');
+// plants
+const pl = (k, n) => add(k, n, k, 'nature', {kind:'plant'});
+pl('fern', 'Fern'); for (const [k, n] of [['oak', 'Oak'], ['birch', 'Birch'], ['spruce', 'Spruce'], ['jungle', 'Jungle'], ['acacia', 'Acacia'], ['dark', 'Dark Oak'], ['cherry', 'Cherry']]) pl('sapling_' + k, n + ' Sapling');
+pl('blue_orchid', 'Blue Orchid'); pl('allium', 'Allium'); pl('azure_bluet', 'Azure Bluet'); pl('tulip_red', 'Red Tulip'); pl('tulip_orange', 'Orange Tulip'); pl('tulip_white', 'White Tulip'); pl('tulip_pink', 'Pink Tulip');
+pl('oxeye_daisy', 'Oxeye Daisy'); pl('cornflower', 'Cornflower'); pl('lily_valley', 'Lily of the Valley'); pl('sunflower', 'Sunflower'); pl('rose_bush', 'Rose Bush'); pl('peony', 'Peony'); pl('lilac', 'Lilac');
+pl('brown_mushroom', 'Brown Mushroom'); pl('sugar_cane', 'Sugar Cane'); pl('bamboo', 'Bamboo'); pl('berry_bush', 'Sweet Berry Bush'); pl('crimson_fungus', 'Crimson Fungus'); pl('warped_fungus', 'Warped Fungus');
+pl('crimson_roots', 'Crimson Roots'); pl('warped_roots', 'Warped Roots'); pl('wither_rose', 'Wither Rose'); pl('torchflower', 'Torchflower');
+for (const [k, n] of [['tube', 'Tube'], ['brain', 'Brain'], ['bubble', 'Bubble'], ['fire', 'Fire'], ['horn', 'Horn']]) pl('coral_plant_' + k, n + ' Coral');
+// useful-looking blocks
+st('crafting_table', 'Crafting Table', {top:'crafting_top', side:'crafting_side', front:'crafting_front', bottom:'planks_oak'}, 'decor'); st('furnace', 'Furnace', {top:'furnace_top', side:'furnace_side', front:'furnace_front'}, 'decor');
+st('chest', 'Chest', {top:'chest_top', side:'chest_side', front:'chest_front'}, 'decor'); st('barrel', 'Barrel', {top:'barrel_top', side:'barrel_side', bottom:'barrel_top'}, 'decor');
+st('jukebox', 'Jukebox', {top:'jukebox_top', side:'jukebox_side'}, 'decor'); st('note_block', 'Note Block', null, 'decor'); st('tnt', 'TNT', {top:'tnt_top', side:'tnt_side', bottom:'tnt_bottom'}, 'decor');
+st('target', 'Target', {top:'target_top', side:'target_side'}, 'decor'); st('honey', 'Honey Block', null, 'decor', {kind:'glass', self:true}); st('slime', 'Slime Block', null, 'decor', {kind:'glass', self:true});
+st('smithing_table', 'Smithing Table', {top:'smithing_top', side:'smithing_side'}, 'decor'); st('fletching_table', 'Fletching Table', {top:'fletching_top', side:'fletching_side'}, 'decor');
+st('cartography_table', 'Cartography Table', {top:'cartography_top', side:'cartography_side'}, 'decor'); st('loom', 'Loom', {top:'loom_top', side:'loom_side', front:'loom_front'}, 'decor');
+st('beehive', 'Beehive', {top:'beehive_top', side:'beehive_side', front:'beehive_front'}, 'decor'); st('dispenser', 'Dispenser', {top:'furnace_top', side:'furnace_side', front:'dispenser_front'}, 'decor');
+st('observer', 'Observer', {top:'observer_top', side:'observer_side', front:'observer_front'}, 'decor'); st('piston', 'Piston', {top:'piston_top', side:'piston_side', bottom:'piston_bottom'}, 'decor');
+st('mushroom_block_red', 'Red Mushroom Block', null, 'nature'); st('mushroom_block_brown', 'Brown Mushroom Block', null, 'nature'); st('mushroom_stem', 'Mushroom Stem', null, 'nature');
+st('dried_kelp', 'Dried Kelp Block', {top:'dried_kelp_top', side:'dried_kelp'}, 'decor'); st('honeycomb', 'Honeycomb Block', null, 'decor'); st('reinforced_deepslate', 'Reinforced Deepslate', {top:'reinforced_top', side:'reinforced_side'}, 'build');
+st('tinted_glass', 'Tinted Glass', null, 'build', {kind:'glass', self:true});
+
 L.forEach((b, i) => { b.id = i; b.kind = b.kind || 'solid'; });
+/* textures: one layer each in the texture array, every name a block uses, in the order first used */
+export const TEX = [...new Set(L.slice(1).flatMap(b => typeof b.tex === 'string' ? [b.tex] : [b.tex.top, b.tex.side, b.tex.bottom || b.tex.top, b.tex.front || b.tex.side]))];
+export const T = Object.fromEntries(TEX.map((n, i) => [n, i]));
 export const BLOCKS = L;
 export const B = Object.fromEntries(L.map(b => [b.key, b.id]));
 export const N = L.length;
 /* flat tables for the hot loops */
-export const OPAQUE = new Uint8Array(256), SOLID = new Uint8Array(256), CUTOUT = new Uint8Array(256), PLANT = new Uint8Array(256), LIQUID = new Uint8Array(256), SELF = new Uint8Array(256), GLOW = new Uint8Array(256), TRANS = new Uint8Array(256);
-export const FACE = new Uint16Array(256 * 6);
+export const MAXID = 4096;
+export const OPAQUE = new Uint8Array(MAXID), SOLID = new Uint8Array(MAXID), CUTOUT = new Uint8Array(MAXID), PLANT = new Uint8Array(MAXID), LIQUID = new Uint8Array(MAXID), SELF = new Uint8Array(MAXID), GLOW = new Uint8Array(MAXID), TRANS = new Uint8Array(MAXID), EMIT = new Uint8Array(MAXID);
+export const FACE = new Uint16Array(MAXID * 6);
 for (const b of L){
   const i = b.id; if (!i) continue;
-  OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || b.kind === 'liquid' ? 1 : 0; CUTOUT[i] = b.kind === 'cutout' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? 1 : 0;
-  SELF[i] = b.self ? 1 : 0; GLOW[i] = b.glow ? 1 : 0;
-  const t = typeof b.tex === 'string' ? {top:b.tex, side:b.tex, bottom:b.tex} : {top:b.tex.top, side:b.tex.side, bottom:b.tex.bottom || b.tex.top};
+  OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || (b.kind === 'liquid' && !b.lava) ? 1 : 0;
+  CUTOUT[i] = b.kind === 'cutout' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? (b.lava ? 2 : 1) : 0;
+  SELF[i] = b.self ? 1 : 0; GLOW[i] = b.glow ? 1 : 0; EMIT[i] = b.glow === true ? 8 : (b.glow | 0);
+  const t = typeof b.tex === 'string' ? {top:b.tex, side:b.tex, bottom:b.tex} : {top:b.tex.top, side:b.tex.side, bottom:b.tex.bottom || b.tex.top, front:b.tex.front};
   for (const n of [t.top, t.side, t.bottom]) if (T[n] == null) throw new Error('no texture ' + n);
-  FACE[i * 6] = FACE[i * 6 + 1] = FACE[i * 6 + 4] = FACE[i * 6 + 5] = T[t.side]; FACE[i * 6 + 2] = T[t.top]; FACE[i * 6 + 3] = T[t.bottom];
+  FACE[i * 6] = FACE[i * 6 + 1] = FACE[i * 6 + 5] = T[t.side]; FACE[i * 6 + 4] = T[t.front || t.side]; FACE[i * 6 + 2] = T[t.top]; FACE[i * 6 + 3] = T[t.bottom];
 }
-export const CATS = [['build', 'Building'], ['nature', 'Nature'], ['colour', 'Colours'], ['ores', 'Ores and metals'], ['decor', 'Decoration']];
+export const CATS = [['build', 'Building'], ['colour', 'Colours'], ['nature', 'Nature'], ['ores', 'Ores and minerals'], ['decor', 'Lights and decoration']];
