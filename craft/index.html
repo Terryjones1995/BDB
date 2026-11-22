@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BDB Craft</title>
+<meta name="description" content="Creative mode block building in your browser. Endless worlds, every block, flying, and friends building with you.">
+<meta property="og:title" content="BDB Craft">
+<meta property="og:image" content="../assets/home/craft.webp">
+<link rel="icon" href="../assets/face.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Teko:wght@500;600&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="../assets/kit.css">
+<style>
+/* BDB Craft. The world fills the window; everything else floats over it. Menus use the kit's arena look, the in-game HUD stays small and out of the way.
+   Blocky touches (square corners, a hard drop shadow) only where they belong to the game: the title, the hotbar, the inventory slots. */
+:root{--slot:52px;--glass:rgba(8,14,30,.78);--glass2:rgba(8,14,30,.9);--edge:rgba(255,255,255,.14)}
+body.k{background:#0b1426}
+#gl{position:fixed;inset:0;display:block;width:100%;height:100%}
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px 16px;z-index:10}
+.screen.dim{background:rgba(4,8,18,.5)}
+.panel{width:min(560px,100%);max-height:calc(100vh - 48px);display:flex;flex-direction:column;background:var(--glass2);border:1px solid var(--edge);border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.5);padding:22px 22px 18px;gap:14px}
+.panel h2{margin:0;font:400 22px/1.1 var(--f-display);letter-spacing:.01em}
+.panel p{margin:0;color:var(--muted);line-height:1.45}
+.title{text-align:center;margin:0 0 2px}
+.title b{display:block;font:400 clamp(44px,7vw,68px)/.9 var(--f-display);color:#fff;letter-spacing:.01em;text-shadow:4px 4px 0 #a34c0c,8px 8px 0 rgba(0,0,0,.35)}
+.title b span{color:var(--orange)}
+.title i{display:block;font:600 19px/1 var(--f-led);letter-spacing:.14em;color:var(--gold);margin-top:10px;font-style:normal}
+.acct{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:14px}
+.acct span{color:var(--muted);min-width:0}
+.acct b{color:var(--ink)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{flex:0 0 auto;background:none;border:0;color:var(--muted);font:700 14px var(--f-body);padding:8px 12px 10px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs button.on{color:var(--ink);border-color:var(--orange)}
+.tabs button em{font-style:normal;background:var(--orange);color:#1a0d02;border-radius:99px;padding:1px 7px;margin-left:6px;font-size:12px}
+.list{overflow:auto;min-height:120px;max-height:46vh;display:flex;flex-direction:column;gap:6px;padding-right:2px}
+.row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid transparent;cursor:pointer}
+.row:hover,.row:focus-visible{border-color:rgba(255,138,43,.6);background:rgba(255,138,43,.07);outline:none}
+.row img{width:44px;height:44px;image-rendering:pixelated}
+.row .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .sub{color:var(--muted);font-size:13px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .acts{display:flex;gap:6px}
+.icon-btn{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.icon-btn:hover{color:var(--ink);border-color:var(--edge)}
+.icon-btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.empty{color:var(--muted);text-align:center;padding:26px 10px;line-height:1.5}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.btns .k-btn{flex:1 1 0;min-width:140px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-weight:700;font-size:13px;color:var(--muted)}
+.field input{height:44px;border-radius:9px;border:1px solid var(--edge);background:rgba(0,0,0,.3);color:var(--ink);font:600 16px var(--f-body);padding:0 12px}
+.field input:focus{outline:2px solid var(--orange);outline-offset:0;border-color:transparent}
+.field input.code{font:600 30px/1 var(--f-led);letter-spacing:.3em;text-transform:uppercase;text-align:center;height:56px}
+.seg{display:flex;border:1px solid var(--edge);border-radius:9px;overflow:hidden}
+.seg button{flex:1;height:42px;border:0;background:transparent;color:var(--muted);font:700 14px var(--f-body);cursor:pointer}
+.seg button.on{background:var(--orange);color:#1a0d02}
+.note{font-size:13px;color:var(--muted);line-height:1.45}
+.note.bad{color:var(--bad)}
+.foot{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--dim)}
+.foot a{color:var(--muted)}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:13px;color:var(--muted)}
+.keys kbd{font:600 15px/1 var(--f-led);letter-spacing:.06em;color:var(--ink);background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:3px 7px 2px;justify-self:start}
+.bigcode{font:600 64px/1 var(--f-led);letter-spacing:.24em;text-align:center;color:var(--gold);padding:8px 0 2px;user-select:text;-webkit-user-select:text}
+.range{display:grid;grid-template-columns:150px 1fr 48px;align-items:center;gap:12px;font-size:14px}
+.range input{accent-color:var(--orange)}
+.range output{font:600 18px var(--f-led);text-align:right}
+.check{display:flex;align-items:center;gap:10px;font-size:14px;cursor:pointer}
+.check input{accent-color:var(--orange);width:18px;height:18px}
+.sure{display:flex;gap:8px;align-items:center;font-size:13px}
+/* the HUD */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+#cross{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;mix-blend-mode:difference}
+#cross:before,#cross:after{content:"";position:absolute;background:#fff}
+#cross:before{left:10px;top:0;width:2px;height:22px}
+#cross:after{top:10px;left:0;height:2px;width:22px}
+#bar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:0;padding:4px;background:rgba(0,0,0,.42);border:2px solid rgba(0,0,0,.6);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14)}
+.slot{width:var(--slot);height:var(--slot);position:relative;display:grid;place-items:center;border:2px solid transparent}
+.slot img{width:78%;height:78%;image-rendering:pixelated;filter:drop-shadow(1px 2px 0 rgba(0,0,0,.35))}
+#bar .slot.on{border-color:#fff;box-shadow:0 0 0 2px #000,inset 0 0 0 2px #000}
+#bar .slot i{position:absolute;left:4px;top:2px;font:600 13px/1 var(--f-led);color:rgba(255,255,255,.55);font-style:normal}
+#bname{position:absolute;left:50%;bottom:86px;transform:translateX(-50%);font:700 16px var(--f-body);color:#fff;text-shadow:2px 2px 0 rgba(0,0,0,.6);transition:opacity .4s;white-space:nowrap}
+#info{position:absolute;left:12px;top:10px;font:600 14px/1.35 var(--f-body);color:#fff;text-shadow:1px 1px 0 rgba(0,0,0,.65);max-width:44vw}
+#info .t{font:600 19px/1 var(--f-led);letter-spacing:.06em;color:var(--gold)}
+#info .dbg{font:500 15px/1.25 var(--f-led);letter-spacing:.04em;margin-top:6px;color:#e9f0ff}
+#who{position:absolute;right:12px;top:10px;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+#who div{background:rgba(0,0,0,.4);padding:3px 9px;border-radius:5px;font:600 13px var(--f-body);color:#fff}
+#who div.h:before{content:"";display:inline-block;width:8px;height:8px;background:var(--gold);margin-right:7px;vertical-align:1px}
+#chat{position:absolute;left:12px;bottom:84px;width:min(460px,46vw);display:flex;flex-direction:column;gap:3px}
+#chat div{background:rgba(0,0,0,.42);color:#fff;padding:4px 9px;font:600 14px/1.35 var(--f-body);border-radius:4px;transition:opacity .6s;overflow-wrap:anywhere}
+#chat div b{color:var(--gold)}
+#chat div.sys{color:#ffe08a}
+#chatin{position:absolute;left:12px;bottom:46px;width:min(460px,46vw);height:34px;border:0;border-radius:4px;background:rgba(0,0,0,.62);color:#fff;font:600 15px var(--f-body);padding:0 10px;pointer-events:auto}
+#chatin:focus{outline:2px solid rgba(255,255,255,.35)}
+#toast{position:absolute;left:50%;top:18%;transform:translateX(-50%);background:var(--glass);border:1px solid var(--edge);padding:8px 16px;border-radius:9px;font:700 15px var(--f-body);color:var(--ink);transition:opacity .4s}
+#hud.off > :not(#toast){display:none}
+/* inventory */
+#inv .panel{width:min(760px,100%)}
+#invtop{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#invtop .tabs{flex:1 1 auto;border:0;flex-wrap:wrap}
+#invtop .tabs button{border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:0}
+#invtop .tabs button.on{background:var(--orange);color:#1a0d02;border-color:var(--orange)}
+#invq{height:36px;width:180px;border-radius:8px;border:1px solid var(--edge);background:rgba(0,0,0,.3);color:var(--ink);font:600 14px var(--f-body);padding:0 10px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--slot),1fr));gap:4px;overflow:auto;max-height:46vh;padding:2px}
+#grid .slot,#invbar .slot{background:rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.06);cursor:pointer;padding:0}
+#grid .slot:hover,#grid .slot:focus-visible{border-color:var(--orange);background:rgba(255,138,43,.12);outline:none}
+#invbar{display:flex;gap:4px;justify-content:center}
+#invbar .slot.on{border-color:#fff}
+#invname{min-height:20px;text-align:center;font-weight:700}
+#load .bar{height:10px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+#load .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--gold));transition:width .2s}
+.desk{display:none}
+@media (pointer:coarse) and (max-width:900px){.desk{display:block}}
+</style>
+</head>
+<body class="k">
+<canvas id="gl"></canvas>
+
+<div id="hud" hidden>
+  <div id="cross"></div>
+  <div id="info"><div class="t" id="wname"></div><div id="wsub"></div><div class="dbg" id="dbg" hidden></div></div>
+  <div id="who"></div>
+  <div id="chat"></div>
+  <input id="chatin" maxlength="200" autocomplete="off" placeholder="Say something, then Enter" hidden>
+  <div id="bname"></div>
+  <div id="bar"></div>
+  <div id="toast" hidden></div>
+</div>
+
+<!-- the start screen -->
+<section class="screen" id="menu" hidden>
+  <div class="panel">
+    <h1 class="title"><b>BDB <span>Craft</span></b><i>Creative mode. Build anything.</i></h1>
+    <div class="acct" id="acct"></div>
+    <div class="tabs" role="tablist"><button type="button" class="on" data-tab="mine">My worlds</button><button type="button" data-tab="live">Friends building <em id="livec" hidden></em></button></div>
+    <div class="list" id="list"></div>
+    <div class="btns"><button type="button" class="k-btn primary" id="bnew">New world</button><button type="button" class="k-btn" id="bjoin">Join with a code</button></div>
+    <div class="foot"><a href="../">All games</a><span>Desktop: keyboard and mouse</span></div>
+    <p class="desk note bad">BDB Craft needs a keyboard and mouse. Open it on a computer.</p>
+  </div>
+</section>
+
+<section class="screen dim" id="newp" hidden>
+  <form class="panel" id="newf">
+    <h2>New world</h2>
+    <div class="field"><label for="nname">Name</label><input id="nname" maxlength="40" required autocomplete="off"></div>
+    <div class="field"><label for="nseed">Seed <span style="font-weight:400">(leave empty for a random one)</span></label><input id="nseed" maxlength="40" autocomplete="off"></div>
+    <div class="field"><label>Type</label><div class="seg" id="nkind"><button type="button" class="on" data-v="normal">Normal</button><button type="button" data-v="flat">Flat</button></div></div>
+    <div class="field" id="nwhere-f"><label>Saved</label><div class="seg" id="nwhere"><button type="button" class="on" data-v="cloud">Online, on your account</button><button type="button" data-v="local">Only on this computer</button></div></div>
+    <p class="note" id="nnote"></p>
+    <div class="btns"><button type="submit" class="k-btn primary">Create world</button><button type="button" class="k-btn" data-close>Cancel</button></div>
+  </form>
+</section>
+
+<section class="screen dim" id="joinp" hidden>
+  <form class="panel" id="joinf">
+    <h2>Join a friend</h2>
+    <p>Ask whoever is hosting for the code on their pause screen.</p>
+    <div class="field"><label for="jcode">Code</label><input id="jcode" class="code" maxlength="6" required autocomplete="off" spellcheck="false"></div>
+    <div class="field" id="jname-f"><label for="jname">Your name</label><input id="jname" maxlength="20" autocomplete="off"></div>
+    <p class="note" id="jnote"></p>
+    <div class="btns"><button type="submit" class="k-btn primary">Join</button><button type="button" class="k-btn" data-close>Cancel</button></div>
+  </form>
+</section>
+
+<section class="screen dim" id="signp" hidden>
+  <form class="panel" id="signf">
+    <h2>Sign in</h2>
+    <p>Same account as Break Room Brawl. Signed in, your worlds are kept online and friends can find the ones you open to them.</p>
+    <div class="field"><label for="sname">Name</label><input id="sname" maxlength="20" required autocomplete="username"></div>
+    <div class="field"><label for="spass">Password</label><input id="spass" type="password" maxlength="72" required autocomplete="current-password"></div>
+    <p class="note" id="snote"></p>
+    <div class="btns"><button type="submit" class="k-btn primary">Sign in</button><button type="button" class="k-btn" id="sreg">Make an account</button><button type="button" class="k-btn" data-close>Cancel</button></div>
+  </form>
+</section>
+
+<section class="screen dim" id="load" hidden>
+  <div class="panel">
+    <h2 id="ltitle">Building the world</h2>
+    <div class="bar"><i id="lbar"></i></div>
+    <p class="note" id="lnote"></p>
+    <div class="btns"><button type="button" class="k-btn" id="lcancel">Cancel</button></div>
+  </div>
+</section>
+
+<!-- paused -->
+<section class="screen dim" id="pause" hidden>
+  <div class="panel">
+    <h2 id="ptitle">Paused</h2>
+    <div class="btns"><button type="button" class="k-btn primary big" id="presume">Back to building</button></div>
+    <div class="btns"><button type="button" class="k-btn" id="pinvite">Invite friends</button><button type="button" class="k-btn" id="psettings">Settings</button></div>
+    <div class="keys">
+      <kbd>WASD</kbd><span>Walk. Ctrl or double tap W to sprint</span>
+      <kbd>Space</kbd><span>Jump. Double tap to fly, then Space and Shift go up and down</span>
+      <kbd>Left click</kbd><span>Break a block</span>
+      <kbd>Right click</kbd><span>Place the block in your hand</span>
+      <kbd>Middle click</kbd><span>Pick the block you are looking at</span>
+      <kbd>1 to 9</kbd><span>Choose from the hotbar, or use the scroll wheel</span>
+      <kbd>E</kbd><span>Every block</span>
+      <kbd>T</kbd><span>Chat</span>
+      <kbd>F1 F3</kbd><span>Hide the screen extras, show where you are</span>
+    </div>
+    <p class="note" id="psave"></p>
+    <div class="btns"><button type="button" class="k-btn" id="pquit">Save and quit</button></div>
+  </div>
+</section>
+
+<section class="screen dim" id="invite" hidden>
+  <div class="panel">
+    <h2>Invite friends</h2>
+    <div id="inv-off"><p>Open this world so friends can join and build with you. They put in the code from BDB Craft's start screen.</p>
+      <div class="field" id="iname-f" style="margin-top:12px"><label for="iname">Your name</label><input id="iname" maxlength="20" autocomplete="off"></div>
+      <div class="btns" style="margin-top:14px"><button type="button" class="k-btn primary" id="iopen">Open to friends</button></div></div>
+    <div id="inv-on" hidden><p>Friends join with this code:</p><div class="bigcode" id="icode"></div><p class="note" id="inote"></p>
+      <div class="btns"><button type="button" class="k-btn" id="icopy">Copy code</button><button type="button" class="k-btn" id="iclose">Close to friends</button></div></div>
+    <div class="btns"><button type="button" class="k-btn" data-back>Back</button></div>
+  </div>
+</section>
+
+<section class="screen dim" id="settings" hidden>
+  <div class="panel">
+    <h2>Settings</h2>
+    <div class="range"><span>Render distance</span><input type="range" id="sdist" min="3" max="16" step="1"><output id="odist"></output></div>
+    <div class="range"><span>Field of view</span><input type="range" id="sfov" min="55" max="110" step="1"><output id="ofov"></output></div>
+    <div class="range"><span>Mouse speed</span><input type="range" id="ssens" min="20" max="250" step="5"><output id="osens"></output></div>
+    <label class="check"><input type="checkbox" id="sinv"> Invert mouse up and down</label>
+    <label class="check"><input type="checkbox" id="sclouds"> Clouds</label>
+    <label class="check"><input type="checkbox" id="shand"> Show the block in your hand</label>
+    <div class="btns"><button type="button" class="k-btn" data-back>Done</button></div>
+  </div>
+</section>
+
+<section class="screen dim" id="inv" hidden>
+  <div class="panel">
+    <div id="invtop"><div class="tabs" id="invtabs"></div><input id="invq" placeholder="Search blocks" autocomplete="off"></div>
+    <div id="grid"></div>
+    <div id="invname"></div>
+    <div id="invbar"></div>
+    <p class="note" style="text-align:center">Pick a slot below, then click a block to put it there. E or Esc to go back.</p>
+  </div>
+</section>
+
+<section class="screen dim" id="msg" hidden>
+  <div class="panel"><h2 id="mtitle"></h2><p id="mtext"></p><div class="btns"><button type="button" class="k-btn primary" id="mok">Back to the start</button></div></div>
+</section>
+
+<script type="module" src="main.js?v=c1"></script>
+</body>
+</html>
