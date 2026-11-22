@@ -1,9 +1,9 @@
 /* BDB Craft: your arm in the bottom right, in your own character's skin and sleeve, holding whatever is in your hand. It bobs as you walk and swings
    down and in when you break or place, the way it does in Minecraft. Drawn in its own little scene on top of the world so it never sinks into a wall. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c10';
-import { BLOCKS, FACE } from './blocks.js?v=c10';
-import { TS } from './tex.js?v=c10';
-import { body } from './skin.js?v=c10';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c12';
+import { BLOCKS, FACE } from './blocks.js?v=c12';
+import { TS } from './tex.js?v=c12';
+import { body } from './skin.js?v=c12';
 
 export const A = {rx:2.05, ry:-.35, rz:.28};      // the resting angle of the arm
 export function createHand(scene, layers){
@@ -15,7 +15,7 @@ export function createHand(scene, layers){
     const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; };
   function makeItem(id){
     const b = BLOCKS[id];
-    if (b.kind === 'plant') return new THREE.Mesh(new THREE.PlaneGeometry(.34, .34), new THREE.MeshLambertMaterial({map:tex(FACE[id * 6]), transparent:true, alphaTest:.5, side:THREE.DoubleSide}));
+    if (b.kind === 'plant' || b.kind === 'item') return new THREE.Mesh(new THREE.PlaneGeometry(.34, .34), new THREE.MeshLambertMaterial({map:tex(FACE[id * 6]), transparent:true, alphaTest:.5, side:THREE.DoubleSide}));
     const ms = [0, 1, 2, 3, 4, 5].map(f => new THREE.MeshLambertMaterial({map:tex(FACE[id * 6 + f]), transparent:b.kind !== 'solid', alphaTest:b.kind === 'cutout' ? .5 : 0}));
     return new THREE.Mesh(new THREE.BoxGeometry(.24, .24, .24), ms);
   }
@@ -32,7 +32,7 @@ export function createHand(scene, layers){
       if (!id) return;
       if (!cache.has(id)) cache.set(id, makeItem(id)); item = cache.get(id);
       // in the fist: at the end of the arm, turned so you see the top and two sides
-      if (BLOCKS[id].kind === 'plant'){ item.position.set(0, -.44, -.08); item.rotation.set(0, Math.PI / 2, 0); }
+      if (BLOCKS[id].kind === 'plant' || BLOCKS[id].kind === 'item'){ item.position.set(0, -.44, -.08); item.rotation.set(0, Math.PI / 2, 0); }
       else { item.position.set(.0, -.42, -.13); item.rotation.set(.1, .6, .05); item.scale.setScalar(.8); }
       armPivot.add(item);
       lift = 1;                                                           // the arm dips and comes back up when you change what you hold

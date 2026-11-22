@@ -2,7 +2,7 @@
    the picture is slid up, so a wall torch still shows the torch). Fences, walls and panes join up with what is next to them, so they need to see their
    neighbours: nb(dx, dy, dz) gives the block there. Facing: 0 north (-z), 1 east (+x), 2 south (+z), 3 west (-x); the way you look when you place it.
    Shared by the mesher (in the workers), collision and picking (on the page). */
-import { SH, SHAPE, STATE, OPAQUE } from './blocks.js?v=c10';
+import { SH, SHAPE, STATE, OPAQUE, FIRST, B } from './blocks.js?v=c12';
 
 /* turn a box a quarter clockwise (seen from above) f times about the middle of the cell */
 export function turn(b, f){
@@ -13,6 +13,18 @@ export function turn(b, f){
 const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 const joinsFence = n => n > 0 && (SHAPE[n] === SH.fence || SHAPE[n] === SH.gate || OPAQUE[n] === 1);
 const joinsWall = n => n > 0 && (SHAPE[n] === SH.wall || SHAPE[n] === SH.pane || SHAPE[n] === SH.gate || OPAQUE[n] === 1);
+/* which ways redstone dust runs: [dx, dz, level] for each side it joins (level 1: up onto the block beside, -1: down off it) */
+export function dustLinks(nb){
+  const out = [], up = nb(0, 1, 0);
+  DIRS.forEach(([dx, dz], f) => {
+    const n = nb(dx, 0, dz), hi = nb(dx, 1, dz), lo = nb(dx, -1, dz);
+    if (redstoneish(n, f)) out.push([dx, dz, 0]);
+    else if (SHAPE[hi] === SH.dust && !OPAQUE[up] && OPAQUE[n]) out.push([dx, dz, 1]);
+    else if (SHAPE[lo] === SH.dust && !OPAQUE[n]) out.push([dx, dz, -1]);
+  });
+  return out;
+}
+const redstoneish = (n, f) => n > 0 && (SHAPE[n] === SH.dust || SHAPE[n] === SH.lever || SHAPE[n] === SH.button || SHAPE[n] === SH.plate || (SHAPE[n] === SH.repeater && ((STATE[n] & 3) % 2 === f % 2)) || n === B.block_redstone || n === B.redstone_lamp_off || n === B.redstone_lamp_lit || FIRST[n] === B.redstone_torch || FIRST[n] === B.redstone_torch_off);
 const joinsPane = n => n > 0 && (SHAPE[n] === SH.pane || SHAPE[n] === SH.wall || OPAQUE[n] === 1);
 
 /* the boxes to draw */
@@ -40,13 +52,23 @@ export function boxes(id, nb){
     case SH.lantern: return s ? [[.3125, .0625, .3125, .6875, .5, .6875, .0625], [.375, .5, .375, .625, .625, .625, .0625], [.4375, .625, .4375, .5625, 1, .5625]] : [[.3125, 0, .3125, .6875, .4375, .6875], [.375, .4375, .375, .625, .5625, .625]];
     case SH.ladder: return [turn([0, 0, 0, 1, 1, .125], s)];
     case SH.chain: return [[.4375, 0, .4375, .5625, 1, .5625]];
+    case SH.lever: { const a = s % 6, on = s >= 6;
+      if (a >= 4){ const fl = b => a === 5 ? [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5], 0, b[7]] : b; return [fl([.3125, 0, .25, .6875, .1875, .75, 0, 2]), fl(on ? [.4375, .1875, .5, .5625, .625, .625, 0, 1] : [.4375, .1875, .375, .5625, .625, .5, 0, 1])]; }
+      return [[...turn([.3125, .25, 0, .6875, .75, .1875], a), 2], [...turn(on ? [.4375, .3125, .1875, .5625, .4375, .625] : [.4375, .5625, .1875, .5625, .6875, .625], a), 1]]; }
+    case SH.button: { const a = s % 6, h = s >= 6 ? .0625 : .125;
+      if (a === 4) return [[.3125, 0, .375, .6875, h, .625]]; if (a === 5) return [[.3125, 1 - h, .375, .6875, 1, .625]];
+      return [turn([.3125, .375, 0, .6875, .625, h], a)]; }
+    case SH.plate: return [[.0625, 0, .0625, .9375, s ? .03125 : .0625, .9375]];
+    case SH.repeater: { const f = s & 3; return [[0, 0, 0, 1, .125, 1], [...turn([.4375, .125, .6875, .5625, .4375, .8125, -.1875], f), 3], [...turn([.4375, .125, .25, .5625, .4375, .375, -.1875], f), 3]]; }
+    case SH.dust: return [[0, 0, 0, 1, .0625, 1]];       // drawn flat by the mesher; this box is for picking
+    case SH.rail: return [[0, 0, 0, 1, .125, 1]];
   }
   return [[0, 0, 0, 1, 1, 1]];
 }
 /* the boxes you bump into (fences and walls are 1.5 high so nothing jumps them; torches, open gates and ladders you walk through) */
 export function solidBoxes(id, nb){
   const sh = SHAPE[id], s = STATE[id];
-  if (sh === SH.torch || sh === SH.ladder) return [];
+  if (sh === SH.torch || sh === SH.ladder || sh === SH.lever || sh === SH.button || sh === SH.dust || sh === SH.rail) return [];
   if (sh === SH.gate) return s >> 2 ? [] : [turn([0, 0, .375, 1, 1.5, .625], s & 3)];
   if (sh === SH.fence || sh === SH.wall){ const join = sh === SH.fence ? joinsFence : joinsWall, w = sh === SH.fence ? [.375, .625] : [.25, .75], out = [[w[0], 0, w[0], w[1], 1.5, w[1]]];
     DIRS.forEach(([dx, dz], f) => { if (join(nb(dx, 0, dz))) out.push(turn([w[0], 0, 0, w[1], 1.5, w[0]], f)); }); return out; }

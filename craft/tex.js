@@ -1,7 +1,7 @@
 /* BDB Craft: every block texture, drawn pixel by pixel in code at 16 x 16 and doubled to 32 (the BDB Block is the one drawn at full size, from his photo).
    Nothing is copied from any other game: each one is a little recipe of colours, noise and shapes. Also the cube icons for the hotbar and inventory. */
-import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH } from './blocks.js?v=c10';
-import { boxes } from './shapes.js?v=c10';
+import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH } from './blocks.js?v=c12';
+import { boxes } from './shapes.js?v=c12';
 export const TS = 32;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -63,7 +63,7 @@ function bricks(p, brick, mortar, tall = 4, wide = 8){ const b = rgb(brick), m =
 }
 function cross(p, draw){ p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); draw(p); return p; }
 function glassPane(p, tint, a){ const c = tint ? rgb(tint) : [235, 245, 250];
-  p.each((x, y) => { const edge = x === 0 || y === 0 || x === 15 || y === 15; if (edge) p.set(x, y, tint ? mul(c, .75) : [210, 228, 235], tint ? 235 : 255); else p.set(x, y, c, tint ? a : 0); });
+  p.each((x, y) => { const edge = x === 0 || y === 0 || x === 15 || y === 15; if (edge) p.set(x, y, tint ? mul(c, .75) : [196, 214, 222], tint ? 235 : 255); else p.set(x, y, tint ? c : [214, 232, 240], tint ? a : 34); });
   for (const [x, y] of [[3, 4], [4, 3], [5, 2], [10, 11], [11, 10], [12, 9], [4, 5]]) p.set(x, y, tint ? mul(c, 1.35) : [255, 255, 255], tint ? Math.min(255, a + 60) : 200);
   return p;
 }
@@ -332,6 +332,29 @@ Object.assign(R, {
   chain:s => { const p = clearPic(s); for (let y = 0; y < 16; y++){ const link = Math.floor(y / 4) % 2; if (link){ p.set(7, y, rgb('#4a4f5a')); p.set(8, y, rgb('#3a3f4a')); } else if (y % 4 === 0 || y % 4 === 3){ p.set(7, y, rgb('#5a606c')); p.set(8, y, rgb('#5a606c')); } else { p.set(6, y, rgb('#4a4f5a')); p.set(9, y, rgb('#3a3f4a')); } } return p; },
 });
 
+/* ---------- redstone, rails and items ---------- */
+function dustPic(s, c1, c2){ const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++){ const r = p.r(); if (r < .55) p.set(x, y, mix(rgb(c1), rgb(c2), p.r()), 255); } return p; }
+function railPic(s, tie, rail, corner){ const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0));
+  if (!corner){ for (const y of [1, 4, 7, 10, 13]) for (let x = 2; x < 14; x++){ p.set(x, y, mul(rgb(tie), .9 + p.r() * .2)); p.set(x, y + 1, mul(rgb(tie), .7)); }
+    for (let y = 0; y < 16; y++){ p.set(3, y, rgb(rail)); p.set(4, y, mul(rgb(rail), .7)); p.set(11, y, rgb(rail)); p.set(12, y, mul(rgb(rail), .7)); } }
+  else { for (let k = 0; k < 5; k++){ const a = (k + .5) / 5 * Math.PI / 2; for (let r = 3; r < 14; r++){ const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r); p.set(15 - x, 15 - y, mul(rgb(tie), .85 + p.r() * .2)); } }
+    for (let i = 0; i < 64; i++){ const a = i / 63 * Math.PI / 2; for (const r of [4, 12]){ p.set(15 - Math.round(Math.cos(a) * r), 15 - Math.round(Math.sin(a) * r), rgb(rail)); p.set(15 - Math.round(Math.cos(a) * (r + 1)), 15 - Math.round(Math.sin(a) * (r + 1)), mul(rgb(rail), .7)); } } }
+  return p; }
+Object.assign(R, {
+  dust_off:s => dustPic(s, '#4a0a0a', '#6e1210'), dust_on:s => dustPic(s, '#e01b10', '#ff5a3a'),
+  redstone_lamp_off:s => lightGrid(s, '#6b4524', '#3e2614'),
+  redstone_torch:s => { const p = R.torch(s); for (let y = 6; y < 9; y++){ p.set(7, y, rgb(y === 6 ? '#ff9a8a' : '#e01b10')); p.set(8, y, rgb(y === 6 ? '#ff6a5a' : '#b0120a')); } return p; },
+  redstone_torch_off:s => { const p = R.torch(s); for (let y = 6; y < 9; y++){ p.set(7, y, rgb('#4a1410')); p.set(8, y, rgb('#3a0f0c')); } return p; },
+  lever:s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, mul(rgb('#7a5a34'), .9 + p.r() * .2))); return p; },
+  repeater:s => { const p = R.smooth_stone(s); for (const [x, y] of [[7, 3], [8, 3], [7, 12], [8, 12]]) p.set(x, y, rgb('#4a1410')); for (let y = 4; y < 12; y++) p.set(7, y, rgb('#6e1210')); return p; },
+  repeater_on:s => { const p = R.smooth_stone(s); for (const [x, y] of [[7, 3], [8, 3], [7, 12], [8, 12]]) p.set(x, y, rgb('#ff3a2a')); for (let y = 4; y < 12; y++) p.set(7, y, rgb('#e01b10')); return p; },
+  rail:s => railPic(s, '#6b5132', '#a8a8a8'), rail_corner:s => railPic(s, '#6b5132', '#a8a8a8', true),
+  rail_powered:s => { const p = railPic(s, '#6b5132', '#d8b83a'); for (let y = 0; y < 16; y += 3) p.set(8, y, rgb('#4a1410')); return p; },
+  rail_powered_on:s => { const p = railPic(s, '#6b5132', '#f2d24a'); for (let y = 0; y < 16; y += 3){ p.set(7, y, rgb('#ff3a2a')); p.set(8, y, rgb('#ff3a2a')); } return p; },
+  item_minecart:s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); for (let y = 5; y < 11; y++) for (let x = 2; x < 14; x++){ const edge = y === 5 || x === 2 || x === 13; p.set(x, y, edge ? rgb('#8a8f96') : rgb('#5a5f66')); } for (const cx of [4, 11]) for (let y = 10; y < 14; y++) for (let x = cx - 1; x <= cx + 1; x++) p.set(x, y, rgb('#2a2a2a')); return p; },
+  item_flint:s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); for (let i = 0; i < 8; i++){ p.set(3 + i, 12 - i, rgb('#9a9a9a')); p.set(4 + i, 12 - i, rgb('#6a6a6a')); } for (const [x, y] of [[10, 3], [11, 3], [12, 4], [11, 5], [10, 4]]) p.set(x, y, rgb('#2a2a2a')); for (const [x, y] of [[4, 4], [5, 5], [3, 5]]) p.set(x, y, rgb('#ffb23a')); return p; },
+});
+
 /* all the textures, as one block of rgba: layer after layer, TS x TS each */
 export function paintAll(){
   const out = new Uint8Array(TEX.length * TS * TS * 4), k = TS / 16;
@@ -348,7 +371,7 @@ export function icon(layers, id, size = 64){
   const face = l => { const t = document.createElement('canvas'); t.width = t.height = TS; const ctx = t.getContext('2d'); const im = ctx.createImageData(TS, TS); im.data.set(layers.subarray(l * TS * TS * 4, (l + 1) * TS * TS * 4)); ctx.putImageData(im, 0, 0); return t; };
   x.imageSmoothingEnabled = false;
   const sh = SHAPE[id];
-  if (b.kind === 'plant' || sh === SH.torch || sh === SH.ladder || sh === SH.chain || sh === SH.pane){ x.drawImage(face(FACE[id * 6]), size * .1, size * .1, size * .8, size * .8); return c.toDataURL(); }
+  if (b.kind === 'plant' || b.kind === 'item' || sh === SH.torch || sh === SH.ladder || sh === SH.chain || sh === SH.pane){ x.drawImage(face(FACE[id * 6]), size * .1, size * .1, size * .8, size * .8); return c.toDataURL(); }
   if (sh === SH.door){ x.drawImage(face(FACE[id * 6 + 2]), size * .3, size * .04, size * .4, size * .46); x.drawImage(face(FACE[id * 6]), size * .3, size * .5, size * .4, size * .46); return c.toDataURL(); }
   const s = size / 2, w = s * .86, h = s * .5, cx = size / 2, top0 = size * .1, top = face(FACE[id * 6 + 2]), front = face(FACE[id * 6 + 4]), side = face(FACE[id * 6]);
   const P = (px, py, pz) => [cx + (px - pz) * w, top0 + (px + pz) * h + (1 - py) * s];

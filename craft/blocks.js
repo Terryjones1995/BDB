@@ -116,11 +116,11 @@ for (const k of L.filter(b => /^(log_|stripped_)/.test(b.key) || ['quartz_pillar
 
 /* ---------- shaped blocks. Each one takes a run of ids: one per state (which way it faces, open or shut, top or bottom), and the same again
    standing in water ("waterlogged", so you can build them under water). Only the first id of a run shows in the inventory ---------- */
-export const SH = {slab:1, stairs:2, fence:3, gate:4, wall:5, pane:6, door:7, trapdoor:8, carpet:9, torch:10, lantern:11, ladder:12, chain:13};
+export const SH = {slab:1, stairs:2, fence:3, gate:4, wall:5, pane:6, door:7, trapdoor:8, carpet:9, torch:10, lantern:11, ladder:12, chain:13, dust:14, lever:15, button:16, plate:17, repeater:18, rail:19};
 const texOf = k => { const b = keyOf(k); if (!b) throw new Error('no block ' + k); return b.tex; };
 function shape(key, name, tex, cat, sh, n, o = {}){
   const runs = o.wet === false ? 1 : 2, first = L.length;
-  for (let w = 0; w < runs; w++) for (let s = 0; s < n; s++) L.push({key:s || w ? key + '#' + (w * n + s) : key, name, tex, cat:s || w ? '' : cat, kind:o.kind || 'shape', shape:sh, state:s, wet:w, first, n, glow:o.glow, full:o.full, mat:o.mat});
+  for (let w = 0; w < runs; w++) for (let s = 0; s < n; s++) L.push({key:s || w ? key + '#' + (w * n + s) : key, name, tex:o.texState ? o.texState(s) : tex, cat:s || w ? '' : cat, kind:o.kind || 'shape', shape:sh, state:s, wet:w, first, n, glow:typeof o.glow === 'function' ? o.glow(s) : o.glow, full:o.full, mat:o.mat});
 }
 const MATS = ['stone', 'cobble', 'mossy_cobble', 'smooth_stone', 'stone_bricks', 'mossy_stone_bricks', 'andesite', 'polished_andesite', 'diorite', 'polished_diorite', 'granite', 'polished_granite',
   'cobbled_deepslate', 'polished_deepslate', 'deepslate_bricks', 'deepslate_tiles', 'tuff', 'bricks', 'mud_bricks', 'sandstone', 'cut_sandstone', 'smooth_sandstone', 'red_sandstone', 'cut_red_sandstone',
@@ -145,6 +145,20 @@ shape('carpet_moss', 'Moss Carpet', 'moss', 'nature', SH.carpet, 1, {wet:false})
 shape('torch', 'Torch', 'torch', 'decor', SH.torch, 5, {kind:'shapecut', glow:8, wet:false}); shape('soul_torch', 'Soul Torch', 'soul_torch', 'decor', SH.torch, 5, {kind:'shapecut', glow:6, wet:false});
 shape('lantern', 'Lantern', 'lantern', 'decor', SH.lantern, 2, {kind:'shapecut', glow:8}); shape('soul_lantern', 'Soul Lantern', 'soul_lantern', 'decor', SH.lantern, 2, {kind:'shapecut', glow:6});
 shape('ladder', 'Ladder', 'ladder', 'decor', SH.ladder, 4, {kind:'shapecut'}); shape('chain', 'Chain', 'chain', 'decor', SH.chain, 1, {kind:'shapecut'});
+/* redstone and rails. Dust: 16 states, its power. Levers and buttons: where they are stuck (4 walls, floor, ceiling) and on or off. Plates: up or down.
+   Repeaters: facing and on or off. Rails: 10 ways to lie (straight, sloping up four ways, four corners); powered rails 6 ways, on or off */
+shape('redstone_dust', 'Redstone Dust', 'dust_off', 'redstone', SH.dust, 16, {wet:false, kind:'shapecut', texState:s => s ? 'dust_on' : 'dust_off'});
+add('redstone_lamp_off', 'Redstone Lamp', 'redstone_lamp_off', 'redstone'); add('redstone_lamp_lit', 'Redstone Lamp', 'redstone_lamp', '', {glow:8});
+shape('redstone_torch', 'Redstone Torch', 'redstone_torch', 'redstone', SH.torch, 5, {kind:'shapecut', glow:4, wet:false}); shape('redstone_torch_off', 'Redstone Torch', 'redstone_torch_off', '', SH.torch, 5, {kind:'shapecut', wet:false});
+shape('lever', 'Lever', {top:'lever', side:'cobble'}, 'redstone', SH.lever, 12, {kind:'shapecut'});
+shape('button_stone', 'Stone Button', 'stone', 'redstone', SH.button, 12); shape('button_oak', 'Oak Button', 'planks_oak', 'redstone', SH.button, 12);
+shape('plate_stone', 'Stone Pressure Plate', 'stone', 'redstone', SH.plate, 2); shape('plate_oak', 'Oak Pressure Plate', 'planks_oak', 'redstone', SH.plate, 2);
+shape('repeater', 'Redstone Repeater', {top:'repeater', side:'smooth_stone', front:'redstone_torch_off'}, 'redstone', SH.repeater, 8, {kind:'shapecut', texState:s => ({top:s >= 4 ? 'repeater_on' : 'repeater', side:'smooth_stone', front:s >= 4 ? 'redstone_torch' : 'redstone_torch_off'})});
+shape('rail', 'Rail', 'rail', 'redstone', SH.rail, 10, {kind:'shapecut', wet:false, texState:s => s >= 6 ? 'rail_corner' : 'rail'});
+shape('rail_powered', 'Powered Rail', 'rail_powered', 'redstone', SH.rail, 12, {kind:'shapecut', wet:false, texState:s => s >= 6 ? 'rail_powered_on' : 'rail_powered'});
+/* things you hold that are not blocks: shown flat, never put in the world as they are */
+const item = (k, n, cat, o = {}) => add('item_' + k, n, 'item_' + k, cat, {kind:'item', ...o});
+item('minecart', 'Minecart', 'redstone'); item('flint', 'Flint and Steel', 'tools');
 
 L.forEach((b, i) => { b.id = i; b.kind = b.kind || 'solid'; });
 /* textures: one layer each in the texture array, every name a block uses, in the order first used */
@@ -157,10 +171,11 @@ export const N = L.length;
 export const MAXID = 8192;
 export const OPAQUE = new Uint8Array(MAXID), SOLID = new Uint8Array(MAXID), CUTOUT = new Uint8Array(MAXID), PLANT = new Uint8Array(MAXID), LIQUID = new Uint8Array(MAXID), SELF = new Uint8Array(MAXID), GLOW = new Uint8Array(MAXID), TRANS = new Uint8Array(MAXID), EMIT = new Uint8Array(MAXID);
 export const FACE = new Uint16Array(MAXID * 6), FROT = new Uint8Array(MAXID * 6);      // FROT: the picture on this face is turned a quarter (logs lying down)
-export const SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
+export const ITEM = new Uint8Array(MAXID), SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
 for (const b of L){
   const i = b.id; if (!i) continue;
   const shaped = b.kind === 'shape' || b.kind === 'shapecut' || b.kind === 'shapeglass';
+  ITEM[i] = b.kind === 'item' ? 1 : 0;
   OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || b.kind === 'shapeglass' || (b.kind === 'liquid' && !b.lava) ? 1 : 0;
   CUTOUT[i] = b.kind === 'cutout' || b.kind === 'shapecut' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? (b.lava ? 2 : 1) : 0;
   SELF[i] = b.self ? 1 : 0; GLOW[i] = b.glow ? 1 : 0; EMIT[i] = b.glow === true ? 8 : (b.glow | 0);
@@ -176,4 +191,4 @@ for (const b of L){
 }
 for (const b of L){ if (b.turn) TURN[B[b.of] * 4 + b.turn] = b.id; if (b.axis) AXIS[B[b.of] * 3 + b.axis] = b.id; }
 for (const b of L) if (!b.turn && !b.axis && b.id){ TURN[b.id * 4] = b.id; AXIS[b.id * 3] = b.id; }
-export const CATS = [['build', 'Building'], ['colour', 'Colours'], ['nature', 'Nature'], ['ores', 'Ores and minerals'], ['decor', 'Lights and decoration']];
+export const CATS = [['build', 'Building'], ['colour', 'Colours'], ['nature', 'Nature'], ['ores', 'Ores and minerals'], ['decor', 'Lights and decoration'], ['redstone', 'Redstone and rails'], ['tools', 'Tools and items']];

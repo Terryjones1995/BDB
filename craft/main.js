@@ -1,19 +1,21 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c10';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT } from './blocks.js?v=c10';
-import { paintAll, icon, TS } from './tex.js?v=c10';
-import { column } from './gen.js?v=c10';
-import { createWorld } from './world.js?v=c10';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c10';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c10';
-import { createHand } from './hand.js?v=c10';
-import { createPlayer, EYE } from './player.js?v=c10';
-import { createAnimals } from './animals.js?v=c10';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c10';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c10';
-import { openParty, newCode, cleanCode } from './party.js?v=c10';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c12';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE } from './blocks.js?v=c12';
+import { paintAll, icon, TS } from './tex.js?v=c12';
+import { column } from './gen.js?v=c12';
+import { createWorld } from './world.js?v=c12';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c12';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c12';
+import { createHand } from './hand.js?v=c12';
+import { createPlayer, EYE } from './player.js?v=c12';
+import { createAnimals } from './animals.js?v=c12';
+import { createRedstone } from './redstone.js?v=c12';
+import { createCarts } from './carts.js?v=c12';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c12';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c12';
+import { openParty, newCode, cleanCode } from './party.js?v=c12';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -248,6 +250,8 @@ function makeGame(opt){
   const g = {opt, world, p, bar:(Array.isArray(meta.bar) && meta.bar.length === 9 ? meta.bar.map(b => (b > 0 && b < N && BLOCKS[b].kind !== 'air') ? b : B.stone) : HOTBAR0.slice()), sel:meta.sel | 0 || 0,
     keys:{}, ready:false, spawned:false, lastSave:performance.now(), avatars:new Map(), party:opt.party || null, code:opt.code || null, hud:true, dbg:false, lastTapSpace:0, lastTapW:0, liveT:0, posT:0, saving:null};
   g.animals = createAnimals(scene, world);
+  g.red = createRedstone(world, (x, y, z, b) => edit(x, y, z, b, true), {ignite:(x, y, z) => ignite(g, x, y, z, 4)});
+  g.carts = createCarts(scene, world); g.tnts = []; g.pushes = new Map();
   g.time = typeof meta.time === 'number' ? meta.time % 1 : .08; g.day = meta.day | 0;
   if (meta.p){ Object.assign(p, {x:meta.p[0], y:meta.p[1], z:meta.p[2], yaw:meta.p[3] || 0, pitch:meta.p[4] || 0, fly:!!meta.p[5]}); g.spawned = true; }
   else if (opt.spawn){ Object.assign(p, opt.spawn); g.spawned = true; g.needUp = true; }
@@ -315,6 +319,7 @@ async function joinWorld(code){
       left(id, nm){ if (G){ sys(nm + ' left'); dropFriend(id); } },
       chat(nm, t){ if (G) chatLine(nm, t); },
       animals(st){ if (G && G.animals && Array.isArray(st)) G.animals.apply(st); },
+      carts(st){ if (G && G.carts && Array.isArray(st)){ G.carts.apply(st); } },
       time(d){ const g2 = G || g; if (g2 && Array.isArray(d)){ g2.timeHost = +d[0] || 0; g2.day = d[1] | 0; g2.timeAt = d[2] ? performance.now() : 0; g2.time = g2.timeHost; } },
       hostLeft(){ const h = G && G.host || 'The host'; if (G) leaveGame(true); msg(h + ' stopped hosting', 'The world is saved on their side. Join again when they open it.'); }
     }});
@@ -372,7 +377,8 @@ async function openToFriends(){
         for (const k of mods){ const v = g.world.mods.get(k).slice(); chunks.push({k, d:await pack(v)}); }
         return {hi:{name:g.opt.name, seed:g.opt.seed, kind:g.opt.kind, host:g.party.list()[0].name, time:[g.time, g.day, S.cycle ? 1 : 0], mods, spawn:[+(g.p.x + 1).toFixed(2), +g.p.y.toFixed(2), +g.p.z.toFixed(2)]}, chunks};
       },
-      edit(x, y, z, b){ if (!(b >= 0 && b < N)) return false; g.world.set(x, y, z, b); return true; },
+      edit(x, y, z, b){ if (!(b >= 0 && b < N) || ITEM[b]) return false; g.world.set(x, y, z, b); g.red.mark(x, y, z); if (SHAPE[b] === SH.button && STATE[b] % 12 >= 6) g.red.release(x, y, z); return true; },
+      act(d, from){ cartAct(g, d, from); },
       pos(id, d){ seeFriend(id, d); },
       people(l){ peopleChanged(l); },
       joined(id, nm){ sys(nm + ' joined'); },
@@ -426,7 +432,7 @@ addEventListener('pagehide', () => { if (G && !G.opt.guest && G.opt.where === 'l
 function leaveGame(){
   const g = G; if (!g) return; G = null;
   if (g.party){ if (!g.opt.guest) live(false, g); g.party.leave(); }
-  for (const a of g.avatars.values()) a.dispose(); if (g.me) g.me.dispose(); g.animals.clear();
+  for (const a of g.avatars.values()) a.dispose(); if (g.me) g.me.dispose(); g.animals.clear(); g.carts.clear(); for (const t of g.tnts) scene.remove(t.m);
   g.world.dispose(); hl.show(null); hand.set(0); $('hud').hidden = true; $('who').innerHTML = '';
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -451,24 +457,30 @@ addEventListener('mousemove', e => {
   if (!active()) return; const g = G, k = .0022 * S.sens / 100;
   g.p.yaw -= e.movementX * k; g.p.pitch -= e.movementY * k * (S.invert ? -1 : 1); g.p.pitch = Math.max(-1.55, Math.min(1.55, g.p.pitch));
 });
-canvas.addEventListener('mousedown', e => {
-  if (!active()) return; e.preventDefault();
-  if (e.button === 0){ mouse.l = true; mouse.t = 0; use('break'); }
-  else if (e.button === 2){ mouse.r = true; mouse.t = 0; use('place'); }
-  else if (e.button === 1) use('pick');
+function press(a, down){
+  if (a === 'break'){ mouse.l = down; if (down){ mouse.t = 0; use('break'); } }
+  else if (a === 'place'){ mouse.r = down; if (down){ mouse.t = 0; use('place'); } }
+  else if (a === 'pick' && down) use('pick');
+}
+addEventListener('mousedown', e => {
+  if (rebind){ e.preventDefault(); setKey('Mouse' + e.button); return; }
+  if (!active() || e.target !== canvas) return; e.preventDefault();
+  const a = KEYMAP['Mouse' + e.button]; if (a) { if (MOVE.includes(a)) G.keys[a] = true; else press(a, true); }
 });
-addEventListener('mouseup', e => { if (e.button === 0) mouse.l = false; if (e.button === 2) mouse.r = false; });
+addEventListener('mouseup', e => { const a = KEYMAP['Mouse' + e.button]; if (a === 'break' || a === 'place') press(a, false); else if (a && MOVE.includes(a) && G) G.keys[a] = false; });
 addEventListener('contextmenu', e => { if (G && G.started) e.preventDefault(); });
 addEventListener('wheel', e => { if (!active()) return; G.pick(G.sel + (e.deltaY > 0 ? 1 : -1)); }, {passive:true});
 /* the keys: every action, what it does, its key. Changed on the Controls screen and kept in the settings. Arrow keys always walk too */
 const ACTIONS = [['f', 'Walk forward', 'KeyW'], ['b', 'Walk back', 'KeyS'], ['l', 'Step left', 'KeyA'], ['r', 'Step right', 'KeyD'], ['up', 'Jump, swim up, fly up (double tap to fly)', 'Space'],
   ['down', 'Sneak, fly down', 'ShiftLeft'], ['sprint', 'Sprint', 'ControlLeft'], ['inv', 'Every block (inventory)', 'KeyE'], ['chat', 'Chat', 'KeyT'], ['cmd', 'Type a command', 'Slash'],
-  ['view', 'See yourself (behind, in front)', 'F5'], ['hud', 'Hide the screen extras', 'F1'], ['dbg', 'Where you are, speed', 'F3']];
+  ['view', 'See yourself (behind, in front)', 'F5'], ['hud', 'Hide the screen extras', 'F1'], ['dbg', 'Where you are, speed', 'F3'],
+  ['break', 'Break a block, hit', 'Mouse0'], ['place', 'Place, use (doors, levers, carts)', 'Mouse2'], ['pick', 'Pick the block you look at', 'Mouse1']];
 const MOVE = ['f', 'b', 'l', 'r', 'up', 'down', 'sprint'];
+const MOUSE_ACTS = ['break', 'place', 'pick'];
 let KEYMAP = {};
 function buildKeys(){ S.keys = Object.assign(Object.fromEntries(ACTIONS.map(a => [a[0], a[2]])), S.keys || {}); KEYMAP = {ArrowUp:'f', ArrowDown:'b', ArrowLeft:'l', ArrowRight:'r', ShiftRight:'down', ControlRight:'sprint'}; for (const [a, c] of Object.entries(S.keys)) KEYMAP[c] = a; }
 buildKeys();
-const keyName = c => !c ? '' : c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : ({Space:'Space', ShiftLeft:'Left Shift', ShiftRight:'Right Shift', ControlLeft:'Left Ctrl', ControlRight:'Right Ctrl', AltLeft:'Left Alt', Slash:'/', Enter:'Enter', Tab:'Tab', Backquote:'`', CapsLock:'Caps Lock'}[c] || c);
+const keyName = c => !c ? '' : c === 'Mouse0' ? 'Left click' : c === 'Mouse2' ? 'Right click' : c === 'Mouse1' ? 'Middle click' : c.startsWith('Mouse') ? 'Mouse ' + (+c.slice(5) + 1) : c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : ({Space:'Space', ShiftLeft:'Left Shift', ShiftRight:'Right Shift', ControlLeft:'Left Ctrl', ControlRight:'Right Ctrl', AltLeft:'Left Alt', Slash:'/', Enter:'Enter', Tab:'Tab', Backquote:'`', CapsLock:'Caps Lock'}[c] || c);
 addEventListener('keydown', e => {
   const g = G;
   if (e.target === $('chatin')){
@@ -477,7 +489,7 @@ addEventListener('keydown', e => {
     if (e.key === 'Escape'){ $('chatin').value = ''; $('chatin').hidden = true; setTimeout(() => { if (!active()) pause(); }, 0); }
     return;
   }
-  if (rebind){ e.preventDefault(); if (e.code !== 'Escape'){ for (const [a, c] of Object.entries(S.keys)) if (c === e.code) S.keys[a] = ''; S.keys[rebind] = e.code; saveSettings(); buildKeys(); } rebind = null; renderKeys(); return; }
+  if (rebind){ e.preventDefault(); if (e.code !== 'Escape') setKey(e.code); else { rebind = null; renderKeys(); } return; }
   if (e.target && (e.target.tagName === 'INPUT') && e.target.id !== 'invq') return;
   if (!$('inv').hidden){
     if (e.code === 'Escape' || (KEYMAP[e.code] === 'inv' && e.target.id !== 'invq')){ e.preventDefault(); closeInv(); }
@@ -495,19 +507,21 @@ addEventListener('keydown', e => {
     g.keys[k] = true; return;
   }
   if (/^Digit[1-9]$/.test(e.code)){ g.pick(+e.code.slice(5) - 1); return; }
+  if (k && MOUSE_ACTS.includes(k)){ if (!e.repeat) press(k, true); return; }
   if (k === 'inv'){ openInv(); return; }
   if (k === 'chat' || k === 'cmd' || e.code === 'Enter'){ e.preventDefault(); $('chatin').hidden = false; if (k === 'cmd') $('chatin').value = '/'; if (!NOLOCK && document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $('chatin').focus(), 0); return; }
   if (k === 'hud'){ g.hud = !g.hud; $('hud').classList.toggle('off', !g.hud); return; }
   if (k === 'dbg'){ g.dbg = !g.dbg; $('dbg').hidden = !g.dbg; return; }
   if (k === 'view'){ g.view = ((g.view | 0) + 1) % 3; return; }
 });
-addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k && G) G.keys[k] = false; });
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k && MOUSE_ACTS.includes(k)) press(k, false); else if (k && G) G.keys[k] = false; });
 addEventListener('blur', () => { if (G){ G.keys = {}; mouse.l = mouse.r = false; } });
 
 /* break, place, pick */
 function use(what){
   const g = G; if (!g) return;
   if (what === 'break' && g.critter){ const a = g.critter; hand.swing(); if (g.opt.guest) g.party.slap(a.id); else g.animals.slap(a, g.p); return; }
+  if (g.cartHit){ hand.swing(); if (what === 'break') cartDo(g, {a:'break', id:g.cartHit.id}); else if (what === 'place') cartDo(g, {a:'ride', id:g.cartHit.id}); return; }
   const hit = g.hit; if (!hit) return;
   if (what === 'break'){
     if (hit.y < 1) return;
@@ -516,8 +530,20 @@ function use(what){
     hand.swing(); return;
   }
   if (what === 'pick'){ const b = ROOT[hit.b] || hit.b; const i = g.bar.indexOf(b); if (i >= 0) g.pick(i); else { g.bar[g.sel] = b; g.pick(g.sel); } return; }
+  const hb = hit.b, hs = SHAPE[hb], held = g.bar[g.sel];
+  // things you hold that are not blocks
+  if (ITEM[held]){
+    if (held === B.item_minecart && hs === SH.rail) cartDo(g, {a:'put', x:hit.x, y:hit.y, z:hit.z});
+    else if (held === B.item_flint && hb === B.tnt) cartDo(g, {a:'ignite', x:hit.x, y:hit.y, z:hit.z});
+    hand.swing(); return;
+  }
+  // levers flip and buttons press with a right click
+  if (!g.p.sneak && (hs === SH.lever || hs === SH.button)){
+    if (!g.opt.guest) g.red.press(hit.x, hit.y, hit.z);
+    else { const st = STATE[hb], n = BLOCKS[FIRST[hb]].n, wet = WET[hb] ? n : 0; if (hs === SH.lever) edit(hit.x, hit.y, hit.z, FIRST[hb] + wet + (st + 6) % 12); else if (st < 6) edit(hit.x, hit.y, hit.z, FIRST[hb] + wet + st + 6); }
+    hand.swing(); return;
+  }
   // doors, trapdoors and gates open and shut with a right click (sneak to place against them instead)
-  const hb = hit.b, hs = SHAPE[hb];
   if (!g.p.sneak && (hs === SH.door || hs === SH.trapdoor || hs === SH.gate) && !BLOCKS[FIRST[hb]].key.includes('iron')){
     const flip = id => { const st = STATE[id], n = BLOCKS[FIRST[id]].n, bit = hs === SH.door ? 4 : hs === SH.trapdoor ? 8 : 4; return FIRST[id] + (WET[id] ? n : 0) + (st ^ bit); };
     edit(hit.x, hit.y, hit.z, flip(hb));
@@ -549,6 +575,8 @@ function use(what){
   else if (sh === SH.torch){ if (fy === -1) return; id = b + (fy === 1 ? 0 : 1 + wall); }
   else if (sh === SH.lantern) id = b + (fy === -1 ? 1 : 0);
   else if (sh === SH.ladder){ if (wall < 0) return; id = b + wall; }
+  else if (sh === SH.lever || sh === SH.button) id = b + (fy === 1 ? 4 : fy === -1 ? 5 : wall);
+  else if (sh === SH.dust || sh === SH.plate || sh === SH.repeater || sh === SH.rail){ const under = g.world.get(x, y - 1, z); if (!(under > 0 && (OPAQUE[under] || (SHAPE[under] === SH.slab && STATE[under] === 1)))) return; id = sh === SH.repeater ? b + F : b; }
   else if (sh === SH.door){
     const above = g.world.get(x, y + 1, z); if (y > 126 || (above > 0 && !LIQUID[above] && !PLANT[above])) return;
     const wetUp = (LIQUID[above] === 1) ? BLOCKS[b].n : 0;
@@ -557,11 +585,70 @@ function use(what){
   else if (TURN[b * 4 + 1]){ const front = (F + 2) % 4, r = [2, 1, 0, 3][front]; id = r ? TURN[b * 4 + r] : b; }
   else if (AXIS[b * 3 + 1]){ id = face[0] ? AXIS[b * 3 + 1] : face[2] ? AXIS[b * 3 + 2] : b; }
   edit(x, y, z, id + wetAdd); hand.swing();
+  if (sh === SH.rail){ setRail(g, x, y, z, F); for (const [dx, dz] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) for (const dy of [0, -1, 1]){ const n = g.world.get(x + dx, y + dy, z + dz); if (n > 0 && SHAPE[n] === SH.rail && (dy === -1 || railLinks(g, x + dx, y + dy, z + dz) < 2)) setRail(g, x + dx, y + dy, z + dz, F); } }
+}
+/* rails lay themselves: towards the rails next to them, up a slope to one a block higher, round a corner when two meet at a right angle */
+const RCONN = [[[0, -1], [0, 1]], [[1, 0], [-1, 0]], [[1, 0], [-1, 0]], [[-1, 0], [1, 0]], [[0, -1], [0, 1]], [[0, 1], [0, -1]], [[0, 1], [1, 0]], [[0, 1], [-1, 0]], [[0, -1], [-1, 0]], [[0, -1], [1, 0]]];
+const isRail = (g, x, y, z) => { const b = g.world.get(x, y, z); return b > 0 && SHAPE[b] === SH.rail; };
+const railShape = b => FIRST[b] === B.rail_powered ? STATE[b] % 6 : STATE[b];
+function railLinks(g, x, y, z){ const b = g.world.get(x, y, z); return RCONN[railShape(b)].filter(([dx, dz]) => [0, 1, -1].some(dy => isRail(g, x + dx, y + dy, z + dz))).length; }
+function setRail(g, x, y, z, F){
+  const b = g.world.get(x, y, z); if (!(b > 0) || SHAPE[b] !== SH.rail) return;
+  const powered = FIRST[b] === B.rail_powered, D = [[0, -1], [1, 0], [0, 1], [-1, 0]], conn = [], up = [];
+  D.forEach(([dx, dz], i) => { if (isRail(g, x + dx, y + 1, z + dz)) up.push(i); if (isRail(g, x + dx, y, z + dz) || isRail(g, x + dx, y - 1, z + dz) || isRail(g, x + dx, y + 1, z + dz)) conn.push(i); });
+  let r;
+  if (up.length) r = [4, 2, 5, 3][up[0]];                                          // climbing north, east, south or west
+  else if (!powered && conn.length >= 2 && conn[0] % 2 !== conn[1] % 2){ const has = i => conn.includes(i); r = has(2) && has(1) ? 6 : has(2) && has(3) ? 7 : has(0) && has(3) ? 8 : 9; }
+  else if (conn.length) r = conn[0] % 2 ? 1 : 0;
+  else r = F % 2 ? 1 : 0;
+  const keep = powered && STATE[b] >= 6 ? 6 : 0, want = FIRST[b] + r + keep;
+  if (want !== b) edit(x, y, z, want);
+}
+/* carts and TNT: the host does them; a friend asks the host */
+function cartDo(g, d){ if (g.opt.guest){ g.party.act(d); if (d.a === 'ride') g.riding = d.id; if (d.a === 'leave') g.riding = null; } else cartAct(g, d, null); }
+function cartAct(g, d, from){
+  if (!d || typeof d !== 'object') return;
+  if (d.a === 'put') g.carts.put(d.x | 0, d.y | 0, d.z | 0);
+  else if (d.a === 'break'){ const c = g.carts.list.get(d.id); if (c){ if (c.rider === (from || 'me') && !from) g.riding = null; g.carts.remove(c); } }
+  else if (d.a === 'ride'){ const c = g.carts.list.get(d.id); if (c && !c.rider){ c.rider = from || 'me'; if (!from) g.riding = c.id; } }
+  else if (d.a === 'leave'){ for (const c of g.carts.list.values()) if (c.rider === (from || 'me')) c.rider = null; if (!from) g.riding = null; }
+  else if (d.a === 'push' && Array.isArray(d.v)){ g.pushes.set(d.id, [+d.v[0] || 0, +d.v[1] || 0]); }
+  else if (d.a === 'ignite'){ const b = g.world.get(d.x | 0, d.y | 0, d.z | 0); if (b === B.tnt) ignite(g, d.x | 0, d.y | 0, d.z | 0, 4); }
+}
+/* TNT: it goes out of the world as a flashing block for a few seconds, then blows a round hole, lights any TNT it reaches and throws you back */
+const tntGeo = new THREE.BoxGeometry(.98, .98, .98);
+function ignite(g, x, y, z, fuse){
+  if (g.world.get(x, y, z) === B.tnt) edit(x, y, z, 0, true);
+  const mats = [0, 1, 2, 3, 4, 5].map(f => new THREE.MeshLambertMaterial({map:faceTex(FACE[B.tnt * 6 + f]), emissive:new THREE.Color(0xffffff), emissiveIntensity:0}));
+  const m = new THREE.Mesh(tntGeo, mats); m.position.set(x + .5, y + .5, z + .5); scene.add(m);
+  g.tnts.push({x, y, z, t:fuse, m});
+}
+const texCache = new Map();
+function faceTex(l){ if (texCache.has(l)) return texCache.get(l); const c = document.createElement('canvas'); c.width = c.height = TS; const x = c.getContext('2d'), im = x.createImageData(TS, TS); im.data.set(layers.subarray(l * TS * TS * 4, (l + 1) * TS * TS * 4)); x.putImageData(im, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; texCache.set(l, t); return t; }
+const HARD = new Set(['bedrock', 'obsidian', 'crying_obsidian', 'reinforced_deepslate', 'water', 'lava']);
+function explode(g, cx, cy, cz){
+  const R = 3.3;
+  for (let y = Math.floor(cy - R); y <= cy + R; y++) for (let z = Math.floor(cz - R); z <= cz + R; z++) for (let x = Math.floor(cx - R); x <= cx + R; x++){
+    const d = Math.hypot(x + .5 - cx, y + .5 - cy, z + .5 - cz); if (d > R - Math.random() * .8 || y < 1) continue;
+    const b = g.world.get(x, y, z); if (!(b > 0) || HARD.has(BLOCKS[ROOT[b] || b].key) || LIQUID[b]) continue;
+    if (b === B.tnt){ ignite(g, x, y, z, .6 + Math.random()); continue; }
+    edit(x, y, z, WET[b] ? B.water : 0);
+  }
+  const p = g.p, dx = p.x - cx, dy = p.y + 1 - cy, dz = p.z - cz, d = Math.hypot(dx, dy, dz);
+  if (d < 7){ const k = (7 - d) * 3 / Math.max(d, .5); p.vx += dx * k; p.vy += Math.max(4, dy * k); p.vz += dz * k; }
+  boom(cx, cy, cz);
+}
+const booms = [];
+function boom(x, y, z){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), new THREE.MeshBasicMaterial({color:0xffe2a0, transparent:true, opacity:.9, depthWrite:false}));
+  m.position.set(x, y, z); scene.add(m); booms.push({m, t:0});
 }
 /* which way you are looking, as 0 north (-z), 1 east, 2 south, 3 west */
 function lookFacing(yaw){ const dx = -Math.sin(yaw), dz = -Math.cos(yaw); return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0); }
-function edit(x, y, z, b){
-  const g = G; if (!g.world.set(x, y, z, b)) return;
+function edit(x, y, z, b, fromRed){
+  const g = G; if (!g || !g.world.set(x, y, z, b)) return;
+  if (!g.opt.guest && !fromRed) g.red.mark(x, y, z);
   // a plant, torch or carpet standing on a block that just went goes with it
   if (!b || LIQUID[b]){ const up = g.world.get(x, y + 1, z); if (up > 0 && (PLANT[up] || (SHAPE[up] === SH.torch && STATE[up] === 0) || SHAPE[up] === SH.carpet)){ g.world.set(x, y + 1, z, 0); if (g.party) g.party.edit(x, y + 1, z, 0); } }
   if (g.party) g.party.edit(x, y, z, b);
@@ -592,17 +679,17 @@ function renderGrid(){
 }
 $('invq').oninput = renderGrid;
 
-/* the controls screen: every key, click one and press the new key */
+/* the controls screen: every key, click one and press the new key (or a mouse button) */
 let rebind = null, keysBack = 'settings';
+function setKey(code){ for (const [a, c] of Object.entries(S.keys)) if (c === code) S.keys[a] = ''; S.keys[rebind] = code; saveSettings(); buildKeys(); rebind = null; renderKeys(); }
 function renderKeys(){
   const box = $('keylist'); box.innerHTML = '';
   for (const [a, label] of ACTIONS){
     const row = document.createElement('div'); row.className = 'keyrow';
     row.innerHTML = `<span>${label}</span><button type="button" class="kb${rebind === a ? ' wait' : ''}">${rebind === a ? 'Press a key' : esc(keyName(S.keys[a]) || 'None')}</button>`;
-    row.querySelector('button').onclick = () => { rebind = a; renderKeys(); }; box.append(row);
+    row.querySelector('button').onclick = e => { e.stopPropagation(); setTimeout(() => { rebind = a; renderKeys(); }, 0); }; box.append(row);
   }
-  for (const [k, label] of [['Left click', 'Break a block, hit an animal'], ['Right click', 'Place the block in your hand, open doors and gates'], ['Middle click', 'Pick the block you are looking at'],
-    ['Scroll wheel, 1 to 9', 'Choose from the hotbar'], ['Esc', 'Pause']]){ const row = document.createElement('div'); row.className = 'keyrow fixed'; row.innerHTML = `<span>${label}</span><b>${k}</b>`; box.append(row); }
+  for (const [k, label] of [['Scroll wheel, 1 to 9', 'Choose from the hotbar'], ['Esc', 'Pause']]){ const row = document.createElement('div'); row.className = 'keyrow fixed'; row.innerHTML = `<span>${label}</span><b>${k}</b>`; box.append(row); }
 }
 function openKeys(back){ keysBack = back; rebind = null; renderKeys(); show('keysp'); }
 $('kreset').onclick = () => { S.keys = {}; buildKeys(); saveSettings(); renderKeys(); };
@@ -653,7 +740,7 @@ function frame(t){
         started();
       }
     }
-    if (g.started && w.loadedAround(p.x, p.z, 0)){
+    if (g.started && w.loadedAround(p.x, p.z, 0) && !g.riding){
       p.step(dt, active() ? g.keys : {});
       if (mouse.l || mouse.r){ mouse.t += dt; if (mouse.t > .22){ mouse.t = 0; use(mouse.l ? 'break' : 'place'); } }
     }
@@ -671,6 +758,26 @@ function frame(t){
       if (view === 2) camera.lookAt(p.x, p.eye, p.z);
     } else if (g.me) g.me.group.visible = false;
     for (const a of g.avatars.values()) a.update(dt);
+    // redstone, pressure plates, carts, TNT (the host or a lone player runs them)
+    const people = [{x:p.x, y:p.y, z:p.z}]; for (const a of g.avatars.values()) if (a.target) people.push(a.target);
+    if (!g.opt.guest && g.started){
+      g.red.step(people); g.red.update(dt);
+      if (g.riding && active() && (g.keys.f || g.keys.b)){ const s = g.keys.f ? 1 : -1; g.pushes.set(g.riding, [-Math.sin(p.yaw) * s, -Math.cos(p.yaw) * s]); }
+      g.carts.update(dt, true, g.pushes); g.pushes.clear();
+      for (let i = g.tnts.length - 1; i >= 0; i--){ const tn = g.tnts[i]; tn.t -= dt; const flash = Math.sin(tn.t * 12) > 0 ? .8 : 0; for (const m of tn.m.material) m.emissiveIntensity = flash; tn.m.scale.setScalar(1 + Math.max(0, .6 - tn.t) * .25);
+        if (tn.t <= 0){ scene.remove(tn.m); g.tnts.splice(i, 1); explode(g, tn.x + .5, tn.y + .5, tn.z + .5); } }
+      if (g.party && t - (g.caT || 0) > 150 && (g.carts.list.size || g.caWas)){ g.caT = t; g.caWas = g.carts.list.size; g.party.carts(g.carts.state()); }
+    } else if (g.started){
+      g.carts.update(dt, false);
+      if (g.riding && active() && (g.keys.f || g.keys.b) && t - (g.cpT || 0) > 120){ g.cpT = t; const s = g.keys.f ? 1 : -1; g.party.act({a:'push', id:g.riding, v:[+(-Math.sin(p.yaw) * s).toFixed(2), +(-Math.cos(p.yaw) * s).toFixed(2)]}); }
+    }
+    // riding: you sit in the cart; Shift gets you out
+    if (g.riding){ const c = g.carts.list.get(g.riding);
+      if (!c){ g.riding = null; }
+      else if (g.keys.down){ cartDo(g, {a:'leave'}); p.y = c.y + 1; p.vy = 0; p.x = c.x; p.z = c.z; }
+      else { p.x = c.x; p.z = c.z; p.y = c.y + .35; p.vx = p.vy = p.vz = 0; p.fly = false; } }
+    for (let i = booms.length - 1; i >= 0; i--){ const b = booms[i]; b.t += dt; b.m.scale.setScalar(1 + b.t * 14); b.m.material.opacity = Math.max(0, .9 - b.t * 2.6); if (b.t > .4){ scene.remove(b.m); b.m.geometry.dispose(); booms.splice(i, 1); } }
+    g.cartHit = active() || NOLOCK ? g.carts.pick(eye, dir, g.hit ? g.hit.t : 5) : null;
     if (g.started && S.animals){
       const host = !g.opt.guest, people = [{x:p.x, y:p.y, z:p.z, moving:Math.hypot(p.vx, p.vz) > 1}];
       for (const a of g.avatars.values()) if (a.target) people.push({x:a.target.x, y:a.target.y, z:a.target.z, moving:true});

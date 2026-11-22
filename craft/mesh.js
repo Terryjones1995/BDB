@@ -5,8 +5,8 @@
    (torches, lanterns, glowstone, lava: up to 8 blocks out, one level less each block). The border is as wide as light can reach, so nothing changes at
    the edge of a chunk. Output: two meshes, the solid one (leaves and plants cut out by the shader) and the see-through one (water, stained glass).
    Each corner carries [sky, block] light; the shader picks the brighter of the sky (times the time of day) and the warm block light. */
-import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH } from './blocks.js?v=c10';
-import { boxes } from './shapes.js?v=c10';
+import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, EMIT, FACE, FROT, SHAPE, STATE, WET, SH, FIRST, B } from './blocks.js?v=c12';
+import { boxes, dustLinks } from './shapes.js?v=c12';
 export const PAD = 8, PW = CH + 2 * PAD, PH = H + 2;
 export const pidx = (x, y, z) => ((y + 1) * PW + (z + PAD)) * PW + (x + PAD);
 const LSTEP = .2, SKY_ROUNDS = 5;      // sky light lost for each block it spreads sideways out of the open sky
@@ -105,7 +105,33 @@ export function meshChunk(v){
   for (let y = 0; y < H; y++) for (let z = 0; z < CH; z++) for (let x = 0; x < CH; x++){
     const ci = pidx(x, y, z), b = v[ci]; if (!SHAPE[b]) continue;
     const nb = (dx, dy, dz) => at(x + dx, y + dy, z + dz), out = TRANS[b] ? clear : solid, door = SHAPE[b] === SH.door, upper = door && STATE[b] >> 3;
-    const ownS = .28 + .72 * sky[ci], ownB = bl(ci);
+    const ownS = .28 + .72 * sky[ci], ownB = bl(ci), L4 = [.98 * ownS, ownB, .98 * ownS, ownB, .98 * ownS, ownB, .98 * ownS, ownB];
+    const flat = (layer, pts, uvs) => { out.quad(pts, uvs, layer, L4, false); out.quad([pts[9], pts[10], pts[11], pts[6], pts[7], pts[8], pts[3], pts[4], pts[5], pts[0], pts[1], pts[2]], [uvs[6], uvs[7], uvs[4], uvs[5], uvs[2], uvs[3], uvs[0], uvs[1]], layer, L4, false); };
+    if (SHAPE[b] === SH.dust){
+      // a dot in the middle and a line to each side it joins (both ways if it only joins one), climbing the side of a block when it steps up
+      const lay = FACE[b * 6 + 2], h = y + .015, links = dustLinks(nb), arms = links.map(l => [l[0], l[1]]);
+      if (arms.length === 1) arms.push([-arms[0][0], -arms[0][1]]);
+      const sq = (x0, z0, x1, z1) => flat(lay, [x + x0, h, z + z1, x + x1, h, z + z1, x + x1, h, z + z0, x + x0, h, z + z0], [x + x0, z + z1, x + x1, z + z1, x + x1, z + z0, x + x0, z + z0]);
+      sq(.3125, .3125, .6875, .6875);
+      for (const [dx, dz] of arms){ if (dx > 0) sq(.6875, .375, 1, .625); if (dx < 0) sq(0, .375, .3125, .625); if (dz > 0) sq(.375, .6875, .625, 1); if (dz < 0) sq(.375, 0, .625, .3125); }
+      for (const [dx, dz, lv] of links) if (lv === 1){ const fx = dx > 0 ? x + .985 : dx < 0 ? x + .015 : null, fz = dz > 0 ? z + .985 : dz < 0 ? z + .015 : null;
+        if (fx !== null) flat(lay, [fx, y, z + .375, fx, y, z + .625, fx, y + 1, z + .625, fx, y + 1, z + .375], [z + .375, -y, z + .625, -y, z + .625, -y - 1, z + .375, -y - 1]);
+        else flat(lay, [x + .375, y, fz, x + .625, y, fz, x + .625, y + 1, fz, x + .375, y + 1, fz], [x + .375, -y, x + .625, -y, x + .625, -y - 1, x + .375, -y - 1]); }
+      continue;
+    }
+    if (SHAPE[b] === SH.rail){
+      // a flat strip of track, turned to lie its way; sloping ones climb to the next block up
+      const r = FIRST[b] === B.rail_powered ? STATE[b] % 6 : STATE[b];
+      const lay = FACE[b * 6 + 2], e = .0625, ux = (lx, lz) => {
+        if (r === 1 || r === 2 || r === 3) return [lz, lx];                        // east-west: the picture turned
+        if (r === 7) return [1 - lx, lz]; if (r === 8) return [1 - lx, 1 - lz]; if (r === 9) return [lx, 1 - lz];
+        return [lx, lz]; };
+      const hy = (lx, lz) => y + e + (r === 2 ? lx : r === 3 ? 1 - lx : r === 4 ? 1 - lz : r === 5 ? lz : 0);
+      const cs = [[0, 1], [1, 1], [1, 0], [0, 0]], pts = [], uvs = [];
+      for (const [lx, lz] of cs){ pts.push(x + lx, hy(lx, lz), z + lz); const [u, v] = ux(lx, lz); uvs.push(x + u, z + v); }
+      flat(lay, pts, uvs);
+      continue;
+    }
     for (const bx of boxes(b, nb)){
       const [x0, y0, z0, x1, y1, z1] = bx, dv = bx[6] || 0;
       for (let f = 0; f < 6; f++){
@@ -118,7 +144,7 @@ export function meshChunk(v){
           f === 4 ? [X0, Y0, Z1, X1, Y0, Z1, X1, Y1, Z1, X0, Y1, Z1] : [X1, Y0, Z0, X0, Y0, Z0, X0, Y1, Z0, X1, Y1, Z0];
         const uv = []; for (let k = 0; k < 4; k++){ const px = P[k * 3], py = P[k * 3 + 1] - dv, pz = P[k * 3 + 2];
           if (d === 1) uv.push(px, pz); else if (d === 0) uv.push(f === 0 ? -pz : pz, -py); else uv.push(f === 5 ? -px : px, -py); }
-        const layer = door ? FACE[b * 6 + (upper ? 2 : 0)] : FACE[b * 6 + f];
+        const layer = door ? FACE[b * 6 + (upper ? 2 : 0)] : bx[7] === 1 ? FACE[b * 6 + 2] : bx[7] === 2 ? FACE[b * 6] : bx[7] === 3 ? FACE[b * 6 + 4] : FACE[b * 6 + f];
         out.quad(P, uv, layer, [Ls, Lb, Ls, Lb, Ls, Lb, Ls, Lb], false);
       }
     }
