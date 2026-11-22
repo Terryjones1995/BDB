@@ -1,23 +1,24 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js';
-import { paintAll, icon, TS } from './tex.js';
-import { column } from './gen.js';
-import { column as column2, villagesNear } from './gen2.js';
-import { createWorld } from './world.js';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js';
-import { createHand } from './hand.js';
-import { createPlayer, EYE } from './player.js';
-import { createMobs } from './mobs.js';
-import { createRedstone } from './redstone.js';
-import { createCarts } from './carts.js';
-import { createLiquids } from './liquids.js';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js';
-import { Cloud, Local, session, pack, unpack } from './store.js';
-import { openParty, newCode, cleanCode } from './party.js';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c17';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c17';
+import { paintAll, icon, TS } from './tex.js?v=c17';
+import { column } from './gen.js?v=c17';
+import { column as column2, villagesNear } from './gen2.js?v=c17';
+import { createWorld } from './world.js?v=c17';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c17';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c17';
+import { createHand } from './hand.js?v=c17';
+import { createPlayer, EYE } from './player.js?v=c17';
+import { createMobs } from './mobs.js?v=c17';
+import { createRedstone } from './redstone.js?v=c17';
+import { createCarts } from './carts.js?v=c17';
+import { createLiquids } from './liquids.js?v=c17';
+import { createWeather, tearUp } from './weather.js?v=c17';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c17';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c17';
+import { openParty, newCode, cleanCode } from './party.js?v=c17';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -36,7 +37,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(S.fov, 1, .05, 1200);
 camera.rotation.order = 'YXZ';
 const hemi = new THREE.HemisphereLight(0xdfeeff, 0x6b5a45, 2.2); scene.add(hemi); const sunL = new THREE.DirectionalLight(0xfff2dd, 1.4); sunL.position.set(-3, 5, -4); scene.add(sunL);
-const layers = paintAll(), mats = blockMaterials(layers), theSky = createSky(scene), cloud = createClouds(scene, 1234), hl = outline(scene);
+const layers = paintAll(), mats = blockMaterials(layers), theSky = createSky(scene), weather = createWeather(scene), cloud = createClouds(scene, 1234), hl = outline(scene);
 const icons = []; const iconOf = id => icons[id] || (icons[id] = icon(layers, id, 64));
 function resize(){ const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); handCam.aspect = w / h; handCam.updateProjectionMatrix(); }
 
@@ -330,7 +331,8 @@ async function joinWorld(code){
       animals(st){ if (G && G.animals && Array.isArray(st)) G.animals.apply(st); },
       hurt(d){ if (G && Array.isArray(d)) hurtMe(+d[0] || 1, {x:+d[1], z:+d[2]}); },
       carts(st){ if (G && G.carts && Array.isArray(st)){ G.carts.apply(st); } },
-      time(d){ const g2 = G || g; if (g2 && Array.isArray(d)){ g2.timeHost = +d[0] || 0; g2.day = d[1] | 0; g2.timeAt = d[2] ? performance.now() : 0; g2.time = g2.timeHost; } },
+      time(d){ const g2 = G || g; if (g2 && Array.isArray(d)){ g2.timeHost = +d[0] || 0; g2.day = d[1] | 0; g2.timeAt = d[2] ? performance.now() : 0; g2.time = g2.timeHost; if (typeof d[3] === 'string' && d[3] !== weather.kind) weather.set(d[3]); if (d[4] !== undefined) weather.set(d[3] || weather.kind, Array.isArray(d[4]) ? {x:+d[4][0], z:+d[4][1], vx:+d[4][2], vz:+d[4][3], life:+d[4][4]} : null); } },
+      lightning(d){ if (Array.isArray(d)){ weather.bolt(+d[0], +d[1], +d[2]); weather.strikeFlash(); if (G && Math.hypot(G.p.x - d[0], G.p.z - d[2]) < 3) hurtMe(5, {x:+d[0], z:+d[2]}); } },
       hostLeft(){ const h = G && G.host || 'The host'; if (G) leaveGame(true); msg(h + ' stopped hosting', 'The world is saved on their side. Join again when they open it.'); }
     }});
   } catch(e){ fail('Could not connect', 'Your browser could not reach your friend. Try again.'); }
@@ -498,6 +500,8 @@ addEventListener('keydown', e => {
   const g = G;
   if (e.target === $('chatin')){
     if (e.key === 'Enter'){ const t = $('chatin').value.trim(); $('chatin').value = ''; $('chatin').hidden = true; if (t && g && t.startsWith('/time')){ const w = t.split(/\s+/)[1] || '', T = {day:.04, morning:.04, noon:.25, sunset:.47, evening:.47, night:.62, midnight:.75}; if (g.opt.guest) sys('Only ' + g.host + ' can change the time.'); else if (w in T){ g.time = T[w]; sys('Time set to ' + w + '.'); if (g.party) g.party.time([g.time, g.day, S.cycle ? 1 : 0]); } else sys('Try /time day, noon, sunset or night.'); lock(); return; }
+    if (t && g && t.startsWith('/weather')){ const w = t.split(/\s+/)[1] || ''; if (g.opt.guest) sys('Only ' + g.host + ' can change the weather.'); else if (['clear', 'rain', 'thunder'].includes(w)){ weather.set(w); sys('Weather: ' + w + '.'); g.tmT = 0; }
+      else if (w === 'tornado'){ weather.set('thunder', {x:g.p.x + 40, z:g.p.z + 10, vx:-2.5, vz:-.5, life:120}); sys('A tornado is coming.'); g.tmT = 0; } else sys('Try /weather clear, rain, thunder or tornado.'); lock(); return; }
     if (t && g){ chatLine(session() ? session().name : g.party ? g.party.list()[0].name : 'You', t); if (g.party) g.party.chat(t); else if (!g.party) sys('No one else is here. Invite friends from the pause screen.'); } lock(); }
     if (e.key === 'Escape'){ $('chatin').value = ''; $('chatin').hidden = true; setTimeout(() => { if (!active()) pause(); }, 0); }
     return;
@@ -602,6 +606,14 @@ function use(what){
   else if (AXIS[b * 3 + 1]){ id = face[0] ? AXIS[b * 3 + 1] : face[2] ? AXIS[b * 3 + 2] : b; }
   edit(x, y, z, id + wetAdd); hand.swing();
   if (sh === SH.rail){ setRail(g, x, y, z, F); for (const [dx, dz] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) for (const dy of [0, -1, 1]){ const n = g.world.get(x + dx, y + dy, z + dz); if (n > 0 && SHAPE[n] === SH.rail && (dy === -1 || railLinks(g, x + dx, y + dy, z + dz) < 2)) setRail(g, x + dx, y + dy, z + dz, F); } }
+}
+/* lightning: a bolt, a flash, and it hurts anything right there */
+const LEAVES = new Set(BLOCKS.filter(b => /^leaves_/.test(b.key)).map(b => b.id));
+function strike(g, x, z){
+  const y = g.world.surface(Math.floor(x), Math.floor(z)); if (y <= 0) return;
+  weather.bolt(x, y, z); weather.strikeFlash(); if (g.party) g.party.lightning([+x.toFixed(1), y, +z.toFixed(1)]);
+  for (const a of g.animals.list.values()) if (Math.hypot(a.x - x, a.z - z) < 3) g.animals.hurt(a, 8, {x, z});
+  if (Math.hypot(g.p.x - x, g.p.z - z) < 3) hurtMe(5, {x, z});
 }
 /* the bow: the longer you hold, the faster and harder the arrow */
 function shootBow(g, k, dmg){
@@ -858,18 +870,28 @@ function frame(t){
   // the time of day: it moves on for the host (or on your own); friends get it from the host
   let time = .2, day = 0;
   if (g){ if (g.started && S.cycle && !g.opt.guest){ g.time += dt / DAY_SECONDS; if (g.time >= 1){ g.time -= 1; g.day++; } } if (g.opt.guest && g.timeAt){ g.time = (g.timeHost + (t - g.timeAt) / 1000 / DAY_SECONDS) % 1; } time = g.time; day = g.day; }
-  const sk = theSky.update(camera, time, day); mats.tick(dt); lastNight = sk.night;
+  // weather where you are
+  if (g && g.started){
+    if (!g.biomeT || t - g.biomeT > 500){ g.biomeT = t; g.biome = g.opt.kind === 'flat' ? 'plains' : g.colAt(Math.floor(g.p.x), Math.floor(g.p.z)).biome; }
+    if (!g.opt.guest) weather.host(dt, {x:g.p.x, z:g.p.z, biome:g.biome}, (x, z) => strike(g, x, z), null);
+    weather.update(dt, camera, g.biome, g.world, (x, z) => { const s = g.world.surface(Math.floor(x), Math.floor(z)); return s > 0 ? s : g.p.y; });
+    const pull = weather.pull(g.p.x, g.p.y, g.p.z, g.world.surface(Math.floor(g.p.x), Math.floor(g.p.z)));
+    if (pull && !g.riding){ g.p.vx += pull.vx * dt * 3; g.p.vz += pull.vz * dt * 3; g.p.vy = Math.max(g.p.vy, pull.vy); g.p.fly = false; }
+    if (!g.opt.guest && weather.tornado){ g.tearT = (g.tearT || 0) + dt; if (g.tearT > .3){ g.tearT = 0; tearUp(g.world, weather.tornado, (x, y, z, b) => edit(x, y, z, b), LEAVES); }
+      for (const a of g.animals.list.values()){ const pl = weather.pull(a.x, a.y, a.z, a.ty); if (pl){ a.kx = pl.vx; a.kz = pl.vz; a.vy = pl.vy * .8; } } }
+  } else weather.clear();
+  const sk = theSky.update(camera, time, day, weather.storm, weather.flash); mats.tick(dt); lastNight = sk.night;
   const under = g && g.started && !(g.view | 0) ? (g.p.eyeLava ? 2 : g.p.eyeWater ? 1 : 0) : 0, far = (G ? S.dist : 6) * 16 - 2;
   for (const m of [mats.solid, mats.clear]){
     m.uniforms.bright.value = sk.light;
     if (under === 1){ m.uniforms.fogColor.value.set(.08 * sk.light + .02, .2 * sk.light + .04, .45 * sk.light + .08); m.uniforms.fogNear.value = 1; m.uniforms.fogFar.value = 26; }       // under water: blue and murky
     else if (under === 2){ m.uniforms.fogColor.value.set(.9, .35, .05); m.uniforms.fogNear.value = 0; m.uniforms.fogFar.value = 2.5; }
-    else { m.uniforms.fogColor.value.set(sk.hor.r, sk.hor.g, sk.hor.b); m.uniforms.fogNear.value = Math.max(16, far * .62); m.uniforms.fogFar.value = far; }
+    else { const wf = far * (1 - .4 * weather.rain); m.uniforms.fogColor.value.set(sk.hor.r, sk.hor.g, sk.hor.b); m.uniforms.fogNear.value = Math.max(12, wf * .55); m.uniforms.fogFar.value = wf; }
   }
   document.body.classList.toggle('wet', under === 1);
   hemi.intensity = 2.2 * sk.light; sunL.intensity = 1.4 * sk.light; hand.light(.35 + .65 * sk.light);
   cloud.group.visible = S.clouds; cloud.far = Math.max(260, (G ? S.dist : 6) * 16 * 2.2); cloud.update(camera, dt, sk);
-  if (g && g.party && !g.opt.guest && t - (g.tmT || 0) > 5000){ g.tmT = t; g.party.time([g.time, g.day, S.cycle ? 1 : 0]); }
+  if (g && g.party && !g.opt.guest && t - (g.tmT || 0) > (weather.tornado ? 1000 : 5000)){ g.tmT = t; const tn = weather.tornado; g.party.time([g.time, g.day, S.cycle ? 1 : 0, weather.kind, tn ? [+tn.x.toFixed(1), +tn.z.toFixed(1), +tn.vx.toFixed(2), +tn.vz.toFixed(2), Math.round(tn.life)] : 0]); }
   renderer.autoClear = true; renderer.render(scene, camera);
   if (g && g.started && S.hand && hand.on && g.hud && !(g.view | 0)){ renderer.autoClear = false; renderer.clearDepth(); renderer.render(handScene, handCam); }
 }
@@ -880,4 +902,4 @@ requestAnimationFrame(frame);
 if (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches){ $('bnew').disabled = true; $('bjoin').disabled = true; }
 
 /* a handle for the tests */
-window.craft = {hurtMe, gen2:{column:column2, villagesNear}, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};
+window.craft = {hurtMe, weather, strike, gen2:{column:column2, villagesNear}, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};

@@ -1,16 +1,16 @@
 /* BDB Craft: the world on the page. Keeps the chunks near the player, asks the workers to make and mesh them, turns meshes into three.js objects, and
    tracks every block anyone changes (mods: the whole chunk, kept for good once one block in it changes; that is what gets saved and sent to friends). */
-import * as THREE from '../chess/vendor/three.module.min.js';
-import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS, SHAPE } from './blocks.js';
-import { boxes, solidBoxes } from './shapes.js';
-import { PW, PH, PAD, pidx } from './mesh.js';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c17';
+import { CH, H, OPAQUE, SOLID, PLANT, LIQUID, BLOCKS, SHAPE } from './blocks.js?v=c17';
+import { boxes, solidBoxes } from './shapes.js?v=c17';
+import { PW, PH, PAD, pidx } from './mesh.js?v=c17';
 const key = (cx, cz) => cx + ',' + cz;
 export function createWorld({seed, kind, scene, matSolid, matClear, workers = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1)), wait, onGen}){
   const chunks = new Map(), mods = new Map(), dirty = new Set(), pool = [], jobs = new Map(), queue = new Map(), far = new Set();
   function drain(k, v){ const q = queue.get(k); if (!q) return; for (let j = 0; j < q.length; j += 2) v[q[j]] = q[j + 1]; queue.delete(k); mods.set(k, v); dirty.add(k); }
   let nid = 0, R = 8, centre = [0, 0], busyGen = 0, busyMesh = 0, alive = true, stats = {gen:0, mesh:0};
   for (let i = 0; i < workers; i++){
-    const w = new Worker(new URL('./worker.js', import.meta.url), {type:'module'});
+    const w = new Worker(new URL('./worker.js?v=c17', import.meta.url), {type:'module'});
     w.onmessage = e => done(e.data); w.busy = 0; pool.push(w);
   }
   const free = () => pool.reduce((a, w) => w.busy < a.busy ? w : a, pool[0]);

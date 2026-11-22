@@ -2,7 +2,7 @@
    every block); repeaters carry it on in one direction a moment later; lamps light, doors, trapdoors and gates open, TNT is lit and powered rails push.
    Only the host (or a player on their own) runs it, ten ticks a second, near whatever changed; the results are ordinary block changes, so friends see
    them like any other edit. It is a simpler version of the real thing: no quasi-connectivity, no comparators yet, torches burn out never. */
-import { B, BLOCKS, SHAPE, STATE, FIRST, WET, OPAQUE, SH } from './blocks.js';
+import { B, BLOCKS, SHAPE, STATE, FIRST, WET, OPAQUE, SH } from './blocks.js?v=c17';
 
 const DIR6 = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
 const DIR4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];            // facing 0 north, 1 east, 2 south, 3 west

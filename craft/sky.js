@@ -1,7 +1,7 @@
 /* BDB Craft: the sky. A day lasts 20 minutes (like the real thing): the sun comes up in the east, sets in the west in orange, the moon follows it with
    its phase changing night to night, and stars come out. Clouds are blocky 3D puffs that drift, lit by the time of day.
    time: 0 sunrise, .25 noon, .5 sunset, .75 midnight. light() is how bright the world is (the block shader multiplies by it). */
-import * as THREE from '../chess/vendor/three.module.min.js';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c17';
 
 export const DAY_SECONDS = 1200;
 const C = h => new THREE.Color(h);
@@ -51,19 +51,20 @@ export function createSky(scene, seed = 1){
   const sun = disc(sunTex, 340), moons = Array.from({length:8}, (_, i) => moonTex(i)), moon = disc(moons[0], 260); moon.material.blending = THREE.NormalBlending;
   const out = {top:new THREE.Color(), hor:new THREE.Color(), light:1, night:0, sunDir:new THREE.Vector3()};
   const v = new THREE.Vector3();
-  out.update = (cam, time, day = 0) => {
+  out.update = (cam, time, day = 0, storm = 0, flash = 0) => {
     const a = time * Math.PI * 2, h = Math.sin(a) * .85 + .05;                         // sun height, -1..1
     out.sunDir.set(Math.cos(a), h * .85, .62).normalize();      // the path is tilted to the south, so at noon the sun sits high but in view
     const dayK = ss(-.08, .32, h), duskK = Math.max(0, 1 - Math.abs(h) / .32) * ss(-.3, 0, h + .1);
     const top = mix3(NIGHT[0], NOON[0], dayK), hor = mix3(NIGHT[1], NOON[1], dayK);
     top.lerp(DUSK[0], duskK * .45); hor.lerp(DUSK[1], duskK * .75);
+    const grey = C('#7d8590').multiplyScalar(.35 + .65 * dayK); top.lerp(grey, storm * .75); hor.lerp(grey, storm * .65);
     out.top.copy(top); out.hor.copy(hor); out.night = 1 - ss(-.25, .05, h);
-    out.light = .34 + .66 * ss(-.18, .25, h);
+    out.light = (.34 + .66 * ss(-.18, .25, h)) * (1 - .38 * storm) + flash * .7;
     const u = dome.material.uniforms; u.top.value.copy(top); u.hor.value.copy(hor); u.sunDir.value.copy(out.sunDir); u.glowAmt.value = duskK;
     dome.position.copy(cam.position); stars.position.copy(cam.position); stars.rotation.z = a; stars.material.opacity = out.night * .9;
     v.copy(out.sunDir).multiplyScalar(700); sun.position.copy(cam.position).add(v); sun.lookAt(cam.position);
     moon.position.copy(cam.position).sub(v); moon.lookAt(cam.position); moon.material.map = moons[Math.floor(day) % 8];
-    sun.material.opacity = ss(-.15, .05, h); moon.material.opacity = ss(-.15, .05, -h) * .95 + .05;
+    sun.material.opacity = ss(-.15, .05, h) * (1 - storm * .9); moon.material.opacity = (ss(-.15, .05, -h) * .95 + .05) * (1 - storm * .9); stars.material.opacity *= 1 - storm;
     return out;
   };
   return out;

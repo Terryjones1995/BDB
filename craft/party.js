@@ -5,7 +5,7 @@
    Messages: hi (host to a new friend: the world and which chunks changed), ch (one changed chunk), me (my name and character), p (where I am), e (a block changed),
    c (chat), pl (who is here, from the host), an (where the animals are, from the host), sl (I hit an animal, to the host), ca (where the minecarts are and who rides them),
    cx (put a cart, get in or out, push it, break it, light TNT: to the host). */
-import { openTransport } from '../chess/net.js';
+import { openTransport } from '../chess/net.js?v=c17';
 const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => ABC[b % ABC.length]).join('');
 export const cleanCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -40,6 +40,7 @@ export async function openParty({local, code, host, name, skin, on}){
       return;
     }
     if (t === 'tm' && from === hostId){ on.time && on.time(d); return; }
+    if (t === 'lt' && from === hostId){ on.lightning && on.lightning(d); return; }
     if (t === 'ca' && from === hostId){ on.carts && on.carts(d); return; }
     if (t === 'cx' && host){ on.act && on.act(d, from); return; }
     if (t === 'an' && from === hostId){ on.animals && on.animals(d); return; }
@@ -56,6 +57,7 @@ export async function openParty({local, code, host, name, skin, on}){
     carts(st){ room.send('ca', st); },
     act(d){ if (hostId) room.send('cx', d, hostId); },
     time(d){ room.send('tm', d); },
+    lightning(d){ room.send('lt', d); },
     slap(id, dmg){ if (hostId) room.send('sl', [id, dmg], hostId); },
     hurt(peer, d){ room.send('hu', d, peer); },
     setSkin(s){ skin = s; room.send('me', {name, skin}); },
