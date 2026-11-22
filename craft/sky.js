@@ -1,12 +1,12 @@
 /* BDB Craft: the sky. A day lasts 20 minutes (like the real thing): the sun comes up in the east, sets in the west in orange, the moon follows it with
    its phase changing night to night, and stars come out. Clouds are blocky 3D puffs that drift, lit by the time of day.
    time: 0 sunrise, .25 noon, .5 sunset, .75 midnight. light() is how bright the world is (the block shader multiplies by it). */
-import * as THREE from '../chess/vendor/three.module.min.js';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c6';
 
 export const DAY_SECONDS = 1200;
 const C = h => new THREE.Color(h);
 // sky top, horizon, and the glow round the sun, at noon, at sunset, and at night (written straight to the screen, no colour management)
-const NOON = [C('#6fa4ff'), C('#bcd8fb')], DUSK = [C('#3f5fa8'), C('#f0a46a')], NIGHT = [C('#03050c'), C('#0a1428')];
+const NOON = [C('#6fa4ff'), C('#bcd8fb')], DUSK = [C('#3f5fa8'), C('#f0a46a')], NIGHT = [C('#060b1e'), C('#15233f')];
 const mix3 = (a, b, k) => a.clone().lerp(b, k);
 const ss = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -58,7 +58,7 @@ export function createSky(scene, seed = 1){
     const top = mix3(NIGHT[0], NOON[0], dayK), hor = mix3(NIGHT[1], NOON[1], dayK);
     top.lerp(DUSK[0], duskK * .45); hor.lerp(DUSK[1], duskK * .75);
     out.top.copy(top); out.hor.copy(hor); out.night = 1 - ss(-.25, .05, h);
-    out.light = .2 + .8 * ss(-.18, .25, h);
+    out.light = .34 + .66 * ss(-.18, .25, h);
     const u = dome.material.uniforms; u.top.value.copy(top); u.hor.value.copy(hor); u.sunDir.value.copy(out.sunDir); u.glowAmt.value = duskK;
     dome.position.copy(cam.position); stars.position.copy(cam.position); stars.rotation.z = a; stars.material.opacity = out.night * .9;
     v.copy(out.sunDir).multiplyScalar(700); sun.position.copy(cam.position).add(v); sun.lookAt(cam.position);
@@ -73,6 +73,7 @@ export function createSky(scene, seed = 1){
    The same tile is drawn nine times round you so it never ends, and fades out into the distance */
 const CLOUD_VS = `attribute float shade; varying float vS; varying float vD; void main(){ vS = shade; vec4 mv = modelViewMatrix * vec4(position, 1.0); vD = length(mv.xz); gl_Position = projectionMatrix * mv; }`;
 const CLOUD_FS = `uniform vec3 tint; uniform float far; varying float vS; varying float vD; void main(){ float a = 0.82 * (1.0 - smoothstep(far * 0.55, far, vD)); if (a < 0.01) discard; gl_FragColor = vec4(tint * vS, a); }`;
+const NIGHT_CLOUD = new THREE.Color();
 export function createClouds(scene, seed = 1234){
   const N = 64, CELL = 12, TH = 4, TILE = N * CELL;
   let s = (seed >>> 0) || 1; const r = () => (s = Math.imul(s ^ s >>> 15, 2246822519) + 0x9e3779b9 >>> 0, (s >>> 8) / 16777216);
@@ -102,7 +103,7 @@ export function createClouds(scene, seed = 1234){
       drift += dt * 1.6;
       const bx = Math.floor((cam.position.x - drift) / TILE) * TILE + drift, bz = Math.floor(cam.position.z / TILE) * TILE;
       let i = 0; for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) tiles[i++].position.set(bx + dx * TILE, 150, bz + dz * TILE);
-      if (sky){ const t = mat.uniforms.tint.value; t.setRGB(1, 1, 1).lerp(sky.hor, .25).multiplyScalar(.35 + .65 * sky.light); }
+      if (sky){ const t = mat.uniforms.tint.value, k = (sky.light - .34) / .66; t.setRGB(.16, .19, .28).lerp(NIGHT_CLOUD.setRGB(1, 1, 1).lerp(sky.hor, .3), k); }
     },
     set far(v){ mat.uniforms.far.value = v; }
   };

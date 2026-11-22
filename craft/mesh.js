@@ -3,7 +3,7 @@
    light are merged into one big rectangle ("greedy" meshing). Every corner gets a little shadow where blocks meet (ambient occlusion) and light from the sky,
    which leaves and water dim and solid blocks stop, so caves are dark and trees cast shade. Input: the chunk plus a one-block border from its eight neighbours.
    Output: two meshes, the solid one (leaves and plants cut out by the shader) and the see-through one (water, stained glass). */
-import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, FACE, T } from './blocks.js?v=c4';
+import { CH, H, OPAQUE, CUTOUT, PLANT, LIQUID, TRANS, SELF, GLOW, FACE, T } from './blocks.js?v=c6';
 export const PAD = 4, PW = CH + 2 * PAD, PH = H + 2;
 export const pidx = (x, y, z) => ((y + 1) * PW + (z + PAD)) * PW + (x + PAD);
 const LSTEP = .2;      // light lost for each block it spreads sideways out of the open sky (under a roof, into a doorway, into a cave mouth)
@@ -61,7 +61,7 @@ export function meshChunk(v){
             const ou = (q === 1 || q === 2 ? su : -su), ov = (q >= 2 ? sv : -sv);
             const s1 = OPAQUE[v[ai + ou]], s2 = OPAQUE[v[ai + ov]], s3 = OPAQUE[v[ai + ou + ov]], ao = s1 && s2 ? 0 : 3 - s1 - s2 - s3;
             let sum = sky[ai], cnt = 1; if (!s1){ sum += sky[ai + ou]; cnt++; } if (!s2){ sum += sky[ai + ov]; cnt++; } if (!s3 && !(s1 && s2)){ sum += sky[ai + ou + ov]; cnt++; }
-            const L = GLOW[b] ? 1 : sh * (.28 + .72 * sum / cnt) * AOF[ao];
+            const L = GLOW[b] ? 1 : .98 * sh * (.28 + .72 * sum / cnt) * AOF[ao];
             key += Math.min(63, Math.round(L * 63)) * MUL[q];
           }
           (TRANS[b] ? tmask : mask)[iv * U + iu] = key + 1;
@@ -89,7 +89,7 @@ export function meshChunk(v){
   // plants: two pictures crossed, seen from both sides
   for (let y = 0; y < H; y++) for (let z = 0; z < CH; z++) for (let x = 0; x < CH; x++){
     const b = v[pidx(x, y, z)]; if (!PLANT[b]) continue;
-    const l = .2 + .8 * (.28 + .72 * sk(x, y, z)), L = [l * .9, l * .9, l, l], layer = FACE[b * 6], i = .15, j = .85;
+    const l = .98 * (.2 + .8 * (.28 + .72 * sk(x, y, z))), L = [l * .9, l * .9, l, l], layer = FACE[b * 6], i = .15, j = .85;
     for (const [ax, az, bx, bz] of [[i, i, j, j], [j, i, i, j]]){
       out2(solid, [x + ax, y, z + az, x + bx, y, z + bz, x + bx, y + 1, z + bz, x + ax, y + 1, z + az], layer, L);
       out2(solid, [x + bx, y, z + bz, x + ax, y, z + az, x + ax, y + 1, z + az, x + bx, y + 1, z + bz], layer, L);
@@ -104,7 +104,7 @@ export function meshChunk(v){
       const d = f >> 1, s = f & 1 ? -1 : 1, nx = x + AX[d][0] * s, ny = y + AX[d][1] * s, nz = z + AX[d][2] * s, n = at(nx, ny, nz);
       if (LIQUID[n] || (OPAQUE[n] && !(f === 2 && top < 1))) continue;
       if (f === 2 && LIQUID[up]) continue;
-      const L = SHADE[f] * l, y1 = y + top, P =
+      const L = .98 * SHADE[f] * l, y1 = y + top, P =
         f === 0 ? [x + 1, y, z + 1, x + 1, y, z, x + 1, y1, z, x + 1, y1, z + 1] : f === 1 ? [x, y, z, x, y, z + 1, x, y1, z + 1, x, y1, z] :
         f === 2 ? [x, y1, z + 1, x + 1, y1, z + 1, x + 1, y1, z, x, y1, z] : f === 3 ? [x, y, z, x + 1, y, z, x + 1, y, z + 1, x, y, z + 1] :
         f === 4 ? [x, y, z + 1, x + 1, y, z + 1, x + 1, y1, z + 1, x, y1, z + 1] : [x + 1, y, z, x, y, z, x, y1, z, x + 1, y1, z];

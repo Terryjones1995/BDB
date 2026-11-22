@@ -1,17 +1,19 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c4';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c4';
-import { paintAll, icon, TS } from './tex.js?v=c4';
-import { column } from './gen.js?v=c4';
-import { createWorld } from './world.js?v=c4';
-import { blockMaterials, sky, clouds, outline, avatar, HORIZON } from './render.js?v=c4';
-import { createPlayer, EYE } from './player.js?v=c4';
-import { createAnimals } from './animals.js?v=c4';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c4';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c4';
-import { openParty, newCode, cleanCode } from './party.js?v=c4';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c6';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH } from './blocks.js?v=c6';
+import { paintAll, icon, TS } from './tex.js?v=c6';
+import { column } from './gen.js?v=c6';
+import { createWorld } from './world.js?v=c6';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c6';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c6';
+import { createHand } from './hand.js?v=c6';
+import { createPlayer, EYE } from './player.js?v=c6';
+import { createAnimals } from './animals.js?v=c6';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c6';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c6';
+import { openParty, newCode, cleanCode } from './party.js?v=c6';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -20,7 +22,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '
 const hashSeed = s => { s = String(s).trim(); if (/^-?\d{1,9}$/.test(s)) return +s; let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619); return h | 0; };
 
 /* ---------- settings ---------- */
-const S = Object.assign({dist:8, fov:75, sens:100, invert:false, clouds:true, hand:true, animals:true}, store.get('craft-settings', {}));
+const S = Object.assign({dist:8, fov:75, sens:100, invert:false, clouds:true, hand:true, animals:true, cycle:true}, store.get('craft-settings', {}));
 const saveSettings = () => store.set('craft-settings', S);
 
 /* ---------- three.js ---------- */
@@ -29,35 +31,16 @@ const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreferen
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(S.fov, 1, .05, 1200);
 camera.rotation.order = 'YXZ';
-scene.add(new THREE.HemisphereLight(0xdfeeff, 0x6b5a45, 2.2)); const sunL = new THREE.DirectionalLight(0xfff2dd, 1.4); sunL.position.set(-3, 5, -4); scene.add(sunL);
-const layers = paintAll(), mats = blockMaterials(layers), theSky = sky(scene), cloud = clouds(scene, 1234), hl = outline(scene);
+const hemi = new THREE.HemisphereLight(0xdfeeff, 0x6b5a45, 2.2); scene.add(hemi); const sunL = new THREE.DirectionalLight(0xfff2dd, 1.4); sunL.position.set(-3, 5, -4); scene.add(sunL);
+const layers = paintAll(), mats = blockMaterials(layers), theSky = createSky(scene), cloud = createClouds(scene, 1234), hl = outline(scene);
 const icons = []; const iconOf = id => icons[id] || (icons[id] = icon(layers, id, 64));
 function resize(){ const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); handCam.aspect = w / h; handCam.updateProjectionMatrix(); }
 
 /* the block in your hand, bottom right, drawn on top of everything */
 const handScene = new THREE.Scene(), handCam = new THREE.PerspectiveCamera(70, 1, .01, 10);
 handScene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.6));
-const hand = (() => {
-  const cache = new Map(); let mesh = null, cur = -1, swing = 0, bob = 0;
-  const tex = l => { const c = document.createElement('canvas'); c.width = c.height = TS; const x = c.getContext('2d'), im = x.createImageData(TS, TS); im.data.set(layers.subarray(l * TS * TS * 4, (l + 1) * TS * TS * 4)); x.putImageData(im, 0, 0);
-    const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.colorSpace = THREE.SRGBColorSpace; return t; };
-  function make(id){
-    const b = BLOCKS[id];
-    if (b.kind === 'plant'){ const m = new THREE.Mesh(new THREE.PlaneGeometry(.3, .3), new THREE.MeshLambertMaterial({map:tex(FACE[id * 6]), transparent:true, alphaTest:.5, side:THREE.DoubleSide})); return m; }
-    const order = [0, 1, 2, 3, 4, 5].map(f => FACE[id * 6 + f]);
-    const ms = order.map(l => new THREE.MeshLambertMaterial({map:tex(l), transparent:b.kind !== 'solid', alphaTest:b.kind === 'cutout' ? .5 : 0, opacity:1}));
-    return new THREE.Mesh(new THREE.BoxGeometry(.2, .2, .2), ms);
-  }
-  return {
-    set(id){ if (id === cur && mesh) return; if (mesh) handScene.remove(mesh); cur = id; if (!id){ mesh = null; return; } if (!cache.has(id)) cache.set(id, make(id)); mesh = cache.get(id); handScene.add(mesh); },
-    drop(id){ if (cache.has(id)){ if (cur === id && mesh) handScene.remove(mesh); cache.delete(id); if (cur === id){ cur = -1; } } },
-    swing(){ swing = 1; },
-    update(dt, moving){ if (!mesh) return; swing = Math.max(0, swing - dt * 5); bob += dt * (moving ? 9 : 0);
-      const s = Math.sin(swing * Math.PI);
-      mesh.position.set(.62 + Math.sin(bob) * .012, -.5 + Math.abs(Math.cos(bob)) * .018 - s * .1, -1 + s * .06); mesh.rotation.set(.18 - s * .7, .72, 0); },
-    get on(){ return !!mesh; }
-  };
-})();
+{ const d = new THREE.DirectionalLight(0xffffff, 1.2); d.position.set(1, 2, 1); handScene.add(d); }
+const hand = createHand(handScene, layers);
 
 /* ---------- screens ---------- */
 const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'inv', 'msg'];
@@ -250,6 +233,7 @@ $('cback').onclick = () => { const b = creator.back; creator = null; show(b); };
 $('csave').onclick = async () => {
   const c = creator; skinNow = cleanSkin(c.draft); store.set(skinKey(), skinNow); creator = null;
   if (session() && Cloud.on) Cloud.setSkin(skinNow).catch(() => {});
+  hand.setSkin(skinNow);
   if (G){ if (G.party) G.party.setSkin(skinNow); if (G.me){ G.me.dispose(); G.me = null; } }
   if (c.first || c.back === 'menu') toMenu(); else show(c.back);
 };
@@ -264,6 +248,7 @@ function makeGame(opt){
   const g = {opt, world, p, bar:(Array.isArray(meta.bar) && meta.bar.length === 9 ? meta.bar.map(b => (b > 0 && b < N && BLOCKS[b].kind !== 'air') ? b : B.stone) : HOTBAR0.slice()), sel:meta.sel | 0 || 0,
     keys:{}, ready:false, spawned:false, lastSave:performance.now(), avatars:new Map(), party:opt.party || null, code:opt.code || null, hud:true, dbg:false, lastTapSpace:0, lastTapW:0, liveT:0, posT:0, saving:null};
   g.animals = createAnimals(scene, world);
+  g.time = typeof meta.time === 'number' ? meta.time % 1 : .08; g.day = meta.day | 0;
   if (meta.p){ Object.assign(p, {x:meta.p[0], y:meta.p[1], z:meta.p[2], yaw:meta.p[3] || 0, pitch:meta.p[4] || 0, fly:!!meta.p[5]}); g.spawned = true; }
   else if (opt.spawn){ Object.assign(p, opt.spawn); g.spawned = true; g.needUp = true; }
   else {
@@ -276,10 +261,10 @@ function makeGame(opt){
   g.refreshBar = () => {
     const bar = $('bar'); bar.innerHTML = '';
     g.bar.forEach((b, i) => { const s = document.createElement('div'); s.className = 'slot' + (i === g.sel ? ' on' : ''); s.innerHTML = `<i>${i + 1}</i><img alt="" src="${iconOf(b)}">`; bar.append(s); });
-    hand.set(S.hand ? g.bar[g.sel] : 0);
+    hand.set(g.bar[g.sel]);
   };
-  g.pick = (i, quiet) => { g.sel = (i + 9) % 9; g.refreshBar(); if (!quiet){ const e = $('bname'); e.textContent = BLOCKS[g.bar[g.sel]].name; e.style.opacity = 1; clearTimeout(g.bnT); g.bnT = setTimeout(() => e.style.opacity = 0, 1600); } };
-  g.metaNow = () => ({p:[+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), p.fly ? 1 : 0], bar:g.bar, sel:g.sel});
+  g.pick = (i, quiet) => { g.sel = (i + 9) % 9; g.refreshBar(); if (!quiet){ const e = $('bname'); e.textContent = g.bar[g.sel] ? BLOCKS[g.bar[g.sel]].name : ''; e.style.opacity = 1; clearTimeout(g.bnT); g.bnT = setTimeout(() => e.style.opacity = 0, 1600); } };
+  g.metaNow = () => ({time:+g.time.toFixed(4), day:g.day, p:[+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), p.fly ? 1 : 0], bar:g.bar, sel:g.sel});
   return g;
 }
 async function playWorld(w){
@@ -311,7 +296,7 @@ async function joinWorld(code){
         clearTimeout(joinTimer);
         waiting = new Set(d.mods || []); total = waiting.size;
         g = makeGame({name:d.name, seed:+d.seed, kind:d.kind, where:'guest', guest:true, party, code, spawn:d.spawn ? {x:d.spawn[0], y:d.spawn[1], z:d.spawn[2]} : null, wait:k => waiting.has(k)});
-        g.host = d.host; g.waiting = waiting;
+        g.host = d.host; g.waiting = waiting; if (Array.isArray(d.time)){ g.timeHost = +d.time[0] || 0; g.time = g.timeHost; g.day = d.time[1] | 0; g.timeAt = d.time[2] ? performance.now() : 0; }
         $('ltitle').textContent = 'Joining ' + d.host + "'s world"; $('lnote').textContent = total ? `Getting the parts that were built on: 0 of ${total}` : '';
         for (const c of early) this.chunk(c); early = [];
         if (!total) enter(g);
@@ -330,6 +315,7 @@ async function joinWorld(code){
       left(id, nm){ if (G){ sys(nm + ' left'); dropFriend(id); } },
       chat(nm, t){ if (G) chatLine(nm, t); },
       animals(st){ if (G && G.animals && Array.isArray(st)) G.animals.apply(st); },
+      time(d){ const g2 = G || g; if (g2 && Array.isArray(d)){ g2.timeHost = +d[0] || 0; g2.day = d[1] | 0; g2.timeAt = d[2] ? performance.now() : 0; g2.time = g2.timeHost; } },
       hostLeft(){ const h = G && G.host || 'The host'; if (G) leaveGame(true); msg(h + ' stopped hosting', 'The world is saved on their side. Join again when they open it.'); }
     }});
   } catch(e){ fail('Could not connect', 'Your browser could not reach your friend. Try again.'); }
@@ -340,6 +326,7 @@ function msg(t, x){ $('mtitle').textContent = t; $('mtext').textContent = x; sho
 $('mok').onclick = () => toMenu();
 
 function enter(g){
+  hand.setSkin(skinNow);
   pendingCancel = () => { leaveGame(true); };
   stopBackdrop(); G = g; g.started = false;
   $('wname').textContent = g.opt.name; whoLine(); g.refreshBar(); $('chat').innerHTML = '';
@@ -383,7 +370,7 @@ async function openToFriends(){
       async welcome(){
         const mods = [...g.world.mods.keys()], chunks = [];
         for (const k of mods){ const v = g.world.mods.get(k).slice(); chunks.push({k, d:await pack(v)}); }
-        return {hi:{name:g.opt.name, seed:g.opt.seed, kind:g.opt.kind, host:g.party.list()[0].name, mods, spawn:[+(g.p.x + 1).toFixed(2), +g.p.y.toFixed(2), +g.p.z.toFixed(2)]}, chunks};
+        return {hi:{name:g.opt.name, seed:g.opt.seed, kind:g.opt.kind, host:g.party.list()[0].name, time:[g.time, g.day, S.cycle ? 1 : 0], mods, spawn:[+(g.p.x + 1).toFixed(2), +g.p.y.toFixed(2), +g.p.z.toFixed(2)]}, chunks};
       },
       edit(x, y, z, b){ if (!(b >= 0 && b < N)) return false; g.world.set(x, y, z, b); return true; },
       pos(id, d){ seeFriend(id, d); },
@@ -477,7 +464,8 @@ const KEYMAP = {KeyW:'f', ArrowUp:'f', KeyS:'b', ArrowDown:'b', KeyA:'l', ArrowL
 addEventListener('keydown', e => {
   const g = G;
   if (e.target === $('chatin')){
-    if (e.key === 'Enter'){ const t = $('chatin').value.trim(); $('chatin').value = ''; $('chatin').hidden = true; if (t && g){ chatLine(session() ? session().name : g.party ? g.party.list()[0].name : 'You', t); if (g.party) g.party.chat(t); else if (!g.party) sys('No one else is here. Invite friends from the pause screen.'); } lock(); }
+    if (e.key === 'Enter'){ const t = $('chatin').value.trim(); $('chatin').value = ''; $('chatin').hidden = true; if (t && g && t.startsWith('/time')){ const w = t.split(/\s+/)[1] || '', T = {day:.04, morning:.04, noon:.25, sunset:.47, evening:.47, night:.62, midnight:.75}; if (g.opt.guest) sys('Only ' + g.host + ' can change the time.'); else if (w in T){ g.time = T[w]; sys('Time set to ' + w + '.'); if (g.party) g.party.time([g.time, g.day, S.cycle ? 1 : 0]); } else sys('Try /time day, noon, sunset or night.'); lock(); return; }
+    if (t && g){ chatLine(session() ? session().name : g.party ? g.party.list()[0].name : 'You', t); if (g.party) g.party.chat(t); else if (!g.party) sys('No one else is here. Invite friends from the pause screen.'); } lock(); }
     if (e.key === 'Escape'){ $('chatin').value = ''; $('chatin').hidden = true; setTimeout(() => { if (!active()) pause(); }, 0); }
     return;
   }
@@ -500,7 +488,7 @@ addEventListener('keydown', e => {
   if (/^Digit[1-9]$/.test(e.code)){ g.pick(+e.code.slice(5) - 1); return; }
   if (e.code === 'KeyE'){ openInv(); return; }
   if (e.code === 'KeyT' || e.code === 'Enter' || e.code === 'Slash'){ e.preventDefault(); $('chatin').hidden = false; if (e.code === 'Slash') $('chatin').value = '/'; if (!NOLOCK && document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $('chatin').focus(), 0); return; }
-  if (e.code === 'F1'){ g.hud = !g.hud; $('hud').classList.toggle('off', !g.hud); hand.set(g.hud && S.hand ? g.bar[g.sel] : 0); return; }
+  if (e.code === 'F1'){ g.hud = !g.hud; $('hud').classList.toggle('off', !g.hud); return; }
   if (e.code === 'F3'){ g.dbg = !g.dbg; $('dbg').hidden = !g.dbg; return; }
   if (e.code === 'F5'){ g.view = ((g.view | 0) + 1) % 3; return; }
 });
@@ -558,7 +546,7 @@ $('invq').oninput = renderGrid;
 /* settings */
 function renderSettings(){
   $('sdist').value = S.dist; $('odist').textContent = S.dist; $('sfov').value = S.fov; $('ofov').textContent = S.fov; $('ssens').value = S.sens; $('osens').textContent = S.sens + '%';
-  $('sinv').checked = S.invert; $('sclouds').checked = S.clouds; $('shand').checked = S.hand; $('sanimals').checked = S.animals;
+  $('sinv').checked = S.invert; $('sclouds').checked = S.clouds; $('shand').checked = S.hand; $('sanimals').checked = S.animals; $('scycle').checked = S.cycle;
 }
 $('psettings').onclick = () => { renderSettings(); show('settings'); };
 $('sdist').oninput = () => { S.dist = +$('sdist').value; $('odist').textContent = S.dist; if (G){ G.world.R = S.dist; mats.fog(Math.max(16, S.dist * 16 * .62), S.dist * 16 - 2); } saveSettings(); };
@@ -566,6 +554,7 @@ $('sfov').oninput = () => { S.fov = +$('sfov').value; $('ofov').textContent = S.
 $('ssens').oninput = () => { S.sens = +$('ssens').value; $('osens').textContent = S.sens + '%'; saveSettings(); };
 $('sinv').onchange = () => { S.invert = $('sinv').checked; saveSettings(); };
 $('sclouds').onchange = () => { S.clouds = $('sclouds').checked; saveSettings(); };
+$('scycle').onchange = () => { S.cycle = $('scycle').checked; saveSettings(); if (!S.cycle && G && !G.opt.guest) G.time = .25; };
 $('sanimals').onchange = () => { S.animals = $('sanimals').checked; saveSettings(); };
 $('shand').onchange = () => { S.hand = $('shand').checked; saveSettings(); if (G) G.refreshBar(); };
 
@@ -629,12 +618,19 @@ function frame(t){
     if (g.dbg){ const b = g.hit ? BLOCKS[g.hit.b].name + ' at ' + g.hit.x + ' ' + g.hit.y + ' ' + g.hit.z : 'nothing'; $('dbg').innerHTML = `${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)} &nbsp; chunk ${Math.floor(p.x / CH)} ${Math.floor(p.z / CH)}<br>${fps} fps &nbsp; ${w.loaded()} chunks &nbsp; ${p.fly ? 'flying' : 'walking'}<br>looking at ${esc(b)}`; }
     hand.update(dt, active() && (g.keys.f || g.keys.b || g.keys.l || g.keys.r) && p.ground);
   }
-  theSky.follow(camera); cloud.mesh.visible = S.clouds; cloud.update(camera, dt);
+  // the time of day: it moves on for the host (or on your own); friends get it from the host
+  let time = .2, day = 0;
+  if (g){ if (g.started && S.cycle && !g.opt.guest){ g.time += dt / DAY_SECONDS; if (g.time >= 1){ g.time -= 1; g.day++; } } if (g.opt.guest && g.timeAt){ g.time = (g.timeHost + (t - g.timeAt) / 1000 / DAY_SECONDS) % 1; } time = g.time; day = g.day; }
+  const sk = theSky.update(camera, time, day);
+  for (const m of [mats.solid, mats.clear]){ m.uniforms.bright.value = sk.light; m.uniforms.fogColor.value.set(sk.hor.r, sk.hor.g, sk.hor.b); }
+  hemi.intensity = 2.2 * sk.light; sunL.intensity = 1.4 * sk.light; hand.light(.35 + .65 * sk.light);
+  cloud.group.visible = S.clouds; cloud.far = Math.max(260, (G ? S.dist : 6) * 16 * 2.2); cloud.update(camera, dt, sk);
+  if (g && g.party && !g.opt.guest && t - (g.tmT || 0) > 5000){ g.tmT = t; g.party.time([g.time, g.day, S.cycle ? 1 : 0]); }
   renderer.autoClear = true; renderer.render(scene, camera);
-  if (g && g.started && hand.on && g.hud && !(g.view | 0)){ renderer.autoClear = false; renderer.clearDepth(); renderer.render(handScene, handCam); }
+  if (g && g.started && S.hand && hand.on && g.hud && !(g.view | 0)){ renderer.autoClear = false; renderer.clearDepth(); renderer.render(handScene, handCam); }
 }
 addEventListener('resize', resize); resize();
-renderer.setClearColor(HORIZON);
+renderer.setClearColor(0x000000);
 requestAnimationFrame(frame);
 (async () => { startBackdrop(); if (!session() && !store.get('craft-name', '')){ welcome(); return; } await loadSkin(); if (!session() && !store.get('craft-name', '')){ welcome(); return; } if (!skinNow) openCreator(true); else toMenu(); })();
 if (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches){ $('bnew').disabled = true; $('bjoin').disabled = true; }

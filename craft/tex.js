@@ -1,6 +1,6 @@
 /* BDB Craft: every block texture, drawn pixel by pixel in code at 16 x 16 and doubled to 32 (the BDB Block is the one drawn at full size, from his photo).
    Nothing is copied from any other game: each one is a little recipe of colours, noise and shapes. Also the cube icons for the hotbar and inventory. */
-import { TEX, T, COLOURS, BLOCKS, FACE } from './blocks.js?v=c4';
+import { TEX, T, COLOURS, BLOCKS, FACE } from './blocks.js?v=c6';
 export const TS = 32;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);

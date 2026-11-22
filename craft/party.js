@@ -4,7 +4,7 @@
    so the only blocks that travel are the chunks someone has changed.
    Messages: hi (host to a new friend: the world and which chunks changed), ch (one changed chunk), me (my name and character), p (where I am), e (a block changed),
    c (chat), pl (who is here, from the host), an (where the animals are, from the host), sl (I hit an animal, to the host). */
-import { openTransport } from '../chess/net.js?v=c4';
+import { openTransport } from '../chess/net.js?v=c6';
 const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => ABC[b % ABC.length]).join('');
 export const cleanCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -38,6 +38,7 @@ export async function openParty({local, code, host, name, skin, on}){
       else if (from === hostId) on.edit(x, y, z, b, from);
       return;
     }
+    if (t === 'tm' && from === hostId){ on.time && on.time(d); return; }
     if (t === 'an' && from === hostId){ on.animals && on.animals(d); return; }
     if (t === 'sl' && host){ on.slap && on.slap(d | 0, from); return; }
     if (t === 'c'){ const p = people.get(from); on.chat && on.chat(p ? p.name : 'Friend', String(d).slice(0, 200)); return; }
@@ -48,6 +49,7 @@ export async function openParty({local, code, host, name, skin, on}){
     pos(p){ room.send('p', p); },
     chat(text){ room.send('c', text); },
     animals(st){ room.send('an', st); },
+    time(d){ room.send('tm', d); },
     slap(id){ if (hostId) room.send('sl', id, hostId); },
     setSkin(s){ skin = s; room.send('me', {name, skin}); },
     count:() => people.size,

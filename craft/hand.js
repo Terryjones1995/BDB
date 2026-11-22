@@ -1,10 +1,11 @@
 /* BDB Craft: your arm in the bottom right, in your own character's skin and sleeve, holding whatever is in your hand. It bobs as you walk and swings
    down and in when you break or place, the way it does in Minecraft. Drawn in its own little scene on top of the world so it never sinks into a wall. */
-import * as THREE from '../chess/vendor/three.module.min.js';
-import { BLOCKS, FACE } from './blocks.js';
-import { TS } from './tex.js';
-import { body } from './skin.js';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c6';
+import { BLOCKS, FACE } from './blocks.js?v=c6';
+import { TS } from './tex.js?v=c6';
+import { body } from './skin.js?v=c6';
 
+export const A = {rx:2.05, ry:-.35, rz:.28};      // the resting angle of the arm
 export function createHand(scene, layers){
   const root = new THREE.Group(); scene.add(root);                       // follows the bob and the swing
   const armPivot = new THREE.Group(); root.add(armPivot);
@@ -23,7 +24,7 @@ export function createHand(scene, layers){
       const k = JSON.stringify(s || null); if (k === skinKey && arm) return; skinKey = k;
       if (arm){ armPivot.remove(arm.mesh); arm.bd.dispose(); }
       const bd = body(s), m = bd.ra.children[0]; bd.ra.remove(m);
-      m.position.set(0, 0, 0); m.scale.set(1, 1.1, 1); armPivot.add(m); arm = {bd, mesh:m};
+      m.position.set(0, 0, 0); m.scale.set(.82, .95, .82); armPivot.add(m); arm = {bd, mesh:m};
     },
     set(id){
       if (id === itemId) return; itemId = id;
@@ -31,8 +32,8 @@ export function createHand(scene, layers){
       if (!id) return;
       if (!cache.has(id)) cache.set(id, makeItem(id)); item = cache.get(id);
       // in the fist: at the end of the arm, turned so you see the top and two sides
-      if (BLOCKS[id].kind === 'plant'){ item.position.set(0, -.5, -.08); item.rotation.set(0, Math.PI / 2, 0); }
-      else { item.position.set(.02, -.5, -.12); item.rotation.set(.1, .6, .05); }
+      if (BLOCKS[id].kind === 'plant'){ item.position.set(0, -.44, -.08); item.rotation.set(0, Math.PI / 2, 0); }
+      else { item.position.set(.0, -.42, -.13); item.rotation.set(.1, .6, .05); item.scale.setScalar(.8); }
       armPivot.add(item);
       lift = 1;                                                           // the arm dips and comes back up when you change what you hold
     },
@@ -43,8 +44,8 @@ export function createHand(scene, layers){
       swing = Math.max(0, swing - dt * 4.2); lift = Math.max(0, lift - dt * 5); bob += dt * (moving ? 8.5 : 0);
       const s = Math.sin(swing * Math.PI), s2 = Math.sin(Math.sqrt(swing) * Math.PI);
       // the arm reaches in from the lower right, pointing up and forward, the hand in view
-      armPivot.position.set(.5 - s2 * .18, -.42 - lift * .25 + Math.abs(Math.cos(bob)) * .02 - s * .08, -.62 - s * .1);
-      armPivot.rotation.set(-1.05 - s * .9 + Math.sin(bob) * .01, .32 + s2 * .3, .22 + s * .2);
+      armPivot.position.set(.56 - s2 * .16, -.57 - lift * .25 + Math.abs(Math.cos(bob)) * .02 - s * .06, -.62 - s * .12);
+      armPivot.rotation.set(A.rx - s * .55 + Math.sin(bob) * .01, A.ry + s2 * .35, A.rz - s * .15);
       root.position.x = Math.sin(bob) * .012;
     },
     get on(){ return !!arm; }

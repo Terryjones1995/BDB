@@ -1,9 +1,9 @@
 /* BDB Craft: how things look. The block shader (every texture sits in one texture array, so a whole chunk is one draw), the sky, the clouds, the outline
    round the block you are pointing at, and your friends' blocky bodies with name tags. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c4';
-import { TS } from './tex.js?v=c4';
-import { TEX } from './blocks.js?v=c4';
-import { body } from './skin.js?v=c4';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c6';
+import { TS } from './tex.js?v=c6';
+import { TEX } from './blocks.js?v=c6';
+import { body } from './skin.js?v=c6';
 
 const VS = `in vec3 position; in vec3 tex; in float light;
 uniform mat4 modelViewMatrix, projectionMatrix;
@@ -15,7 +15,7 @@ in vec3 vT; in float vL; in float vD; out vec4 col;
 void main(){
   vec2 uv = vT.xy; vec4 c = textureGrad(map, vec3(fract(uv), vT.z), dFdx(uv), dFdy(uv));
   if (c.a < cut) discard;
-  vec3 rgb = c.rgb * vL * bright;
+  vec3 rgb = c.rgb * (vL > 0.99 ? 1.0 : vL * bright);      // lamps and other glowing faces stay lit at night
   col = vec4(mix(rgb, fogColor, smoothstep(fogNear, fogFar, vD)), c.a);
 }`;
 export const SKY = new THREE.Color('#8fc3ff'), HORIZON = new THREE.Color('#c6defa');
