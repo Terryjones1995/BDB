@@ -3,8 +3,8 @@
    desert, badlands (bands of coloured terracotta), swamp, cherry groves, mushroom islands, stony and snowy peaks; beaches, stony shores, rivers;
    oceans warm (coral), cold and frozen (icebergs). Under it: caves, lava pools deep down, deepslate below 12, every ore, mineshafts with rails.
    On it: waterfalls and lava falls from cliffs, villages (houses, paths, a well, lamp posts, farms), desert wells, igloos, ruined portals, shipwrecks. */
-import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c21';
-import { makeNoise, hash3 } from './noise.js?v=c21';
+import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c22';
+import { makeNoise, hash3 } from './noise.js?v=c22';
 export const idx = (x, y, z) => (y * CH + z) * CH + x;
 const cache = new Map();
 function noiseFor(seed){ let n = cache.get(seed); if (!n){ n = {a:makeNoise(seed), b:makeNoise(seed ^ 0x5bd1e995), c:makeNoise(seed + 7919), d:makeNoise(seed * 31 + 17)}; cache.set(seed, n); } return n; }

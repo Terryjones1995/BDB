@@ -1,9 +1,9 @@
 /* BDB Craft: your arm in the bottom right, in your own character's skin and sleeve, holding whatever is in your hand. It bobs as you walk and swings
    down and in when you break or place, the way it does in Minecraft. Drawn in its own little scene on top of the world so it never sinks into a wall. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c21';
-import { BLOCKS, FACE } from './blocks.js?v=c21';
-import { TS } from './tex.js?v=c21';
-import { body } from './skin.js?v=c21';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c22';
+import { BLOCKS, FACE } from './blocks.js?v=c22';
+import { TS } from './tex.js?v=c22';
+import { body } from './skin.js?v=c22';
 
 export const A = {rx:2.05, ry:-.35, rz:.28};      // the resting angle of the arm
 export function createHand(scene, layers){

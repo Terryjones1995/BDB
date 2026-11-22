@@ -91,6 +91,9 @@ body.k{background:#0b1426}
 #chat div{background:rgba(0,0,0,.42);color:#fff;padding:4px 9px;font:600 14px/1.35 var(--f-body);border-radius:4px;transition:opacity .6s;overflow-wrap:anywhere}
 #chat div b{color:var(--gold)}
 #chat div.sys{color:#ffe08a}
+#hint{position:absolute;left:12px;bottom:16px;display:flex;align-items:center;gap:8px;padding:5px 10px 5px 6px;border-radius:7px;background:rgba(0,0,0,.42);color:rgba(255,255,255,.88);font:600 13px var(--f-body);text-shadow:0 1px 0 rgba(0,0,0,.5);pointer-events:none}
+#hint kbd{display:inline-block;min-width:34px;padding:2px 6px;border-radius:5px;border:1px solid rgba(255,255,255,.35);border-bottom-width:3px;background:rgba(255,255,255,.1);font:700 12px var(--f-body);text-align:center;color:#fff}
+@media (max-width:980px){#hint{display:none}}
 #chatin{position:absolute;left:12px;bottom:46px;width:min(460px,46vw);height:34px;border:0;border-radius:4px;background:rgba(0,0,0,.62);color:#fff;font:600 15px var(--f-body);padding:0 10px;pointer-events:auto}
 #chatin:focus{outline:2px solid rgba(255,255,255,.35)}
 #toast{position:absolute;left:50%;top:18%;transform:translateX(-50%);background:var(--glass);border:1px solid var(--edge);padding:8px 16px;border-radius:9px;font:700 15px var(--f-body);color:var(--ink);transition:opacity .4s}
@@ -161,6 +164,7 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
   <div id="info"><div class="t" id="wname"></div><div id="wsub"></div><div class="dbg" id="dbg" hidden></div></div>
   <div id="who"></div>
   <div id="chat"></div>
+  <div id="hint"><kbd>Esc</kbd> Menu, controls and teleport</div>
   <input id="chatin" maxlength="200" autocomplete="off" placeholder="Say something, then Enter" hidden>
   <div id="bname"></div>
   <div id="bar"></div>
@@ -328,6 +332,6 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
   <div class="panel"><h2 id="mtitle"></h2><p id="mtext"></p><div class="btns"><button type="button" class="k-btn primary" id="mok">Back to the start</button></div></div>
 </section>
 
-<script type="module" src="main.js?v=c21"></script>
+<script type="module" src="main.js?v=c22"></script>
 </body>
 </html>

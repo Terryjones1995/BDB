@@ -1,6 +1,6 @@
 /* BDB Craft: the name of the city you are near, in huge letters hanging in the sky over it, and a title when you walk in.
    The letters turn to face you (left and right only, so they stay upright) and fade in as you come close. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c21';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c22';
 
 function letters(name){
   const c = document.createElement('canvas'), x = c.getContext('2d'), font = '200px "Bowlby One", Impact, "Arial Black", sans-serif';
