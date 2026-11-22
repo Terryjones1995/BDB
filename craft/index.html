@@ -94,7 +94,13 @@ body.k{background:#0b1426}
 #chatin{position:absolute;left:12px;bottom:46px;width:min(460px,46vw);height:34px;border:0;border-radius:4px;background:rgba(0,0,0,.62);color:#fff;font:600 15px var(--f-body);padding:0 10px;pointer-events:auto}
 #chatin:focus{outline:2px solid rgba(255,255,255,.35)}
 #toast{position:absolute;left:50%;top:18%;transform:translateX(-50%);background:var(--glass);border:1px solid var(--edge);padding:8px 16px;border-radius:9px;font:700 15px var(--f-body);color:var(--ink);transition:opacity .4s}
-#hud.off > :not(#toast){display:none}
+#hud.off > :not(#toast):not(#title){display:none}
+#title{position:absolute;left:0;right:0;top:22%;text-align:center;pointer-events:none;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.45),0 0 24px rgba(0,0,0,.35)}
+#title span{display:block;font:600 30px 'Teko',sans-serif;letter-spacing:.06em;opacity:.9}
+#title b{display:block;font:400 clamp(44px,8vw,96px) 'Bowlby One',Impact,sans-serif;line-height:1;color:#ffd463}
+#title i{display:block;font:600 26px 'Teko',sans-serif;font-style:normal;letter-spacing:.08em;margin-top:6px;opacity:.85}
+#title.go{animation:titlein 4.2s ease both}
+@keyframes titlein{0%{opacity:0;transform:translateY(10px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
 #hearts{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);display:flex;gap:2px;margin-left:-110px}
 #hearts i{width:16px;height:14px;background:rgba(0,0,0,.45);clip-path:polygon(50% 100%,0 40%,0 15%,20% 0,50% 15%,80% 0,100% 15%,100% 40%);position:relative}
 #hearts i.full{background:#e8262e}
@@ -153,6 +159,7 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
   <div id="bname"></div>
   <div id="bar"></div>
   <div id="toast" hidden></div>
+  <div id="title" hidden><span></span><b></b><i></i></div>
   <div id="hearts" hidden></div>
   <div id="ouch"></div>
 </div>
@@ -306,6 +313,6 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
   <div class="panel"><h2 id="mtitle"></h2><p id="mtext"></p><div class="btns"><button type="button" class="k-btn primary" id="mok">Back to the start</button></div></div>
 </section>
 
-<script type="module" src="main.js?v=c17"></script>
+<script type="module" src="main.js?v=c18"></script>
 </body>
 </html>

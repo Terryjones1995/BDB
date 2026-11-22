@@ -1,8 +1,8 @@
 /* BDB Craft: you. A 0.6 by 1.8 box that walks, sprints, sneaks, swims, climbs ladders, jumps and (this is creative) flies, and never goes through
    anything solid: whole blocks or the boxes of shaped ones (slabs, stairs, fences, doors). It steps up slabs and stair steps on its own, and sneaking
    keeps you from walking off an edge. Eye height 1.62, like the real thing. */
-import { LIQUID } from './blocks.js?v=c17';
-import { CLIMB } from './shapes.js?v=c17';
+import { LIQUID } from './blocks.js?v=c18';
+import { CLIMB } from './shapes.js?v=c18';
 export const W = .3, HGT = 1.8, EYE = 1.62, STEP = .6;
 export function createPlayer(world){
   const p = {x:.5, y:80, z:.5, vx:0, vy:0, vz:0, yaw:0, pitch:0, fly:false, ground:false, sprint:false, sneak:false, inWater:false, eyeWater:false,
@@ -44,8 +44,8 @@ export function createPlayer(world){
     p.inWater = feet > 0 && LIQUID[feet] > 0; p.eyeWater = head > 0 && LIQUID[head] === 1; p.eyeLava = head > 0 && LIQUID[head] === 2;
     const climb = !p.fly && climbing();
     if (p.fly){
-      const sp = p.sprint ? 21.6 : 10.9, a = 1 - Math.exp(-dt * 10);
-      p.vx += (wx * sp - p.vx) * a; p.vz += (wz * sp - p.vz) * a; p.vy += (((k.up ? 1 : 0) - (k.down ? 1 : 0)) * 8 - p.vy) * a;
+      const sp = p.sprint && !k.down ? 21.6 : 10.9, a = 1 - Math.exp(-dt * 10);
+      p.vx += (wx * sp - p.vx) * a; p.vz += (wz * sp - p.vz) * a; p.vy += ((k.down ? (k.up ? -2.5 : k.sprint ? -16 : -8) : k.up ? 8 : 0) - p.vy) * a;     // Shift down, Shift + Space down slowly, Ctrl + Shift down fast
     } else {
       const sp = (p.sneak ? 1.3 : p.sprint ? 5.6 : 4.317) * (p.inWater ? .55 : 1), a = 1 - Math.exp(-dt * (p.ground ? 16 : 4.5));
       p.vx += (wx * sp - p.vx) * a; p.vz += (wz * sp - p.vz) * a;

@@ -1,7 +1,7 @@
 /* BDB Craft: the background worker. Makes chunks and meshes them, so the page never stutters while the world loads. */
-import { genChunk } from './gen.js?v=c17';
-import { genChunk as genChunk2 } from './gen2.js?v=c17';
-import { meshChunk } from './mesh.js?v=c17';
+import { genChunk } from './gen.js?v=c18';
+import { genChunk as genChunk2 } from './gen2.js?v=c18';
+import { meshChunk } from './mesh.js?v=c18';
 onmessage = e => {
   const m = e.data;
   if (m.t === 'gen'){ const v = m.kind === 'normal2' ? genChunk2(m.seed, m.cx, m.cz) : genChunk(m.seed, m.cx, m.cz, m.kind); postMessage({t:'gen', id:m.id, v}, [v.buffer]); }

@@ -3,15 +3,15 @@
    desert, badlands (bands of coloured terracotta), swamp, cherry groves, mushroom islands, stony and snowy peaks; beaches, stony shores, rivers;
    oceans warm (coral), cold and frozen (icebergs). Under it: caves, lava pools deep down, deepslate below 12, every ore, mineshafts with rails.
    On it: waterfalls and lava falls from cliffs, villages (houses, paths, a well, lamp posts, farms), desert wells, igloos, ruined portals, shipwrecks. */
-import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c17';
-import { makeNoise, hash3 } from './noise.js?v=c17';
+import { CH, H, SEA, B, COLOURS } from './blocks.js?v=c18';
+import { makeNoise, hash3 } from './noise.js?v=c18';
 export const idx = (x, y, z) => (y * CH + z) * CH + x;
 const cache = new Map();
 function noiseFor(seed){ let n = cache.get(seed); if (!n){ n = {a:makeNoise(seed), b:makeNoise(seed ^ 0x5bd1e995), c:makeNoise(seed + 7919), d:makeNoise(seed * 31 + 17)}; cache.set(seed, n); } return n; }
 const smooth = (a, b, t) => { t = Math.max(0, Math.min(1, (t - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /* the shape of the land at one spot: its height, its biome, and whether a river runs through */
-export function column(seed, x, z){
+function landColumn(seed, x, z){
   const {a, b, c, d} = noiseFor(seed);
   const cont = a.fbm2(x * .0014, z * .0014, 5) * 1.35 + .16;
   const ero = b.fbm2(x * .0042 + 300, z * .0042 - 200, 3);
@@ -41,6 +41,327 @@ export function column(seed, x, z){
   else biome = weird < -.4 ? 'sunflower' : h > 80 ? 'meadow' : 'plains';
   if (biome === 'swamp' && h > SEA) h = Math.min(h, SEA + 1);
   return {h, biome, river};
+}
+
+/* ---------- cities and towns. One may stand in each 1024 x 1024 region, on dry land that is flat enough. Three sizes: towns (a few streets of
+   low buildings and houses), cities, and huge cities whose downtowns reach the height limit. Each is named after a real place of its size.
+   Two are built to look like the real places, near where every world starts: Belleville, Ontario, and Kingston, Ontario, a little east of it.
+   Everything here is worked out from the column alone, so every chunk agrees with its neighbours. ---------- */
+const TOWNS = ['Trenton|Ontario', 'Picton|Ontario', 'Napanee|Ontario', 'Brighton|Ontario', 'Cobourg|Ontario', 'Port Hope|Ontario', 'Gananoque|Ontario', 'Madoc|Ontario', 'Stirling|Ontario', 'Tweed|Ontario', 'Bancroft|Ontario',
+  'Banff|Alberta', 'Canmore|Alberta', 'Jasper|Alberta', 'Whistler|British Columbia', 'Tofino|British Columbia', 'Moose Jaw|Saskatchewan', 'Lunenburg|Nova Scotia', 'Niagara-on-the-Lake|Ontario', 'Huntsville|Ontario',
+  'Collingwood|Ontario', 'Stratford|Ontario', 'Gimli|Manitoba', 'Dawson City|Yukon', 'Aspen|Colorado', 'Sedona|Arizona', 'Key West|Florida', 'Bar Harbor|Maine', 'Hallstatt|Austria', 'Giethoorn|Netherlands', 'Portree|Scotland'];
+const CITIES = ['Ottawa|Ontario', 'Hamilton|Ontario', 'London|Ontario', 'Windsor|Ontario', 'Peterborough|Ontario', 'Oshawa|Ontario', 'Barrie|Ontario', 'Sudbury|Ontario', 'Thunder Bay|Ontario', 'Halifax|Nova Scotia',
+  'Quebec City|Quebec', 'Victoria|British Columbia', 'Winnipeg|Manitoba', 'Saskatoon|Saskatchewan', 'Regina|Saskatchewan', 'St. John\'s|Newfoundland', 'Edmonton|Alberta', 'Boston|Massachusetts', 'Seattle|Washington',
+  'Denver|Colorado', 'Detroit|Michigan', 'Buffalo|New York', 'Nashville|Tennessee', 'New Orleans|Louisiana', 'Dublin|Ireland', 'Lisbon|Portugal', 'Prague|Czechia', 'Vienna|Austria', 'Amsterdam|Netherlands',
+  'Copenhagen|Denmark', 'Oslo|Norway', 'Stockholm|Sweden', 'Athens|Greece', 'Edinburgh|Scotland', 'Auckland|New Zealand', 'Havana|Cuba', 'Cape Town|South Africa'];
+const MEGAS = ['Toronto|Ontario', 'Montreal|Quebec', 'Vancouver|British Columbia', 'Calgary|Alberta', 'New York|New York', 'Chicago|Illinois', 'Los Angeles|California', 'Miami|Florida', 'Houston|Texas',
+  'London|England', 'Paris|France', 'Berlin|Germany', 'Madrid|Spain', 'Rome|Italy', 'Istanbul|Turkey', 'Tokyo|Japan', 'Osaka|Japan', 'Seoul|South Korea', 'Shanghai|China', 'Hong Kong|China', 'Singapore|Singapore',
+  'Dubai|UAE', 'Mumbai|India', 'Bangkok|Thailand', 'Sydney|Australia', 'Mexico City|Mexico', 'Sao Paulo|Brazil', 'Buenos Aires|Argentina', 'Cairo|Egypt', 'Lagos|Nigeria'];
+export const CREG = 1024;
+const SIZES = {town:[40, 60], city:[95, 145], mega:[190, 250]};
+const FIXED = {'0,0':{name:'Belleville', place:'Ontario', special:'belleville', size:'city', r:150, style:'brick'}, '1,0':{name:'Kingston', place:'Ontario', special:'kingston', size:'city', r:175, style:'limestone'}};
+const cityCache = new Map();
+export function cityIn(seed, rx, rz){
+  const key = seed + ':' + rx + ',' + rz; if (cityCache.has(key)) return cityCache.get(key);
+  const fixed = FIXED[rx + ',' + rz]; let city = null;
+  if (fixed || hash3(rx, 301, rz, seed) < .55){
+    const roll = hash3(rx, 322, rz, seed), size = fixed ? fixed.size : roll < .4 ? 'town' : roll < .75 ? 'city' : 'mega';
+    const r = fixed ? fixed.r : SIZES[size][0] + Math.floor(hash3(rx, 320, rz, seed) * (SIZES[size][1] - SIZES[size][0])), room = CREG - 2 * (r + 60);
+    for (let tries = 0; tries < (fixed ? 40 : 8) && !city; tries++){
+      const x = rx * CREG + r + 60 + Math.floor(hash3(rx, 302 + tries, rz, seed) * room), z = rz * CREG + r + 60 + Math.floor(hash3(rx, 360 + tries, rz, seed) * room);
+      const c = landColumn(seed, x, z), wet = c.h <= SEA + 1 || c.river || ['ocean', 'warmocean', 'frozen', 'mushroom', 'swamp'].includes(c.biome);
+      if (!fixed && (wet || c.h > 86 || c.biome === 'peak' || c.biome === 'snowpeak')) continue;
+      if (fixed && wet && tries < 39) continue;
+      let ok = 0; const lim = size === 'town' ? 16 : 24;
+      for (let a = 0; a < 8; a++){ const e = landColumn(seed, x + Math.cos(a * .785) * r * .8, z + Math.sin(a * .785) * r * .8); if (e.h > SEA && Math.abs(e.h - c.h) < lim) ok++; }
+      if (ok < (fixed ? 0 : 6)) continue;
+      const list = size === 'town' ? TOWNS : size === 'city' ? CITIES : MEGAS, [name, place] = (fixed ? fixed.name + '|' + fixed.place : list[Math.floor(hash3(rx, 321, rz, seed) * list.length)]).split('|');
+      city = {x, z, r, name, place, size, rx, rz, special:fixed ? fixed.special : null, y:fixed ? SEA + 3 : Math.max(SEA + 2, Math.min(size === 'mega' ? 72 : 84, c.h)),
+        style:fixed ? fixed.style : c.biome === 'desert' || c.biome === 'badlands' ? 'desert' : size === 'town' ? 'town' : 'modern'};
+      city.blend = 16 + Math.round(r * .08); city.marks = landmarks(city);
+    }
+  }
+  cityCache.set(key, city); return city;
+}
+export function citiesNear(seed, x, z){ const rx = Math.floor(x / CREG), rz = Math.floor(z / CREG), out = []; for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++){ const c = cityIn(seed, rx + dx, rz + dz); if (c) out.push(c); } return out; }
+export function column(seed, x, z){
+  const c = landColumn(seed, x, z), city = cityIn(seed, Math.floor(x / CREG), Math.floor(z / CREG)); if (!city) return c;
+  const d = Math.max(Math.abs(x - city.x), Math.abs(z - city.z));
+  if (d <= city.r) return {h:city.y, biome:'city', river:false, city};
+  if (d <= city.r + city.blend){ const k = (d - city.r) / city.blend, h = Math.round(city.y + (c.h - city.y) * k * k * (3 - 2 * k)); return {...c, h, river:c.river && k > .8}; }
+  return c;
+}
+
+/* ---- water in the two real cities: the bay or the lake to the south, and a river ---- */
+function shoreZ(city, dx){ return city.special === 'belleville' ? city.r * .42 + Math.sin(dx * .03) * 6 + Math.sin(dx * .011) * 9 : city.r * .36 + Math.sin(dx * .025) * 4; }
+function riverAt(city, dx, dz){
+  if (city.special === 'belleville'){ const c = -city.r * .22 + Math.sin(dz * .035) * 6; return Math.abs(dx - c) <= 4 ? Math.abs(dx - c) : -1; }        // the Moira River, running down to the bay
+  if (city.special === 'kingston'){ const c = city.r * .5 + Math.sin(dz * .02) * 3; return Math.abs(dx - c) <= 13 ? Math.abs(dx - c) : -1; }          // the Cataraqui River, wide where it meets the lake
+  return -1;
+}
+const isWater = (city, dx, dz) => city.special && (dz > shoreZ(city, dx) || (riverAt(city, dx, dz) >= 0 && dz > -city.r));
+
+/* ---- the landmarks: a box on the map and how to fill each column of it ---- */
+function landmarks(city){
+  const L = [], R = city.r, mark = (name, cx, cz, hw, hd, col) => (cx = Math.round(cx), cz = Math.round(cz), hw = Math.round(hw), hd = Math.round(hd), L.push({name, x0:city.x + cx - hw, x1:city.x + cx + hw, z0:city.z + cz - hd, z1:city.z + cz + hd, cx:city.x + cx, cz:city.z + cz, col}));
+  if (city.special === 'belleville'){
+    // City Hall (1873): red brick, limestone trim, tall Gothic windows, a mansard roof, and a 144 foot clock tower with four clock faces
+    const hx = -R * .22 + 22, hz = -6;
+    mark('city hall', hx, hz, 14, 20, (put, lx, lz, Y, dx, dz) => {
+      if (isWater(city, dx, dz) || riverAt(city, dx, dz) >= 0) return false;
+      const ax = Math.abs(lx), tower = lz <= -9 && lz >= -14 && ax <= 3;
+      for (let y = Y - 1; y <= Y; y++) put(y, 'smooth_stone');
+      // the square round it: paving, benches, lamps, a few trees in planters
+      if (ax > 9 || lz < -14 || lz > 15 || (lz < -8 && ax > 3)){ put(Y, ((lx + lz) & 1) ? 'polished_andesite' : 'smooth_stone');
+        if ((ax === 12) && (lz % 6 === 0)){ for (let k = 1; k <= 3; k++) put(Y + k, 'fence_dark'); put(Y + 4, 'lantern'); }
+        else if (ax === 12 && (lz % 6 === 3)){ put(Y, 'grass'); for (let k = 1; k <= 3; k++) put(Y + k, 'log_oak'); put(Y + 4, 'leaves_oak'); put(Y + 5, 'leaves_oak'); }
+        else if ((ax === 13 || ax === 11) && (lz % 6 === 3)) { put(Y + 3, 'leaves_oak'); put(Y + 4, 'leaves_oak'); }
+        return; }
+      if (tower){
+        const edge = ax === 3 || lz === -9 || lz === -14, corner = ax === 3 && (lz === -9 || lz === -14), face = edge && !corner;
+        const facePos = ax === 3 ? lz + 11.5 : lx, onFace = Math.abs(facePos) <= 1.5;
+        for (let y = Y + 1; y <= Y + 30; y++){ if (!edge) { if ((y - Y) % 6 === 0) put(y, 'planks_dark'); continue; }
+          let k = corner ? 'stone_bricks' : 'bricks'; if (face && (y - Y) % 6 >= 2 && (y - Y) % 6 <= 4 && Math.abs(facePos) < .6 && y < Y + 26) k = 'glass'; if (face && y <= Y + 3 && lz === -14 && ax <= 1) k = y <= Y + 2 ? 0 : 'stone_bricks'; put(y, k); }
+        // the clock: a white face on every side, black hands at ten past
+        for (let y = Y + 31; y <= Y + 35; y++){ let k = corner ? 'stone_bricks' : edge ? 'bricks' : 0;
+          if (face && onFace && y >= Y + 32 && y <= Y + 34){ k = 'smooth_quartz'; const fx = Math.round(facePos + 1), fy = y - Y - 32; if ((fx === 1 && fy === 1) || (fx === 1 && fy === 2) || (fx === 2 && fy === 1)) k = 'concrete_black'; }
+          put(y, k); }
+        put(Y + 36, edge ? 'stone_bricks' : 'planks_dark');
+        // the belfry, then the steep mansard spire
+        for (let y = Y + 37; y <= Y + 39; y++) put(y, corner ? 'stone_bricks' : edge ? (y === Y + 39 ? 'stone_bricks' : 'iron_bars') : 0);
+        const lzz = lz + 11.5, rr = Math.max(Math.abs(lx), Math.abs(lzz));
+        for (let s = 0; s < 6; s++){ const y = Y + 40 + s * 1, lim = 3 - s * .5; if (rr <= lim + .01) put(y, s < 2 && rr > lim - .99 ? 'polished_deepslate' : 'deepslate_tiles'); }
+        if (Math.abs(lx) < .6 && Math.abs(lzz) < .6){ for (let y = Y + 46; y <= Y + 49; y++) put(y, 'iron_bars'); put(Y + 50, 'block_gold'); }
+        return;
+      }
+      if (lz < -8) return;
+      // the hall: three storeys of brick with stone bands, pointed windows, a mansard roof with dormers
+      const edge = ax === 9 || lz === -8 || lz === 15, corner = ax === 9 && (lz === -8 || lz === 15);
+      for (let y = Y + 1; y <= Y + 13; y++){
+        const fl = (y - Y) % 5;
+        if (edge){ let k = corner ? 'stone_bricks' : fl === 0 ? 'smooth_stone' : 'bricks'; const along = ax === 9 ? lz : lx; if (!corner && fl >= 2 && fl <= 4 && ((along % 3) + 3) % 3 === 0) k = fl === 4 && y > Y + 5 ? 'bricks' : 'glass'; if (lz === -8 && ax <= 1 && y <= Y + 3) k = 0; put(y, k); }
+        else if (fl === 0) put(y, 'planks_dark'); else if (fl === 4 && lx % 4 === 0 && lz % 4 === 0) put(y, 'glowstone');
+      }
+      for (let s = 0; s < 4; s++){ const inset = s, y = Y + 14 + s; if (ax <= 9 - inset && lz >= -8 + inset && lz <= 15 - inset){ const rim = ax === 9 - inset || lz === -8 + inset || lz === 15 - inset; put(y, rim ? (s === 1 && (lx + lz) % 4 === 0 ? 'glass' : 'deepslate_tiles') : s === 3 ? 'deepslate_tiles' : 0); } }
+    });
+    // the Bay Bridge (Norris Whitney Bridge) out over the Bay of Quinte towards Prince Edward County
+    mark('bay bridge', R * .3, R * .42 + R * .34, 3, R * .34 + 14, (put, lx, lz, Y, dx, dz) => {
+      const sz = shoreZ(city, dx), past = dz - sz; if (past < -6) return false;
+      const deck = Y + Math.max(0, Math.min(7, Math.floor((past + 6) / 3))), ax = Math.abs(lx);
+      if (dz > sz){ for (let y = SEA - 8; y <= SEA; y++) put(y, y < SEA - 6 ? 'sand' : 'water'); }
+      for (let y = deck + 1; y < deck + 4; y++) put(y, 0);
+      put(deck, ax === 3 ? 'smooth_stone' : ax === 0 && Math.floor(dz / 2) % 3 === 0 ? 'concrete_yellow' : 'concrete_grey');
+      if (ax === 3) put(deck + 1, 'iron_bars');
+      if (dz > sz && Math.round(past) % 14 === 0 && ax !== 1) for (let y = SEA - 6; y < deck; y++) put(y, 'smooth_stone');
+      if (ax === 3 && Math.round(past) % 14 === 7){ for (let k = 2; k <= 4; k++) put(deck + k, 'iron_bars'); put(deck + 5, 'lantern'); }
+    });
+  }
+  if (city.special === 'kingston'){
+    // City Hall (1844): a whole block of limestone facing the lake, a columned portico, and a tall drum and dome
+    const cz = R * .36 - 24;
+    mark('city hall', -R * .05, cz, 24, 9, (put, lx, lz, Y) => {
+      const ax = Math.abs(lx); for (let y = Y - 1; y <= Y; y++) put(y, 'smooth_stone');
+      const portico = lz >= 6 && ax <= 7, main = lz <= 5 && lz >= -9;
+      if (portico){ for (let y = Y + 1; y <= Y + 11; y++){ let k = 0; if (lz === 9 && ax % 2 === 1 && y <= Y + 9) k = 'quartz_pillar'; if (y >= Y + 10) k = y === Y + 11 && ax > 5 ? 0 : 'smooth_quartz'; if (y === Y + 12 - 0 && ax <= 3) k = 'smooth_quartz'; put(y, k); } if (ax <= 4) put(Y + 12, 'smooth_quartz'); if (ax <= 1) put(Y + 13, 'smooth_quartz'); return; }
+      if (!main) return;
+      const edge = ax === 24 || lz === 5 || lz === -9, corner = ax === 24 && (lz === 5 || lz === -9), wing = ax >= 20;
+      const top = wing ? 13 : 12;
+      for (let y = Y + 1; y <= Y + top; y++){ const fl = (y - Y) % 4;
+        if (edge){ let k = corner ? 'calcite' : fl === 0 ? 'smooth_stone' : 'polished_diorite'; const along = ax === 24 ? lz : lx; if (!corner && fl >= 1 && fl <= 3 && ((along % 2) + 2) % 2 === 0 && y < Y + top - 1) k = fl === 3 ? 'polished_diorite' : 'glass'; if (lz === 5 && ax <= 1 && y <= Y + 3) k = 0; put(y, k); }
+        else if (fl === 0) put(y, 'planks_oak'); else if (fl === 3 && lx % 4 === 0 && lz % 4 === 0) put(y, 'glowstone'); }
+      put(Y + top + 1, edge ? 'polished_diorite' : 'smooth_stone');
+      // the drum: a ring of columns, then the dome, a lantern and a little spire
+      const dz2 = lz + 2, rr = Math.hypot(lx, dz2);
+      if (rr <= 7.5){ for (let y = Y + top + 2; y <= Y + top + 4; y++) put(y, rr > 6.5 ? 'smooth_stone' : 0);
+        for (let y = Y + top + 5; y <= Y + top + 10; y++){ const ring = rr > 6.5; put(y, ring ? (Math.round(Math.atan2(dz2, lx) * 4) % 2 === 0 ? 'quartz_pillar' : 'glass') : 0); }
+        put(Y + top + 11, rr > 6.5 ? 'smooth_quartz' : 0);
+        for (let s = 0; s <= 7; s++){ const rad = 7.2 * Math.cos(s / 8 * Math.PI / 2), y = Y + top + 12 + s; if (rr <= rad && rr > rad - 1.6) put(y, 'block_iron'); else if (rr <= rad) put(y, 0); if (s === 7 && rr <= rad) put(y, 'block_iron'); }
+        if (rr <= 1.5){ for (let y = Y + top + 20; y <= Y + top + 22; y++) put(y, rr < .6 ? 0 : 'quartz_pillar'); put(Y + top + 23, 'block_iron'); if (rr < .6) for (let y = Y + top + 24; y <= Y + top + 27; y++) put(y, 'iron_bars'); } }
+    });
+    // Confederation Park, between City Hall and the water, with a fountain
+    mark('confederation park', -R * .05, R * .36 - 8, 22, 6, (put, lx, lz, Y, dx, dz) => { if (dz > shoreZ(city, dx) - 2) return false; put(Y, Math.abs(lx) <= 1 || lz === 0 ? 'gravel' : 'grass'); put(Y - 1, 'dirt');
+      const fr = Math.hypot(lx, lz); if (fr <= 2.5){ put(Y, fr > 1.5 ? 'stone_bricks' : 'water'); if (fr > 1.5) put(Y + 1, 'stone_brick_wall' in B ? 'stone_brick_wall' : 'wall_stone_bricks'); }
+      if (fr < .6){ put(Y + 1, 'stone_bricks'); put(Y + 2, 'water'); }
+      if (hash3(dx, 77, dz, 1) < .02 && fr > 4 && lz !== 0 && Math.abs(lx) > 1){ for (let k = 1; k <= 4; k++) put(Y + k, 'log_oak'); for (let k = 4; k <= 6; k++) put(Y + k, k === 4 ? 'log_oak' : 'leaves_oak'); } });
+    // Market Square behind City Hall: open stone, with market stalls under coloured awnings
+    mark('market square', -R * .05, cz - 18, 18, 7, (put, lx, lz, Y) => { put(Y, ((lx + lz) & 3) === 0 ? 'polished_andesite' : 'smooth_stone');
+      const sx = ((lx + 40) % 7), sz = ((lz + 40) % 5); if (Math.abs(lz) <= 4 && Math.abs(lx) <= 16 && sx <= 2 && sz <= 2){ if ((sx === 0 || sx === 2) && (sz === 0 || sz === 2)) for (let k = 1; k <= 2; k++) put(Y + k, 'fence_spruce' in B ? 'fence_spruce' : 'fence_oak'); put(Y + 3, ['wool_red', 'wool_white', 'wool_blue', 'wool_yellow', 'wool_lime'][((lx + 40) / 7 | 0) % 5]); if (sx === 1 && sz === 1) put(Y + 1, 'barrel' in B ? 'barrel' : 'planks_spruce'); } });
+    // Fort Henry on Point Henry, across the river: limestone walls on a high point, a ditch round them, the parade ground, a flag
+    const fx = R * .8, fz = R * .02;
+    mark('point henry', fx, fz, R * .2 - 2, R * .3, (put, lx, lz, Y, dx, dz) => {
+      if (isWater(city, dx, dz)) return false;
+      const hw = Math.round(R * .2 - 2), hd = Math.round(R * .3), edgeD = Math.min(hw - Math.abs(lx), hd - Math.abs(lz)), t = Math.max(0, Math.min(1, edgeD / 16)), top = Y + Math.round(10 * t * t * (3 - 2 * t));
+      for (let y = Y; y <= top; y++) put(y, y === top ? 'grass' : y > top - 3 ? 'dirt' : 'stone');
+      // the fort: a long limestone redoubt with pointed bastions at the corners, a dry ditch round it, casemates inside, a gate on the south side
+      const W = 20, D = 13, inside = (x, z, g = 0) => { const ax = Math.abs(x), az = Math.abs(z); return (ax <= W + g && az <= D + g) || (Math.abs(ax - W) + Math.abs(az - D) <= 7 + g); };
+      const F = top, inF = inside(lx, lz), ditch = !inF && inside(lx, lz, 4), gate = Math.abs(lx) <= 1 && lz > 0;
+      if (ditch){ if (gate){ put(F, 'planks_spruce'); put(F + 1, Math.abs(lx) === 1 ? 'fence_spruce' : 0); for (let y = F - 3; y < F; y++) put(y, 0); put(F - 4, 'grass'); return; }
+        const outerWall = !inside(lx + 1, lz, 4) || !inside(lx - 1, lz, 4) || !inside(lx, lz + 1, 4) || !inside(lx, lz - 1, 4);
+        for (let y = F - 4; y <= F; y++) put(y, y === F - 4 ? 'grass' : outerWall ? 'polished_diorite' : 0); return; }
+      if (!inF){ if (hash3(dx, 79, dz, 1) < .012 && edgeD > 3){ for (let k = 1; k <= 4; k++) put(F + k, 'log_oak'); put(F + 5, 'leaves_oak'); put(F + 6, 'leaves_oak'); }
+        else if (hash3(dx, 80, dz, 1) < .2) put(F + 1, 'tall_grass'); return; }
+      const wall = !inside(lx + 2, lz) || !inside(lx - 2, lz) || !inside(lx, lz + 2) || !inside(lx, lz - 2);
+      if (wall){ for (let y = F - 3; y <= F + 7; y++) put(y, y === F + 7 ? (((lx + lz) & 1) ? 'polished_diorite' : 0) : y < F + 2 ? 'stone_bricks' : 'polished_diorite');
+        if (gate && Math.abs(lx) <= 1) for (let y = F + 1; y <= F + 3; y++) put(y, 0);
+        if (gate && Math.abs(lx) === 2) for (let y = F + 1; y <= F + 4; y++) put(y, 'calcite');
+        return; }
+      put(F, 'gravel');
+      // casemates along the north side: two storeys of stone rooms with arched doors, grass on the roof
+      if (lz <= -D + 8 && Math.abs(lx) <= W - 2){ const front = lz === -D + 8; for (let y = F + 1; y <= F + 6; y++){ let k = 0;
+          if (front) k = (Math.abs(lx) % 4 === 0 && y <= F + 2) ? 0 : (Math.abs(lx) % 4 === 2 && (y === F + 4 || y === F + 5)) ? 'glass' : y === F + 3 && Math.abs(lx) % 4 === 0 ? 'calcite' : 'polished_diorite';
+          else if (y === F + 6) k = 'polished_diorite'; else if (y === F + 3) k = 'planks_spruce'; put(y, k); }
+        put(F + 7, 'grass'); return; }
+      // the flag: red, white with a red maple leaf, red
+      if (lx === 0 && lz === 0){ for (let y = F + 1; y <= F + 19; y++) put(y, 'iron_bars'); put(F + 20, 'block_gold'); }
+      if (lz === 0 && lx >= 1 && lx <= 12){ const LEAF = ['..#...', '..##..', '.####.', '######', '#.##.#', '..##..'];
+        for (let fy = 0; fy < 6; fy++){ const c = lx <= 3 || lx >= 10 ? 'wool_red' : LEAF[fy][lx - 4] === '#' ? 'wool_red' : 'wool_white'; put(F + 13 + fy, c); } }
+      // a row of old cannons on the parade ground
+      if (lz === 7 && Math.abs(lx) >= 4 && Math.abs(lx) <= 16 && lx % 4 === 0){ put(F + 1, 'block_coal'); }
+    });
+    // the LaSalle Causeway: the road over the Cataraqui River
+    mark('causeway', R * .5, R * .26, 16, 3, (put, lx, lz, Y, dx, dz) => { if (riverAt(city, dx, dz) < 0) return false; const ax = Math.abs(lz); for (let y = SEA - 4; y <= SEA; y++) put(y, y < SEA - 3 ? 'gravel' : 'water'); for (let y = Y + 1; y <= Y + 3; y++) put(y, 0);
+      put(Y, ax === 3 ? 'stone_bricks' : ax === 0 && Math.floor(dx / 2) % 3 === 0 ? 'concrete_yellow' : 'concrete_black'); if (ax === 3) put(Y + 1, 'iron_bars'); if (lx % 8 === 0) for (let y = SEA - 3; y < Y; y++) put(y, 'stone_bricks'); });
+    // Murney Tower: a squat round limestone Martello tower on raised ground by the water, with a pointed snow roof
+    const mz = shoreZ(city, -R * .62) - 9;
+    mark('murney tower', -R * .62, mz, 9, 9, (put, lx, lz, Y) => { const rr = Math.hypot(lx, lz); put(Y, 'grass'); if (rr > 8.5) return; put(Y + 1, rr < 7.5 ? 'grass' : 'grass'); put(Y, 'dirt');
+      if (rr <= 6){ for (let y = Y + 1; y <= Y + 9; y++) put(y, rr > 4.8 ? ((y === Y + 4 || y === Y + 7) && Math.round(Math.atan2(lz, lx) * 3) % 3 === 0 ? 'glass' : 'stone_bricks') : y === Y + 5 ? 'planks_spruce' : 0);
+        for (let s = 0; s < 5; s++){ const rad = 6 - s * 1.3; if (rr <= rad) put(Y + 10 + s, s === 0 ? 'stone_bricks' : 'deepslate_tiles'); } if (rr < .7) put(Y + 15, 'iron_bars'); } });
+    // Queen's University: Grant Hall and its clock tower, in limestone
+    mark('grant hall', -R * .38, R * .02, 9, 13, (put, lx, lz, Y) => { const ax = Math.abs(lx); put(Y, 'smooth_stone');
+      const tower = ax <= 2 && lz >= 7 && lz <= 11;
+      if (tower){ const edge = ax === 2 || lz === 7 || lz === 11, f = edge && !(ax === 2 && (lz === 7 || lz === 11));
+        for (let y = Y + 1; y <= Y + 24; y++){ let k = edge ? 'stone_bricks' : 0; if (f && y >= Y + 19 && y <= Y + 21){ const fp = ax === 2 ? lz - 9 : lx; if (Math.abs(fp) <= 1) k = (fp === 0 && y === Y + 20) || (fp === 0 && y === Y + 21) || (fp === 1 && y === Y + 20) ? 'concrete_black' : 'smooth_quartz'; } if (f && y >= Y + 22 && Math.abs(ax === 2 ? lz - 9 : lx) < 1) k = 'iron_bars'; if (lz === 11 && ax === 0 && y <= Y + 3) k = y <= Y + 2 ? 0 : 'stone_bricks'; put(y, k); }
+        put(Y + 25, edge ? 'chiseled' : 'stone_bricks'); if (edge && (ax + lz) % 2 === 0) put(Y + 26, 'stone_bricks'); if (ax <= 1 && lz >= 8 && lz <= 10){ put(Y + 26, 'deepslate_tiles'); if (ax === 0 && lz === 9){ put(Y + 27, 'deepslate_tiles'); put(Y + 28, 'iron_bars'); } } return; }
+      if (lz > 6 || lz < -13) return;
+      const edge = ax === 9 || lz === 6 || lz === -13, corner = ax === 9 && (lz === 6 || lz === -13);
+      for (let y = Y + 1; y <= Y + 10; y++){ let k = 0; if (edge){ k = corner ? 'chiseled' : 'stone_bricks'; const al = ax === 9 ? lz : lx; if (!corner && y >= Y + 2 && y <= Y + 8 && ((al % 3) + 3) % 3 === 0) k = 'glass'; } else if (y === Y + 5) k = 'planks_oak'; put(y, k); }
+      for (let s = 0; s < 4; s++){ if (ax <= 9 - s * 2.4) put(Y + 11 + s, ax > 9 - s * 2.4 - 2.4 || s === 3 ? 'deepslate_tiles' : 0); } });
+  }
+  return L;
+}
+
+/* ---- buildings ---- */
+const BLOCK = 26, ROAD = 3, WALK = 2;
+const PALS = {
+  modern:[{wall:'glass_light_blue', frame:'block_iron', floor:'smooth_stone', roof:'smooth_stone', base:'polished_andesite'}, {wall:'glass_cyan', frame:'smooth_quartz', floor:'smooth_stone', roof:'smooth_quartz', base:'smooth_quartz'},
+    {wall:'glass_black', frame:'concrete_black', floor:'smooth_stone', roof:'concrete_grey', base:'polished_blackstone'}, {wall:'glass_light_grey', frame:'concrete_white', floor:'smooth_stone', roof:'concrete_light_grey', base:'concrete_white'},
+    {wall:'glass_blue', frame:'polished_deepslate', floor:'smooth_stone', roof:'polished_deepslate', base:'polished_deepslate'}, {wall:'glass_brown', frame:'terracotta_brown', floor:'smooth_stone', roof:'terracotta_brown', base:'terracotta_white'},
+    {frame:'bricks', floor:'planks_spruce', roof:'bricks', base:'stone_bricks', brick:true}, {frame:'red_nether_bricks', floor:'planks_dark', roof:'nether_bricks', base:'polished_granite', brick:true}],
+  brick:[{frame:'bricks', floor:'planks_spruce', roof:'bricks', base:'smooth_stone', brick:true, shop:true}, {frame:'terracotta_red', floor:'planks_oak', roof:'bricks', base:'smooth_stone', brick:true, shop:true},
+    {frame:'terracotta_brown', floor:'planks_dark', roof:'terracotta_brown', base:'smooth_stone', brick:true, shop:true}, {frame:'terracotta_yellow', floor:'planks_oak', roof:'bricks', base:'smooth_stone', brick:true, shop:true},
+    {frame:'stone_bricks', floor:'planks_oak', roof:'smooth_stone', base:'smooth_stone', brick:true, shop:true}, {wall:'glass_light_grey', frame:'concrete_white', floor:'smooth_stone', roof:'concrete_light_grey', base:'concrete_white'}],
+  limestone:[{frame:'stone_bricks', floor:'planks_oak', roof:'smooth_stone', base:'smooth_stone', brick:true, shop:true}, {frame:'polished_andesite', floor:'planks_spruce', roof:'stone_bricks', base:'smooth_stone', brick:true, shop:true},
+    {frame:'cobble', floor:'planks_oak', roof:'stone_bricks', base:'smooth_stone', brick:true}, {frame:'smooth_stone', floor:'planks_oak', roof:'polished_andesite', base:'smooth_stone', brick:true, shop:true},
+    {frame:'bricks', floor:'planks_spruce', roof:'bricks', base:'smooth_stone', brick:true, shop:true}, {wall:'glass_light_blue', frame:'block_iron', floor:'smooth_stone', roof:'smooth_stone', base:'polished_andesite'}],
+  town:[{frame:'planks_oak', floor:'planks_spruce', roof:'planks_spruce', base:'grass', brick:true, house:true}, {frame:'planks_birch', floor:'planks_oak', roof:'bricks', base:'grass', brick:true, house:true},
+    {frame:'bricks', floor:'planks_oak', roof:'deepslate_tiles', base:'grass', brick:true, house:true}, {frame:'concrete_white', floor:'planks_oak', roof:'planks_dark', base:'grass', brick:true, house:true},
+    {frame:'stone_bricks', floor:'planks_oak', roof:'smooth_stone', base:'smooth_stone', brick:true, shop:true}, {frame:'terracotta_white', floor:'planks_oak', roof:'bricks', base:'grass', brick:true, house:true}],
+  desert:[{frame:'sandstone', floor:'smooth_sandstone', roof:'cut_sandstone', base:'cut_sandstone', brick:true}, {frame:'terracotta_white', floor:'smooth_sandstone', roof:'terracotta_orange', base:'cut_sandstone', brick:true},
+    {wall:'glass_brown', frame:'smooth_sandstone', floor:'smooth_stone', roof:'cut_sandstone', base:'smooth_sandstone'}],
+};
+function lotOf(city, wx, wz){ const lx = wx - (city.x - city.r), lz = wz - (city.z - city.r), bx = Math.floor(lx / BLOCK), bz = Math.floor(lz / BLOCK); return {bx, bz, ix:lx - bx * BLOCK, iz:lz - bz * BLOCK}; }
+const markAt = (city, wx, wz) => city.marks.find(m => wx >= m.x0 && wx <= m.x1 && wz >= m.z0 && wz <= m.z1);
+function building(city, bx, bz, seed){
+  const h = (a) => hash3(city.x + bx * 7, a, city.z + bz * 13, seed), cx = city.x - city.r + bx * BLOCK + BLOCK / 2, cz = city.z - city.r + bz * BLOCK + BLOCK / 2;
+  const far = Math.hypot(cx - city.x, cz - city.z) / city.r, room = 126 - city.y - 10;
+  let tall, size;
+  if (city.size === 'town'){ tall = 4 + h(2) * (far < .4 ? 8 : 5); size = 3 + Math.floor(h(3) * 2); }
+  else if (city.size === 'mega'){ tall = far < .3 ? room * (.55 + h(2) * .45) : far < .6 ? 24 + h(2) * 24 : far < .85 ? 10 + h(2) * 16 : 6 + h(2) * 8; size = far < .3 ? 8 + Math.floor(h(3) * 2) : 6 + Math.floor(h(3) * 4); }
+  else if (city.special){ tall = far < .3 ? 10 + h(2) * (h(6) < .3 ? 30 : 10) : 6 + h(2) * 10; size = 5 + Math.floor(h(3) * 4); }
+  else { tall = far < .35 ? 26 + h(2) * Math.max(10, room - 26) : far < .7 ? 12 + h(2) * 22 : 6 + h(2) * 10; size = far < .35 ? 7 + Math.floor(h(3) * 3) : 5 + Math.floor(h(3) * 4); }
+  const pals = PALS[city.style] || PALS.modern, pal = pals[Math.floor(h(4) * pals.length)];
+  const b = {park:false, h:Math.min(room, Math.max(4, Math.floor(tall / 4) * 4 + (city.size === 'town' ? 0 : 4))), half:size, pal, antenna:city.size !== 'town' && !city.special && far < .3 && h(5) < .6, cx, cz};
+  // no building on the water or under a landmark: a little park there instead
+  for (const [ox, oz] of [[0, 0], [-size, -size], [size, -size], [-size, size], [size, size]]) if (isWater(city, cx + ox - city.x, cz + oz - city.z) || markAt(city, cx + ox, cz + oz)) return {park:true, plain:true};
+  if (h(1) < (city.size === 'town' ? .08 : .1 + far * .15)) return {park:true};
+  return b;
+}
+const CAR = ['concrete_red', 'concrete_blue', 'concrete_white', 'concrete_black', 'concrete_yellow', 'concrete_lime', 'concrete_light_grey'];
+function cityColumn(v, x, z, wx, wz, city, seed){
+  const Y = city.y, put = (y, k) => { if (y > 0 && y < H) v[idx(x, y, z)] = typeof k === 'number' ? k : B[k]; };
+  for (let y = Y + 1; y < H; y++) v[idx(x, y, z)] = 0;
+  for (let y = Math.max(1, Y - 8); y <= Y; y++) if (!v[idx(x, y, z)] || v[idx(x, y, z)] === B.water || y > Y - 3) put(y, y === Y ? 'dirt' : 'stone');
+  const dx = wx - city.x, dz = wz - city.z;
+  // landmarks first (a landmark may say the column is not its own after all)
+  const m = city.marks.length ? markAt(city, wx, wz) : null;
+  if (m && m.col(put, wx - m.cx, wz - m.cz, Y, dx, dz) !== false) return;
+  const {bx, bz, ix, iz} = lotOf(city, wx, wz), edgeR = ix < ROAD || iz < ROAD, walk = !edgeR && (ix < ROAD + WALK || iz < ROAD + WALK || ix >= BLOCK - WALK || iz >= BLOCK - WALK);
+  // the bay or lake, with a stone sea wall and a boardwalk along the shore
+  if (city.special){
+    const sz = shoreZ(city, dx);
+    if (dz > sz){ const deep = Math.min(9, 3 + Math.floor((dz - sz) / 4)); for (let y = Y; y > SEA - deep - 1 && y > 0; y--) put(y, y > SEA ? 0 : y > SEA - deep ? 'water' : (hash3(wx, 5, wz, seed) < .3 ? 'gravel' : 'sand')); return; }
+    if (dz > sz - 1.5){ for (let y = SEA - 3; y <= Y; y++) put(y, 'stone_bricks'); if (hash3(wx, 6, wz, seed) < .5 || (wx & 1)) put(Y + 1, 'iron_bars'); return; }
+    if (dz > sz - 5){ put(Y, 'planks_spruce'); if ((wx % 11) === 0){ for (let k = 1; k <= 3; k++) put(Y + k, 'fence_oak'); put(Y + 4, 'lantern'); } return; }
+    const rv = riverAt(city, dx, dz);
+    if (rv >= 0){
+      const bank = rv > (city.special === 'kingston' ? 12 : 3);
+      for (let y = SEA - 3; y <= Y; y++) put(y, bank ? 'stone_bricks' : y <= SEA - 3 ? 'gravel' : y <= SEA ? 'water' : 0);
+      if (!bank && edgeR && city.special === 'belleville'){ put(Y, ix === 1 || iz === 1 ? 'concrete_yellow' : 'concrete_black'); }                // a bridge where a street crosses
+      else if (!bank && walk && city.special === 'belleville' && (ix < ROAD + WALK || iz < ROAD + WALK)){ put(Y, 'smooth_stone'); put(Y + 1, 'iron_bars'); }
+      if (bank) put(Y + 1, 'iron_bars');
+      return;
+    }
+  }
+  if (edgeR){
+    put(Y, 'concrete_black'); put(Y - 1, 'stone');
+    const along = ix < ROAD && iz >= ROAD ? 'z' : iz < ROAD && ix >= ROAD ? 'x' : 'both';
+    if (along === 'z' && ix === 1 && (wz >> 1) % 3 === 0) put(Y, 'concrete_yellow');
+    if (along === 'x' && iz === 1 && (wx >> 1) % 3 === 0) put(Y, 'concrete_yellow');
+    if (along === 'z' && iz >= ROAD && iz < ROAD + 3 && wx % 2 === 0) put(Y, 'concrete_white');
+    if (along === 'x' && ix >= ROAD && ix < ROAD + 3 && wz % 2 === 0) put(Y, 'concrete_white');
+    const ch = hash3(bx * 31 + (along === 'x' ? 1 : 0), 401, bz * 17, seed);
+    if (along !== 'both' && ch < (city.size === 'town' ? .25 : .45)){ const pos = along === 'x' ? ix : iz, lane = along === 'x' ? iz : ix, start = 8 + Math.floor(ch * 20) % 10;
+      if (lane === 2 && pos >= start && pos < start + 4){ const c = CAR[Math.floor(ch * 97) % CAR.length], end = pos === start || pos === start + 3; put(Y + 1, end ? 'wool_black' : c); put(Y + 2, end ? c : 'glass_light_grey'); if (!end) put(Y + 3, c); } }
+    return;
+  }
+  if (walk){
+    put(Y, city.size === 'town' ? 'gravel' : 'smooth_stone');
+    if ((ix === ROAD || iz === ROAD) && (wx + wz) % 9 === 0){ for (let k = 1; k <= 3; k++) put(Y + k, 'fence_oak'); put(Y + 4, 'lantern'); }
+    return;
+  }
+  const b = building(city, bx, bz, seed);
+  if (b.park){
+    put(Y, 'grass'); put(Y - 1, 'dirt');
+    const r = hash3(wx, 403, wz, seed), mid = Math.abs(ix - BLOCK / 2) < 3 && Math.abs(iz - BLOCK / 2) < 3;
+    if (mid && !b.plain && hash3(bx, 404, bz, seed) < .5){ put(Y, 'water'); return; }
+    if (ix === Math.floor(BLOCK / 2) || iz === Math.floor(BLOCK / 2)){ put(Y, 'gravel'); return; }
+    const trunk = (X, Z) => { const jx = ix + X - wx, jz = iz + Z - wz; return hash3(X, 403, Z, seed) < .025 && jx >= ROAD + WALK && jz >= ROAD + WALK && jx < BLOCK - WALK && jz < BLOCK - WALK && Math.abs(jx - BLOCK / 2) > 3 && Math.abs(jz - BLOCK / 2) > 3 && !isWater(city, X - city.x, Z - city.z) && !markAt(city, X, Z); };
+    if (trunk(wx, wz)){ for (let k = 1; k < 6; k++) put(Y + k, 'log_oak'); }
+    else if (r < .2) put(Y + 1, 'tall_grass'); else if (r < .3) put(Y + 1, ['flower_red', 'flower_yellow', 'tulip_pink', 'cornflower'][Math.floor(r * 100) % 4]);
+    // leaves round the trunks (a column near a trunk gets part of its crown)
+    for (let ez = -2; ez <= 2; ez++) for (let ex = -2; ex <= 2; ex++){ if (!trunk(wx + ex, wz + ez)) continue; const far2 = Math.max(Math.abs(ex), Math.abs(ez)), cor = Math.abs(ex) === 2 && Math.abs(ez) === 2;
+      for (let k = 4; k <= 7; k++){ if (far2 === 0 && k < 6) continue; const rad = k <= 5 ? 2 : k === 6 ? 1 : 0; if (far2 > rad || (cor && hash3(wx, k, wz, seed) < .6) || (k === 7 && far2 === 1 && Math.abs(ex) + Math.abs(ez) === 2)) continue; put(Y + k, 'leaves_oak'); } }
+    return;
+  }
+  // a building: walls with windows floor by floor (shops have glass fronts at street level), floors and lights inside, a door, a roof with a ledge
+  put(Y, b.pal.base);
+  const lx = wx - b.cx, lz = wz - b.cz, ax = Math.abs(lx + .5), az = Math.abs(lz + .5), in_ = ax <= b.half && az <= b.half;
+  if (!in_){ if (b.pal.house && hash3(wx, 405, wz, seed) < .08) put(Y + 1, ['flower_red', 'flower_yellow', 'tall_grass'][Math.floor(hash3(wx, 406, wz, seed) * 3)]); return; }
+  const edge = Math.abs(ax - b.half) < .6 || Math.abs(az - b.half) < .6, corner = Math.abs(ax - b.half) < .6 && Math.abs(az - b.half) < .6;
+  const door = edge && !corner && ((Math.abs(lz + .5) < 1 && Math.abs(ax - b.half) < .6) || (Math.abs(lx + .5) < 1 && Math.abs(az - b.half) < .6));
+  for (let y = Y + 1; y <= Y + b.h; y++){
+    const fl = (y - Y) % 4;
+    if (edge){
+      if (door && y <= Y + 2) continue;
+      let k = b.pal.frame;
+      if (!corner && fl !== 0 && !(!b.pal.brick && (lx + lz) % 3 === 0)){
+        if (b.pal.brick){ k = (b.pal.shop && y - Y <= 3 && fl !== 0) ? (fl === 3 ? 'wool_' + ['red', 'green', 'blue', 'white'][Math.floor(hash3(bx, 407, bz, seed) * 4)] : 'glass') : (lx + lz) % 3 !== 0 && fl !== 3 ? 'glass' : b.pal.frame; }
+        else k = b.pal.wall;
+      }
+      put(y, k);
+    } else if (fl === 0) put(y, b.pal.floor);
+    else if (fl === 3 && (lx % 5 === 0) && (lz % 5 === 0)) put(y, 'glowstone');
+  }
+  const top = Y + b.h + 1;
+  if (b.pal.house){
+    // a pitched roof on houses
+    const across = Math.min(ax, az) === ax ? 'x' : 'z', d = b.half - Math.min(ax, az) + .5;
+    for (let s = 0; s <= Math.ceil(b.half); s++){ if (s <= d) put(top + s, s === Math.floor(d) || s === Math.ceil(d - .5) ? b.pal.roof : (s === 0 ? b.pal.floor : 0)); }
+    return;
+  }
+  put(top, edge ? b.pal.frame : b.pal.roof); if (edge) put(top + 1, b.pal.frame);
+  if (!edge && Math.abs(lx) === 2 && Math.abs(lz) === 1 && b.h > 10){ put(top + 1, 'block_iron'); put(top + 2, 'smooth_stone'); }
+  if (b.antenna && lx === 0 && lz === 0){ for (let k = 1; k < 9 && top + k < H - 1; k++) put(top + k, 'iron_bars'); put(Math.min(H - 1, top + 9), 'glowstone'); }
 }
 
 const TREES = {plains:.003, sunflower:.001, meadow:.002, forest:.03, flowerforest:.02, birch:.025, darkforest:.06, taiga:.03, snowtaiga:.025, snowy:.004, jungle:.07, bamboo:.01, savanna:.008, swamp:.012, cherry:.02, mushroom:.008, badlands:0, desert:0};
@@ -96,6 +417,7 @@ export function villageIn(seed, rx, rz){
   const x = rx * REGION + 48 + Math.floor(hash3(rx, 92, rz, seed) * (REGION - 96)), z = rz * REGION + 48 + Math.floor(hash3(rx, 93, rz, seed) * (REGION - 96));
   const col = column(seed, x, z), style = {plains:'oak', meadow:'oak', sunflower:'oak', forest:'oak', flowerforest:'oak', birch:'birch', desert:'desert', savanna:'acacia', taiga:'spruce', snowy:'snow', snowtaiga:'snow'}[col.biome];
   if (!style || col.h <= SEA || col.h > 96 || col.river) return null;
+  { const c = cityIn(seed, Math.floor(x / CREG), Math.floor(z / CREG)); if (c && Math.max(Math.abs(x - c.x), Math.abs(z - c.z)) < c.r + c.blend + 40) return null; }
   // the plan: two crossing roads, a well in the middle, houses along the roads, farms, lamp posts
   const plan = {x, z, y:col.h, style, roads:[], houses:[], seed};
   const arm = (dx, dz, n) => { for (let i = 3; i < n; i++) plan.roads.push([x + dx * i, z + dz * i]); };
@@ -180,6 +502,7 @@ export function genChunk(seed, cx, cz){
   const C = (x, z) => cols[(z + 3) * (CH + 6) + x + 3];
   for (let z = 0; z < CH; z++) for (let x = 0; x < CH; x++){
     const wx = x0 + x, wz = z0 + z, {h, biome, river} = C(x, z);
+    if (biome === 'city'){ for (let y = 0; y <= h; y++) v[idx(x, y, z)] = y === 0 ? B.bedrock : B.stone; cityColumn(v, x, z, wx, wz, C(x, z).city, seed); continue; }
     const steep = Math.max(Math.abs(C(x + 1, z).h - C(x - 1, z).h), Math.abs(C(x, z + 1).h - C(x, z - 1).h));
     let top = B.grass, under = B.dirt, depth = 3 + (hash3(wx, 1, wz, seed) * 2 | 0);
     const ocean = biome === 'ocean' || biome === 'warmocean' || biome === 'frozen' || biome === 'river' || biome === 'frozenriver';
@@ -276,6 +599,7 @@ function smallPlaces(v, cx, cz, seed){
   const wx = sx * 96 + 16 + Math.floor(hash3(sx, 62, sz, seed) * 64), wz = sz * 96 + 16 + Math.floor(hash3(sx, 63, sz, seed) * 64), col = column(seed, wx, wz), y = col.h;
   const put = (x, yy, z, id) => { const lx = x - cx * CH, lz = z - cz * CH; if (lx < 0 || lz < 0 || lx >= CH || lz >= CH || yy < 1 || yy >= H) return; v[idx(lx, yy, lz)] = id; };
   if (Math.abs(wx - (cx * CH + 8)) > 24 || Math.abs(wz - (cz * CH + 8)) > 24) return;
+  if (col.biome === 'city' || column(seed, wx + 20, wz).biome === 'city' || column(seed, wx - 20, wz).biome === 'city') return;
   if (col.biome === 'desert'){
     for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++){ put(wx + dx, y, wz + dz, B.sandstone); for (let k = 1; k < 5; k++) put(wx + dx, y + k, wz + dz, 0); }
     for (let k = 0; k < 3; k++) put(wx, y - k, wz, B.water); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) put(wx + dx, y + 1, wz + dz, B.slab_sandstone);

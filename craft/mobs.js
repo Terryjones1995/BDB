@@ -2,8 +2,8 @@
    setting is on) zombies, skeletons, creepers and spiders come out, chase whoever is near, hit them, shoot arrows or blow up; endermen leave you
    alone unless you hit them. Everything has health and shows a bar over its head when hurt. Built from boxes with little pixel faces drawn here.
    In a shared world only the host runs them and sends where they are; friends draw them and send their hits to the host. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c17';
-import { B, SOLID, LIQUID, OPAQUE } from './blocks.js?v=c17';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c18';
+import { B, SOLID, LIQUID, OPAQUE } from './blocks.js?v=c18';
 
 /* ---------- looks ---------- */
 function pic(w, h, fill){ const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = fill; x.fillRect(0, 0, w, h); return {c, px(a, b, col, ww = 1, hh = 1){ x.fillStyle = col; x.fillRect(a, b, ww, hh); }}; }
@@ -108,7 +108,7 @@ export function createMobs(scene, world, opts){
         const p = people[Math.floor(Math.random() * people.length)], ang = Math.random() * 6.28, d = 24 + Math.random() * 40, x = Math.floor(p.x + Math.cos(ang) * d), z = Math.floor(p.z + Math.sin(ang) * d);
         const top = world.surface(x, z), under = top > 0 ? world.get(x, top - 1, z) : -1, b = env.biomeAt ? env.biomeAt(x, z) : 'plains';
         if (under === B.grass || under === B.grass_snow || under === B.podzol){
-          const pool = b === 'taiga' || b === 'snowtaiga' ? ['wolf', 'fox', 'rabbit'] : b === 'savanna' ? ['horse', 'llama', 'cow'] : b === 'snowy' || b === 'snowpeak' ? ['rabbit', 'goat', 'fox'] : b === 'meadow' || b === 'cherry' ? ['goat', 'rabbit', 'sheep', 'cat'] : b === 'jungle' ? ['chicken', 'cat'] : ['cow', 'pig', 'sheep', 'chicken', 'horse', 'rabbit', 'cow', 'pig', 'sheep'];
+          const pool = b === 'city' ? ['cat', 'cat', 'rabbit', 'chicken'] : b === 'taiga' || b === 'snowtaiga' ? ['wolf', 'fox', 'rabbit'] : b === 'savanna' ? ['horse', 'llama', 'cow'] : b === 'snowy' || b === 'snowpeak' ? ['rabbit', 'goat', 'fox'] : b === 'meadow' || b === 'cherry' ? ['goat', 'rabbit', 'sheep', 'cat'] : b === 'jungle' ? ['chicken', 'cat'] : ['cow', 'pig', 'sheep', 'chicken', 'horse', 'rabbit', 'cow', 'pig', 'sheep'];
           const k = pool[Math.floor(Math.random() * pool.length)], herd = k === 'chicken' || k === 'rabbit' ? 3 : k === 'wolf' ? 3 : 2;
           for (let i = 0; i < herd; i++){ const xx = x + (i % 2), zz = z + (i >> 1), y = groundAt(xx, zz, top); if (y != null) add(k, xx + .5, y, zz + .5); }
         }

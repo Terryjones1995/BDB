@@ -2,8 +2,8 @@
    on where you are: snow in cold places and high up, rain elsewhere, nothing in deserts, badlands and savannas. Rain and snow stop under a roof.
    Storms darken the sky and throw lightning; in open country a storm can spin up a tornado that wanders across the land, throws you and the
    animals about and tears up plants and leaves in its path. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c17';
-import { PLANT } from './blocks.js?v=c17';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c18';
+import { PLANT } from './blocks.js?v=c18';
 
 const COLD = new Set(['snowy', 'snowtaiga', 'snowpeak', 'frozen', 'frozenriver', 'snowbeach']), DRY = new Set(['desert', 'badlands', 'savanna']);
 const OPEN = new Set(['plains', 'sunflower', 'meadow', 'savanna', 'desert', 'badlands']);

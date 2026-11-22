@@ -1,24 +1,25 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c17';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c17';
-import { paintAll, icon, TS } from './tex.js?v=c17';
-import { column } from './gen.js?v=c17';
-import { column as column2, villagesNear } from './gen2.js?v=c17';
-import { createWorld } from './world.js?v=c17';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c17';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c17';
-import { createHand } from './hand.js?v=c17';
-import { createPlayer, EYE } from './player.js?v=c17';
-import { createMobs } from './mobs.js?v=c17';
-import { createRedstone } from './redstone.js?v=c17';
-import { createCarts } from './carts.js?v=c17';
-import { createLiquids } from './liquids.js?v=c17';
-import { createWeather, tearUp } from './weather.js?v=c17';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c17';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c17';
-import { openParty, newCode, cleanCode } from './party.js?v=c17';
+import * as THREE from '../chess/vendor/three.module.min.js?v=c18';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js?v=c18';
+import { paintAll, icon, TS } from './tex.js?v=c18';
+import { column } from './gen.js?v=c18';
+import { column as column2, villagesNear, citiesNear } from './gen2.js?v=c18';
+import { createCitySigns } from './city.js?v=c18';
+import { createWorld } from './world.js?v=c18';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c18';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c18';
+import { createHand } from './hand.js?v=c18';
+import { createPlayer, EYE } from './player.js?v=c18';
+import { createMobs } from './mobs.js?v=c18';
+import { createRedstone } from './redstone.js?v=c18';
+import { createCarts } from './carts.js?v=c18';
+import { createLiquids } from './liquids.js?v=c18';
+import { createWeather, tearUp } from './weather.js?v=c18';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c18';
+import { Cloud, Local, session, pack, unpack } from './store.js?v=c18';
+import { openParty, newCode, cleanCode } from './party.js?v=c18';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -35,6 +36,7 @@ const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(S.fov, 1, .05, 1200);
+const citySigns = createCitySigns(scene);
 camera.rotation.order = 'YXZ';
 const hemi = new THREE.HemisphereLight(0xdfeeff, 0x6b5a45, 2.2); scene.add(hemi); const sunL = new THREE.DirectionalLight(0xfff2dd, 1.4); sunL.position.set(-3, 5, -4); scene.add(sunL);
 const layers = paintAll(), mats = blockMaterials(layers), theSky = createSky(scene), weather = createWeather(scene), cloud = createClouds(scene, 1234), hl = outline(scene);
@@ -51,6 +53,8 @@ const hand = createHand(handScene, layers);
 const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'keysp', 'inv', 'msg', 'dead'];
 function show(...ids){ for (const s of screens) $(s).hidden = !ids.includes(s); }
 let toastT = 0;
+let titleT = 0;
+function title(big, small, under = '', ms = 4200){ const e = $('title'); e.querySelector('b').textContent = big; e.querySelector('span').textContent = small; e.querySelector('i').textContent = under; e.hidden = false; e.classList.remove('go'); void e.offsetWidth; e.classList.add('go'); clearTimeout(titleT); titleT = setTimeout(() => { e.hidden = true; }, ms); }
 function toast(t, ms = 2200){ const e = $('toast'); e.textContent = t; e.hidden = false; e.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { e.style.opacity = 0; setTimeout(() => e.hidden = true, 400); }, ms); }
 
 /* ---------- the start screen, with a world turning slowly behind it ---------- */
@@ -484,10 +488,14 @@ addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { const a = KEYMAP['Mouse' + e.button]; if (a === 'break' || a === 'place') press(a, false); else if (a && MOVE.includes(a) && G) G.keys[a] = false; });
 addEventListener('contextmenu', e => { if (G && G.started) e.preventDefault(); });
-addEventListener('wheel', e => { if (!active()) return; G.pick(G.sel + (e.deltaY > 0 ? 1 : -1)); }, {passive:true});
+// the scroll wheel: one slot per notch. Smooth wheels and trackpads send lots of small steps, so add them up and move at most one slot at a time
+let wheelSum = 0, wheelT = 0, wheelLast = 0;
+addEventListener('wheel', e => { if (!active()) return; const now = performance.now(); if (now - wheelLast > 250) wheelSum = 0; wheelLast = now;
+  wheelSum += e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  if (Math.abs(wheelSum) >= 50 && now - wheelT > 90){ G.pick(G.sel + (wheelSum > 0 ? 1 : -1)); wheelSum = 0; wheelT = now; } else if (Math.abs(wheelSum) >= 50) wheelSum = Math.sign(wheelSum) * 49; }, {passive:true});
 /* the keys: every action, what it does, its key. Changed on the Controls screen and kept in the settings. Arrow keys always walk too */
 const ACTIONS = [['f', 'Walk forward', 'KeyW'], ['b', 'Walk back', 'KeyS'], ['l', 'Step left', 'KeyA'], ['r', 'Step right', 'KeyD'], ['up', 'Jump, swim up, fly up (double tap to fly)', 'Space'],
-  ['down', 'Sneak, fly down', 'ShiftLeft'], ['sprint', 'Sprint', 'ControlLeft'], ['inv', 'Every block (inventory)', 'KeyE'], ['chat', 'Chat', 'KeyT'], ['cmd', 'Type a command', 'Slash'],
+  ['down', 'Sneak, fly down (with Jump: slowly, with Sprint: fast)', 'ShiftLeft'], ['sprint', 'Sprint', 'ControlLeft'], ['inv', 'Every block (inventory)', 'KeyE'], ['chat', 'Chat', 'KeyT'], ['cmd', 'Type a command', 'Slash'],
   ['view', 'See yourself (behind, in front)', 'F5'], ['hud', 'Hide the screen extras', 'F1'], ['dbg', 'Where you are, speed', 'F3'],
   ['break', 'Break a block, hit', 'Mouse0'], ['place', 'Place, use (doors, levers, carts)', 'Mouse2'], ['pick', 'Pick the block you look at', 'Mouse1']];
 const MOVE = ['f', 'b', 'l', 'r', 'up', 'down', 'sprint'];
@@ -502,6 +510,15 @@ addEventListener('keydown', e => {
     if (e.key === 'Enter'){ const t = $('chatin').value.trim(); $('chatin').value = ''; $('chatin').hidden = true; if (t && g && t.startsWith('/time')){ const w = t.split(/\s+/)[1] || '', T = {day:.04, morning:.04, noon:.25, sunset:.47, evening:.47, night:.62, midnight:.75}; if (g.opt.guest) sys('Only ' + g.host + ' can change the time.'); else if (w in T){ g.time = T[w]; sys('Time set to ' + w + '.'); if (g.party) g.party.time([g.time, g.day, S.cycle ? 1 : 0]); } else sys('Try /time day, noon, sunset or night.'); lock(); return; }
     if (t && g && t.startsWith('/weather')){ const w = t.split(/\s+/)[1] || ''; if (g.opt.guest) sys('Only ' + g.host + ' can change the weather.'); else if (['clear', 'rain', 'thunder'].includes(w)){ weather.set(w); sys('Weather: ' + w + '.'); g.tmT = 0; }
       else if (w === 'tornado'){ weather.set('thunder', {x:g.p.x + 40, z:g.p.z + 10, vx:-2.5, vz:-.5, life:120}); sys('A tornado is coming.'); g.tmT = 0; } else sys('Try /weather clear, rain, thunder or tornado.'); lock(); return; }
+    if (t && g && t.startsWith('/tp')){ const n = t.split(/\s+/).slice(1).map(Number); if (n.length === 3 && n.every(Number.isFinite)){ g.p.x = n[0] + .5; g.p.y = Math.max(2, Math.min(200, n[1])); g.p.z = n[2] + .5; g.p.vx = g.p.vy = g.p.vz = 0; g.p.fly = true; sys('Teleported.'); } else sys('Try /tp x y z.'); lock(); return; }
+    if (t && g && t.startsWith('/city')){ if (g.opt.gen !== 2 || g.opt.kind !== 'normal'){ sys('This world has no cities. Make a new world to get them.'); lock(); return; }
+      // /city goes to the nearest city you are not in; /city Kingston goes to that one if it is anywhere near
+      const want = t.slice(5).trim().toLowerCase(); let best = null, bd = 1e9; const rx = Math.floor(g.p.x / 1024), rz = Math.floor(g.p.z / 1024), seen = new Set();
+      for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (const c of citiesNear(g.opt.seed, (rx + dx) * 1024 + 512, (rz + dz) * 1024 + 512)){ if (seen.has(c)) continue; seen.add(c);
+        const d = Math.hypot(c.x - g.p.x, c.z - g.p.z); if (want ? c.name.toLowerCase().startsWith(want) && d < bd : d < bd && d > c.r){ bd = d; best = c; } }
+      if (!best){ sys(want ? 'No city called that near here. Cities near you: ' + [...seen].sort((a, b) => Math.hypot(a.x - g.p.x, a.z - g.p.z) - Math.hypot(b.x - g.p.x, b.z - g.p.z)).slice(0, 6).map(c => c.name).join(', ') + '.' : 'No city near here.'); lock(); return; }
+      const ax = g.p.x - best.x, az = g.p.z - best.z, k = (best.r + 30) / Math.max(1, Math.hypot(ax, az)); g.p.x = best.x + ax * k; g.p.z = best.z + az * k; g.p.y = best.y + 40; g.p.vx = g.p.vy = g.p.vz = 0; g.p.fly = true;
+      g.p.yaw = Math.atan2(g.p.x - best.x, g.p.z - best.z); g.p.pitch = -.15; sys('Off to ' + best.name + '.'); lock(); return; }
     if (t && g){ chatLine(session() ? session().name : g.party ? g.party.list()[0].name : 'You', t); if (g.party) g.party.chat(t); else if (!g.party) sys('No one else is here. Invite friends from the pause screen.'); } lock(); }
     if (e.key === 'Escape'){ $('chatin').value = ''; $('chatin').hidden = true; setTimeout(() => { if (!active()) pause(); }, 0); }
     return;
@@ -848,7 +865,7 @@ function frame(t){
       const host = !g.opt.guest, folk = [{x:p.x, y:p.y, z:p.z, moving:Math.hypot(p.vx, p.vz) > 1, me:true, dead:g.dead || p.fly && false}];
       for (const [id, a] of g.avatars) if (a.target) folk.push({x:a.target.x, y:a.target.y, z:a.target.z, moving:true, id});
       if (!host) g.animals.follow(dt);
-      const env = {animals:S.animals, monsters:S.monsters, night:lastNight, biomeAt:(x, z) => g.colAt(x, z).biome, villages:g.opt.gen === 2 ? (x, z) => villagesNear(g.opt.seed, x, z, 1) : null};
+      const env = {animals:S.animals, monsters:S.monsters, night:lastNight, biomeAt:(x, z) => g.colAt(x, z).biome, villages:g.opt.gen === 2 ? (x, z) => villagesNear(g.opt.seed, x, z, 1).concat(g.opt.kind === 'normal' ? g.cities || [] : []) : null};          // people walk city streets too
       g.animals.update(dt, folk, host, env);
       if (host && g.party && t - (g.anT || 0) > 200){ g.anT = t; g.party.animals(g.animals.state()); }
       g.critter = active() || NOLOCK ? g.animals.pick(eye, dir, g.hit ? g.hit.t : 4) : null;
@@ -879,7 +896,11 @@ function frame(t){
     if (pull && !g.riding){ g.p.vx += pull.vx * dt * 3; g.p.vz += pull.vz * dt * 3; g.p.vy = Math.max(g.p.vy, pull.vy); g.p.fly = false; }
     if (!g.opt.guest && weather.tornado){ g.tearT = (g.tearT || 0) + dt; if (g.tearT > .3){ g.tearT = 0; tearUp(g.world, weather.tornado, (x, y, z, b) => edit(x, y, z, b), LEAVES); }
       for (const a of g.animals.list.values()){ const pl = weather.pull(a.x, a.y, a.z, a.ty); if (pl){ a.kx = pl.vx; a.kz = pl.vz; a.vy = pl.vy * .8; } } }
-  } else weather.clear();
+    // cities: their names in the sky, and a title when you walk in
+    if (g.opt.gen === 2 && g.opt.kind === 'normal'){ if (!g.cityT || t - g.cityT > 1000){ g.cityT = t; g.cities = citiesNear(g.opt.seed, g.p.x, g.p.z); }
+      g.city = citySigns.update(camera, g.cities || [], g.p, c => title(c.name, 'Welcome to', c.place));
+    }
+  } else { weather.clear(); citySigns.clear(); }
   const sk = theSky.update(camera, time, day, weather.storm, weather.flash); mats.tick(dt); lastNight = sk.night;
   const under = g && g.started && !(g.view | 0) ? (g.p.eyeLava ? 2 : g.p.eyeWater ? 1 : 0) : 0, far = (G ? S.dist : 6) * 16 - 2;
   for (const m of [mats.solid, mats.clear]){
@@ -902,4 +923,4 @@ requestAnimationFrame(frame);
 if (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches){ $('bnew').disabled = true; $('bjoin').disabled = true; }
 
 /* a handle for the tests */
-window.craft = {hurtMe, weather, strike, gen2:{column:column2, villagesNear}, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};
+window.craft = {hurtMe, weather, strike, gen2:{column:column2, villagesNear, citiesNear}, title, citySigns, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};

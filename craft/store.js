@@ -1,7 +1,7 @@
 /* BDB Craft: where worlds are kept. Signed in (the same account as Break Room Brawl), worlds live on the BDB server in Supabase, so they follow you to
    any computer and friends can join. Not signed in, or the server is not set up for Craft yet, they live in this browser (IndexedDB).
    A world is its settings (name, seed, type, where you were standing) plus every chunk anyone changed, each squeezed with deflate and sent as base64. */
-import { SUPABASE_URL, SUPABASE_KEY } from '../brawl/config.js?v=c17';
+import { SUPABASE_URL, SUPABASE_KEY } from '../brawl/config.js?v=c18';
 const base = (new URLSearchParams(location.search).get('api') || SUPABASE_URL || '').replace(/\/+$/, '');
 const SKEY = 'brawl-session';
 export function session(){ try { const s = JSON.parse(localStorage.getItem(SKEY)); if (s && typeof s.name === 'string' && typeof s.token === 'string') return s; } catch(e){} return null; }
