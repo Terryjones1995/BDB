@@ -1,19 +1,23 @@
 /* BDB Craft: how things look. The block shader (every texture sits in one texture array, so a whole chunk is one draw), the sky, the clouds, the outline
    round the block you are pointing at, and your friends' blocky bodies with name tags. */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c15';
-import { TS } from './tex.js?v=c15';
-import { TEX } from './blocks.js?v=c15';
-import { body } from './skin.js?v=c15';
+import * as THREE from '../chess/vendor/three.module.min.js';
+import { TS } from './tex.js';
+import { TEX, T } from './blocks.js';
+import { body } from './skin.js';
 
 const VS = `in vec3 position; in vec3 tex; in vec2 light;
 uniform mat4 modelViewMatrix, projectionMatrix;
 out vec3 vT; out vec2 vL; out float vD;
 void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv; vT = tex; vL = light; vD = length(mv.xyz); }`;
 const FS = `precision highp float; precision highp sampler2DArray;
-uniform sampler2DArray map; uniform vec3 fogColor; uniform float fogNear, fogFar, cut, bright;
+uniform sampler2DArray map; uniform vec3 fogColor; uniform float fogNear, fogFar, cut, bright, time, wl, ll;
 in vec3 vT; in vec2 vL; in float vD; out vec4 col;
 void main(){
-  vec2 uv = vT.xy; vec4 c = textureGrad(map, vec3(fract(uv), vT.z), dFdx(uv), dFdy(uv));
+  vec2 uv = vT.xy;
+  // water and lava move: the picture drifts and ripples
+  if (abs(vT.z - wl) < .5){ uv += vec2(time * .05, time * .035) + .06 * vec2(sin(uv.y * 2.1 + time * 1.3), cos(uv.x * 1.7 + time * 1.1)); }
+  else if (abs(vT.z - ll) < .5){ uv += vec2(time * .012, time * .008) + .04 * vec2(sin(uv.y * 1.3 + time * .5), cos(uv.x * 1.1 + time * .4)); }
+  vec4 c = textureGrad(map, vec3(fract(uv), vT.z), dFdx(vT.xy), dFdy(vT.xy));
   if (c.a < cut) discard;
   vec3 lit = max(vec3(vL.x * bright), vL.y * vec3(1.0, 0.88, 0.7));      // daylight or the warm light of torches and lamps, whichever is brighter
   vec3 rgb = c.rgb * lit;
@@ -25,11 +29,11 @@ export function blockMaterials(layers){
   const t = new THREE.DataArrayTexture(layers, TS, TS, TEX.length);
   t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter;
   t.generateMipmaps = true; t.colorSpace = THREE.NoColorSpace; t.anisotropy = 4; t.needsUpdate = true;
-  const u = () => ({map:{value:t}, fogColor:{value:new THREE.Vector3(HORIZON.r, HORIZON.g, HORIZON.b)}, fogNear:{value:60}, fogFar:{value:120}, cut:{value:.5}, bright:{value:1}});
+  const u = () => ({map:{value:t}, fogColor:{value:new THREE.Vector3(HORIZON.r, HORIZON.g, HORIZON.b)}, fogNear:{value:60}, fogFar:{value:120}, cut:{value:.5}, bright:{value:1}, time:{value:0}, wl:{value:T.water}, ll:{value:T.lava}});
   const solid = new THREE.RawShaderMaterial({glslVersion:THREE.GLSL3, vertexShader:VS, fragmentShader:FS, uniforms:u()});
   const clear = new THREE.RawShaderMaterial({glslVersion:THREE.GLSL3, vertexShader:VS, fragmentShader:FS, uniforms:u(), transparent:true, depthWrite:false, side:THREE.DoubleSide});
   clear.uniforms.cut.value = .02;
-  return {solid, clear, texture:t, fog(near, far){ for (const m of [solid, clear]){ m.uniforms.fogNear.value = near; m.uniforms.fogFar.value = far; } }, refresh(){ t.needsUpdate = true; }};
+  return {solid, clear, texture:t, tick(dt){ for (const m of [solid, clear]) m.uniforms.time.value += dt; }, fog(near, far){ for (const m of [solid, clear]){ m.uniforms.fogNear.value = near; m.uniforms.fogFar.value = far; } }, refresh(){ t.needsUpdate = true; }};
 }
 /* the colours are written straight to the screen by the block shader; three.js would turn ours from linear, so the sky is set to match by hand */
 export function sky(scene){

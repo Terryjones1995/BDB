@@ -95,6 +95,11 @@ body.k{background:#0b1426}
 #chatin:focus{outline:2px solid rgba(255,255,255,.35)}
 #toast{position:absolute;left:50%;top:18%;transform:translateX(-50%);background:var(--glass);border:1px solid var(--edge);padding:8px 16px;border-radius:9px;font:700 15px var(--f-body);color:var(--ink);transition:opacity .4s}
 #hud.off > :not(#toast){display:none}
+#hearts{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);display:flex;gap:2px;margin-left:-110px}
+#hearts i{width:16px;height:14px;background:rgba(0,0,0,.45);clip-path:polygon(50% 100%,0 40%,0 15%,20% 0,50% 15%,80% 0,100% 15%,100% 40%);position:relative}
+#hearts i.full{background:#e8262e}
+#hearts i.half{background:linear-gradient(90deg,#e8262e 50%,rgba(0,0,0,.45) 50%)}
+#ouch{position:fixed;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(200,0,0,.8));opacity:0;transition:opacity .25s;pointer-events:none}
 /* inventory */
 #inv .panel{width:min(760px,100%)}
 #invtop{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -148,6 +153,8 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
   <div id="bname"></div>
   <div id="bar"></div>
   <div id="toast" hidden></div>
+  <div id="hearts" hidden></div>
+  <div id="ouch"></div>
 </div>
 
 <!-- the start screen -->
@@ -265,6 +272,8 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
     <label class="check"><input type="checkbox" id="sclouds"> Clouds</label>
     <label class="check"><input type="checkbox" id="shand"> Show your arm and the block in your hand</label>
     <label class="check"><input type="checkbox" id="sanimals"> Animals</label>
+    <label class="check"><input type="checkbox" id="smonsters"> Monsters at night</label>
+    <label class="check"><input type="checkbox" id="shurt"> Monsters can hurt you (hearts)</label>
     <label class="check"><input type="checkbox" id="scycle"> Day and night (off: always daytime)</label>
     <div class="btns"><button type="button" class="k-btn" id="skeys">Controls</button><button type="button" class="k-btn" data-back>Done</button></div>
   </div>
@@ -289,10 +298,14 @@ body.wet #hud:before{content:"";position:fixed;inset:0;background:rgba(30,70,170
   </div>
 </section>
 
+<section class="screen dim" id="dead" hidden>
+  <div class="panel" style="text-align:center"><h2 style="font-size:34px;color:var(--bad)">You died</h2><p id="dtext"></p><div class="btns"><button type="button" class="k-btn primary big" id="drespawn">Start again</button></div></div>
+</section>
+
 <section class="screen dim" id="msg" hidden>
   <div class="panel"><h2 id="mtitle"></h2><p id="mtext"></p><div class="btns"><button type="button" class="k-btn primary" id="mok">Back to the start</button></div></div>
 </section>
 
-<script type="module" src="main.js?v=c15"></script>
+<script type="module" src="main.js"></script>
 </body>
 </html>

@@ -1,23 +1,23 @@
 /* BDB Craft: the game. Start screen (your worlds, friends building right now), then the world: walking, flying, breaking and placing, the hotbar and
    every block in the inventory, chat, and the pause screen with invites and settings. The heavy lifting is elsewhere: world.js (chunks), mesh.js (shapes),
    gen.js (the land), render.js (the look), player.js (moving), store.js (saving), party.js (friends). */
-import * as THREE from '../chess/vendor/three.module.min.js?v=c15';
-import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE } from './blocks.js?v=c15';
-import { paintAll, icon, TS } from './tex.js?v=c15';
-import { column } from './gen.js?v=c15';
-import { column as column2, villagesNear } from './gen2.js?v=c15';
-import { createWorld } from './world.js?v=c15';
-import { blockMaterials, outline, avatar, HORIZON } from './render.js?v=c15';
-import { createSky, createClouds, DAY_SECONDS } from './sky.js?v=c15';
-import { createHand } from './hand.js?v=c15';
-import { createPlayer, EYE } from './player.js?v=c15';
-import { createAnimals } from './animals.js?v=c15';
-import { createRedstone } from './redstone.js?v=c15';
-import { createCarts } from './carts.js?v=c15';
-import { createLiquids } from './liquids.js?v=c15';
-import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js?v=c15';
-import { Cloud, Local, session, pack, unpack } from './store.js?v=c15';
-import { openParty, newCode, cleanCode } from './party.js?v=c15';
+import * as THREE from '../chess/vendor/three.module.min.js';
+import { BLOCKS, B, N, CATS, SOLID, PLANT, LIQUID, FACE, CH, SH, SHAPE, STATE, FIRST, WET, FULL, TURN, AXIS, ROOT, ITEM, OPAQUE, DMG } from './blocks.js';
+import { paintAll, icon, TS } from './tex.js';
+import { column } from './gen.js';
+import { column as column2, villagesNear } from './gen2.js';
+import { createWorld } from './world.js';
+import { blockMaterials, outline, avatar, HORIZON } from './render.js';
+import { createSky, createClouds, DAY_SECONDS } from './sky.js';
+import { createHand } from './hand.js';
+import { createPlayer, EYE } from './player.js';
+import { createMobs } from './mobs.js';
+import { createRedstone } from './redstone.js';
+import { createCarts } from './carts.js';
+import { createLiquids } from './liquids.js';
+import { body, clean as cleanSkin, random as randomSkin, PARTS, SHIRTS } from './skin.js';
+import { Cloud, Local, session, pack, unpack } from './store.js';
+import { openParty, newCode, cleanCode } from './party.js';
 
 const Q = new URLSearchParams(location.search), LOCALNET = Q.get('net') === 'local', NOLOCK = Q.has('nolock');
 const $ = id => document.getElementById(id);
@@ -26,7 +26,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '
 const hashSeed = s => { s = String(s).trim(); if (/^-?\d{1,9}$/.test(s)) return +s; let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619); return h | 0; };
 
 /* ---------- settings ---------- */
-const S = Object.assign({dist:8, fov:75, sens:100, invert:false, clouds:true, hand:true, animals:true, cycle:true}, store.get('craft-settings', {}));
+const S = Object.assign({dist:8, fov:75, sens:100, invert:false, clouds:true, hand:true, animals:true, cycle:true, monsters:true, hurt:true}, store.get('craft-settings', {}));
 const saveSettings = () => store.set('craft-settings', S);
 
 /* ---------- three.js ---------- */
@@ -47,7 +47,7 @@ handScene.add(new THREE.HemisphereLight(0xffffff, 0x777777, 2.6));
 const hand = createHand(handScene, layers);
 
 /* ---------- screens ---------- */
-const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'keysp', 'inv', 'msg'];
+const screens = ['menu', 'newp', 'joinp', 'signp', 'charp', 'load', 'pause', 'invite', 'settings', 'keysp', 'inv', 'msg', 'dead'];
 function show(...ids){ for (const s of screens) $(s).hidden = !ids.includes(s); }
 let toastT = 0;
 function toast(t, ms = 2200){ const e = $('toast'); e.textContent = t; e.hidden = false; e.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => { e.style.opacity = 0; setTimeout(() => e.hidden = true, 400); }, ms); }
@@ -254,7 +254,9 @@ function makeGame(opt){
   const p = createPlayer(world), meta = opt.meta || {};
   const g = {opt, world, p, bar:(Array.isArray(meta.bar) && meta.bar.length === 9 ? meta.bar.map(b => (b > 0 && b < N && BLOCKS[b].kind !== 'air') ? b : B.stone) : HOTBAR0.slice()), sel:meta.sel | 0 || 0,
     keys:{}, ready:false, spawned:false, lastSave:performance.now(), avatars:new Map(), party:opt.party || null, code:opt.code || null, hud:true, dbg:false, lastTapSpace:0, lastTapW:0, liveT:0, posT:0, saving:null};
-  g.animals = createAnimals(scene, world);
+  g.animals = createMobs(scene, world, {poof:(x, y, z) => poof(x, y, z), explode:(x, y, z) => { if (G === g) explode(g, x, y, z); },
+    hitPlayer:(who, dmg, from) => { if (who.me) hurtMe(dmg, from); else if (g.party && who.id) g.party.hurt(who.id, [dmg, from ? +from.x.toFixed(1) : 0, from ? +from.z.toFixed(1) : 0]); }});
+  g.hp = meta.hp > 0 ? meta.hp : 20; g.spawnAt = meta.spawn || null;
   g.red = createRedstone(world, (x, y, z, b) => edit(x, y, z, b, true), {ignite:(x, y, z) => ignite(g, x, y, z, 4)});
   g.carts = createCarts(scene, world); g.tnts = []; g.pushes = new Map(); g.falling = [];
   g.liq = createLiquids(world, (x, y, z, b) => edit(x, y, z, b, 'liq'), (x, y, z, toY, b) => fallBlock(g, x, y, z, toY, b)); gref = g;
@@ -268,13 +270,14 @@ function makeGame(opt){
     best = best || {x:8, z:8}; p.x = best.x + .5; p.z = best.z + .5; p.y = 120; g.needUp = true;
   }
   for (const c of opt.chunks || []) if (c.v) world.mods.set(c.cx + ',' + c.cz, c.v);
+  g.colAt = (x, z) => col(opt.seed, x, z);
   g.refreshBar = () => {
     const bar = $('bar'); bar.innerHTML = '';
     g.bar.forEach((b, i) => { const s = document.createElement('div'); s.className = 'slot' + (i === g.sel ? ' on' : ''); s.innerHTML = `<i>${i + 1}</i><img alt="" src="${iconOf(b)}">`; bar.append(s); });
     hand.set(g.bar[g.sel]);
   };
   g.pick = (i, quiet) => { g.sel = (i + 9) % 9; g.refreshBar(); if (!quiet){ const e = $('bname'); e.textContent = g.bar[g.sel] ? BLOCKS[g.bar[g.sel]].name : ''; e.style.opacity = 1; clearTimeout(g.bnT); g.bnT = setTimeout(() => e.style.opacity = 0, 1600); } };
-  g.metaNow = () => ({gen:opt.gen, time:+g.time.toFixed(4), day:g.day, p:[+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), p.fly ? 1 : 0], bar:g.bar, sel:g.sel});
+  g.metaNow = () => ({gen:opt.gen, hp:g.hp, spawn:g.spawnAt || g.firstSpawn, time:+g.time.toFixed(4), day:g.day, p:[+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(3), +p.pitch.toFixed(3), p.fly ? 1 : 0], bar:g.bar, sel:g.sel});
   return g;
 }
 async function playWorld(w){
@@ -325,6 +328,7 @@ async function joinWorld(code){
       left(id, nm){ if (G){ sys(nm + ' left'); dropFriend(id); } },
       chat(nm, t){ if (G) chatLine(nm, t); },
       animals(st){ if (G && G.animals && Array.isArray(st)) G.animals.apply(st); },
+      hurt(d){ if (G && Array.isArray(d)) hurtMe(+d[0] || 1, {x:+d[1], z:+d[2]}); },
       carts(st){ if (G && G.carts && Array.isArray(st)){ G.carts.apply(st); } },
       time(d){ const g2 = G || g; if (g2 && Array.isArray(d)){ g2.timeHost = +d[0] || 0; g2.day = d[1] | 0; g2.timeAt = d[2] ? performance.now() : 0; g2.time = g2.timeHost; } },
       hostLeft(){ const h = G && G.host || 'The host'; if (G) leaveGame(true); msg(h + ' stopped hosting', 'The world is saved on their side. Join again when they open it.'); }
@@ -349,7 +353,7 @@ function whoLine(){
   $('wsub').textContent = g.opt.guest ? 'Building with ' + g.host : g.code ? 'Open to friends. Code ' + g.code : g.opt.where === 'cloud' ? 'Saved online' : 'Saved on this computer';
 }
 function started(){
-  const g = G; g.started = true; show(); $('hud').hidden = false; lock();
+  const g = G; g.started = true; show(); $('hud').hidden = false; lock(); hearts();
   if (g.opt.guest) sys('You joined ' + g.host + "'s world. Press T to chat.");
 }
 
@@ -390,7 +394,7 @@ async function openToFriends(){
       joined(id, nm){ sys(nm + ' joined'); },
       left(id, nm){ sys(nm + ' left'); dropFriend(id); },
       chat(nm, t){ chatLine(nm, t); },
-      slap(id, from){ const a = g.animals.list.get(id), f = g.avatars.get(from); if (a) g.animals.slap(a, f ? f.group.position : g.p); }
+      slap(id, from, dmg){ const a = g.animals.list.get(id), f = g.avatars.get(from); if (a) g.animals.hurt(a, dmg || 1, f ? f.group.position : g.p); }
     }});
     g.code = code; whoLine(); live(true);
   } catch(e){ toast('Could not open it to friends. Try again.'); }
@@ -464,6 +468,9 @@ addEventListener('mousemove', e => {
   g.p.yaw -= e.movementX * k; g.p.pitch -= e.movementY * k * (S.invert ? -1 : 1); g.p.pitch = Math.max(-1.55, Math.min(1.55, g.p.pitch));
 });
 function press(a, down){
+  const g = G;
+  if (a === 'place' && g && g.bar[g.sel] === B.item_bow){ if (down) g.bowAt = performance.now(); else if (g.bowAt){ shootBow(g, Math.min(1, (performance.now() - g.bowAt) / 900)); g.bowAt = 0; } return; }
+  if (a === 'place' && g && g.bar[g.sel] === B.item_trident && down){ shootBow(g, 1, 9); return; }
   if (a === 'break'){ mouse.l = down; if (down){ mouse.t = 0; use('break'); } }
   else if (a === 'place'){ mouse.r = down; if (down){ mouse.t = 0; use('place'); } }
   else if (a === 'pick' && down) use('pick');
@@ -526,7 +533,7 @@ addEventListener('blur', () => { if (G){ G.keys = {}; mouse.l = mouse.r = false;
 /* break, place, pick */
 function use(what){
   const g = G; if (!g) return;
-  if (what === 'break' && g.critter){ const a = g.critter; hand.swing(); if (g.opt.guest) g.party.slap(a.id); else g.animals.slap(a, g.p); return; }
+  if (what === 'break' && g.critter){ const a = g.critter, dmg = DMG[g.bar[g.sel]] || 1; hand.swing(); if (g.opt.guest) g.party.slap(a.id, dmg); else g.animals.hurt(a, dmg, g.p); return; }
   if (g.cartHit){ hand.swing(); if (what === 'break') cartDo(g, {a:'break', id:g.cartHit.id}); else if (what === 'place') cartDo(g, {a:'ride', id:g.cartHit.id}); return; }
   const hit = g.hit; if (!hit) return;
   if (what === 'break'){
@@ -543,6 +550,7 @@ function use(what){
     else if (held === B.item_water_bucket || held === B.item_lava_bucket){ const t = g.world.get(hit.px, hit.py, hit.pz); if (t === 0 || (t > 0 && (LIQUID[t] || PLANT[t]))) edit(hit.px, hit.py, hit.pz, held === B.item_water_bucket ? B.water : B.lava); }
     else if (held === B.item_bucket){ const wh = g.world.ray(eye, dir, 6, true); if (wh && LIQUID[wh.b]) edit(wh.x, wh.y, wh.z, 0); }
     else if (held === B.item_flint && hb === B.tnt) cartDo(g, {a:'ignite', x:hit.x, y:hit.y, z:hit.z});
+    else if (BLOCKS[held].egg) cartDo(g, {a:'egg', k:BLOCKS[held].egg, x:hit.px + .5, y:hit.py, z:hit.pz + .5});
     hand.swing(); return;
   }
   // levers flip and buttons press with a right click
@@ -595,6 +603,31 @@ function use(what){
   edit(x, y, z, id + wetAdd); hand.swing();
   if (sh === SH.rail){ setRail(g, x, y, z, F); for (const [dx, dz] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) for (const dy of [0, -1, 1]){ const n = g.world.get(x + dx, y + dy, z + dz); if (n > 0 && SHAPE[n] === SH.rail && (dy === -1 || railLinks(g, x + dx, y + dy, z + dz) < 2)) setRail(g, x + dx, y + dy, z + dz, F); } }
 }
+/* the bow: the longer you hold, the faster and harder the arrow */
+function shootBow(g, k, dmg){
+  const sp = 10 + k * 28, v = [+eye.x.toFixed(2), +(eye.y - .1).toFixed(2), +eye.z.toFixed(2), +(dir.x * sp).toFixed(2), +(dir.y * sp).toFixed(2), +(dir.z * sp).toFixed(2), dmg || Math.round(2 + k * 7)];
+  hand.swing(); cartDo(g, {a:'arrow', v});
+}
+/* getting hurt (only with "Monsters can hurt you" on): a red flash, a shove, hearts go down; at none you start again where the world began */
+function hurtMe(dmg, from){
+  const g = G; if (!g || !S.hurt || !S.monsters || g.dead) return;
+  g.hp = Math.max(0, g.hp - dmg); g.regenT = 0; flashRed(); hearts();
+  if (from){ const dx = g.p.x - from.x, dz = g.p.z - from.z, d = Math.hypot(dx, dz) || 1; g.p.vx += dx / d * 7; g.p.vz += dz / d * 7; g.p.vy = Math.max(g.p.vy, 5); }
+  if (g.hp <= 0){ g.dead = true; if (document.pointerLockElement) document.exitPointerLock(); $('dtext').textContent = from && from.kind ? 'A ' + from.kind + ' got you.' : 'You ran out of hearts.'; show('dead'); }
+}
+function flashRed(){ const e = $('ouch'); e.style.opacity = .55; clearTimeout(flashRed.t); flashRed.t = setTimeout(() => e.style.opacity = 0, 160); }
+function hearts(){
+  const g = G, e = $('hearts'); if (!g || !S.hurt || !S.monsters){ e.hidden = true; return; } e.hidden = false;
+  let h = ''; for (let i = 0; i < 10; i++){ const v = g.hp - i * 2; h += `<i class="${v >= 2 ? 'full' : v === 1 ? 'half' : ''}"></i>`; } e.innerHTML = h;
+}
+function respawn(){
+  const g = G; if (!g) return; g.dead = false; g.hp = 20; hearts();
+  const s = g.spawnAt || g.firstSpawn; if (s){ g.p.x = s[0]; g.p.y = s[1]; g.p.z = s[2]; } g.p.vx = g.p.vy = g.p.vz = 0; show(); lock();
+}
+$('drespawn').onclick = () => respawn();
+/* a puff of smoke where something died */
+const puffs = [], puffGeo = new THREE.BoxGeometry(.18, .18, .18), puffMat = new THREE.MeshBasicMaterial({color:0xe8e8e8, transparent:true, opacity:.9});
+function poof(x, y, z){ for (let i = 0; i < 14; i++){ const m = new THREE.Mesh(puffGeo, puffMat.clone()); m.position.set(x + (Math.random() - .5) * .6, y + (Math.random() - .5) * .6, z + (Math.random() - .5) * .6); scene.add(m); puffs.push({m, v:[(Math.random() - .5) * 2, Math.random() * 2, (Math.random() - .5) * 2], t:0}); } }
 /* rails lay themselves: towards the rails next to them, up a slope to one a block higher, round a corner when two meet at a right angle */
 const RCONN = [[[0, -1], [0, 1]], [[1, 0], [-1, 0]], [[1, 0], [-1, 0]], [[-1, 0], [1, 0]], [[0, -1], [0, 1]], [[0, 1], [0, -1]], [[0, 1], [1, 0]], [[0, 1], [-1, 0]], [[0, -1], [-1, 0]], [[0, -1], [1, 0]]];
 const isRail = (g, x, y, z) => { const b = g.world.get(x, y, z); return b > 0 && SHAPE[b] === SH.rail; };
@@ -621,6 +654,8 @@ function cartAct(g, d, from){
   else if (d.a === 'ride'){ const c = g.carts.list.get(d.id); if (c && !c.rider){ c.rider = from || 'me'; if (!from) g.riding = c.id; } }
   else if (d.a === 'leave'){ for (const c of g.carts.list.values()) if (c.rider === (from || 'me')) c.rider = null; if (!from) g.riding = null; }
   else if (d.a === 'push' && Array.isArray(d.v)){ g.pushes.set(d.id, [+d.v[0] || 0, +d.v[1] || 0]); }
+  else if (d.a === 'egg' && typeof d.k === 'string' && g.animals.KINDS[d.k]){ const m = g.animals.add(d.k, +d.x, +d.y, +d.z); if (m && d.k === 'villager') m.home = null; }
+  else if (d.a === 'arrow' && Array.isArray(d.v)){ g.animals.arrow(+d.v[0], +d.v[1], +d.v[2], +d.v[3], +d.v[4], +d.v[5], false, Math.min(9, +d.v[6] || 2)); }
   else if (d.a === 'ignite'){ const b = g.world.get(d.x | 0, d.y | 0, d.z | 0); if (b === B.tnt) ignite(g, d.x | 0, d.y | 0, d.z | 0, 4); }
 }
 /* TNT: it goes out of the world as a flashing block for a few seconds, then blows a round hole, lights any TNT it reaches and throws you back */
@@ -713,7 +748,7 @@ $('skeys').onclick = () => openKeys('settings');
 /* settings */
 function renderSettings(){
   $('sdist').value = S.dist; $('odist').textContent = S.dist; $('sfov').value = S.fov; $('ofov').textContent = S.fov; $('ssens').value = S.sens; $('osens').textContent = S.sens + '%';
-  $('sinv').checked = S.invert; $('sclouds').checked = S.clouds; $('shand').checked = S.hand; $('sanimals').checked = S.animals; $('scycle').checked = S.cycle;
+  $('sinv').checked = S.invert; $('sclouds').checked = S.clouds; $('shand').checked = S.hand; $('sanimals').checked = S.animals; $('smonsters').checked = S.monsters; $('shurt').checked = S.hurt; $('scycle').checked = S.cycle;
 }
 $('psettings').onclick = () => { renderSettings(); show('settings'); };
 $('sdist').oninput = () => { S.dist = +$('sdist').value; $('odist').textContent = S.dist; if (G){ G.world.R = S.dist; mats.fog(Math.max(16, S.dist * 16 * .62), S.dist * 16 - 2); } saveSettings(); };
@@ -722,11 +757,13 @@ $('ssens').oninput = () => { S.sens = +$('ssens').value; $('osens').textContent 
 $('sinv').onchange = () => { S.invert = $('sinv').checked; saveSettings(); };
 $('sclouds').onchange = () => { S.clouds = $('sclouds').checked; saveSettings(); };
 $('scycle').onchange = () => { S.cycle = $('scycle').checked; saveSettings(); if (!S.cycle && G && !G.opt.guest) G.time = .25; };
+$('smonsters').onchange = () => { S.monsters = $('smonsters').checked; saveSettings(); hearts(); };
+$('shurt').onchange = () => { S.hurt = $('shurt').checked; saveSettings(); hearts(); };
 $('sanimals').onchange = () => { S.animals = $('sanimals').checked; saveSettings(); };
 $('shand').onchange = () => { S.hand = $('shand').checked; saveSettings(); if (G) G.refreshBar(); };
 
 /* ---------- the frame ---------- */
-let last = performance.now(), fpsN = 0, fpsT = 0, fps = 0;
+let lastNight = 0, last = performance.now(), fpsN = 0, fpsT = 0, fps = 0;
 const dir = new THREE.Vector3(), eye = new THREE.Vector3();
 function frame(t){
   requestAnimationFrame(frame);
@@ -750,6 +787,7 @@ function frame(t){
       if (w.loadedAround(p.x, p.z, 2) && have >= need * .8 && (!g.waiting || !g.waiting.size)){
         if (g.needUp){ const s = w.surface(Math.floor(p.x), Math.floor(p.z)); if (s > 0) p.y = Math.max(s, g.opt.spawn ? p.y : 0); g.needUp = false; }
         while (p.blocked(p.x, p.y, p.z) && p.y < 126) p.y += 1;
+        if (!g.firstSpawn) g.firstSpawn = [p.x, p.y, p.z];
         started();
       }
     }
@@ -794,14 +832,23 @@ function frame(t){
     if (!g.opt.guest && g.started) g.liq.update(dt);
     for (let i = booms.length - 1; i >= 0; i--){ const b = booms[i]; b.t += dt; b.m.scale.setScalar(1 + b.t * 14); b.m.material.opacity = Math.max(0, .9 - b.t * 2.6); if (b.t > .4){ scene.remove(b.m); b.m.geometry.dispose(); booms.splice(i, 1); } }
     g.cartHit = active() || NOLOCK ? g.carts.pick(eye, dir, g.hit ? g.hit.t : 5) : null;
-    if (g.started && S.animals){
-      const host = !g.opt.guest, people = [{x:p.x, y:p.y, z:p.z, moving:Math.hypot(p.vx, p.vz) > 1}];
-      for (const a of g.avatars.values()) if (a.target) people.push({x:a.target.x, y:a.target.y, z:a.target.z, moving:true});
+    if (g.started){
+      const host = !g.opt.guest, folk = [{x:p.x, y:p.y, z:p.z, moving:Math.hypot(p.vx, p.vz) > 1, me:true, dead:g.dead || p.fly && false}];
+      for (const [id, a] of g.avatars) if (a.target) folk.push({x:a.target.x, y:a.target.y, z:a.target.z, moving:true, id});
       if (!host) g.animals.follow(dt);
-      g.animals.update(dt, people, host);
+      const env = {animals:S.animals, monsters:S.monsters, night:lastNight, biomeAt:(x, z) => g.colAt(x, z).biome, villages:g.opt.gen === 2 ? (x, z) => villagesNear(g.opt.seed, x, z, 1) : null};
+      g.animals.update(dt, folk, host, env);
       if (host && g.party && t - (g.anT || 0) > 200){ g.anT = t; g.party.animals(g.animals.state()); }
       g.critter = active() || NOLOCK ? g.animals.pick(eye, dir, g.hit ? g.hit.t : 4) : null;
-    } else { if (g.animals.list.size) g.animals.clear(); g.critter = null; }
+    }
+    for (let i = puffs.length - 1; i >= 0; i--){ const f = puffs[i]; f.t += dt; f.m.position.x += f.v[0] * dt; f.m.position.y += f.v[1] * dt; f.m.position.z += f.v[2] * dt; f.m.material.opacity = Math.max(0, .9 - f.t * 1.5); if (f.t > .6){ scene.remove(f.m); puffs.splice(i, 1); } }
+    // hearts: they come back slowly; falls and lava hurt
+    if (S.hurt && S.monsters && g.started && !g.dead){
+      g.regenT = (g.regenT || 0) + dt; if (g.regenT > 4 && g.hp < 20){ g.regenT = 0; g.hp++; hearts(); }
+      if (!p.fly && !p.inWater && p.vy < -1) g.fallFrom = Math.max(g.fallFrom || p.y, p.y); else if (p.ground){ if (g.fallFrom && g.fallFrom - p.y > 3.5) hurtMe(Math.floor(g.fallFrom - p.y - 3)); g.fallFrom = 0; }
+      if (p.inWater || p.fly) g.fallFrom = 0;
+      const feet = w.get(Math.floor(p.x), Math.floor(p.y + .2), Math.floor(p.z)); if (feet > 0 && LIQUID[feet] === 2){ g.lavaT = (g.lavaT || 0) + dt; if (g.lavaT > .5){ g.lavaT = 0; hurtMe(3); } }
+    }
     if (g.party && t - g.posT > 100){ g.posT = t; g.party.pos([+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.yaw.toFixed(2), +p.pitch.toFixed(2)]); }
     if (!g.opt.guest && g.started && t - g.lastSave > 30000){ g.lastSave = t; if (g.world.dirty.size || !g.savedAt) saveNow(); }
     if (g.code && g.opt.where === 'cloud' && t - g.liveT > 20000){ g.liveT = t; live(true); }
@@ -811,7 +858,7 @@ function frame(t){
   // the time of day: it moves on for the host (or on your own); friends get it from the host
   let time = .2, day = 0;
   if (g){ if (g.started && S.cycle && !g.opt.guest){ g.time += dt / DAY_SECONDS; if (g.time >= 1){ g.time -= 1; g.day++; } } if (g.opt.guest && g.timeAt){ g.time = (g.timeHost + (t - g.timeAt) / 1000 / DAY_SECONDS) % 1; } time = g.time; day = g.day; }
-  const sk = theSky.update(camera, time, day);
+  const sk = theSky.update(camera, time, day); mats.tick(dt); lastNight = sk.night;
   const under = g && g.started && !(g.view | 0) ? (g.p.eyeLava ? 2 : g.p.eyeWater ? 1 : 0) : 0, far = (G ? S.dist : 6) * 16 - 2;
   for (const m of [mats.solid, mats.clear]){
     m.uniforms.bright.value = sk.light;
@@ -833,4 +880,4 @@ requestAnimationFrame(frame);
 if (matchMedia('(pointer:coarse)').matches && !matchMedia('(pointer:fine)').matches){ $('bnew').disabled = true; $('bjoin').disabled = true; }
 
 /* a handle for the tests */
-window.craft = {gen2:{column:column2, villagesNear}, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};
+window.craft = {hurtMe, gen2:{column:column2, villagesNear}, hand, handScene, handCam, scene, get skin(){ return skinNow; }, openCreator, get creator(){ return creator; }, get G(){ return G; }, get backdrop(){ return backdrop; }, B, BLOCKS, use, edit, openToFriends, joinWorld, playWorld, saveNow, show, lock, pause, S, openInv, closeInv, refreshMenu, Local, Cloud, toMenu, leaveGame};

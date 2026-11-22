@@ -1,7 +1,7 @@
 /* BDB Craft: every block texture, drawn pixel by pixel in code at 16 x 16 and doubled to 32 (the BDB Block is the one drawn at full size, from his photo).
    Nothing is copied from any other game: each one is a little recipe of colours, noise and shapes. Also the cube icons for the hotbar and inventory. */
-import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH } from './blocks.js?v=c15';
-import { boxes } from './shapes.js?v=c15';
+import { TEX, T, COLOURS, BLOCKS, FACE, SHAPE, SH, EGGS } from './blocks.js';
+import { boxes } from './shapes.js';
 export const TS = 32;
 const rgb = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
@@ -87,7 +87,8 @@ const R = {
   snow:s => new Pic(s).fill(rgb('#f2fafa'), .04).speck(rgb('#dbecf2'), 12, .05),
   grass_snow:s => { const p = R.dirt(s); for (let x = 0; x < 16; x++){ const h = 3 + (p.r() * 2.6 | 0); for (let y = 0; y < h; y++) p.set(x, y, mul(rgb('#f2fafa'), .94 + p.r() * .06)); } return p; },
   ice:s => { const p = new Pic(s).fill(rgb('#93b8f0'), .06); for (let k = 0; k < 4; k++){ const x0 = p.r() * 16 | 0, y0 = p.r() * 16 | 0, n = 3 + (p.r() * 4 | 0); for (let i = 0; i < n; i++) p.set(x0 + i, y0 - i, rgb('#d8e8fc')); } return p; },
-  water:s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, mul(rgb('#2f63c8'), .9 + Math.sin((x + y * .5) * .8 + p.r() * .5) * .08 + p.r() * .05), 170)); for (let k = 0; k < 6; k++){ const x = p.r() * 13 | 0, y = p.r() * 16 | 0; for (let i = 0; i < 3; i++) p.set(x + i, y, rgb('#6f9be8'), 190); } return p; },
+  water:s => { const p = new Pic(s); p.each((x, y) => { const w = Math.sin((x + y * .6) * .55) * .5 + Math.sin((x * .8 - y) * .4 + 1.3) * .5; p.set(x, y, mix(rgb('#2a55b8'), rgb('#4a7fd8'), .45 + w * .3 + p.r() * .08), 205); });
+    for (let k = 0; k < 5; k++){ const x = p.r() * 14 | 0, y = p.r() * 16 | 0; p.set(x, y, rgb('#7aa6ec'), 215); p.set(x + 1, y, rgb('#6a98e4'), 212); } return p; },
   glass:s => glassPane(new Pic(s)),
   bricks:s => bricks(new Pic(s), '#9a4b3a', '#b8ab9c'), stone_bricks:s => bricks(new Pic(s), '#7b7b7b', '#5c5c5c', 8, 16),
   mossy_cobble:s => { const p = R.cobble(s); p.blob(rgb('#57793a'), 5, .8, 1.8, .2); return p; },
@@ -363,6 +364,18 @@ function bucketPic(s, fill){ const p = new Pic(s); p.each((x, y) => p.set(x, y, 
   for (let x = 4; x < 12; x++) p.set(x, 2, rgb('#7a7a7a')); p.set(3, 3, rgb('#7a7a7a')); p.set(12, 3, rgb('#7a7a7a')); p.set(2, 4, rgb('#7a7a7a')); p.set(13, 4, rgb('#7a7a7a'));
   return p; }
 Object.assign(R, {item_bucket:s => bucketPic(s), item_water_bucket:s => bucketPic(s, '#2f63c8'), item_lava_bucket:s => bucketPic(s, '#ff8a1e')});
+
+/* ---------- weapons and spawn eggs ---------- */
+const TIERC = {wood:['#a3824f', '#6b5132'], stone:['#9a9a9a', '#5a5a5a'], iron:['#e8e8e8', '#9a9a9a'], gold:['#f5d34a', '#b78a16'], diamond:['#6ff0e4', '#2a9e95'], netherite:['#4a4448', '#2a2428']};
+const blank = s => { const p = new Pic(s); p.each((x, y) => p.set(x, y, [0, 0, 0], 0)); return p; };
+for (const [t, [c1, c2]] of Object.entries(TIERC)){
+  R['item_sword_' + t] = s => { const p = blank(s); for (let i = 0; i < 9; i++){ p.set(5 + i, 10 - i, rgb(c1)); p.set(6 + i, 10 - i, rgb(c2)); p.set(5 + i, 9 - i, mul(rgb(c1), 1.15)); }
+    for (const [x, y] of [[3, 10], [4, 11], [5, 12], [6, 13], [2, 9], [7, 14]]) p.set(x, y, rgb('#6b4a2a')); for (const [x, y] of [[2, 13], [3, 12], [4, 13], [3, 14]]) p.set(x, y, rgb('#4a3018')); return p; };
+  R['item_axe_' + t] = s => { const p = blank(s); for (let i = 0; i < 11; i++) p.set(3 + i, 14 - i, rgb('#6b4a2a')); for (let y = 2; y < 8; y++) for (let x = 7; x < 12; x++) if (x - 7 < (y < 5 ? y : 9 - y) + 1) p.set(x, y, x === 7 ? rgb(c2) : rgb(c1)); return p; };
+}
+R.item_bow = s => { const p = blank(s); for (let i = 0; i < 13; i++){ const a = i / 12 * Math.PI; p.set(Math.round(4 + Math.sin(a) * 7), 2 + i, rgb('#8a5a2a')); } for (let y = 2; y < 15; y++) p.set(4, y, rgb('#d8d8d8')); return p; };
+R.item_trident = s => { const p = blank(s); for (let i = 0; i < 12; i++) p.set(3 + i, 14 - i, rgb('#3aa89a')); for (const [x, y] of [[12, 1], [14, 3], [13, 0], [15, 2], [11, 3], [13, 5]]) p.set(x, y, rgb('#6ad8c8')); return p; };
+for (const [k, c1, c2] of EGGS){ R['item_egg_' + k] = s => { const p = blank(s); for (let y = 2; y < 15; y++) for (let x = 3; x < 13; x++){ const dx = (x - 7.5) / 4.6, dy = (y - 9) / 6.5 * (y < 9 ? 1.15 : 1); if (dx * dx + dy * dy < 1) p.set(x, y, rgb(c1)); } for (let k2 = 0; k2 < 9; k2++){ const x = 4 + p.r() * 8 | 0, y = 4 + p.r() * 9 | 0; if (p.alpha(x, y)) p.set(x, y, rgb(c2)); } return p; }; }
 
 /* all the textures, as one block of rgba: layer after layer, TS x TS each */
 export function paintAll(){

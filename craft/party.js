@@ -5,7 +5,7 @@
    Messages: hi (host to a new friend: the world and which chunks changed), ch (one changed chunk), me (my name and character), p (where I am), e (a block changed),
    c (chat), pl (who is here, from the host), an (where the animals are, from the host), sl (I hit an animal, to the host), ca (where the minecarts are and who rides them),
    cx (put a cart, get in or out, push it, break it, light TNT: to the host). */
-import { openTransport } from '../chess/net.js?v=c15';
+import { openTransport } from '../chess/net.js';
 const ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => ABC[b % ABC.length]).join('');
 export const cleanCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
@@ -43,7 +43,8 @@ export async function openParty({local, code, host, name, skin, on}){
     if (t === 'ca' && from === hostId){ on.carts && on.carts(d); return; }
     if (t === 'cx' && host){ on.act && on.act(d, from); return; }
     if (t === 'an' && from === hostId){ on.animals && on.animals(d); return; }
-    if (t === 'sl' && host){ on.slap && on.slap(d | 0, from); return; }
+    if (t === 'sl' && host){ if (Array.isArray(d)) on.slap && on.slap(d[0] | 0, from, Math.min(20, Math.max(1, d[1] | 0))); return; }
+    if (t === 'hu' && from === hostId){ on.hurt && on.hurt(d); return; }
     if (t === 'c'){ const p = people.get(from); on.chat && on.chat(p ? p.name : 'Friend', String(d).slice(0, 200)); return; }
   });
   return {
@@ -55,7 +56,8 @@ export async function openParty({local, code, host, name, skin, on}){
     carts(st){ room.send('ca', st); },
     act(d){ if (hostId) room.send('cx', d, hostId); },
     time(d){ room.send('tm', d); },
-    slap(id){ if (hostId) room.send('sl', id, hostId); },
+    slap(id, dmg){ if (hostId) room.send('sl', [id, dmg], hostId); },
+    hurt(peer, d){ room.send('hu', d, peer); },
     setSkin(s){ skin = s; room.send('me', {name, skin}); },
     count:() => people.size,
     leave(){ closed = true; room.leave(); }

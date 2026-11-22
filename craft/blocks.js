@@ -163,6 +163,17 @@ item('minecart', 'Minecart', 'redstone'); item('flint', 'Flint and Steel', 'tool
 for (let lv = 1; lv <= 8; lv++) add(lv === 1 ? 'water_flow' : 'water_flow#' + lv, 'Water', 'water', '', {kind:'liquid', self:true, level:lv});
 for (let lv = 1; lv <= 8; lv++) add(lv === 1 ? 'lava_flow' : 'lava_flow#' + lv, 'Lava', 'lava', '', {kind:'liquid', lava:true, glow:8, self:true, level:lv});
 item('water_bucket', 'Water Bucket', 'tools'); item('lava_bucket', 'Lava Bucket', 'tools'); item('bucket', 'Bucket', 'tools');
+/* weapons: damage per hit (a bare hand does 1) */
+export const TIERS = [['wood', 'Wooden'], ['stone', 'Stone'], ['iron', 'Iron'], ['gold', 'Golden'], ['diamond', 'Diamond'], ['netherite', 'Netherite']];
+const SWORD = [4, 5, 6, 4, 7, 8], AXE = [7, 9, 9, 7, 9, 10];
+TIERS.forEach(([t, n], i) => item('sword_' + t, n + ' Sword', 'combat', {dmg:SWORD[i]}));
+TIERS.forEach(([t, n], i) => item('axe_' + t, n + ' Axe', 'combat', {dmg:AXE[i]}));
+item('bow', 'Bow', 'combat'); item('trident', 'Trident', 'combat', {dmg:9});
+/* spawn eggs: right click the ground to make one */
+export const EGGS = [['cow', '#443626', '#a1a1a1'], ['pig', '#f0a5a2', '#db635f'], ['sheep', '#e7e7e7', '#ffb5b5'], ['chicken', '#a1a1a1', '#ff0000'], ['horse', '#c09e7d', '#eee500'], ['rabbit', '#995f40', '#734831'],
+  ['wolf', '#d7d3d3', '#ceaf96'], ['fox', '#d5b69f', '#cc6920'], ['cat', '#efc88e', '#957256'], ['goat', '#a5947c', '#55493e'], ['llama', '#c09e7d', '#995f40'], ['villager', '#563c33', '#bd8b72'],
+  ['zombie', '#00afaf', '#799c65'], ['skeleton', '#c1c1c1', '#494949'], ['creeper', '#0da70b', '#000000'], ['spider', '#342d27', '#a80e0e'], ['enderman', '#161616', '#000000'], ['husk', '#797061', '#e6cc94']];
+for (const [k, c1, c2] of EGGS) item('egg_' + k, k[0].toUpperCase() + k.slice(1) + ' Spawn Egg', 'eggs', {egg:k, c1, c2});
 
 L.forEach((b, i) => { b.id = i; b.kind = b.kind || 'solid'; });
 /* textures: one layer each in the texture array, every name a block uses, in the order first used */
@@ -175,11 +186,11 @@ export const N = L.length;
 export const MAXID = 8192;
 export const OPAQUE = new Uint8Array(MAXID), SOLID = new Uint8Array(MAXID), CUTOUT = new Uint8Array(MAXID), PLANT = new Uint8Array(MAXID), LIQUID = new Uint8Array(MAXID), SELF = new Uint8Array(MAXID), GLOW = new Uint8Array(MAXID), TRANS = new Uint8Array(MAXID), EMIT = new Uint8Array(MAXID);
 export const FACE = new Uint16Array(MAXID * 6), FROT = new Uint8Array(MAXID * 6);      // FROT: the picture on this face is turned a quarter (logs lying down)
-export const LEVEL = new Uint8Array(MAXID), ITEM = new Uint8Array(MAXID), SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
+export const DMG = new Uint8Array(MAXID), LEVEL = new Uint8Array(MAXID), ITEM = new Uint8Array(MAXID), SHAPE = new Uint8Array(MAXID), STATE = new Uint8Array(MAXID), FIRST = new Uint16Array(MAXID), WET = new Uint8Array(MAXID), FULL = new Uint16Array(MAXID), TURN = new Uint16Array(MAXID * 4), AXIS = new Uint16Array(MAXID * 3), ROOT = new Uint16Array(MAXID);
 for (const b of L){
   const i = b.id; if (!i) continue;
   const shaped = b.kind === 'shape' || b.kind === 'shapecut' || b.kind === 'shapeglass';
-  ITEM[i] = b.kind === 'item' ? 1 : 0; LEVEL[i] = b.level | 0;
+  ITEM[i] = b.kind === 'item' ? 1 : 0; LEVEL[i] = b.level | 0; DMG[i] = b.dmg | 0;
   OPAQUE[i] = b.kind === 'solid' ? 1 : 0; SOLID[i] = b.kind === 'solid' || b.kind === 'cutout' || b.kind === 'glass' ? 1 : 0; TRANS[i] = b.kind === 'glass' || b.kind === 'shapeglass' || (b.kind === 'liquid' && !b.lava) ? 1 : 0;
   CUTOUT[i] = b.kind === 'cutout' || b.kind === 'shapecut' ? 1 : 0; PLANT[i] = b.kind === 'plant' ? 1 : 0; LIQUID[i] = b.kind === 'liquid' ? (b.lava ? 2 : 1) : 0;
   SELF[i] = b.self ? 1 : 0; GLOW[i] = b.glow ? 1 : 0; EMIT[i] = b.glow === true ? 8 : (b.glow | 0);
@@ -195,4 +206,4 @@ for (const b of L){
 }
 for (const b of L){ if (b.turn) TURN[B[b.of] * 4 + b.turn] = b.id; if (b.axis) AXIS[B[b.of] * 3 + b.axis] = b.id; }
 for (const b of L) if (!b.turn && !b.axis && b.id){ TURN[b.id * 4] = b.id; AXIS[b.id * 3] = b.id; }
-export const CATS = [['build', 'Building'], ['colour', 'Colours'], ['nature', 'Nature'], ['ores', 'Ores and minerals'], ['decor', 'Lights and decoration'], ['redstone', 'Redstone and rails'], ['tools', 'Tools and items']];
+export const CATS = [['build', 'Building'], ['colour', 'Colours'], ['nature', 'Nature'], ['ores', 'Ores and minerals'], ['decor', 'Lights and decoration'], ['redstone', 'Redstone and rails'], ['tools', 'Tools and items'], ['combat', 'Weapons'], ['eggs', 'Spawn eggs']];
