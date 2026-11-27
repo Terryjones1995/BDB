@@ -1,6 +1,7 @@
 // Title screen, character select (with difficulty / laps options + controls help), pause menu, gamepad navigation.
 import { bus } from './events.js';
 import { CHARACTERS, GAME_TITLE } from './config.js';
+const goHome = () => { location.href = '../'; }; // back to the BDB Games list
 
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
 const DIFFS = ['easy', 'normal', 'hard'];
@@ -39,7 +40,7 @@ export class Menu {
     this.zone = 'grid';
     this.optIndex = 0;
     this.pauseIndex = 0;
-    this.modeIndex = 0;            // title: 0 = RACE, 1 = ONLINE
+    this.modeIndex = 0;            // title: 0 = RACE, 1 = ONLINE, 2 = ALL GAMES (back to BDB Games)
     this.onlineAvailable = true;
     this.pauseOnline = false;
     this._pad = { prev: {}, repeatT: 0, dir: null };
@@ -94,9 +95,10 @@ export class Menu {
       <div class="title-modes">
         <button class="btn primary mode-btn" data-mode="race">RACE</button>
         <button class="btn mode-btn" data-mode="online">ONLINE</button>
+        <button class="btn mode-btn" data-mode="home">ALL GAMES</button>
       </div>
       <div class="title-foot">
-        <span>© Turbo Kart Rally · original procedural game</span>
+        <span>BDB Karts · based on Turbo Kart Rally by BridgeMind</span>
         <span class="kc">M</span> mute
       </div>`;
     t.addEventListener('click', () => { if (this.screen === 'title') this._toSelect(); });
@@ -117,7 +119,9 @@ export class Menu {
   }
   _refreshModes() { this.modeBtns.forEach((b, i) => b.classList.toggle('focus', i === this.modeIndex)); }
   _activateMode() {
-    if (this.modeIndex === 1 && this.onlineAvailable) { bus.emit('ui:confirm'); this.h.onOnline && this.h.onOnline(); }
+    const mode = this.modeBtns[this.modeIndex] && this.modeBtns[this.modeIndex].dataset.mode;
+    if (mode === 'home') { bus.emit('ui:confirm'); goHome(); }
+    else if (mode === 'online' && this.onlineAvailable) { bus.emit('ui:confirm'); this.h.onOnline && this.h.onOnline(); }
     else this._toSelect();
   }
 
@@ -191,6 +195,7 @@ export class Menu {
         <button class="btn" data-a="resume">RESUME</button>
         <button class="btn" data-a="restart">RESTART</button>
         <button class="btn" data-a="quit">QUIT TO MENU</button>
+        <button class="btn" data-a="home">ALL GAMES</button>
         <div class="controls-help compact">${CONTROLS_HTML}</div>
       </div>`;
     this.pauseBtns = [...p.querySelectorAll('.btn')];
@@ -221,7 +226,7 @@ export class Menu {
   showPause({ online = false } = {}) {
     this.pauseOnline = !!online;
     for (const b of this.pauseBtns) {
-      if (b.dataset.a === 'restart') b.classList.toggle('hidden', this.pauseOnline);
+      if (b.dataset.a === 'restart' || b.dataset.a === 'home') b.classList.toggle('hidden', this.pauseOnline);
       if (b.dataset.a === 'quit') b.textContent = this.pauseOnline ? 'LEAVE RACE' : 'QUIT TO MENU';
     }
     this.pauseEl.querySelector('.pause-title').textContent = this.pauseOnline ? 'MENU' : 'PAUSED';
@@ -307,6 +312,7 @@ export class Menu {
     if (a === 'resume') this.h.onResume && this.h.onResume();
     else if (a === 'restart') this.h.onRestart && this.h.onRestart();
     else if (a === 'quit') this.h.onQuit && this.h.onQuit();
+    else if (a === 'home') goHome();
   }
 
   // ------------------------------------------------------------------ input
@@ -315,8 +321,13 @@ export class Menu {
     const isEnter = c === 'Enter' || c === 'NumpadEnter' || c === 'Space';
     if (this.screen === 'title') {
       if ((isEnter || c === 'KeyE') && !e.repeat) { e.preventDefault(); this._activateMode(); }
-      else if (this.onlineAvailable && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(c)) {
-        e.preventDefault(); this.modeIndex = 1 - this.modeIndex; this._refreshModes(); bus.emit('ui:move');
+      else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(c)) {
+        e.preventDefault();
+        const vis = this.modeBtns.map((b, i) => i).filter((i) => !this.modeBtns[i].classList.contains('hidden'));
+        const back = c === 'ArrowLeft' || c === 'ArrowUp' || c === 'KeyA' || c === 'KeyW';
+        const at = Math.max(0, vis.indexOf(this.modeIndex));
+        this.modeIndex = vis[(at + (back ? -1 : 1) + vis.length) % vis.length];
+        this._refreshModes(); bus.emit('ui:move');
       }
       return;
     }
