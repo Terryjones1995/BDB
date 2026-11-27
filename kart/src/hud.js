@@ -532,7 +532,7 @@ export class HUD {
         row.row.style.display = '';
         row.pos.textContent = i + 1;
         row.chip.style.background = k.character ? hex(k.character.color) : '#888';
-        row.name.textContent = k.character ? k.character.name : '?';
+        row.name.textContent = k.displayName || (k.character ? k.character.name : '?'); // textContent: names can be remote
         row.row.classList.toggle('me', k === player);
       }
     }
@@ -541,32 +541,54 @@ export class HUD {
   }
 
   // ------------------------------------------------------------------ results
-  showResults(results, { onRestart, onMenu, laps } = {}) {
+  /**
+   * Results screen. Names may come from other players online, so every row is built with textContent.
+   * buttons: optional [{ act, label, primary, onClick }]; default = RACE AGAIN / MAIN MENU.
+   */
+  showResults(results, { onRestart, onMenu, laps, buttons } = {}) {
     const R = this.resultsEl;
-    const rows = results.map((r, i) => {
-      const img = this.portrait(r.character);
-      const col = r.character ? hex(r.character.color) : '#888';
-      const pc = PLACE_COLORS[r.place - 1] || '#fff';
-      return `<div class="res-row${r.isPlayer ? ' me' : ''}" style="--d:${0.25 + i * 0.07}s">
-        <div class="res-place" style="color:${pc}">${r.place}<small>${ordinal(r.place)}</small></div>
-        <div class="res-portrait" style="--kc:${col}">${img ? `<img src="${img}" alt="">` : `<span>${(r.name || '?')[0]}</span>`}</div>
-        <div class="res-name">${r.name}${r.isPlayer ? ' <em>YOU</em>' : ''}</div>
-        <div class="res-best">${r.bestLap ? 'BEST ' + formatTime(r.bestLap) : ''}</div>
-        <div class="res-time">${r.estimated ? '~' : ''}${formatTime(r.time)}</div>
-      </div>`;
-    }).join('');
+    // re-render (online: a late finisher's real time arrived): drop the previous screen's key handler
+    if (this._resKey) { window.removeEventListener('keydown', this._resKey); this._resKey = null; }
     const me = results.find((r) => r.isPlayer);
     const title = me ? (me.place === 1 ? 'VICTORY!' : me.place <= 3 ? 'PODIUM FINISH!' : 'RACE COMPLETE') : 'RESULTS';
     R.innerHTML = `
       <div class="res-panel">
         <div class="res-title">${title}</div>
-        <div class="res-sub">${laps || ''} LAP RACE · FINAL STANDINGS</div>
-        <div class="res-table">${rows}</div>
-        <div class="res-buttons">
-          <button class="btn primary" data-act="restart">RACE AGAIN</button>
-          <button class="btn" data-act="menu">MAIN MENU</button>
-        </div>
+        <div class="res-sub">${(laps | 0) || ''} LAP RACE · FINAL STANDINGS</div>
+        <div class="res-table"></div>
+        <div class="res-buttons"></div>
       </div>`;
+    const table = R.querySelector('.res-table');
+    results.forEach((r, i) => {
+      const img = this.portrait(r.character);
+      const col = r.character ? hex(r.character.color) : '#888';
+      const pc = PLACE_COLORS[r.place - 1] || '#fff';
+      const row = el('div', 'res-row' + (r.isPlayer ? ' me' : ''), table);
+      row.style.setProperty('--d', `${0.25 + i * 0.07}s`);
+      const place = el('div', 'res-place', row);
+      place.style.color = pc;
+      place.textContent = String(r.place);
+      el('small', '', place).textContent = ordinal(r.place);
+      const por = el('div', 'res-portrait', row);
+      por.style.setProperty('--kc', col);
+      if (img) { const im = el('img', '', por); im.src = img; im.alt = ''; }
+      else el('span', '', por).textContent = String(r.name || '?')[0];
+      const name = el('div', 'res-name', row);
+      el('span', 'res-nm', name).textContent = String(r.name || '?'); // long online names truncate, not overflow
+      if (r.isPlayer) el('em', '', name).textContent = 'YOU';
+      el('div', 'res-best', row).textContent = r.bestLap ? 'BEST ' + formatTime(r.bestLap) : '';
+      el('div', 'res-time', row).textContent = (r.estimated ? '~' : '') + formatTime(r.time);
+    });
+    const defs = buttons && buttons.length ? buttons : [
+      { act: 'restart', label: 'RACE AGAIN', primary: true, onClick: onRestart },
+      { act: 'menu', label: 'MAIN MENU', onClick: onMenu },
+    ];
+    const bwrap = R.querySelector('.res-buttons');
+    for (const d of defs) {
+      const b = el('button', 'btn' + (d.primary ? ' primary' : ''), bwrap);
+      b.dataset.act = d.act;
+      b.textContent = d.label;
+    }
     R.classList.remove('hidden');
     requestAnimationFrame(() => R.classList.add('show'));
     const btns = [...R.querySelectorAll('.btn')];
@@ -574,9 +596,12 @@ export class HUD {
     const focus = () => btns.forEach((b, i) => b.classList.toggle('focus', i === sel));
     focus();
     const act = (a) => {
+      const d = defs.find((x) => x.act === a);
+      const btn = btns.find((x) => x.dataset.act === a);
+      if (btn && btn.disabled) return; // e.g. online RACE AGAIN while racers are still driving
       this.hideResults();
       bus.emit('ui:confirm');
-      if (a === 'restart') onRestart && onRestart(); else onMenu && onMenu();
+      if (d && d.onClick) d.onClick();
     };
     btns.forEach((b, i) => {
       b.addEventListener('click', () => act(b.dataset.act));
@@ -584,7 +609,8 @@ export class HUD {
     });
     this._resKey = (e) => {
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD'].includes(e.code)) {
-        sel = (sel + 1) % btns.length; focus(); bus.emit('ui:move'); e.preventDefault();
+        const back = e.code === 'ArrowLeft' || e.code === 'ArrowUp' || e.code === 'KeyA';
+        sel = (sel + (back ? btns.length - 1 : 1)) % btns.length; focus(); bus.emit('ui:move'); e.preventDefault();
       } else if ((e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') && !e.repeat) {
         e.preventDefault(); act(btns[sel].dataset.act);
       }

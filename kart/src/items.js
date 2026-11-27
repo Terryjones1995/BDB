@@ -242,6 +242,23 @@ export class ItemSystem {
     try { this._updateEntities(dt); } catch (err) { console.error('[items] entities', err); }
   }
 
+  /**
+   * Online: another client used an item on a kart it owns (a ghost here). Fire the same item from the
+   * ghost's current pose through the normal path so projectiles / bananas exist on every screen.
+   */
+  remoteUse(kart, item, { fw = false, bk = false } = {}) {
+    if (!kart || !kart.remote || !ITEM_ORDER.includes(item)) return;
+    const prevInput = kart.input;
+    kart.input = { throttle: 0, brake: 0, steer: 0, drift: false, item: false, lookBack: !!bk, throwForward: !!fw };
+    kart.item = item;
+    kart.itemCount = 1;
+    try { this._useItem(kart); } finally {
+      kart.item = null;
+      kart.itemCount = 0;
+      kart.input = prevInput;
+    }
+  }
+
   getHazards() {
     const out = this._hazards;
     out.length = 0;
@@ -309,7 +326,7 @@ export class ItemSystem {
 
       if (b.scaleT < 0.5) continue;
       for (const k of this.karts) {
-        if (!k || !k.position) continue;
+        if (!k || !k.position || k.netIdle) continue;
         const r = kartRadius(k) + BOX_PICK_RADIUS;
         const dx = k.position.x - b.base.x, dz = k.position.z - b.base.z;
         const dy = (k.position.y + 0.6) - b.base.y;
@@ -326,7 +343,8 @@ export class ItemSystem {
     b.timer = BOX_RESPAWN;
     b.holder.visible = false;
     bus.emit('item:pickup', { kart, position: b.base });
-    if (kart.item == null && !this.roulettes.has(kart) && !kart.finished) {
+    // online ghosts break the box visually but never roll an item here (their owner does)
+    if (kart.item == null && !this.roulettes.has(kart) && !kart.finished && !kart.remote) {
       const final = this._rollItem(kart);
       const dur = kart.isPlayer ? ROULETTE_PLAYER : ROULETTE_AI_MIN + Math.random() * (ROULETTE_AI_MAX - ROULETTE_AI_MIN);
       this.roulettes.set(kart, { timer: 0, duration: dur, final, display: ROULETTE_CYCLE[(Math.random() * ROULETTE_CYCLE.length) | 0], cycleTimer: 0 });
@@ -438,6 +456,7 @@ export class ItemSystem {
     bus.emit('item:lightning', { by });
     for (const k of this.karts) {
       if (!k || k === by) continue;
+      if (k.remote) continue; // each client shrinks only the karts it owns
       if (finite(k.starTimer) > 0) continue;
       k.applyHit?.('shrink');
       // lose held item (and roulette)
@@ -692,7 +711,7 @@ export class ItemSystem {
   _steerRed(e, dt) {
     const tr = this.track;
     let tgt = e.target;
-    if (tgt && (tgt.finished && tgt.place == null)) tgt = null;
+    if (tgt && ((tgt.finished && tgt.place == null) || tgt.netIdle)) tgt = null;
     const desired = _v1;
     let direct = false;
     if (tgt && tgt.position) {
@@ -791,7 +810,7 @@ export class ItemSystem {
     if (e.phase !== 'hover') pos.y = this._groundHeight(pos, null);
     bus.emit('item:explode', { position: pos.clone(), radius: BLUE_RADIUS, kind: 'blue_shell' });
     for (const k of this.karts) {
-      if (!k || !k.position) continue;
+      if (!k || !k.position || k.netIdle) continue;
       const dx = k.position.x - pos.x, dz = k.position.z - pos.z, dy = k.position.y - pos.y;
       if (dx * dx + dz * dz < BLUE_RADIUS * BLUE_RADIUS && Math.abs(dy) < 6) this._hitKart(k, 'tumble', 'blue_shell', e.owner);
     }
@@ -799,6 +818,7 @@ export class ItemSystem {
   }
 
   _hitKart(kart, kind, item, by) {
+    if (kart.remote) return true; // ghost: the item is spent here; the victim's own client applies the hit
     if (finite(kart.starTimer) > 0 || finite(kart.invulnTimer) > 0) return false;
     kart.applyHit?.(kind);
     bus.emit('item:hit', { kart, item, by });
@@ -818,9 +838,9 @@ export class ItemSystem {
       const e = ents[i];
       if (e.dead || e.type === 'blue_shell') continue;
       if (e.type === 'banana' && e.flying && e.vel.y > 0) continue;
-      // vs karts
+      // vs karts (an idle online ghost, whose owner went quiet, is not there to hit)
       for (const k of karts) {
-        if (!k || !k.position) continue;
+        if (!k || !k.position || k.netIdle) continue;
         if (k === e.owner && e.age < OWNER_GRACE) continue;
         const r = kartRadius(k) + e.radius;
         const dx = k.position.x - e.pos.x, dz = k.position.z - e.pos.z;

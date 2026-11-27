@@ -102,6 +102,15 @@ export class Kart {
     this.itemCount = 0;
     this.controlsLocked = false;
 
+    // online: a remote kart is a ghost driven by another client's snapshots (see ghostUpdate)
+    this.remote = false;
+    this.netIdle = false;   // ghost with no recent snapshot (or departed): no collisions, no item hits
+    this.departed = false;  // its racer left the room / went back to the lobby (main.js pruneDeparted)
+    this._lastSnapAt = 0;
+    this.displayName = null;
+    this._snaps = [];
+    this._ghostHintT = undefined;
+
     this._resetState();
 
     this._countdown = { oneAt: -1, holdStart: -1 };
@@ -228,6 +237,7 @@ export class Kart {
 
   // ---- public actions ------------------------------------------------------------------
   applyBoost(seconds, strength = 1, source = 'item') {
+    if (this.remote) return; // ghosts: the owning client is the authority
     if (!fin(seconds) || seconds <= 0) return;
     strength = fin(strength) ? strength : 1;
     if (this.boostTimer > 0) this.boostStrength = Math.max(this.boostStrength, strength);
@@ -241,6 +251,7 @@ export class Kart {
   }
 
   startStar(seconds = PHYSICS.starTime) {
+    if (this.remote) return;
     this.starTimer = Math.max(this.starTimer, fin(seconds) ? seconds : PHYSICS.starTime);
     if (this.shrinkTimer > 0) this._endShrink();
     if (this.spinTimer > 0 && this.hitKind !== 'stall') { this.spinTimer = 0; this.hitKind = null; }
@@ -250,6 +261,7 @@ export class Kart {
 
   /** kind: 'spin' | 'tumble' | 'shrink' | 'squash'. Returns true if the hit took effect. */
   applyHit(kind = 'spin') {
+    if (this.remote) return false; // hit authority = the victim's own client
     if (this.starTimer > 0) return false;
     if (kind === 'shrink') {
       const wasShrunk = this.shrinkTimer > 0;
@@ -835,6 +847,138 @@ export class Kart {
     }
   }
 
+  // ---- online ghost ------------------------------------------------------------------------
+  /** Bits for the network state message (see online.js). */
+  netFlags() {
+    let f = 0;
+    if (this.drifting) f |= 1;
+    f |= clamp(this.driftLevel | 0, 0, 3) << 1;
+    if (this.boostTimer > 0) f |= 8;
+    if (this.starTimer > 0) f |= 16;
+    if (this.spinTimer > 0 && this.hitKind !== 'stall') f |= 32;
+    if (this.airborne || this.hopping) f |= 64;
+    if (this.shrinkTimer > 0) f |= 128;
+    if (this.spinTimer > 0 && this.hitKind === 'tumble') f |= 256;
+    if (this.respawnTimer > 0 || this.respawnInvuln > 0) f |= 512;
+    return f;
+  }
+
+  /** Queue a snapshot for a remote kart. s = { t (local ms), x, y, z, h, speed, vx, vz, flags, driftDir } */
+  pushSnapshot(s) {
+    const q = this._snaps;
+    if (q.length && s.t <= q[q.length - 1].t) return; // stale / out of order
+    q.push(s);
+    if (q.length > 40) q.shift();
+    this._lastSnapAt = nowSec() * 1000; // local arrival time: a ghost whose owner goes quiet turns idle
+  }
+
+  /** Remote karts: no physics. Follow snapshots ~100 ms in the past, extrapolate briefly, keep animating. */
+  ghostUpdate(dt, nowMs) {
+    if (!(dt > 0)) return;
+    dt = Math.min(dt, 1 / 20);
+    try {
+      this._ghostUpdate(dt, nowMs);
+    } catch (err) {
+      if (!this._ghostWarned) { console.error('[kart] ghost update failed', err); this._ghostWarned = true; }
+    }
+  }
+
+  _ghostUpdate(dt, nowMs) {
+    this.time += dt;
+    const q = this._snaps;
+    // idle = owner gone quiet (tab hidden, back in the lobby, dead socket) or left: hold the last pose, at rest,
+    // and stop colliding (resolveKartCollisions / ItemSystem skip netIdle karts) instead of acting as a wall
+    this.netIdle = !!this.departed || !this._lastSnapAt || nowMs - this._lastSnapAt > (this.ghostStaleMs || GHOST_STALE_MS);
+    if (!q.length) { this._animate(dt, 0, 0); return; }
+    if (this.netIdle) {
+      const s = q[q.length - 1];
+      this.position.set(s.x, s.y, s.z);
+      this.heading = s.h;
+      this.velocity.set(0, 0, 0);
+      this.speed = 0;
+      this.boostTimer = 0; this.drifting = false; this.driftLevel = 0;
+      this._animate(dt, 0, 0);
+      return;
+    }
+    const rt = nowMs - (this.ghostDelayMs || GHOST_DELAY_MS);
+    while (q.length > 2 && q[1].t <= rt) q.shift();
+    const a = q[0], b = q.length > 1 ? q[1] : null;
+    let x, y, z, h, s;
+    if (rt <= a.t) {
+      s = a; x = a.x; y = a.y; z = a.z; h = a.h;
+    } else if (b && rt <= b.t) {
+      const f = (rt - a.t) / Math.max(1, b.t - a.t);
+      x = a.x + (b.x - a.x) * f; y = a.y + (b.y - a.y) * f; z = a.z + (b.z - a.z) * f;
+      h = lerpAngle(a.h, b.h, f);
+      s = f < 0.5 ? a : b;
+    } else {
+      s = b || a;
+      const ex = Math.min(rt - s.t, GHOST_EXTRAP_MS) / 1000;
+      x = s.x + s.vx * ex; y = s.y; z = s.z + s.vz * ex; h = s.h;
+    }
+    const prevH = this.heading;
+    this.position.set(x, y, z);
+    this.heading = h;
+    this.velocity.set(s.vx, 0, s.vz);
+    this.speed = s.speed;
+    let dh = h - prevH; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    const steer = clamp(-(dh / dt) / Math.max(0.5, this.stats.turnRate), -1, 1);
+    this.steerSmoothed = damp(this.steerSmoothed, steer, 10, dt);
+
+    // visual state from flags
+    const f = s.flags | 0;
+    this.drifting = !!(f & 1);
+    this.driftLevel = (f >> 1) & 3;
+    this.driftDir = s.driftDir < 0 ? -1 : 1;
+    this.boostTimer = (f & 8) ? 0.25 : 0;
+    this.boostStrength = 1;
+    this.starTimer = (f & 16) ? 1 : 0;
+    this.airborne = !!(f & 64);
+    const spin = !!(f & 32);
+    if (spin && !this._ghostSpin) {
+      const tumble = !!(f & 256);
+      this.hitKind = tumble ? 'tumble' : 'spin';
+      this.spinDuration = tumble ? PHYSICS.tumbleTime : PHYSICS.spinOutTime;
+      this.spinTimer = this.spinDuration;
+      bus.emit('kart:hit', { kart: this, kind: this.hitKind, remote: true });
+    }
+    this._ghostSpin = spin;
+    if (this.spinTimer > 0) { this.spinTimer = Math.max(0, this.spinTimer - dt); if (this.spinTimer === 0) this.hitKind = null; }
+    if (f & 128) {
+      if (this.shrinkTimer <= 0) { this.radius = PHYSICS.kartRadius * SHRINK_SCALE; try { this.model?.setShrunk?.(SHRINK_SCALE); } catch { /* ignore */ } }
+      this.shrinkTimer = 1;
+    } else if (this.shrinkTimer > 0) this._endShrink();
+    this.respawnInvuln = (f & 512) ? 0.1 : 0;
+    this.respawnTimer = 0;
+
+    // ground tilt / surface for effects (race progress comes from the snapshot, not from here)
+    try {
+      const info = this.track?.getSurfaceInfo?.(this.position, this._ghostHintT);
+      if (info && fin(info.height)) {
+        if (fin(info.t)) this._ghostHintT = info.t;
+        if (info.normal && fin(info.normal.x) && info.normal.y > 0.2) this.groundNormal.copy(info.normal).normalize();
+        this.surface = info.surface || 'road';
+        this.onRoad = info.onRoad !== undefined ? !!info.onRoad : this.surface !== 'offroad';
+      }
+    } catch { /* ignore */ }
+    this._animate(dt, this.steerSmoothed, Math.abs(this.speed) > 1 ? 1 : 0);
+  }
+
+  /** Online host migration: a ghost becomes a locally simulated kart from its last known pose. */
+  makeLocal() {
+    if (!this.remote) return;
+    const last = this._snaps[this._snaps.length - 1];
+    this.remote = false;
+    this.netIdle = false;
+    if (last) { this.velocity.set(last.vx, 0, last.vz); this.speed = last.speed; }
+    this._snaps.length = 0;
+    this.spinTimer = 0; this.hitKind = null; this.boostTimer = 0; this.starTimer = 0;
+    this.drifting = false; this.driftLevel = 0; this.respawnInvuln = 0; this.airborne = false;
+    if (this.shrinkTimer > 0) this._endShrink();
+    const info = this._surfaceInfo(this.position, this.trackT);
+    if (info) { this._applySurfaceInfo(info); this.position.y = this.groundHeight; }
+  }
+
   dispose() {
     for (const u of this._unsubs) { try { u(); } catch { /* ignore */ } }
     this._unsubs.length = 0;
@@ -842,6 +986,15 @@ export class Kart {
     try { this.model?.dispose?.(); } catch { /* ignore */ }
     this.model = null;
   }
+}
+
+const GHOST_DELAY_MS = 100;   // default; main.js sets kart.ghostDelayMs from the room's send interval
+const GHOST_EXTRAP_MS = 250;
+const GHOST_STALE_MS = 1000;  // no snapshot for this long -> ghost is idle (main.js sets kart.ghostStaleMs)
+function lerpAngle(a, b, f) {
+  let d = b - a;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  return a + d * f;
 }
 
 function nowSec() {
@@ -854,10 +1007,11 @@ export function resolveKartCollisions(karts) {
   const n = karts.length;
   for (let i = 0; i < n; i++) {
     const a = karts[i];
-    if (!a || a.respawnTimer > 0) continue;
+    if (!a || a.respawnTimer > 0 || a.netIdle) continue; // netIdle: online ghost whose owner went quiet
     for (let j = i + 1; j < n; j++) {
       const b = karts[j];
-      if (!b || b.respawnTimer > 0) continue;
+      if (!b || b.respawnTimer > 0 || b.netIdle) continue;
+      if (a.remote && b.remote) continue; // two ghosts: their owners resolve it
       const dx = b.position.x - a.position.x;
       const dz = b.position.z - a.position.z;
       const dy = b.position.y - a.position.y;
@@ -873,6 +1027,7 @@ export function resolveKartCollisions(karts) {
 
       const aStar = a.starTimer > 0, bStar = b.starTimer > 0;
       const relVn = (a.velocity.x - b.velocity.x) * nx + (a.velocity.z - b.velocity.z) * nz; // >0: approaching
+      if (a.remote || b.remote) { resolveGhostPair(a, b, nx, nz, overlap, relVn); continue; }
       // Star karts flatten everyone else
       if (aStar && !bStar) b.applyHit('spin');
       else if (bStar && !aStar) a.applyHit('spin');
@@ -912,5 +1067,33 @@ export function resolveKartCollisions(karts) {
         bus.emit('kart:bump', { a, b, intensity: clamp(impact / 20, 0, 1), impactSpeed: impact });
       }
     }
+  }
+}
+
+// Local kart vs ghost: the ghost is immovable here (its owner moves it); only the local kart is pushed,
+// bounced and (star / shrink) hit, with the share of the impulse it would get in a normal collision.
+function resolveGhostPair(a, b, nx, nz, overlap, relVn) {
+  const aLocal = !a.remote;
+  const L = aLocal ? a : b, G = aLocal ? b : a;
+  const sgn = aLocal ? -1 : 1; // n points a -> b; (ux, uz) pushes L away from G
+  const ux = nx * sgn, uz = nz * sgn;
+  const lStar = L.starTimer > 0, gStar = G.starTimer > 0;
+  if (gStar && !lStar) L.applyHit('spin');
+  else if (!gStar && !lStar && L.shrinkTimer > 0 && !(G.shrinkTimer > 0)) L.applyHit('squash');
+  L.position.x += ux * overlap;
+  L.position.z += uz * overlap;
+  const ml = L.mass || 1, mg = G.mass || 1;
+  if (relVn > 0) {
+    const jImp = (1 + 0.55) * relVn / (1 / ml + 1 / mg);
+    L.velocity.x += (jImp / ml) * ux;
+    L.velocity.z += (jImp / ml) * uz;
+  }
+  const shove = Math.min(6, overlap * 6) * mg / (ml + mg);
+  L.velocity.x += ux * shove;
+  L.velocity.z += uz * shove;
+  const impact = Math.max(0, relVn);
+  if (impact > 2 && (L.bumpCooldown || 0) <= 0) {
+    L.bumpCooldown = 0.3;
+    bus.emit('kart:bump', { a, b, intensity: clamp(impact / 20, 0, 1), impactSpeed: impact });
   }
 }

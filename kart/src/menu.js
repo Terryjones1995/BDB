@@ -39,6 +39,9 @@ export class Menu {
     this.zone = 'grid';
     this.optIndex = 0;
     this.pauseIndex = 0;
+    this.modeIndex = 0;            // title: 0 = RACE, 1 = ONLINE
+    this.onlineAvailable = true;
+    this.pauseOnline = false;
     this._pad = { prev: {}, repeatT: 0, dir: null };
     this.gameState = 'title';
     try {
@@ -88,12 +91,34 @@ export class Menu {
         <div class="logo-line l2" data-text="${words.join(' ')}">${words.join(' ')}</div>
         <div class="logo-swoosh"></div>
       </div>
-      <div class="press-start">PRESS ENTER / CLICK TO START</div>
+      <div class="title-modes">
+        <button class="btn primary mode-btn" data-mode="race">RACE</button>
+        <button class="btn mode-btn" data-mode="online">ONLINE</button>
+      </div>
       <div class="title-foot">
         <span>© Turbo Kart Rally · original procedural game</span>
         <span class="kc">M</span> mute
       </div>`;
     t.addEventListener('click', () => { if (this.screen === 'title') this._toSelect(); });
+    this.modeBtns = [...t.querySelectorAll('.mode-btn')];
+    this.modeBtns.forEach((b, i) => {
+      b.addEventListener('mouseenter', () => { if (this.screen === 'title' && this.modeIndex !== i) { this.modeIndex = i; this._refreshModes(); bus.emit('ui:move'); } });
+      b.addEventListener('click', (e) => { e.stopPropagation(); if (this.screen === 'title') { this.modeIndex = i; this._activateMode(); } });
+    });
+    this._refreshModes();
+  }
+
+  /** Hide the ONLINE choice if the network module failed to load. */
+  setOnlineAvailable(v) {
+    this.onlineAvailable = !!v;
+    this.modeBtns[1].classList.toggle('hidden', !v);
+    if (!v) this.modeIndex = 0;
+    this._refreshModes();
+  }
+  _refreshModes() { this.modeBtns.forEach((b, i) => b.classList.toggle('focus', i === this.modeIndex)); }
+  _activateMode() {
+    if (this.modeIndex === 1 && this.onlineAvailable) { bus.emit('ui:confirm'); this.h.onOnline && this.h.onOnline(); }
+    else this._toSelect();
   }
 
   _buildSelect() {
@@ -170,7 +195,7 @@ export class Menu {
       </div>`;
     this.pauseBtns = [...p.querySelectorAll('.btn')];
     this.pauseBtns.forEach((b, i) => {
-      b.addEventListener('mouseenter', () => { if (this.pauseIndex !== i) { this.pauseIndex = i; this._refreshPause(); bus.emit('ui:move'); } });
+      b.addEventListener('mouseenter', () => { const vi = this._pauseVisible.indexOf(b); if (vi >= 0 && this.pauseIndex !== vi) { this.pauseIndex = vi; this._refreshPause(); bus.emit('ui:move'); } });
       b.addEventListener('click', () => this._pauseAct(b.dataset.a));
     });
   }
@@ -183,14 +208,26 @@ export class Menu {
   _showOnly(elm) {
     for (const s of [this.titleEl, this.selectEl, this.pauseEl, this.loadingEl]) s.classList.toggle('active', s === elm);
   }
-  showTitle() { this.screen = 'title'; this._showOnly(this.titleEl); }
+  showTitle() { this.screen = 'title'; this.modeIndex = 0; this._refreshModes(); this._showOnly(this.titleEl); }
+  /** A screen owned by another module (the online lobby): hide ours, keep gamepad navigation. */
+  showExternal(name) { this.screen = name; this._showOnly(null); }
   showSelect() {
     this.screen = 'select'; this.zone = 'grid';
     this._showOnly(this.selectEl);
     this._setChar(this.charIndex, true);
     this._refreshOpts();
   }
-  showPause() { this.screen = 'pause'; this.pauseIndex = 0; this._refreshPause(); this._showOnly(this.pauseEl); }
+  /** online: the race keeps running for everyone, so offer RESUME / LEAVE RACE only. */
+  showPause({ online = false } = {}) {
+    this.pauseOnline = !!online;
+    for (const b of this.pauseBtns) {
+      if (b.dataset.a === 'restart') b.classList.toggle('hidden', this.pauseOnline);
+      if (b.dataset.a === 'quit') b.textContent = this.pauseOnline ? 'LEAVE RACE' : 'QUIT TO MENU';
+    }
+    this.pauseEl.querySelector('.pause-title').textContent = this.pauseOnline ? 'MENU' : 'PAUSED';
+    this.screen = 'pause'; this.pauseIndex = 0; this._refreshPause(); this._showOnly(this.pauseEl);
+  }
+  get _pauseVisible() { return this.pauseBtns.filter((b) => !b.classList.contains('hidden')); }
   showLoading(text = 'LOADING') {
     this.screen = 'loading';
     this.loadingEl.querySelector('.loading-text').textContent = text;
@@ -263,7 +300,7 @@ export class Menu {
       return n >= 1 && n <= 8 ? n : 2;
     } catch (e) { return 2; }
   }
-  _refreshPause() { this.pauseBtns.forEach((b, i) => b.classList.toggle('focus', i === this.pauseIndex)); }
+  _refreshPause() { const vis = this._pauseVisible; this.pauseBtns.forEach((b) => b.classList.toggle('focus', b === vis[this.pauseIndex])); }
   _pauseAct(a) {
     if (this.screen !== 'pause') return;
     bus.emit('ui:confirm');
@@ -277,7 +314,10 @@ export class Menu {
     const c = e.code;
     const isEnter = c === 'Enter' || c === 'NumpadEnter' || c === 'Space';
     if (this.screen === 'title') {
-      if ((isEnter || c === 'KeyE') && !e.repeat) { e.preventDefault(); this._toSelect(); }
+      if ((isEnter || c === 'KeyE') && !e.repeat) { e.preventDefault(); this._activateMode(); }
+      else if (this.onlineAvailable && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'].includes(c)) {
+        e.preventDefault(); this.modeIndex = 1 - this.modeIndex; this._refreshModes(); bus.emit('ui:move');
+      }
       return;
     }
     if (this.screen === 'select') {
@@ -311,9 +351,10 @@ export class Menu {
       return;
     }
     if (this.screen === 'pause') {
-      if (c === 'ArrowUp' || c === 'KeyW') { this.pauseIndex = (this.pauseIndex + 2) % 3; this._refreshPause(); bus.emit('ui:move'); e.preventDefault(); }
-      else if (c === 'ArrowDown' || c === 'KeyS') { this.pauseIndex = (this.pauseIndex + 1) % 3; this._refreshPause(); bus.emit('ui:move'); e.preventDefault(); }
-      else if (isEnter && !e.repeat) { e.preventDefault(); this._pauseAct(this.pauseBtns[this.pauseIndex].dataset.a); }
+      const vis = this._pauseVisible, n = vis.length || 1;
+      if (c === 'ArrowUp' || c === 'KeyW') { this.pauseIndex = (this.pauseIndex + n - 1) % n; this._refreshPause(); bus.emit('ui:move'); e.preventDefault(); }
+      else if (c === 'ArrowDown' || c === 'KeyS') { this.pauseIndex = (this.pauseIndex + 1) % n; this._refreshPause(); bus.emit('ui:move'); e.preventDefault(); }
+      else if (isEnter && !e.repeat && vis[this.pauseIndex]) { e.preventDefault(); this._pauseAct(vis[this.pauseIndex].dataset.a); }
     }
   }
 
@@ -331,7 +372,7 @@ export class Menu {
       a: b(0), b: b(1), start: b(9),
     };
     const prev = this._pad.prev;
-    const inMenu = this.screen === 'title' || this.screen === 'select' || this.screen === 'pause' || gameState === 'results';
+    const inMenu = this.screen === 'title' || this.screen === 'select' || this.screen === 'pause' || this.screen === 'lobby' || gameState === 'results';
     const fire = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code, bubbles: true }));
     if (inMenu) {
       const dirs = [['up', 'ArrowUp'], ['down', 'ArrowDown'], ['left', 'ArrowLeft'], ['right', 'ArrowRight']];
@@ -344,7 +385,8 @@ export class Menu {
       if (now.a && !prev.a) fire('Enter');
       if (now.b && !prev.b) fire(this.screen === 'pause' ? 'Escape' : 'Backspace');
     }
-    if (now.start && !prev.start) fire(this.screen === 'title' ? 'Enter' : 'Escape');
+    // Start = confirm on title / lobby (in the lobby Escape would mean "leave the room"), pause elsewhere
+    if (now.start && !prev.start) fire(this.screen === 'title' || this.screen === 'lobby' ? 'Enter' : 'Escape');
     if (gameState === 'intro' && now.a && !prev.a) fire('Enter');
     this._pad.prev = now;
   }

@@ -44,7 +44,13 @@ Arcade kart racing against seven AI drivers on Palm Cove Circuit, three.js, keyb
 It's BridgeMind's game (MIT, https://github.com/bridge-mind/turbo-kart-rally), copied unchanged from
 Patch's port `blendi/turbo-kart-rally` (commit 24da027). Our remix on Patch is `terry/turbo-kart-rally`.
 Its LICENSE and CREDITS.md are in `kart/`.
-Single player only: it has no online mode.
+- Race: you against seven AI drivers, as in the original.
+- Online: up to 8 friends in a room (create a room, share the code or the `kart/?room=CODE` link), with AI
+  filling empty grid slots. It runs on the BDB Supabase server's realtime channels (`api.bigdickb.ca`,
+  public anon key in `kart/src/net-config.js`); no tables. Each player's browser drives its own kart and the
+  host's drives the AI; the others see them as interpolated "ghost" karts (`kart/src/online.js`, `lobby.js`).
+- The server's realtime limits are raised to 1000 events/s by `~/bin/bdb-realtime-limits.sh` (cron, every
+  10 min), since the realtime container resets them to 100 on every restart.
 - `connect4/` Charleston Four: four in a row vs BDB, pass-and-play, or online
 - `blocks/` Break Room Blocks: falling-blocks puzzle
 - `tycoon/` BDB Tycoon: property-trading board game for 2–6 (bots, pass-and-play, online tables; host-authoritative, bots cover dropped seats)

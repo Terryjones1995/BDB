@@ -127,6 +127,7 @@ export class RaceManager {
   }
 
   _updateLaps(k) {
+    if (k.remote) { this._syncRemote(k); return; }
     const t = this._tOf(k);
     const prev = k._prevT == null ? t : k._prevT;
     k._prevT = t;
@@ -157,10 +158,49 @@ export class RaceManager {
     if (!k.finished) k.lap = Math.max(1, Math.min(this.laps, k._lapCount));
   }
 
-  _finish(k) {
+  /**
+   * Online ghost: lap count / trackT / finish come from the owner's snapshots (k.net, set by main.js),
+   * so every client ranks every kart from the same numbers.
+   */
+  _syncRemote(k) {
+    const n = k.net;
+    if (!n) return;
+    k.trackT = n.tt;
+    k._prevT = n.tt;
+    k._lapCount = n.lap;
+    if (n.fin && !k.finished) { this._finish(k, n.ft); return; }
+    if (!k.finished) k.lap = Math.max(1, Math.min(this.laps, k._lapCount));
+  }
+
+  /** Online host migration: continue lap tracking locally for a kart that was a ghost. */
+  adoptKart(k) {
+    const t = this._tOf(k);
+    k._prevT = t;
+    k._checkpoint = t > 0.4;
+    k._lapStart = this.raceTime;
+  }
+
+  /** Online: a racer left mid-race; drop their kart from the race. */
+  removeKart(k) {
+    const i = this.karts.indexOf(k);
+    if (i >= 0) this.karts.splice(i, 1);
+    const j = this.standings.indexOf(k);
+    if (j >= 0) this.standings.splice(j, 1);
+    this._sortPlaces();
+  }
+
+  /** Online: a racer who dropped out reconnected; put their kart back (lap state comes from snapshots). */
+  addKart(k) {
+    if (!this.karts.includes(k)) this.karts.push(k);
+    if (!this.standings.includes(k)) this.standings.push(k);
+    this._updateProgress();
+    this._sortPlaces();
+  }
+
+  _finish(k, time = this.raceTime) {
     if (k.finished) return;
     k.finished = true;
-    k.finishTime = this.raceTime;
+    k.finishTime = time;
     k.lap = this.laps;
     this._finishCount++;
     k._finishOrder = this._finishCount;
@@ -254,7 +294,7 @@ export class RaceManager {
       place: i + 1,
       kart: r.kart,
       character: r.kart.character,
-      name: r.kart.character ? r.kart.character.name : `Racer ${i + 1}`,
+      name: r.kart.displayName || (r.kart.character ? r.kart.character.name : `Racer ${i + 1}`),
       isPlayer: !!r.kart.isPlayer,
       time: r.time,
       estimated: r.estimated,
