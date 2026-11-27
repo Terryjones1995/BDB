@@ -66,6 +66,7 @@ export class AIDriver {
   _neutral() {
     const inp = this.kart.input || (this.kart.input = {});
     inp.throttle = 0; inp.brake = 0; inp.steer = 0; inp.drift = false; inp.item = false; inp.lookBack = false;
+    inp.itemHeld = false; inp.aim = 0; // AI fires on press (never holds); aim -1 = throw a shell backwards
     return inp;
   }
 
@@ -246,7 +247,9 @@ export class AIDriver {
     inp.brake = brake;
     inp.steer = clamp(steer, -1, 1);
     inp.drift = drift;
+    this._aimBack = false;
     inp.item = this._items(dt, ctx, cornerFar, disabled);
+    inp.aim = inp.item && this._aimBack ? -1 : 0;
   }
 
   _forceRespawn() {
@@ -427,10 +430,16 @@ export class AIDriver {
       case 'banana':
         use = others.some((o) => o.ahead < -2 && o.ahead > -20 && Math.abs(o.side) < 4) || hold > 14 / eager;
         break;
-      case 'green_shell':
-        use = others.some((o) => o.ahead > 4 && o.ahead < 45 && Math.abs(o.side) < 1.2 + o.ahead * 0.06) ||
+      case 'green_shell': {
+        const front = others.some((o) => o.ahead > 4 && o.ahead < 45 && Math.abs(o.side) < 1.2 + o.ahead * 0.06);
+        // a kart close behind and nobody close ahead: throw it backwards (like real Mario Kart)
+        const tail = !front && others.some((o) => o.ahead < -3 && o.ahead > -18 && Math.abs(o.side) < 2.2) &&
+          !others.some((o) => o.ahead > 0 && o.ahead < 25 && Math.abs(o.side) < 4);
+        use = front || (tail && hold > 1.5) ||
           (hold > 10 && others.some((o) => o.ahead < -2 && o.ahead > -15 && Math.abs(o.side) < 3)) || hold > 16 / eager;
+        if (use && tail) this._aimBack = true;
         break;
+      }
       case 'red_shell':
         use = (place > 1 && others.some((o) => o.ahead > 5 && o.ahead < 90 && Math.abs(o.angle) < 0.8)) || hold > 8 / eager;
         break;

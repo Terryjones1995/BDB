@@ -507,6 +507,9 @@ export class HUD {
       if (!player.item || spinning) this.itemCount.textContent = '';
       this.itemHint.style.opacity = has && !spinning ? 1 : 0;
     }
+    // holding an item behind the kart: say how to throw it
+    const hint = !player.heldItem ? 'E / SHIFT' : player.heldItem === 'banana' ? 'RELEASE TO DROP' : 'RELEASE · HOLD ↓ = BACK';
+    if (hint !== this._itemHintText) { this._itemHintText = hint; this.itemHint.textContent = hint; }
 
     // speedometer (km/h-ish: units/s * 3.6)
     const sp = Math.abs(player.speed || 0);

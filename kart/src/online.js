@@ -89,12 +89,25 @@ function ownsKart(from, k, ctx) {
   return g.owner === from;
 }
 
-/** State snapshot: {r, t, k:[[kartIndex, x, y, z, heading, speed, vx, vz, flags, driftDir, lapCount, trackT, finished, finishTime], ...]} */
+/** Item held behind a kart, as sent in a state snapshot's `hd` (index = wire code; 0 = nothing). */
+export const HELD_ITEMS = [null, 'banana', 'green_shell', 'red_shell'];
+const BLOCKABLE = new Set(['banana', 'green_shell', 'red_shell']);
+
+/**
+ * State snapshot: {r, t, k:[[kartIndex, x, y, z, heading, speed, vx, vz, flags, driftDir, lapCount, trackT, finished, finishTime], ...],
+ * hd?:[heldItemCode per k entry]} (hd is omitted when none of the sender's karts holds an item)
+ */
 export function validateState(p, from, ctx) {
   if (!p || typeof p !== 'object' || p.r !== ctx.raceId || !ctx.grid) return null;
   if (!fin(p.t) || !Array.isArray(p.k) || p.k.length < 1 || p.k.length > MAX_KARTS) return null;
+  const hd = p.hd;
+  if (hd !== undefined) {
+    if (!Array.isArray(hd) || hd.length !== p.k.length) return null;
+    for (const c of hd) if (!isInt(c) || c < 0 || c >= HELD_ITEMS.length) return null;
+  }
   const out = [];
-  for (const e of p.k) {
+  for (let n = 0; n < p.k.length; n++) {
+    const e = p.k[n];
     if (!Array.isArray(e) || e.length !== 14) return null;
     for (let i = 0; i < 14; i++) if (!fin(e[i])) return null;
     const k = e[0];
@@ -107,17 +120,32 @@ export function validateState(p, from, ctx) {
       flags: clamp(e[8] | 0, 0, 1023), driftDir: e[9] < 0 ? -1 : 1,
       lap: clamp(Math.round(e[10]), -1, (ctx.laps || 3) + 1), tt: ((e[11] % 1) + 1) % 1,
       fin: e[12] ? 1 : 0, ft: clamp(e[13], 0, 36000),
+      hd: hd ? hd[n] : 0,
     });
   }
   return { t: p.t, karts: out };
 }
 
-/** Item use: {r, k, item, fw, bk} */
+/** Item use: {r, k, item, fw, bk} (fw = banana thrown forward, bk = shell thrown backwards; never both) */
 export function validateItemUse(p, from, ctx) {
   if (!p || typeof p !== 'object' || p.r !== ctx.raceId || !ctx.grid) return null;
   if (!isInt(p.k) || !ownsKart(from, p.k, ctx)) return null;
   if (typeof p.item !== 'string' || !ITEM_SET.has(p.item)) return null;
-  return { k: p.k, item: p.item, fw: p.fw === true, bk: p.bk === true };
+  const fw = p.fw === true, bk = p.bk === true;
+  return { k: p.k, item: p.item, fw: fw && !bk, bk: bk && !fw };
+}
+
+/**
+ * Item block: {r, k, o, t, x, z} — kart k's held item stopped a projectile of type t owned by kart o,
+ * last seen at (x, z). Only k's owner may say so (the victim's client decides, as with hits).
+ */
+export function validateItemBlock(p, from, ctx) {
+  if (!p || typeof p !== 'object' || p.r !== ctx.raceId || !ctx.grid) return null;
+  if (!isInt(p.k) || !ownsKart(from, p.k, ctx)) return null;
+  if (!isInt(p.o) || !ctx.grid.some((g) => g.k === p.o)) return null;
+  if (typeof p.t !== 'string' || !BLOCKABLE.has(p.t)) return null;
+  if (!fin(p.x) || !fin(p.z)) return null;
+  return { k: p.k, o: p.o, t: p.t, x: clamp(p.x, -5000, 5000), z: clamp(p.z, -5000, 5000) };
 }
 
 function validMeta(key, m) {
