@@ -659,7 +659,9 @@ export class Kart {
       }
       // surface triggers
       if (!this.airborne) {
-        if (this.surface === 'boost' && this._padCooldown <= 0) {
+        if (info.hazard === 'lava' && this.respawnTimer <= 0) {
+          this.respawn();   // touched lava (Volcano Gauntlet): picked up and put back on the road
+        } else if (this.surface === 'boost' && this._padCooldown <= 0) {
           this._padCooldown = 0.35;
           this.applyBoost(PAD_BOOST_TIME, 1, 'pad');
         } else if (this.surface === 'jump' && this._jumpCooldown <= 0 && nvF > 6) {
