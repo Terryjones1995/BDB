@@ -399,7 +399,7 @@ button { font: inherit; color: inherit; }
 .st-row.me { background: linear-gradient(90deg, rgba(255,210,63,0.95), rgba(255,138,31,0.9)); color: var(--ink); transform: translateX(-8px); }
 .st-pos { width: 16px; text-align: center; font-family: var(--display); font-size: 15px; }
 .st-chip { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
-.st-name { min-width: 56px; }
+.st-name { min-width: 56px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* minimap */
 .hud-minimap {
@@ -495,6 +495,49 @@ button { font: inherit; color: inherit; }
 .fin-place { font-size: clamp(60px, 11vmin, 120px); margin-top: 18px; -webkit-text-stroke: 8px var(--ink); paint-order: stroke fill; text-shadow: 0 8px 0 var(--ink); }
 .fin-place small { font-size: 0.45em; vertical-align: top; }
 
+/* online pause: HUD button (right of the item slot, clear of lap counter + standings) and the shared overlay */
+.hud-netpause {
+  position: absolute; top: 22px; left: calc(50% + 78px);
+  display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px 0 13px;
+  pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  font-family: var(--display); font-size: 17px; letter-spacing: 1px; color: #fff; text-shadow: 0 2px 0 var(--ink);
+  background: rgba(10,12,40,0.62); border: 3px solid #fff; border-radius: 14px;
+  box-shadow: 0 0 0 3px var(--ink), 0 6px 12px rgba(0,0,0,0.35);
+  transition: transform 0.12s ease, filter 0.15s;
+}
+.hud-netpause:hover { transform: translateY(-2px); filter: brightness(1.15); }
+.hud-netpause:active { transform: translateY(1px); }
+.hud-netpause:disabled { cursor: not-allowed; filter: grayscale(0.85) brightness(0.7); transform: none; }
+.np-ico { display: flex; gap: 4px; }
+.np-ico i { width: 5px; height: 16px; border-radius: 2px; background: currentColor; box-shadow: 0 2px 0 var(--ink); }
+.np-left {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; padding: 0 6px;
+  border-radius: 8px; background: var(--ink); color: var(--gold); font-size: 15px; text-shadow: none;
+}
+.netpause-overlay {
+  position: absolute; inset: 0; z-index: 9; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(8,10,30,0.5); backdrop-filter: blur(3px); pointer-events: auto;
+}
+.np-panel {
+  width: min(420px, 100%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+  padding: 22px 26px 18px; border-radius: 26px; background: linear-gradient(180deg, rgba(40,46,120,0.96), rgba(20,22,60,0.96));
+  border: 4px solid #fff; box-shadow: 0 0 0 5px var(--ink), 0 20px 50px rgba(0,0,0,0.5);
+  animation: npIn 0.3s cubic-bezier(.3,1.6,.5,1) both;
+}
+@keyframes npIn { from { opacity: 0; transform: scale(0.85); } }
+.np-kicker { font-family: var(--display); font-size: 20px; letter-spacing: 3px; color: var(--gold); text-shadow: 0 3px 0 var(--ink); }
+.np-name {
+  max-width: 100%; font-family: var(--display); font-size: clamp(30px, 6vmin, 44px); line-height: 1.1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 4px 0 var(--ink);
+}
+.np-timer {
+  margin-top: 6px; font-family: var(--body); font-weight: 900; font-size: 46px; line-height: 1.05;
+  font-variant-numeric: tabular-nums; letter-spacing: 1px; text-shadow: var(--outline);
+}
+.np-auto { font-family: var(--body); font-weight: 900; font-size: 12px; letter-spacing: 1.5px; opacity: 0.8; margin-bottom: 12px; }
+.np-resume { width: 100%; max-width: 280px; }
+.np-hint { margin-top: 10px; font-family: var(--body); font-weight: 900; font-size: 11px; letter-spacing: 1.5px; opacity: 0.6; }
+
 /* toast */
 .toast { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 8px 20px; border-radius: 20px; background: rgba(0,0,0,0.7);
   font-family: var(--display); font-size: 18px; letter-spacing: 1px; opacity: 0; z-index: 20; }
@@ -558,6 +601,8 @@ button { font: inherit; color: inherit; }
   .item-img { width: 64px; height: 64px; }
   .hud-lap .val { font-size: 44px; }
   .hud-timer { font-size: 22px; }
+  .hud-netpause { left: calc(50% + 62px); padding: 0 7px 0 11px; }
+  .np-lbl { display: none; }
   .res-row { grid-template-columns: 54px 40px minmax(0, 1fr) 90px; }
   .res-best { display: none; }
   .res-name { font-size: 18px; }
@@ -573,5 +618,5 @@ button { font: inherit; color: inherit; }
   .res-portrait { width: 36px; height: 36px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .logo, .press-start, .btn.focus, .item-slot.filled { animation: none !important; }
+  .logo, .press-start, .btn.focus, .item-slot.filled, .np-panel { animation: none !important; }
 }

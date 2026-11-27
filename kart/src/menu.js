@@ -195,6 +195,7 @@ export class Menu {
         <div class="pause-title">PAUSED</div>
         <button class="btn" data-a="resume">RESUME</button>
         <button class="btn" data-a="restart">RESTART</button>
+        <button class="btn hidden" data-a="netpause">PAUSE RACE</button>
         <button class="btn" data-a="quit">QUIT TO MENU</button>
         <button class="btn" data-a="home">ALL GAMES</button>
         <div class="controls-help compact">${CONTROLS_HTML}</div>
@@ -223,17 +224,36 @@ export class Menu {
     this._setChar(this.charIndex, true);
     this._refreshOpts();
   }
-  /** online: the race keeps running for everyone, so offer RESUME / LEAVE RACE only. */
-  showPause({ online = false } = {}) {
+  /**
+   * online: the race keeps running unless someone pauses it for everyone, so offer RESUME (close this menu),
+   * PAUSE RACE (netPause = { left, can, paused }) and LEAVE RACE.
+   */
+  showPause({ online = false, netPause = null } = {}) {
     this.pauseOnline = !!online;
     for (const b of this.pauseBtns) {
       if (b.dataset.a === 'restart' || b.dataset.a === 'home') b.classList.toggle('hidden', this.pauseOnline);
+      if (b.dataset.a === 'netpause') b.classList.toggle('hidden', !this.pauseOnline);
       if (b.dataset.a === 'quit') b.textContent = this.pauseOnline ? 'LEAVE RACE' : 'QUIT TO MENU';
     }
+    this.setNetPause(netPause);
     this.pauseEl.querySelector('.pause-title').textContent = this.pauseOnline ? 'MENU' : 'PAUSED';
     this.screen = 'pause'; this.pauseIndex = 0; this._refreshPause(); this._showOnly(this.pauseEl);
   }
-  get _pauseVisible() { return this.pauseBtns.filter((b) => !b.classList.contains('hidden')); }
+  /**
+   * Online PAUSE RACE button: how many pauses this racer has left, and whether it can pause right now. While
+   * the race is paused for everyone the first button only closes this menu (BACK), it doesn't resume.
+   */
+  setNetPause(np) {
+    const r = this.pauseBtns.find((x) => x.dataset.a === 'resume');
+    if (r) r.textContent = this.pauseOnline && np && np.paused ? 'BACK' : 'RESUME';
+    const b = this.pauseBtns.find((x) => x.dataset.a === 'netpause');
+    if (!b) return;
+    const left = np ? Math.max(0, np.left | 0) : 0;
+    b.textContent = np && np.paused ? 'RACE PAUSED' : `PAUSE RACE · ${left} LEFT`;
+    b.disabled = !(np && np.can);
+    if (this.screen === 'pause') { this.pauseIndex = Math.min(this.pauseIndex, Math.max(0, this._pauseVisible.length - 1)); this._refreshPause(); }
+  }
+  get _pauseVisible() { return this.pauseBtns.filter((b) => !b.classList.contains('hidden') && !b.disabled); }
   showLoading(text = 'LOADING') {
     this.screen = 'loading';
     this.loadingEl.querySelector('.loading-text').textContent = text;
@@ -309,8 +329,11 @@ export class Menu {
   _refreshPause() { const vis = this._pauseVisible; this.pauseBtns.forEach((b) => b.classList.toggle('focus', b === vis[this.pauseIndex])); }
   _pauseAct(a) {
     if (this.screen !== 'pause') return;
+    const btn = this.pauseBtns.find((x) => x.dataset.a === a);
+    if (btn && btn.disabled) return;
     bus.emit('ui:confirm');
     if (a === 'resume') this.h.onResume && this.h.onResume();
+    else if (a === 'netpause') this.h.onNetPause && this.h.onNetPause();
     else if (a === 'restart') this.h.onRestart && this.h.onRestart();
     else if (a === 'quit') this.h.onQuit && this.h.onQuit();
     else if (a === 'home') goHome();
@@ -384,8 +407,10 @@ export class Menu {
       a: b(0), b: b(1), start: b(9),
     };
     const prev = this._pad.prev;
-    const inMenu = this.screen === 'title' || this.screen === 'select' || this.screen === 'pause' || this.screen === 'lobby' || gameState === 'results';
-    const fire = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code, bubbles: true }));
+    // netpause: an online race paused for everyone (A = RESUME on the pause overlay)
+    const inMenu = this.screen === 'title' || this.screen === 'select' || this.screen === 'pause' || this.screen === 'lobby' || gameState === 'results' || gameState === 'netpause';
+    // cancelable, so a handler can tell (defaultPrevented) that the menu already used the press
+    const fire = (code) => window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code, bubbles: true, cancelable: true }));
     if (inMenu) {
       const dirs = [['up', 'ArrowUp'], ['down', 'ArrowDown'], ['left', 'ArrowLeft'], ['right', 'ArrowRight']];
       let held = null;

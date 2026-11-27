@@ -200,7 +200,8 @@ export class RaceManager {
   _finish(k, time = this.raceTime) {
     if (k.finished) return;
     k.finished = true;
-    k.finishTime = time;
+    // to the hundredth, as online state messages send it, so every screen shows the same time
+    k.finishTime = Number.isFinite(time) ? Math.round(time * 100) / 100 : time;
     k.lap = this.laps;
     this._finishCount++;
     k._finishOrder = this._finishCount;

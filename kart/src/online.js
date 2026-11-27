@@ -95,11 +95,14 @@ const BLOCKABLE = new Set(['banana', 'green_shell', 'red_shell']);
 
 /**
  * State snapshot: {r, t, k:[[kartIndex, x, y, z, heading, speed, vx, vz, flags, driftDir, lapCount, trackT, finished, finishTime], ...],
- * hd?:[heldItemCode per k entry]} (hd is omitted when none of the sender's karts holds an item)
+ * hd?:[heldItemCode per k entry], z?:pause tuple} (hd is omitted when none of the sender's karts holds an item,
+ * z until the race's first pause)
  */
 export function validateState(p, from, ctx) {
   if (!p || typeof p !== 'object' || p.r !== ctx.raceId || !ctx.grid) return null;
   if (!fin(p.t) || !Array.isArray(p.k) || p.k.length < 1 || p.k.length > MAX_KARTS) return null;
+  let pz = null;
+  if (p.z !== undefined && !(pz = validatePause(p.z, ctx))) return null;
   const hd = p.hd;
   if (hd !== undefined) {
     if (!Array.isArray(hd) || hd.length !== p.k.length) return null;
@@ -123,7 +126,46 @@ export function validateState(p, from, ctx) {
       hd: hd ? hd[n] : 0,
     });
   }
-  return { t: p.t, karts: out };
+  return { t: p.t, karts: out, z: pz };
+}
+
+/**
+ * The race's latest pause, carried by `pause`, `resume` and state messages as z = [n, a, g, pt, k]:
+ * n = pause number in this race (1, 2, ...), a = when the race froze and g = when it resumes (0 = still paused),
+ * both in ms since `start` arrived (the shared race clock), pt = ms of all the earlier pauses together,
+ * k = kart index of the racer who paused (a human kart of this race).
+ */
+export const PAUSE_MAX_N = 64;
+export const PAUSE_MAX_MS = 75000; // longest real pause: 60 s auto-resume + the 3 s resume countdown + clock slack
+const RACE_MAX_MS = 4 * 3600 * 1000;
+export function validatePause(z, ctx) {
+  if (!Array.isArray(z) || z.length !== 5 || !ctx.grid) return null;
+  for (const v of z) if (!fin(v)) return null;
+  const n = z[0], a = Math.round(z[1]), g = Math.round(z[2]), pt = Math.round(z[3]), k = z[4];
+  if (!isInt(n) || n < 1 || n > PAUSE_MAX_N || !isInt(k)) return null;
+  if (a < 0 || a > RACE_MAX_MS) return null;
+  if (g !== 0 && (g <= a || g - a > PAUSE_MAX_MS)) return null;
+  if (pt < 0 || pt > a || pt > (n - 1) * PAUSE_MAX_MS) return null;
+  const e = ctx.grid.find((x) => x.k === k);
+  if (!e || e.owner === 'ai') return null;
+  return { n, a, g, pt, k };
+}
+
+/** Pause: {r, z} — a racer pauses the race for everyone; only for themselves (k = their own kart), g = 0. */
+export function validatePauseMsg(p, from, ctx) {
+  if (!p || typeof p !== 'object' || p.r !== ctx.raceId || !ctx.grid) return null;
+  const z = validatePause(p.z, ctx);
+  if (!z || z.g !== 0) return null;
+  const e = ctx.grid.find((x) => x.k === z.k);
+  return e && e.owner === from ? z : null;
+}
+
+/** Resume: {r, z} — any racer of this race; g is the resume instant (after a countdown of at least 1 s). */
+export function validateResumeMsg(p, from, ctx) {
+  if (!p || typeof p !== 'object' || p.r !== ctx.raceId || !ctx.grid) return null;
+  const z = validatePause(p.z, ctx);
+  if (!z || z.g - z.a < 1000) return null;
+  return ctx.grid.some((x) => x.owner === from) ? z : null;
 }
 
 /** Item use: {r, k, item, fw, bk} (fw = banana thrown forward, bk = shell thrown backwards; never both) */
