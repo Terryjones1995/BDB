@@ -649,7 +649,7 @@ export function createTrack(scene, renderer) {
       p.position.set(x, 6, 0); p.castShadow = true; g.add(p);
     }
     const span = xL - xR + 2.5;
-    const bannerTex = TX.makeBannerTexture('TURBO KART RALLY');
+    const bannerTex = TX.makeBannerTexture('BDB KARTS');
     disposables.push(bannerTex);
     const beamSide = mat(new THREE.MeshStandardMaterial({ color: 0xc81e1e, roughness: 0.5 }));
     const bannerMat = mat(new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.5, emissive: 0x220000 }));

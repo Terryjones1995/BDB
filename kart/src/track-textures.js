@@ -130,9 +130,9 @@ export function makeBarrierTexture() {
   const W = 1024, H = 128;
   const [c, ctx] = canvas(W, H);
   const panels = [
-    { bg: '#1e6fe8', fg: '#ffffff', text: 'TURBO' },
-    { bg: '#ffd21f', fg: '#e8322f', text: 'KART' },
-    { bg: '#e8322f', fg: '#ffffff', text: 'RALLY' },
+    { bg: '#1e6fe8', fg: '#ffffff', text: 'BDB' },
+    { bg: '#ffd21f', fg: '#e8322f', text: 'KARTS' },
+    { bg: '#e8322f', fg: '#ffffff', text: 'ONLINE' },
     { bg: '#ffffff', fg: '#1e6fe8', text: '★ GO! ★' },
   ];
   const pw = W / panels.length;
