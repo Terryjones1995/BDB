@@ -237,6 +237,41 @@ export class HUD {
     this.finishEl = el('div', 'hud-finish', r);
     this.lapPop = el('div', 'hud-lappop', r);
 
+    // online: pause-the-race-for-everyone button (top, right of the item slot) and the shared pause overlay.
+    // main.js sets onNetPause / onNetResume. Not focusable: Space (drift) must never press it.
+    this.onNetPause = null;
+    this.onNetResume = null;
+    this.netPauseBtn = el('button', 'hud-netpause hidden', r, '<span class="np-ico" aria-hidden="true"><i></i><i></i></span><span class="np-lbl">PAUSE</span><span class="np-left">3</span>');
+    this.netPauseBtn.type = 'button';
+    this.netPauseBtn.tabIndex = -1;
+    this.netPauseLeft = this.netPauseBtn.querySelector('.np-left');
+    this.netPauseBtn.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus off it
+    this.netPauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.netPauseBtn.blur();
+      if (!this.netPauseBtn.disabled && this.onNetPause) this.onNetPause();
+    });
+    this._npKey = null;
+    this.netPauseEl = el('div', 'netpause-overlay hidden', uiRoot, `
+      <div class="np-panel" role="dialog" aria-label="Race paused">
+        <div class="np-kicker">PAUSED BY</div>
+        <div class="np-name"></div>
+        <div class="np-timer" aria-live="off">0:00</div>
+        <div class="np-auto"></div>
+        <button class="btn primary np-resume" type="button" tabindex="-1">RESUME</button>
+        <div class="np-hint">ENTER · RESUME &nbsp;·&nbsp; ESC · MENU</div>
+      </div>`);
+    this.np = {
+      shown: false, by: null, t: null, a: null,
+      name: this.netPauseEl.querySelector('.np-name'),
+      timer: this.netPauseEl.querySelector('.np-timer'),
+      auto: this.netPauseEl.querySelector('.np-auto'),
+      resume: this.netPauseEl.querySelector('.np-resume'),
+    };
+    const resumeBtn = this.np.resume;
+    resumeBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    resumeBtn.addEventListener('click', () => { resumeBtn.blur(); if (this.onNetResume) this.onNetResume(); });
+
     // results (outside .hud so it stays visible independently)
     this.resultsEl = el('div', 'results hidden', uiRoot);
     this._resultsKey = null;
@@ -261,7 +296,7 @@ export class HUD {
   _subscribe() {
     const on = (n, f) => this._offs.push(bus.on(n, (d) => { if (this.active) f(d || {}); }));
     on('race:countdown', (d) => this.showCount(String(d.n), 'n' + d.n));
-    on('race:go', () => { this.showCount('GO!', 'go'); clearTimeout(this._cdT); this._cdT = setTimeout(() => this.countEl.classList.remove('show'), 1100); });
+    on('race:go', () => this.flashGo());
     on('race:finalLap', () => this.banner('FINAL LAP!', 'final'));
     on('race:lap', (d) => {
       if (d.kart && d.kart.isPlayer) {
@@ -301,8 +336,48 @@ export class HUD {
     this.finishEl.className = 'hud-finish';
     this.lapPop.className = 'hud-lappop';
     this.hideResults();
+    this.hideNetPause();
+    this.setNetPauseButton(null);
     this._buildMinimap(track);
   }
+
+  // ------------------------------------------------------------------ online pause
+  /** HUD pause button: null = hidden, else { left: pauses this racer has left, can: may pause right now }. */
+  setNetPauseButton(s) {
+    const key = s ? `${s.left}|${s.can ? 1 : 0}` : '';
+    if (key === this._npKey) return;
+    this._npKey = key;
+    this.netPauseBtn.classList.toggle('hidden', !s);
+    if (!s) return;
+    this.netPauseLeft.textContent = String(s.left);
+    this.netPauseBtn.disabled = !s.can;
+    const label = `Pause the race for everyone (${s.left} left)`;
+    this.netPauseBtn.title = label;
+    this.netPauseBtn.setAttribute('aria-label', label);
+  }
+
+  /**
+   * Shared pause overlay. by = the pauser's name (may come from another player: textContent only);
+   * ready = RESUME works yet (it's held off for a moment after the race freezes).
+   */
+  showNetPause({ by, ms = 0, autoMs = 0, ready = true }) {
+    const E = this.np;
+    if (E.resume.disabled === !!ready) E.resume.disabled = !ready;
+    const name = String(by || 'A RACER');
+    if (E.by !== name) { E.by = name; E.name.textContent = name; }
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const t = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    if (E.t !== t) { E.t = t; E.timer.textContent = t; }
+    const a = `AUTO-RESUME IN ${Math.max(0, Math.ceil(autoMs / 1000))}s`;
+    if (E.a !== a) { E.a = a; E.auto.textContent = a; }
+    if (!E.shown) { E.shown = true; this.netPauseEl.classList.remove('hidden'); }
+  }
+  hideNetPause() {
+    if (!this.np.shown) return;
+    this.np.shown = false;
+    this.netPauseEl.classList.add('hidden');
+  }
+  get netPauseVisible() { return this.np.shown; }
 
   toast(msg) {
     this.toastEl.textContent = msg;
@@ -314,6 +389,11 @@ export class HUD {
     this.countEl.className = 'hud-countdown';
     void this.countEl.offsetWidth;
     this.countEl.className = `hud-countdown show ${cls}`;
+  }
+  flashGo() {
+    this.showCount('GO!', 'go');
+    clearTimeout(this._cdT);
+    this._cdT = setTimeout(() => this.countEl.classList.remove('show'), 1100);
   }
 
   banner(text, cls = '') {
@@ -637,7 +717,7 @@ export class HUD {
     for (const off of this._offs) off();
     this._offs = [];
     this.hideResults();
-    this.root.remove(); this.flashEl.remove(); this.resultsEl.remove(); this.toastEl.remove();
+    this.root.remove(); this.flashEl.remove(); this.resultsEl.remove(); this.toastEl.remove(); this.netPauseEl.remove();
   }
 }
 

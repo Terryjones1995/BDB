@@ -140,7 +140,10 @@ const menu = new Menu(uiRoot, {
   onQuit: () => { if (net.active) leaveOnline(); else goToTitle(); },
   onScreen: (s) => { setState(s === 'select' ? 'select' : 'title'); },
   onOnline: () => openOnline(),
+  onNetPause: () => netPause(),
 });
+hud.onNetPause = () => netPause();
+hud.onNetResume = () => netResume();
 let input = null;
 
 // ---------------------------------------------------------------------------------------------
@@ -271,6 +274,9 @@ function disposeWorld() {
   const w = world;
   if (w && w.online) net.offsets.clear();
   world = null;
+  net.pzPhase = 'run';
+  hud.hideNetPause();
+  hud.setNetPauseButton(null);
   renderPass.scene = fallbackScene;
   if (!w) return;
   safe('dispose.items', () => w.items && w.items.dispose && w.items.dispose());
@@ -386,9 +392,9 @@ function beginCountdown() {
 function pause() {
   if (!RACE_STATES.has(state) || resultsShown) return;
   if (world && world.online) {
-    // online races can't pause for everyone: open the menu while the race keeps running
+    // online: open the menu while the race keeps running; PAUSE RACE there pauses it for everyone
     net.menuOpen = true;
-    menu.showPause({ online: true });
+    menu.showPause({ online: true, netPause: netPauseMenuState() });
     return;
   }
   prevState = state;
@@ -465,6 +471,14 @@ window.addEventListener('keydown', (e) => {
     if (state === 'paused') { if (e.code === 'Escape' || e.code === 'KeyP') { bus.emit('ui:back'); resume(); } }
     else if (net.menuOpen) { bus.emit('ui:back'); resume(); }
     else if (RACE_STATES.has(state)) pause();
+    return;
+  }
+  // online race paused for everyone: Enter (pad A) = RESUME on the pause overlay. Not Space: it's the drift key.
+  // defaultPrevented = the online menu already used this Enter (BACK closed it): it must not resume as well.
+  if ((e.code === 'Enter' || e.code === 'NumpadEnter') && !e.repeat && !e.defaultPrevented && net.pzPhase === 'paused'
+    && world && world.online && !net.menuOpen && !resultsShown) {
+    e.preventDefault();
+    netResume();
     return;
   }
   if (state === 'intro' && (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') && !e.repeat) {
@@ -575,8 +589,9 @@ function simulate(w, dt) {
   if (w.online) {
     // every client's countdown AND race clock run off the wall clock from when `start` arrived, so GO lines
     // up and finish times compare fairly across clients (a hidden tab, a slow phone or a frame hitch can't
-    // shrink a client's race time). RaceManager adds dt itself, hence the `- dt`.
-    const el = (nowMs - net.countdownT0) / 1000 - COUNTDOWN_LEAD;
+    // shrink a client's race time); only the time this client sat frozen by a pause is taken out (net.pzOff).
+    // RaceManager adds dt itself, hence the `- dt`.
+    const el = netElapsedMs(nowMs) / 1000 - COUNTDOWN_LEAD;
     if (w.race.phase === 'countdown') w.race.countdownTime = el - dt;
     else if (w.race.phase === 'racing' || w.race.phase === 'done') w.race.raceTime = el - GO_AT - dt;
   }
@@ -598,15 +613,18 @@ function frame() {
   requestAnimationFrame(frame);
   const rawDt = clock.getDelta();
   const dt = Math.min(rawDt, 1 / 30);
-  safe('menu.update', () => menu.update(rawDt, resultsShown ? 'results' : state));
-
   const w = world;
+  // online race paused for everyone (or counting back in): the whole race holds still on every client
+  const netFrozen = !!(w && w.online) && !!safe('net.pause', () => netPauseTick(w, performance.now(), rawDt));
+  safe('menu.update', () => menu.update(rawDt, resultsShown ? 'results' : netFrozen && net.pzPhase === 'paused' ? 'netpause' : state));
+
   if (w) {
-    const running = state !== 'paused' && state !== 'loading' && state !== 'boot';
+    const running = state !== 'paused' && state !== 'loading' && state !== 'boot' && !netFrozen;
     if (running) simulate(w, dt);
+    else if (netFrozen && state !== 'loading') safe('net.frozen', () => netFrozenTick(w));
 
     if (w.mode === 'race' && w.player) {
-      if (state !== 'paused') {
+      if (state !== 'paused' && !netFrozen) {
         const mode = state === 'intro' ? 'intro' : state === 'countdown' ? 'countdown' : state === 'finished' ? 'finish' : 'race';
         const lookBack = !!(state === 'racing' && playerInput && playerInput.lookBack);
         safe('camera.update', () => w.chase.update(dt, w.player, { lookBack, mode }));
@@ -708,6 +726,10 @@ const net = {
   offsets: new Map(),
   notice: null,
   last: { s: 0, start: 0, iu: 0, lobby: 0 },
+  // pause for everyone (see "Online pause" below)
+  pz: { n: 0, a: 0, g: 0, pt: 0, k: -1 }, pzPhase: 'run', pzUsed: new Map(), pzMsgAt: new Map(),
+  pzActT: -Infinity, pzCd: 0, pzAutoMs: 60000,
+  pzOff: 0, pzFrz: null, pzPausedAt: -Infinity,
 };
 
 function netCtx() {
@@ -914,6 +936,7 @@ function onNetMessage(ev, p, from) {
     case 's': onNetState(p, from); break;
     case 'iu': onNetItemUse(p, from); break;
     case 'ib': onNetItemBlock(p, from); break;
+    case 'pause': case 'resume': onNetPauseMsg(ev, p, from); break;
     case 'lobby': {
       const w = world;
       if (from !== net.session.hostId || !w || !w.online || !p || p.r !== net.raceId) break;
@@ -936,6 +959,7 @@ function onNetStart(raw, from) {
   net.raceId = p.race; net.grid = p.grid; net.laps = p.laps;
   net.aiOwner = from; // the starter runs the AI until it leaves the race (see computeAIOwner)
   net.offsets.clear();
+  resetNetPause();
   if (!p.grid.some((g) => g.owner === net.session.myId)) { renderLobby(); return; } // not in it: wait for the next one
   startOnlineRace(p, performance.now());
 }
@@ -983,6 +1007,9 @@ function onNetState(raw, from) {
   if (!p) return;
   const now = performance.now();
   net.last.s = now;
+  // every snapshot carries the race's latest pause: a client that missed a pause / resume (reconnect) catches up
+  if (p.z && pauseSane(p.z, now)) mergePause(p.z);
+  const frozen = pzPhase(now) !== 'run'; // ghosts hold still; their buffers restart on resume
   // map the sender's clock onto ours with the smallest offset seen (= latency floor), so snapshot
   // timing follows the sender's send times instead of network jitter
   const o = now - p.t;
@@ -995,7 +1022,7 @@ function onNetState(raw, from) {
     const kart = w.byIndex.get(e.k);
     if (!kart || !kart.remote) continue;
     if (kart.departed) restoreKart(w, kart); // its owner came back (reconnect): put the kart back in the race
-    kart.pushSnapshot({ t, x: e.x, y: e.y, z: e.z, h: e.h, speed: e.speed, vx: e.vx, vz: e.vz, flags: e.flags, driftDir: e.driftDir });
+    if (!frozen) kart.pushSnapshot({ t, x: e.x, y: e.y, z: e.z, h: e.h, speed: e.speed, vx: e.vx, vz: e.vz, flags: e.flags, driftDir: e.driftDir });
     kart.net = { lap: e.lap, tt: e.tt, fin: e.fin, ft: e.ft };
     kart.heldItem = HELD[e.hd] || null; // the item it holds behind it (drawn by ItemSystem)
   }
@@ -1052,6 +1079,234 @@ bus.on('item:block', (d) => {
   net.session.send('ib', { r: net.raceId, k: d.kart.index, o: d.by.index, t: d.type, x: r2(d.x), z: r2(d.z) });
 });
 
+// ---------------------------------------------------------------------------------------------
+// Online pause: any racer can freeze the race for everyone (PAUSES_PER_RACER per race, auto-resume after
+// net.pzAutoMs). The race's latest pause is one tuple, net.pz = {n, a, g, pt, k}, on the shared race clock
+// (ms since `start` arrived, the countdown's origin): frozen at a, resuming at g (0 = until someone presses
+// RESUME), pt = ms of the earlier pauses (informational), k = the pauser's kart. `pause`, `resume` and every
+// state snapshot carry it and each client merges it the same way (newer n wins; same n: earliest a, earliest
+// g), so every screen shows the same pause and counts back in to the same instant g. Each client's race clock
+// leaves out only the time it really sat frozen (net.pzOff: from when it froze to g): a client that heard of
+// the pause late kept driving until then, and that driving counts. Finish times are each owner's own clock
+// (`ft`), so places still agree. A client that missed a message (reconnect) catches up from the next snapshot.
+// ---------------------------------------------------------------------------------------------
+const PAUSES_PER_RACER = 3;
+const PAUSE_AUTO_MS = 60000;
+const RESUME_LEAD_MS = 3000;  // synced 3-2-1 before the race moves again
+const PAUSE_GAP_MS = 1000;    // this client: at most one pause / resume per second
+const RESUME_GUARD_MS = 1500; // no RESUME for this long after the race froze here (a reflex Enter / pad A can't undo it)
+const PAUSE_SPAM_MS = 500;    // per sender: pause / resume messages closer than this are dropped
+const PAUSE_SKEW_MS = 10000;  // a pause / resume instant this far ahead of our race clock is bogus
+const PAUSED_SEND_MS = 1000;  // state snapshots while frozen (they carry the pause for reconnecting clients)
+
+function resetNetPause() {
+  net.pz = { n: 0, a: 0, g: 0, pt: 0, k: -1 };
+  net.pzUsed.clear(); net.pzMsgAt.clear();
+  net.pzCd = 0;
+  net.pzOff = 0; net.pzFrz = null; net.pzPausedAt = -Infinity;
+}
+const pzTuple = () => [net.pz.n, net.pz.a, net.pz.g, net.pz.pt, net.pz.k];
+function pzPhase(nowMs) {
+  const P = net.pz;
+  if (!P.n) return 'run';
+  if (!P.g) return 'paused';
+  return nowMs - net.countdownT0 < P.g ? 'resuming' : 'run';
+}
+/** Online race clock (ms since `start` arrived) without the time this client sat frozen; holds still while frozen. */
+function netElapsedMs(nowMs) {
+  return (net.pzFrz != null ? net.pzFrz : nowMs - net.countdownT0) - net.pzOff;
+}
+function inNetRace() {
+  const s = net.session;
+  return !!(s && net.raceId && net.grid && net.grid.some((g) => g.owner === s.myId));
+}
+function pausesUsed(k) { const u = net.pzUsed.get(k); return u ? u.size : 0; }
+function myPausesLeft() {
+  const w = world;
+  return w && w.online && w.player ? Math.max(0, PAUSES_PER_RACER - pausesUsed(w.player.index)) : 0;
+}
+function pauseSane(z, nowMs) {
+  const raw = nowMs - net.countdownT0;
+  return z.a <= raw + PAUSE_SKEW_MS && (!z.g || z.g <= raw + RESUME_LEAD_MS + PAUSE_SKEW_MS);
+}
+
+/** Merge a pause tuple (validated) into ours. False if refused: that racer is out of pauses. */
+function mergePause(z) {
+  const P = net.pz;
+  if (z.n < P.n) return true; // older news
+  let used = net.pzUsed.get(z.k);
+  if (!used || !used.has(z.n)) {
+    if (used && used.size >= PAUSES_PER_RACER) return false;
+    if (!used) net.pzUsed.set(z.k, (used = new Set()));
+    used.add(z.n);
+  }
+  if (z.n > P.n) { net.pz = { n: z.n, a: z.a, g: z.g, pt: z.pt, k: z.k }; return true; }
+  if (z.a < P.a || (z.a === P.a && z.k < P.k)) { P.a = z.a; P.k = z.k; } // two racers paused at once
+  if (z.g && (!P.g || z.g < P.g)) P.g = z.g;                           // two resumes at once
+  if (z.pt > P.pt) P.pt = z.pt;
+  return true;
+}
+
+function canNetPause() {
+  const w = world, s = net.session;
+  if (!w || !w.online || !w.player || w.player.finished || resultsShown || !s || s.status !== 'joined') return false;
+  if (w.raceId !== net.raceId || (state !== 'countdown' && state !== 'racing')) return false;
+  return pzPhase(performance.now()) === 'run' && myPausesLeft() > 0;
+}
+function netPauseMenuState() {
+  return { left: myPausesLeft(), can: canNetPause(), paused: pzPhase(performance.now()) !== 'run' };
+}
+
+/** This racer pauses the race for everyone. */
+function netPause() {
+  const now = performance.now();
+  if (!canNetPause() || now - net.pzActT < PAUSE_GAP_MS) return false;
+  const P = net.pz;
+  const z = [P.n + 1, Math.round(now - net.countdownT0), 0, P.n ? P.pt + (P.g - P.a) : 0, world.player.index];
+  if (!net.session.send('pause', { r: net.raceId, z })) { hud.toast('NOT CONNECTED'); return false; }
+  net.pzActT = now;
+  mergePause({ n: z[0], a: z[1], g: 0, pt: z[3], k: z[4] });
+  return true;
+}
+
+/** Anyone in the race resumes it: everyone counts down 3-2-1 to the same instant on the race clock. */
+function netResume() {
+  const now = performance.now();
+  const w = world, s = net.session;
+  if (!w || !w.online || w.raceId !== net.raceId || pzPhase(now) !== 'paused' || now - net.pzActT < PAUSE_GAP_MS) return false;
+  if (net.pzPhase !== 'paused' || now - net.pzPausedAt < RESUME_GUARD_MS) return false; // just froze here
+  if (!s || s.status !== 'joined') { hud.toast('NOT CONNECTED'); return false; }
+  const P = net.pz;
+  const g = Math.round(Math.max(now - net.countdownT0, P.a) + RESUME_LEAD_MS);
+  if (!s.send('resume', { r: net.raceId, z: [P.n, P.a, g, P.pt, P.k] })) { hud.toast('NOT CONNECTED'); return false; }
+  net.pzActT = now;
+  mergePause({ n: P.n, a: P.a, g, pt: P.pt, k: P.k });
+  return true;
+}
+
+function onNetPauseMsg(ev, raw, from) {
+  if (!inNetRace()) return;
+  const O = mods.online, ctx = netCtx();
+  const z = ev === 'pause' ? O.validatePauseMsg(raw, from, ctx) : O.validateResumeMsg(raw, from, ctx);
+  if (!z) return;
+  const now = performance.now();
+  const last = net.pzMsgAt.get(from);
+  if (last != null && now - last < PAUSE_SPAM_MS) return; // pause / resume spam
+  if (!pauseSane(z, now)) return;
+  net.pzMsgAt.set(from, now);
+  mergePause(z);
+}
+
+/** Per frame (online race world): phase changes, auto-resume, overlay, countdown. True while the race is frozen. */
+function netPauseTick(w, nowMs, rawDt) {
+  if (w.raceId !== net.raceId || !net.session) return false;
+  const P = net.pz, raw = nowMs - net.countdownT0;
+  let phase = pzPhase(nowMs);
+  if (phase === 'paused' && raw - P.a >= net.pzAutoMs) {
+    // auto-resume: every client computes the same instant, so it fires even if the pauser left; the AI owner
+    // also broadcasts it (merge keeps the earliest) in case a client's timeout differs
+    P.g = Math.round(P.a + net.pzAutoMs + RESUME_LEAD_MS);
+    if (net.aiOwner === net.session.myId) net.session.send('resume', { r: net.raceId, z: pzTuple() });
+    phase = pzPhase(nowMs);
+  }
+  const was = net.pzPhase;
+  if (phase !== was) {
+    net.pzPhase = phase;
+    if (was === 'run') onNetFreeze(raw);
+    if (phase === 'paused') net.pzPausedAt = nowMs;
+    if (phase === 'run') onNetUnfreeze(w, nowMs);
+    // the online menu: counting back in closes it (the 3-2-1 must show, and an open menu holds the kart on
+    // neutral input); back to racing, its BACK / RACE PAUSED labels go back to RESUME / PAUSE RACE
+    if (phase === 'resuming') closeNetMenu();
+    else if (phase === 'run' && net.menuOpen && menu.screen === 'pause') menu.setNetPause(netPauseMenuState());
+  }
+  const showBtn = !!w.player && !w.player.finished && !resultsShown && (state === 'countdown' || state === 'racing');
+  hud.setNetPauseButton(showBtn ? { left: myPausesLeft(), can: canNetPause() } : null);
+  if (phase === 'run') return false;
+  if (resultsShown && net.resultsAt) net.resultsAt += rawDt * 1000; // RACE AGAIN's wait counts race time only
+  if (phase === 'paused') {
+    // the online menu (Esc / pad Start) goes on top of the pause overlay, so hide the overlay while it's open
+    if (net.menuOpen) hud.hideNetPause();
+    else {
+      const by = w.byIndex.get(P.k);
+      hud.showNetPause({
+        by: (by && by.displayName) || 'A RACER', ms: raw - P.a, autoMs: P.a + net.pzAutoMs - raw,
+        ready: nowMs - net.pzPausedAt >= RESUME_GUARD_MS,
+      });
+    }
+  } else {
+    hud.hideNetPause();
+    if (w.race.phase === 'countdown') {
+      // paused during the start countdown: that countdown starts over at g (onNetUnfreeze), so no 3-2-1 here
+      if (!net.pzCd) { net.pzCd = -1; hud.banner('GET READY!'); }
+    } else {
+      const n = Math.ceil((P.g - raw) / 1000);
+      if (n >= 1 && n <= 3 && n !== net.pzCd) {
+        net.pzCd = n;
+        hud.showCount(String(n), 'n' + n);
+        audio.beep(440, 0.18, 'square', 0.22);
+      }
+    }
+  }
+  return true;
+}
+
+function closeNetMenu() {
+  if (net.menuOpen) { net.menuOpen = false; if (menu.screen === 'pause') menu.hideAll(); }
+}
+
+function onNetFreeze(raw) {
+  net.pzFrz = raw; // the race clock holds here until g (see netElapsedMs)
+  net.pzCd = 0;
+  closeNetMenu();
+  audio.setPaused(true);
+}
+
+function onNetUnfreeze(w, nowMs) {
+  // the race clock leaves out exactly the time this client sat frozen (until g, the shared resume instant)
+  const P = net.pz, g = P.g || nowMs - net.countdownT0;
+  const frz = net.pzFrz != null ? net.pzFrz : g;
+  const lead = COUNTDOWN_LEAD * 1000;
+  net.pzFrz = null;
+  if (w.race.phase === 'countdown') {
+    // paused during the start countdown: it starts over from the top at g, so every screen gets one clean
+    // 3-2-1-GO (not the resume's 3-2-1 and then the rest of the old one). The rocket-start rev restarts too.
+    if (frz - net.pzOff > lead) { net.pzOff = g - lead; w.race.startCountdown(); }
+    else net.pzOff += Math.max(0, g - frz);
+    if (w.player && w.player._countdown) w.player._countdown.holdStart = -1;
+  } else net.pzOff += Math.max(0, g - frz);
+  // ghosts restart from where they froze: drop every pre-pause snapshot (nothing interpolates or extrapolates
+  // across the pause), seed one at the frozen pose so the first new snapshot blends in instead of jumping
+  for (const k of w.allKarts) {
+    if (!k.remote) continue;
+    const had = k._snaps.length > 0 && !k.departed;
+    k._snaps.length = 0;
+    k._lastSnapAt = nowMs;
+    if (had) {
+      k._snaps.push({
+        t: nowMs - (k.ghostDelayMs || 0), x: k.position.x, y: k.position.y, z: k.position.z, h: k.heading || 0,
+        speed: k.speed || 0, vx: k.velocity.x, vz: k.velocity.z, flags: safe('kart.netFlags', () => k.netFlags()) | 0, driftDir: k.driftDir < 0 ? -1 : 1,
+      });
+    }
+  }
+  hud.hideNetPause();
+  if (net.pzCd > 0) { // our 3-2-1 ran (not during the start countdown, whose own GO comes later)
+    hud.flashGo();
+    audio.beep(880, 0.55, 'square', 0.24);
+  }
+  net.pzCd = 0;
+  if (state !== 'paused') audio.setPaused(false);
+}
+
+/** While frozen: drain the controller (no queued item press fires on resume) and keep the network ticking. */
+function netFrozenTick(w) {
+  if (input) {
+    safe('input.getInput', () => input.getInput());
+    safe('input.pause', () => input.consumePressed && input.consumePressed('pause'));
+  }
+  netTick(w, performance.now(), PAUSED_SEND_MS);
+}
+
 function onHostChange(newHost, oldHost) {
   const s = net.session;
   const me = newHost === s.myId;
@@ -1086,8 +1341,8 @@ function releaseAIKarts(w) {
   }
 }
 
-function netTick(w, nowMs) {
-  if (nowMs - net.sendT >= sendIntervalMs()) { net.sendT = nowMs; sendState(w, nowMs); }
+function netTick(w, nowMs, iv = sendIntervalMs()) {
+  if (nowMs - net.sendT >= iv) { net.sendT = nowMs; sendState(w, nowMs); }
   if (nowMs - net.checkT >= 250) {
     net.checkT = nowMs;
     syncAIOwner(); // the settle window after `start` ends without a presence event
@@ -1117,7 +1372,11 @@ function sendState(w, nowMs) {
       kart.finished ? 1 : 0, kart.finished ? r2(kart.finishTime) : 0,
     ]);
   }
-  if (k.length) net.session.send('s', holding ? { r: net.raceId, t: Math.round(nowMs), k, hd } : { r: net.raceId, t: Math.round(nowMs), k });
+  if (!k.length) return;
+  const msg = { r: net.raceId, t: Math.round(nowMs), k };
+  if (holding) msg.hd = hd;
+  if (net.pz.n) msg.z = pzTuple();
+  net.session.send('s', msg);
 }
 
 /**
@@ -1241,8 +1500,16 @@ window.__game = {
       recv: s ? s.recvCount : 0,
       opts: { ...net.opts },
       menuOpen: net.menuOpen,
+      pause: {
+        ...net.pz, phase: pzPhase(performance.now()), left: myPausesLeft(), autoMs: net.pzAutoMs,
+        clockMs: onlineWorld && net.raceId ? netElapsedMs(performance.now()) : 0,
+      },
     };
   },
+  onlinePause: () => netPause(),
+  onlineResume: () => netResume(),
+  /** Test hook: this client's auto-resume timeout in ms (default 60000). */
+  setPauseAutoMs(ms) { net.pzAutoMs = ms > 0 ? ms : PAUSE_AUTO_MS; },
   onlineOpen: (code = '') => openOnline(code),
   onlineCreate(profile = {}) {
     openOnline();
