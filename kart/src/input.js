@@ -1,5 +1,8 @@
 // Player input: keyboard (KEYS from config, by event.code) + Gamepad API.
-// getInput() returns the kart.input shape; `item` is edge-triggered (true for one frame per press).
+// getInput() returns the kart.input shape; `item` is edge-triggered (true for one frame per press),
+// `itemHeld` is true while the item button is down (hold an item behind the kart, release to throw) and
+// `aim` is the throw direction read at release: -1 = back (brake / stick or d-pad down), 1 = forward
+// (stick or d-pad up; keyboard has no free "up" key: ↑/W accelerate), 0 = default.
 // consumePressed(action) returns true exactly once per press (keyboard or gamepad).
 import { KEYS } from './config.js';
 
@@ -56,12 +59,13 @@ export class InputController {
     this.gpSteer = 0;
     this.gpThrottle = 0;
     this.gpBrake = 0;
+    this.gpAim = 0;                         // -1 back / 1 forward from a mostly-vertical d-pad or stick push
     this.gamepadConnected = false;
     this.lastDevice = 'keyboard';
     this.steer = 0;
     this._lastTime = now();
     this._lastPoll = -1;
-    this._state = { throttle: 0, brake: 0, steer: 0, drift: false, item: false, lookBack: false };
+    this._state = { throttle: 0, brake: 0, steer: 0, drift: false, item: false, itemHeld: false, aim: 0, lookBack: false };
 
     this._codeToActions = new Map();
     for (const [action, codes] of Object.entries(ACTION_KEYS)) {
@@ -119,7 +123,7 @@ export class InputController {
     this.gamepadConnected = !!pad;
     const held = this.gpHeld;
     for (const a in GP_ACTIONS) held[a] = false;
-    this.gpSteer = 0; this.gpThrottle = 0; this.gpBrake = 0;
+    this.gpSteer = 0; this.gpThrottle = 0; this.gpBrake = 0; this.gpAim = 0;
     if (pad) {
       const btn = (i) => {
         const b = pad.buttons?.[i];
@@ -138,6 +142,11 @@ export class InputController {
       }
       if (held.left) this.gpSteer = -1;
       if (held.right) this.gpSteer = 1;
+      // Throw aim: only a mostly-vertical push counts, so hard diagonal steering (stick or d-pad) doesn't
+      // turn a plain tap into a backwards / forward throw. held.* is still d-pad only at this point.
+      const padAim = held.left || held.right ? 0 : held.down ? -1 : held.up ? 1 : 0;
+      const stickAim = Math.abs(ay) > 0.6 && Math.abs(ay) > Math.abs(ax) ? -Math.sign(ay) : 0;
+      this.gpAim = padAim || stickAim;
       // Stick as menu nav
       if (ax < -0.6) held.left = true;
       if (ax > 0.6) held.right = true;
@@ -202,6 +211,9 @@ export class InputController {
     st.drift = this._keyHeld('drift') || !!this.gpHeld.drift;
     st.item = this.itemEdge;
     this.itemEdge = false;
+    st.itemHeld = this._keyHeld('item') || !!this.gpHeld.item;
+    // pad aim = d-pad or left stick pushed mostly up/down (not the accelerate/brake buttons); keyboard ↑/W is accelerate
+    st.aim = (st.brake > 0.5 || this.gpAim < 0) ? -1 : this.gpAim > 0 ? 1 : 0;
     st.lookBack = this._keyHeld('lookBack') || !!this.gpHeld.lookBack;
     // Return a fresh copy so callers can store/mutate it safely.
     return { ...st };

@@ -23,7 +23,8 @@ const CONTROLS_HTML = `
   <div class="ctl"><span class="kc">↓</span><span class="kc">S</span> Brake / Reverse</div>
   <div class="ctl"><span class="kc">←→</span><span class="kc">A D</span> Steer</div>
   <div class="ctl"><span class="kc wide">SPACE</span> Hop / Drift</div>
-  <div class="ctl"><span class="kc">E</span><span class="kc">X</span><span class="kc wide">L-SHIFT</span> Use item</div>
+  <div class="ctl"><span class="kc">E</span><span class="kc">X</span><span class="kc wide">L-SHIFT</span> Item · hold it behind you, release to throw</div>
+  <div class="ctl"><span class="kc">↓</span><span class="kc">S</span> Hold as you release: shell backwards</div>
   <div class="ctl"><span class="kc">C</span> Look back</div>
   <div class="ctl"><span class="kc wide">ESC</span><span class="kc">P</span> Pause</div>
   <div class="ctl"><span class="kc">M</span> Mute</div>`;
