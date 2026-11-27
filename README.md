@@ -38,6 +38,12 @@ Each lives in its own folder and saves a top 5 on the device.
 - `fish/` Big Fish BDB: eat smaller fish, grow, avoid sharks
 - `pingpong/` Break Room Ping Pong: table tennis vs BDB, 3 levels
 - `blackjack/` BDB Blackjack: BDB deals, fake chips only
+
+## Turbo Kart Rally (`/kart`)
+Arcade kart racing against seven AI drivers on Palm Cove Circuit, three.js, keyboard or controller.
+It's BridgeMind's game (MIT, https://github.com/bridge-mind/turbo-kart-rally), copied unchanged from
+Patch's port `blendi/turbo-kart-rally` (commit 24da027). Its LICENSE and CREDITS.md are in `kart/`.
+Single player only: it has no online mode.
 - `connect4/` Charleston Four: four in a row vs BDB, pass-and-play, or online
 - `blocks/` Break Room Blocks: falling-blocks puzzle
 - `tycoon/` BDB Tycoon: property-trading board game for 2–6 (bots, pass-and-play, online tables; host-authoritative, bots cover dropped seats)
