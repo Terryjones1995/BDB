@@ -253,8 +253,8 @@ export class Menu {
     if (r) r.textContent = this.pauseOnline && np && np.paused ? 'BACK' : 'RESUME';
     const b = this.pauseBtns.find((x) => x.dataset.a === 'netpause');
     if (!b) return;
-    const left = np ? Math.max(0, np.left | 0) : 0;
-    b.textContent = np && np.paused ? 'RACE PAUSED' : `PAUSE RACE · ${left} LEFT`;
+    const left = np && Number.isFinite(np.left) ? Math.max(0, np.left | 0) : null; // null = unlimited
+    b.textContent = np && np.paused ? 'RACE PAUSED' : left == null ? 'PAUSE RACE' : `PAUSE RACE · ${left} LEFT`;
     b.disabled = !(np && np.can);
     if (this.screen === 'pause') { this.pauseIndex = Math.min(this.pauseIndex, Math.max(0, this._pauseVisible.length - 1)); this._refreshPause(); }
   }

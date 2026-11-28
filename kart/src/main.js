@@ -1091,7 +1091,7 @@ bus.on('item:block', (d) => {
 // the pause late kept driving until then, and that driving counts. Finish times are each owner's own clock
 // (`ft`), so places still agree. A client that missed a message (reconnect) catches up from the next snapshot.
 // ---------------------------------------------------------------------------------------------
-const PAUSES_PER_RACER = 3;
+const PAUSES_PER_RACER = Infinity; // unlimited (Taylor 2026-11-27); rate limit + 60 s auto-resume still apply
 const PAUSE_AUTO_MS = 60000;
 const RESUME_LEAD_MS = 3000;  // synced 3-2-1 before the race moves again
 const PAUSE_GAP_MS = 1000;    // this client: at most one pause / resume per second
