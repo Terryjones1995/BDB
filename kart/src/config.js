@@ -1,6 +1,6 @@
 // Shared tuning + roster. Every module reads from here; do not duplicate these values.
 
-export const GAME_TITLE = 'Turbo Kart Rally';
+export const GAME_TITLE = 'BDB Karts';
 
 export const RACE = {
   laps: 3,

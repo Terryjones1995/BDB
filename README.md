@@ -39,7 +39,7 @@ Each lives in its own folder and saves a top 5 on the device.
 - `pingpong/` Break Room Ping Pong: table tennis vs BDB, 3 levels
 - `blackjack/` BDB Blackjack: BDB deals, fake chips only
 
-## Turbo Kart Rally (`/kart`)
+## BDB Karts (`/kart`)
 Arcade kart racing against seven AI drivers on Palm Cove Circuit, three.js, keyboard or controller.
 It's BridgeMind's game (MIT, https://github.com/bridge-mind/turbo-kart-rally), copied unchanged from
 Patch's port `blendi/turbo-kart-rally` (commit 24da027). Our remix on Patch is `terry/turbo-kart-rally`.

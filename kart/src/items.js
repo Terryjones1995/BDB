@@ -41,6 +41,12 @@ const BLUE_RADIUS = 8;
 const BANANA_RADIUS = 0.75;
 const MAX_BANANAS = 24;
 const MAX_SHELLS = 24;
+// Hold (Mario Kart style): press readies the item behind the kart, release throws it. A held item
+// shields the kart from hits from behind.
+export const HOLDABLE = new Set(['banana', 'green_shell', 'red_shell']);
+const HOLD_GAP = 0.15;             // gap between kart radius and the held item's edge
+const HELD_RADIUS = 0.75;
+const BACK_SHELL_GAP = 1.0;        // extra spawn distance behind the kart for a shell thrown backwards
 
 // Weighted distribution by place (1..8). Columns follow ITEMS order:
 // mushroom, triple_mushroom, banana, green_shell, red_shell, star, lightning, blue_shell
@@ -211,9 +217,12 @@ export class ItemSystem {
     this.entities = [];   // active projectiles/hazards
     this.pools = new Map(); // type -> holder[]
     this.roulettes = new Map(); // kart -> { timer, duration, display, cycleTimer, final }
-    this.kartState = new Map(); // kart -> { prevItem, cooldown }
+    this.kartState = new Map(); // kart -> { prevItem, cooldown, holding }
+    this.heldVis = new Map();   // kart -> { type, holder, pos, t, radius } (local holds and online ghosts' holds)
     this._hazards = [];
     this._rouletteOut = { spinning: false, displayItem: null };
+    // getting hit while holding drops the held item (the kart's own client decides; ghosts follow the net)
+    this._unsubs = [bus.on('kart:hit', (d) => { try { this._onKartHit(d); } catch (err) { console.error('[items] hold drop', err); } })];
 
     const positions = track?.itemBoxPositions || [];
     for (let i = 0; i < positions.length; i++) {
@@ -239,24 +248,49 @@ export class ItemSystem {
     try { this._updateBoxes(dt); } catch (err) { console.error('[items] boxes', err); }
     try { this._updateRoulettes(dt); } catch (err) { console.error('[items] roulette', err); }
     try { this._updateUse(dt); } catch (err) { console.error('[items] use', err); }
+    try { this._updateHeld(dt); } catch (err) { console.error('[items] held', err); }
     try { this._updateEntities(dt); } catch (err) { console.error('[items] entities', err); }
   }
 
   /**
    * Online: another client used an item on a kart it owns (a ghost here). Fire the same item from the
    * ghost's current pose through the normal path so projectiles / bananas exist on every screen.
+   * fw / bk = the throw direction the owner used (forward banana / backwards shell).
    */
   remoteUse(kart, item, { fw = false, bk = false } = {}) {
     if (!kart || !kart.remote || !ITEM_ORDER.includes(item)) return;
-    const prevInput = kart.input;
-    kart.input = { throttle: 0, brake: 0, steer: 0, drift: false, item: false, lookBack: !!bk, throwForward: !!fw };
+    if (HOLDABLE.has(item)) { kart.heldItem = null; this._dropVis(kart); } // it was trailing behind the ghost
     kart.item = item;
     kart.itemCount = 1;
-    try { this._useItem(kart); } finally {
+    try { this._useItem(kart, fw ? 1 : bk ? -1 : 0); } finally {
       kart.item = null;
       kart.itemCount = 0;
-      kart.input = prevInput;
     }
+  }
+
+  /**
+   * Online: the victim's client says its held item blocked a projectile owned by `owner`. Remove the
+   * nearest matching projectile here too, and the item trailing behind the victim's ghost.
+   */
+  remoteBlock(kart, owner, type, x, z) {
+    if (!kart || !kart.remote) return;
+    const v = this.heldVis.get(kart);
+    if (v) bus.emit('item:explode', { position: v.pos.clone(), radius: 1.4, kind: 'small' });
+    kart.heldItem = null;
+    this._dropVis(kart);
+    // ghosts have no shield here, so the blocked projectile may already have been spent on this ghost's body
+    const sp = kart._itemSpent;
+    kart._itemSpent = null;
+    if (sp && sp.owner === owner && sp.type === type && this.time - sp.at < 1) return;
+    if (!owner || !HOLDABLE.has(type) || !Number.isFinite(x) || !Number.isFinite(z)) return;
+    let best = null, bestD = 30 * 30;
+    for (const e of this.entities) {
+      if (e.dead || e.type !== type || e.owner !== owner) continue;
+      const dx = e.pos.x - x, dz = e.pos.z - z;
+      const d = dx * dx + dz * dz;
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (best) this._kill(best, true);
   }
 
   getHazards() {
@@ -281,6 +315,10 @@ export class ItemSystem {
   }
 
   dispose() {
+    for (const u of this._unsubs) { try { u(); } catch (_) { /* ignore */ } }
+    this._unsubs.length = 0;
+    for (const v of this.heldVis.values()) this._release(v.holder);
+    this.heldVis.clear();
     for (const e of this.entities) this._release(e.holder);
     this.entities.length = 0;
     this.roulettes.clear();
@@ -399,7 +437,7 @@ export class ItemSystem {
 
   _getState(kart) {
     let s = this.kartState.get(kart);
-    if (!s) { s = { prevItem: false, cooldown: 0 }; this.kartState.set(kart, s); }
+    if (!s) { s = { prevItem: false, cooldown: 0, holding: null }; this.kartState.set(kart, s); }
     return s;
   }
 
@@ -409,29 +447,126 @@ export class ItemSystem {
       if (!kart) continue;
       const s = this._getState(kart);
       s.cooldown = Math.max(0, s.cooldown - dt);
-      const pressed = !!kart.input?.item;
+      const inp = kart.input;
+      const pressed = !!inp?.item;
       const edge = pressed && !s.prevItem;
       s.prevItem = pressed;
+      if (s.holding) {
+        // lost the item meanwhile (lightning, host migration...): nothing left to throw
+        if (kart.remote || kart.item !== s.holding || this.roulettes.has(kart)) { this._endHold(kart, s); continue; }
+        if (!inp?.itemHeld) { // released: throw it
+          this._endHold(kart, s);
+          s.cooldown = USE_COOLDOWN;
+          this._useItem(kart, this._aim(kart));
+        }
+        continue;
+      }
       if (!edge || s.cooldown > 0) continue;
       if (kart.item == null || this.roulettes.has(kart)) continue;
       if (kart.controlsLocked && !kart.finished) continue;
       s.cooldown = USE_COOLDOWN;
-      this._useItem(kart);
+      if (HOLDABLE.has(kart.item) && inp?.itemHeld && !kart.remote) {
+        // still held down: ready it behind the kart; it is thrown when the button comes up
+        s.holding = kart.item;
+        kart.heldItem = kart.item;
+        continue;
+      }
+      this._useItem(kart, this._aim(kart));
     }
   }
 
-  _useItem(kart) {
+  /** Throw direction from the kart's input: 1 = forward, -1 = backwards, 0 = the item's default. */
+  _aim(kart) {
+    const inp = kart.input;
+    if (!inp) return 0;
+    if (inp.throwForward) return 1;
+    if (inp.lookBack) return -1; // looking back + item = fire behind (as before holds existed)
+    return inp.aim > 0 ? 1 : inp.aim < 0 ? -1 : 0;
+  }
+
+  _endHold(kart, s) {
+    s.holding = null;
+    kart.heldItem = null;
+    this._dropVis(kart);
+  }
+
+  /** A local kart got hit while holding: a banana drops where the kart is, a shell is lost. */
+  _onKartHit(d) {
+    const kart = d?.kart;
+    if (!kart || kart.remote || d.remote) return;
+    const s = this.kartState.get(kart);
+    if (!s || !s.holding) return;
+    const type = s.holding;
+    const v = this.heldVis.get(kart);
+    const pos = v ? v.pos.clone() : kart.position.clone();
+    this._endHold(kart, s);
+    if (kart.item !== type) return;
+    if (type === 'banana') {
+      this._useItem(kart, 0); // dropped behind the kart, and broadcast online like any other use
+    } else {
+      bus.emit('item:explode', { position: pos, radius: 1.4, kind: 'small' });
+      kart.item = null;
+      kart.itemCount = 0;
+    }
+  }
+
+  /** Keep a visible item trailing behind every kart that holds one (ghosts: from their snapshots). */
+  _updateHeld(dt) {
+    for (const [kart, v] of this.heldVis) {
+      if (!this.karts.includes(kart) || this._heldType(kart) !== v.type) this._dropVis(kart);
+    }
+    for (const kart of this.karts) {
+      const type = kart ? this._heldType(kart) : null;
+      if (!type) continue;
+      let v = this.heldVis.get(kart);
+      if (!v) {
+        v = { type, holder: this._acquire(type), pos: new THREE.Vector3(), t: finite(kart.trackT, undefined), radius: HELD_RADIUS, wob: Math.random() * 6 };
+        this.heldVis.set(kart, v);
+      }
+      this._placeHeld(kart, v);
+      v.wob += dt * 7;
+      const h = v.holder;
+      h.position.copy(v.pos);
+      h.rotation.set(Math.sin(v.wob) * 0.08, finite(kart.heading) + Math.sin(v.wob * 0.5) * 0.25, Math.cos(v.wob) * 0.08);
+      h.scale.setScalar(Math.max(0.5, Math.min(1, kartRadius(kart) / PHYSICS.kartRadius)));
+    }
+  }
+
+  _heldType(kart) {
+    const t = kart.heldItem;
+    if (!t || !HOLDABLE.has(t) || kart.netIdle || kart.departed) return null;
+    return t;
+  }
+
+  _placeHeld(kart, v) {
+    const fwd = kartForward(kart, _v1);
+    const back = kartRadius(kart) + HOLD_GAP + v.radius;
+    v.pos.copy(kart.position).addScaledVector(fwd, -back);
+    if (kart.airborne) v.pos.y = finite(kart.position.y) + 0.1;
+    else v.pos.y = this._groundHeight(v.pos, v) + (v.type === 'banana' ? 0 : SHELL_HOVER);
+  }
+
+  _dropVis(kart) {
+    const v = this.heldVis.get(kart);
+    if (!v) return;
+    this.heldVis.delete(kart);
+    this._release(v.holder);
+  }
+
+  _useItem(kart, dir = 0) {
     const item = kart.item;
     let consumed = true;
+    // only the directions an item can actually take (banana: thrown forward; shells: thrown backwards)
+    dir = item === 'banana' ? (dir > 0 ? 1 : 0) : (item === 'green_shell' || item === 'red_shell') ? (dir < 0 ? -1 : 0) : 0;
     try {
       switch (item) {
         case 'mushroom':
         case 'triple_mushroom':
           kart.applyBoost?.(PHYSICS.mushroomBoostTime, 1);
           break;
-        case 'banana': this._spawnBanana(kart); break;
-        case 'green_shell': this._spawnShell(kart, 'green_shell'); break;
-        case 'red_shell': this._spawnShell(kart, 'red_shell'); break;
+        case 'banana': this._spawnBanana(kart, dir > 0); break;
+        case 'green_shell': this._spawnShell(kart, 'green_shell', dir < 0); break;
+        case 'red_shell': this._spawnShell(kart, 'red_shell', dir < 0); break;
         case 'blue_shell': this._spawnBlue(kart); break;
         case 'star': kart.startStar?.(PHYSICS.starTime); break;
         case 'lightning': this._lightning(kart); break;
@@ -440,7 +575,7 @@ export class ItemSystem {
     } catch (err) {
       console.error('[items] use failed', item, err);
     }
-    bus.emit('item:use', { kart, item: item === 'triple_mushroom' ? 'mushroom' : item });
+    bus.emit('item:use', { kart, item: item === 'triple_mushroom' ? 'mushroom' : item, dir });
     if (consumed) {
       const count = finite(kart.itemCount, 1) - 1;
       if (item === 'triple_mushroom' && count > 0) {
@@ -530,9 +665,8 @@ export class ItemSystem {
     }
   }
 
-  _spawnBanana(kart) {
+  _spawnBanana(kart, throwForward = false) {
     const fwd = kartForward(kart, _v1);
-    const throwForward = !!kart.input?.throwForward;
     const r = kartRadius(kart);
     if (throwForward) {
       _v2.copy(kart.position).addScaledVector(fwd, r + 1.2);
@@ -549,12 +683,12 @@ export class ItemSystem {
     }
   }
 
-  _spawnShell(kart, type) {
+  _spawnShell(kart, type, back = false) {
     const fwd = kartForward(kart, _v1);
-    const back = !!kart.input?.lookBack;
     const dir = back ? -1 : 1;
     const r = kartRadius(kart);
-    _v2.copy(kart.position).addScaledVector(fwd, dir * (r + SHELL_RADIUS + 0.6));
+    // thrown backwards: start clear of the kart (it travels the other way at full shell speed)
+    _v2.copy(kart.position).addScaledVector(fwd, dir * (r + SHELL_RADIUS + (back ? BACK_SHELL_GAP : 0.6)));
     const e = this._makeEntity(type, kart, _v2);
     e.pos.y = this._groundHeight(e.pos, e) + SHELL_HOVER;
     const base = Math.max(0, finite(kart.speed) * (back ? 0 : 1));
@@ -831,6 +965,42 @@ export class ItemSystem {
     if (fx && e.type !== 'banana') bus.emit('item:explode', { position: e.pos.clone(), radius: 1.6, kind: 'small' });
   }
 
+  /**
+   * Does the item held behind kart k stop projectile e? It does when e touches the held item (and is
+   * not hitting the kart from the front in the same frame), or would hit the kart coming from behind.
+   */
+  _shieldBlocks(e, k, hv, hitsKart) {
+    const rr = hv.radius + e.radius;
+    const hx = hv.pos.x - e.pos.x, hz = hv.pos.z - e.pos.z;
+    const touchesHeld = hx * hx + hz * hz < rr * rr && Math.abs(hv.pos.y - e.pos.y) < 1.5;
+    if (!touchesHeld && !hitsKart) return false;
+    return hitsKart ? this._fromBehind(e, k) : true;
+  }
+
+  /** Did e reach kart k from behind? Judged by the closing velocity (a frame can skip past the kart's centre). */
+  _fromBehind(e, k) {
+    const h = finite(k.heading, 0);
+    const fx = Math.sin(h), fz = Math.cos(h);
+    const rvx = e.vel.x - finite(k.velocity?.x), rvz = e.vel.z - finite(k.velocity?.z);
+    const rv2 = rvx * rvx + rvz * rvz;
+    if (rv2 > 4) return rvx * fx + rvz * fz > 0.3 * Math.sqrt(rv2);
+    // barely moving relative to each other: go by where it is
+    const px = e.pos.x - k.position.x, pz = e.pos.z - k.position.z;
+    return px * fx + pz * fz < -0.3 * (Math.hypot(px, pz) || 1);
+  }
+
+  /** e hit the item held behind kart k: both are destroyed and the kart is not hit. */
+  _block(e, k, hv) {
+    const held = k.heldItem;
+    bus.emit('item:explode', { position: hv.pos.clone(), radius: 1.4, kind: 'small' });
+    this._kill(e, true);
+    const s = this._getState(k);
+    this._endHold(k, s);
+    s.cooldown = USE_COOLDOWN;
+    if (k.item === held) { k.item = null; k.itemCount = 0; }
+    bus.emit('item:block', { kart: k, item: held, by: e.owner, type: e.type, x: e.pos.x, z: e.pos.z });
+  }
+
   _collide() {
     const ents = this.entities;
     const karts = this.karts;
@@ -845,7 +1015,11 @@ export class ItemSystem {
         const r = kartRadius(k) + e.radius;
         const dx = k.position.x - e.pos.x, dz = k.position.z - e.pos.z;
         const dy = (k.position.y + 0.4) - e.pos.y;
-        if (dx * dx + dz * dz > r * r || Math.abs(dy) > 1.9) continue;
+        const hitsKart = dx * dx + dz * dz <= r * r && Math.abs(dy) <= 1.9;
+        // a local kart's held item takes the hit from behind (the victim's client decides, as with hits)
+        const hv = !k.remote && k.heldItem && !(finite(k.starTimer) > 0) ? this.heldVis.get(k) : null;
+        if (hv && this._shieldBlocks(e, k, hv, hitsKart)) { this._block(e, k, hv); break; }
+        if (!hitsKart) continue;
         if (finite(k.starTimer) > 0) {
           // starred karts smash items
           e.dead = true;
@@ -859,6 +1033,9 @@ export class ItemSystem {
           this._hitKart(k, 'tumble', e.type, e.owner);
           this._kill(e, true);
         }
+        // spent on a ghost here: if the victim's screen says its held item blocked this one, the `ib`
+        // that follows must not remove another live projectile of the same owner (see remoteBlock)
+        if (k.remote) k._itemSpent = { owner: e.owner, type: e.type, at: this.time };
         break;
       }
       if (e.dead) continue;

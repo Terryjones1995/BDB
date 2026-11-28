@@ -543,7 +543,9 @@ function simulate(w, dt) {
     let raw = null;
     if (input) raw = safe('input.getInput', () => input.getInput());
     if (input) safe('input.pause', () => input.consumePressed && input.consumePressed('pause'));
-    if (net.menuOpen && w.online) raw = null; // menu keys must not steer
+    // menu keys must not steer; the item button (not a menu key) keeps its real held state, so an item held
+    // behind the kart isn't thrown just because the menu opened
+    if (net.menuOpen && w.online) raw = { ...NEUTRAL, itemHeld: !!(raw && raw.itemHeld) };
     playerInput = raw || NEUTRAL;
     if (debug.autopilot && !w.playerAI && !player.controlsLocked) {
       const AIClass = mods.ai && mods.ai.AIDriver;
@@ -911,6 +913,7 @@ function onNetMessage(ev, p, from) {
     case 'start': onNetStart(p, from); break;
     case 's': onNetState(p, from); break;
     case 'iu': onNetItemUse(p, from); break;
+    case 'ib': onNetItemBlock(p, from); break;
     case 'lobby': {
       const w = world;
       if (from !== net.session.hostId || !w || !w.online || !p || p.r !== net.raceId) break;
@@ -987,12 +990,14 @@ function onNetState(raw, from) {
   if (off == null || o < off) off = o; else off += (o - off) * 0.005;
   net.offsets.set(from, off);
   const t = p.t + off;
+  const HELD = mods.online.HELD_ITEMS;
   for (const e of p.karts) {
     const kart = w.byIndex.get(e.k);
     if (!kart || !kart.remote) continue;
     if (kart.departed) restoreKart(w, kart); // its owner came back (reconnect): put the kart back in the race
     kart.pushSnapshot({ t, x: e.x, y: e.y, z: e.z, h: e.h, speed: e.speed, vx: e.vx, vz: e.vz, flags: e.flags, driftDir: e.driftDir });
     kart.net = { lap: e.lap, tt: e.tt, fin: e.fin, ft: e.ft };
+    kart.heldItem = HELD[e.hd] || null; // the item it holds behind it (drawn by ItemSystem)
   }
 }
 
@@ -1016,12 +1021,35 @@ function onNetItemUse(raw, from) {
   safe('items.remoteUse', () => w.items.remoteUse(kart, p.item, p));
 }
 
-// a kart this client owns used an item: tell everyone so they fire it from the ghost
+// a kart this client owns used an item: tell everyone so they fire it from the ghost, the same way
+// (dir: 1 = banana thrown forward, -1 = shell thrown backwards)
 bus.on('item:use', (d) => {
   const w = world;
   if (!w || !w.online || !d || !d.kart || d.kart.remote || !net.session) return;
   const k = d.kart;
-  net.session.send('iu', { r: net.raceId, k: k.index, item: d.item, fw: !!(k.input && k.input.throwForward), bk: !!(k.input && k.input.lookBack) });
+  net.session.send('iu', { r: net.raceId, k: k.index, item: d.item, fw: d.dir > 0, bk: d.dir < 0 });
+});
+
+/** A racer's held item blocked a projectile on their screen (their call, like hits): remove it here too. */
+function onNetItemBlock(raw, from) {
+  const w = world;
+  if (!w || !w.online || !w.items) return;
+  const p = mods.online.validateItemBlock(raw, from, netCtx());
+  if (!p) return;
+  const kart = w.byIndex.get(p.k);
+  if (!kart || !kart.remote || kart.departed) return;
+  const now = performance.now();
+  if (now - (kart._ibAt || 0) < IU_MIN_GAP_MS) return;
+  kart._ibAt = now;
+  safe('items.remoteBlock', () => w.items.remoteBlock(kart, w.byIndex.get(p.o) || null, p.t, p.x, p.z));
+}
+
+// a kart this client owns blocked a projectile with its held item: tell everyone
+bus.on('item:block', (d) => {
+  const w = world;
+  if (!w || !w.online || !d || !d.kart || d.kart.remote || !net.session || !d.by) return;
+  const r2 = (v) => Math.round((Number.isFinite(v) ? v : 0) * 100) / 100;
+  net.session.send('ib', { r: net.raceId, k: d.kart.index, o: d.by.index, t: d.type, x: r2(d.x), z: r2(d.z) });
 });
 
 function onHostChange(newHost, oldHost) {
@@ -1050,7 +1078,7 @@ function releaseAIKarts(w) {
     k.remote = true;
     k._snaps.length = 0;
     k._lastSnapAt = 0;
-    k.item = null; k.itemCount = 0;
+    k.item = null; k.itemCount = 0; k.heldItem = null;
     k.net = { lap: k._lapCount | 0, tt: k.trackT || 0, fin: k.finished ? 1 : 0, ft: k.finishTime || 0 };
     const i = w.ais.indexOf(k._ai);
     if (i >= 0) w.ais.splice(i, 1);
@@ -1071,8 +1099,14 @@ function netTick(w, nowMs) {
 function sendState(w, nowMs) {
   const r2 = (v) => Math.round((Number.isFinite(v) ? v : 0) * 100) / 100;
   const k = [];
+  const hd = []; // per entry: item held behind the kart (online.HELD_ITEMS code; sent only when someone holds)
+  let holding = false;
+  const HELD = mods.online.HELD_ITEMS;
   for (const kart of w.karts) {
     if (kart.remote) continue;
+    const code = kart.heldItem ? Math.max(0, HELD.indexOf(kart.heldItem)) : 0;
+    if (code) holding = true;
+    hd.push(code);
     const h = kart.heading || 0;
     k.push([
       kart.index, r2(kart.position.x), r2(kart.position.y), r2(kart.position.z),
@@ -1083,7 +1117,7 @@ function sendState(w, nowMs) {
       kart.finished ? 1 : 0, kart.finished ? r2(kart.finishTime) : 0,
     ]);
   }
-  if (k.length) net.session.send('s', { r: net.raceId, t: Math.round(nowMs), k });
+  if (k.length) net.session.send('s', holding ? { r: net.raceId, t: Math.round(nowMs), k, hd } : { r: net.raceId, t: Math.round(nowMs), k });
 }
 
 /**

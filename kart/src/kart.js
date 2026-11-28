@@ -100,6 +100,7 @@ export class Kart {
     this.raceProgress = 0;
     this.item = null;
     this.itemCount = 0;
+    this.heldItem = null;   // item readied behind the kart (ItemSystem; online ghosts: from snapshots)
     this.controlsLocked = false;
 
     // online: a remote kart is a ghost driven by another client's snapshots (see ghostUpdate)
@@ -974,6 +975,7 @@ export class Kart {
     this.netIdle = false;
     if (last) { this.velocity.set(last.vx, 0, last.vz); this.speed = last.speed; }
     this._snaps.length = 0;
+    this.heldItem = null;
     this.spinTimer = 0; this.hitKind = null; this.boostTimer = 0; this.starTimer = 0;
     this.drifting = false; this.driftLevel = 0; this.respawnInvuln = 0; this.airborne = false;
     if (this.shrinkTimer > 0) this._endShrink();

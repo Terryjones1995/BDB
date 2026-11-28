@@ -1,6 +1,6 @@
 (function () {
   var C = {
-    title: "Turbo Kart Rally",
+    title: "BDB Karts",
     author: "BridgeMind",
     license: "MIT License (code). All art, models, sounds and music are generated in code (MIT). Fonts: Lilita One and Nunito, SIL OFL 1.1. three.js r170, MIT.",
     source: "https://github.com/bridge-mind/turbo-kart-rally"
@@ -16,7 +16,7 @@
   panel.appendChild(el("div", "", "By " + C.author));
   panel.appendChild(el("div", "margin-top:4px;opacity:.85", C.license));
   panel.appendChild(el("div", "margin-top:4px;opacity:.85;word-break:break-all", "Source: " + C.source));
-  panel.appendChild(el("div", "margin-top:8px;opacity:.7;font-size:12px", "Added to Patch by Patch. The author can claim it."));
+  panel.appendChild(el("div", "margin-top:8px;opacity:.7;font-size:12px", "Based on Turbo Kart Rally by BridgeMind, with online races added for BDB Games."));
   btn.onclick = function () { panel.style.display = panel.style.display === "none" ? "block" : "none"; btn.blur(); };
   ["keydown", "keyup", "keypress", "mousedown", "mouseup", "click", "pointerdown", "pointerup", "touchstart", "touchend", "wheel", "contextmenu", "dblclick"].forEach(function (n) {
     [btn, panel].forEach(function (t) { t.addEventListener(n, function (e) { e.stopPropagation(); }); });

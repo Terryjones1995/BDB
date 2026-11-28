@@ -2,6 +2,7 @@
 import { bus } from './events.js';
 import { ITEMS, CHARACTERS } from './config.js';
 import { formatTime } from './race.js';
+const goHome = () => { location.href = '../'; }; // back to the BDB Games list
 
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
 export const ordinal = (n) => {
@@ -506,6 +507,9 @@ export class HUD {
       if (!player.item || spinning) this.itemCount.textContent = '';
       this.itemHint.style.opacity = has && !spinning ? 1 : 0;
     }
+    // holding an item behind the kart: say how to throw it
+    const hint = !player.heldItem ? 'E / SHIFT' : player.heldItem === 'banana' ? 'RELEASE TO DROP' : 'RELEASE · HOLD ↓ = BACK';
+    if (hint !== this._itemHintText) { this._itemHintText = hint; this.itemHint.textContent = hint; }
 
     // speedometer (km/h-ish: units/s * 3.6)
     const sp = Math.abs(player.speed || 0);
@@ -582,6 +586,7 @@ export class HUD {
     const defs = buttons && buttons.length ? buttons : [
       { act: 'restart', label: 'RACE AGAIN', primary: true, onClick: onRestart },
       { act: 'menu', label: 'MAIN MENU', onClick: onMenu },
+      { act: 'home', label: 'ALL GAMES', onClick: goHome },
     ];
     const bwrap = R.querySelector('.res-buttons');
     for (const d of defs) {
