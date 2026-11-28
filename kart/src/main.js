@@ -173,11 +173,11 @@ const RACE_STATES = new Set(['intro', 'countdown', 'racing', 'finished']);
 // ---------------------------------------------------------------------------------------------
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function buildWorld({ mode, characterIndex = 0, difficulty = 'normal', laps = RACE.laps, online = null }) {
+function buildWorld({ mode, characterIndex = 0, difficulty = 'normal', laps = RACE.laps, online = null, track = null }) {
   if (!mods.track || !mods.track.createTrack) throw new Error('track.js unavailable');
   if (!mods.kart || !mods.kart.Kart) throw new Error('kart.js unavailable');
   const w = { mode, difficulty, laps, karts: [], ais: [], playerAI: null, player: null, scene: new THREE.Scene() };
-  w.track = mods.track.createTrack(w.scene, renderer);
+  w.track = mods.track.createTrack(w.scene, renderer, track || (online && online.track) || 'palm');
   if (online) buildOnlineRoster(w, online);
   else buildLocalRoster(w, { mode, characterIndex, difficulty, laps });
   return finishWorld(w);
@@ -721,7 +721,7 @@ function sendIntervalMs() {
 const net = {
   session: null, lobby: null, active: false,
   raceId: null, grid: null, laps: RACE.laps, aiOwner: null,
-  opts: { laps: RACE.laps, ai: true },
+  opts: { laps: RACE.laps, ai: true, track: 'palm' },
   menuOpen: false, countdownT0: 0, sendT: 0, checkT: 0, flow: 0, resultsAt: 0, resTimer: null,
   offsets: new Map(),
   notice: null,
@@ -796,6 +796,7 @@ function ensureNet() {
     onProfile: (p) => { net.session.setProfile({ name: p.name, char: p.char }); renderLobby(); },
     onOptions: (o) => {
       if (o.laps != null && O.LAP_CHOICES.includes(o.laps)) net.opts.laps = o.laps;
+      if (o.track != null && O.TRACK_IDS.includes(o.track)) net.opts.track = o.track;
       if (o.ai != null) net.opts.ai = !!o.ai;
       renderLobby();
     },
@@ -900,7 +901,7 @@ function renderLobby() {
     status, statusKind: kind,
     code: s.code || '', link: inviteLink(s.code),
     players, isHost: joined && s.isHost,
-    laps: net.opts.laps, ai: net.opts.ai,
+    laps: net.opts.laps, ai: net.opts.ai, track: net.opts.track,
     canStart: joined && s.isHost && players.length >= 1 && !driving,
     waiting: driving ? 'Race in progress…' : 'Waiting for the host to start the race…',
   });
@@ -924,7 +925,7 @@ function hostStart() {
       entries.push({ k: i, owner: 'ai', char: c.id, name: c.name });
     }
   }
-  const msg = { race: mods.online.randomId(8), laps: net.opts.laps, grid: shuffle(entries) };
+  const msg = { race: mods.online.randomId(8), laps: net.opts.laps, track: net.opts.track, grid: shuffle(entries) };
   if (!s.send('start', msg)) return false;
   onNetStart(msg, s.myId);
   return true;
@@ -1527,8 +1528,9 @@ window.__game = {
     netJoin(c);
     return c;
   },
-  onlineStart({ laps, ai } = {}) {
+  onlineStart({ laps, ai, track } = {}) {
     if (laps != null && mods.online.LAP_CHOICES.includes(laps)) net.opts.laps = laps;
+    if (track != null && mods.online.TRACK_IDS.includes(track)) net.opts.track = track;
     if (ai != null) net.opts.ai = !!ai;
     return hostStart();
   },

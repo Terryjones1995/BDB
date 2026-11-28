@@ -5,6 +5,7 @@
 import { bus } from './events.js';
 import { CHARACTERS } from './config.js';
 import { LAP_CHOICES, sanitizeName, defaultName, filterCodeInput } from './online.js';
+import { TRACKS } from './tracks.js';
 
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
 
@@ -24,7 +25,7 @@ export class Lobby {
     this.h = h;
     this.visible = false;
     this.portraitFn = null;
-    this.model = { phase: 'menu', status: '', statusKind: '', code: '', link: '', players: [], isHost: false, laps: 3, ai: true, canStart: false, waiting: '' };
+    this.model = { phase: 'menu', status: '', statusKind: '', code: '', link: '', players: [], isHost: false, laps: 3, ai: true, track: 'palm', canStart: false, waiting: '' };
     let name = '';
     let ci = 0;
     try { name = localStorage.getItem('tkr-name') || ''; } catch (e) { /* storage unavailable */ }
@@ -133,6 +134,7 @@ export class Lobby {
     this.copiedEl = el('div', 'lobby-note', secRoom);
     this.playersEl = el('div', 'lobby-players', secRoom);
     const hostBox = this.hostBox = el('div', 'lobby-host', secRoom);
+    this.trackOpt = this._opt(hostBox, 'track', 'TRACK', (d) => this._changeTrack(d));
     this.lapsOpt = this._opt(hostBox, 'laps', 'LAPS', (d) => this._changeLaps(d));
     this.aiOpt = this._opt(hostBox, 'ai', 'AI RACERS', () => this._toggleAI());
     const start = this.startBtn = el('button', 'btn primary lobby-start', hostBox, 'START RACE');
@@ -211,6 +213,11 @@ export class Lobby {
       if (this.linkIn.value !== m.link) { this.linkIn.value = m.link || ''; this.copiedEl.textContent = ''; }
       this._renderPlayers(m.players || []);
       this.hostBox.hidden = !m.isHost;
+      const tr = TRACKS.find((t) => t.id === m.track) || TRACKS[0];
+      const hard = tr.difficulty === 'hard';
+      this.trackOpt.val.textContent = tr.name.toUpperCase();
+      this.trackOpt.o.querySelector('.opt-lbl').textContent = hard ? 'HARD TRACK' : 'TRACK';
+      this.trackOpt.o.classList.toggle('hard', hard);
       this.lapsOpt.val.textContent = `${m.laps} LAP${m.laps > 1 ? 'S' : ''}`;
       this.aiOpt.val.textContent = m.ai ? 'FILL TO 8' : 'OFF';
       this.startBtn.disabled = !m.canStart;
@@ -277,6 +284,13 @@ export class Lobby {
     const laps = LAP_CHOICES[(Math.max(0, i) + d + LAP_CHOICES.length) % LAP_CHOICES.length];
     bus.emit('ui:move');
     this.h.onOptions && this.h.onOptions({ laps });
+  }
+  _changeTrack(d) {
+    if (!this.model.isHost) return;
+    const i = TRACKS.findIndex((t) => t.id === this.model.track);
+    const track = TRACKS[(Math.max(0, i) + d + TRACKS.length) % TRACKS.length].id;
+    bus.emit('ui:move');
+    this.h.onOptions && this.h.onOptions({ track });
   }
   _toggleAI() {
     if (!this.model.isHost) return;
@@ -353,6 +367,7 @@ export class Lobby {
       const d = c === 'ArrowLeft' ? -1 : 1;
       if (nav === 'char') this._setChar(this.charIndex + d);
       else if (nav === 'laps') this._changeLaps(d);
+      else if (nav === 'track') this._changeTrack(d);
       else if (nav === 'ai') this._toggleAI();
       else if (nav === 'join' || nav === 'copy' || nav === 'code' || nav === 'link') this._move(d);
       return;
@@ -364,6 +379,7 @@ export class Lobby {
       else if (nav === 'char') this._move(1);
       else if (nav === 'code') this.h.onJoin && this.h.onJoin(this.codeIn.value);
       else if (nav === 'laps') this._changeLaps(1);
+      else if (nav === 'track') this._changeTrack(1);
       else if (nav === 'ai') this._toggleAI();
       else if (nav === 'link') this._copy();
       else if (cur && cur.tagName === 'BUTTON' && !cur.disabled) cur.click();
