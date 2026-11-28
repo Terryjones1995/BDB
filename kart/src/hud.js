@@ -349,9 +349,11 @@ export class HUD {
     this._npKey = key;
     this.netPauseBtn.classList.toggle('hidden', !s);
     if (!s) return;
-    this.netPauseLeft.textContent = String(s.left);
+    const limited = Number.isFinite(s.left);
+    this.netPauseLeft.hidden = !limited;
+    this.netPauseLeft.textContent = limited ? String(s.left) : '';
     this.netPauseBtn.disabled = !s.can;
-    const label = `Pause the race for everyone (${s.left} left)`;
+    const label = limited ? `Pause the race for everyone (${s.left} left)` : 'Pause the race for everyone';
     this.netPauseBtn.title = label;
     this.netPauseBtn.setAttribute('aria-label', label);
   }

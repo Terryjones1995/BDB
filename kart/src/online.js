@@ -139,7 +139,7 @@ export function validateState(p, from, ctx) {
  * both in ms since `start` arrived (the shared race clock), pt = ms of all the earlier pauses together,
  * k = kart index of the racer who paused (a human kart of this race).
  */
-export const PAUSE_MAX_N = 64;
+export const PAUSE_MAX_N = 100000; // pauses are unlimited; this only bounds a sane pause number
 export const PAUSE_MAX_MS = 75000; // longest real pause: 60 s auto-resume + the 3 s resume countdown + clock slack
 const RACE_MAX_MS = 4 * 3600 * 1000;
 export function validatePause(z, ctx) {

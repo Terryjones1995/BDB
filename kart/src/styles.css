@@ -511,6 +511,7 @@ button { font: inherit; color: inherit; }
 .hud-netpause:disabled { cursor: not-allowed; filter: grayscale(0.85) brightness(0.7); transform: none; }
 .np-ico { display: flex; gap: 4px; }
 .np-ico i { width: 5px; height: 16px; border-radius: 2px; background: currentColor; box-shadow: 0 2px 0 var(--ink); }
+.np-left[hidden] { display: none; } /* unlimited pauses: no count */
 .np-left {
   display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; padding: 0 6px;
   border-radius: 8px; background: var(--ink); color: var(--gold); font-size: 15px; text-shadow: none;
