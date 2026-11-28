@@ -1,6 +1,7 @@
 // Title screen, character select (with difficulty / laps options + controls help), pause menu, gamepad navigation.
 import { bus } from './events.js';
 import { CHARACTERS, GAME_TITLE } from './config.js';
+import { TRACKS } from './tracks.js';
 const goHome = () => { location.href = '../'; }; // back to the BDB Games list
 
 const hex = (c) => '#' + (c >>> 0).toString(16).padStart(6, '0').slice(-6);
@@ -38,6 +39,7 @@ export class Menu {
     this.charIndex = 0;
     this.diffIndex = 1;
     this.lapsIndex = 1;
+    this.trackIndex = 0;
     this.zone = 'grid';
     this.optIndex = 0;
     this.pauseIndex = 0;
@@ -51,6 +53,8 @@ export class Menu {
       if (s.charIndex >= 0 && s.charIndex < CHARACTERS.length) this.charIndex = s.charIndex;
       if (s.diffIndex >= 0 && s.diffIndex < DIFFS.length) this.diffIndex = s.diffIndex;
       if (s.lapsIndex >= 0 && s.lapsIndex < LAPS.length) this.lapsIndex = s.lapsIndex;
+      const ti = TRACKS.findIndex((t) => t.id === s.track);
+      if (ti >= 0) this.trackIndex = ti;
     } catch (e) { /* storage unavailable */ }
 
     this._buildTitle();
@@ -144,7 +148,8 @@ export class Menu {
           <div class="opts">
             <div class="opt" data-i="0"><span class="opt-lbl">CLASS</span><span class="opt-arrow l">◀</span><span class="opt-val"></span><span class="opt-arrow r">▶</span></div>
             <div class="opt" data-i="1"><span class="opt-lbl">LAPS</span><span class="opt-arrow l">◀</span><span class="opt-val"></span><span class="opt-arrow r">▶</span></div>
-            <button class="btn primary race-btn" data-i="2">RACE!</button>
+            <div class="opt" data-i="2"><span class="opt-lbl">TRACK</span><span class="opt-arrow l">◀</span><span class="opt-val"></span><span class="opt-arrow r">▶</span></div>
+            <button class="btn primary race-btn" data-i="3">RACE!</button>
           </div>
         </div>
       </div>
@@ -175,7 +180,7 @@ export class Menu {
     this.optEls = [...s.querySelectorAll('.opts [data-i]')];
     this.optEls.forEach((o, i) => {
       o.addEventListener('mouseenter', () => { if (this.screen === 'select') { this.zone = 'opts'; this.optIndex = i; this._refreshFocus(); } });
-      if (i < 2) {
+      if (i < 3) {
         o.querySelector('.l').addEventListener('click', (e) => { e.stopPropagation(); this.zone = 'opts'; this.optIndex = i; this._changeOpt(-1); });
         o.querySelector('.r').addEventListener('click', (e) => { e.stopPropagation(); this.zone = 'opts'; this.optIndex = i; this._changeOpt(1); });
         o.querySelector('.opt-val').addEventListener('click', () => { this.zone = 'opts'; this.optIndex = i; this._changeOpt(1); });
@@ -261,7 +266,7 @@ export class Menu {
   }
   hideAll() { this.screen = null; this._showOnly(null); }
   get settings() {
-    return { characterIndex: this.charIndex, difficulty: DIFFS[this.diffIndex], laps: LAPS[this.lapsIndex] };
+    return { characterIndex: this.charIndex, difficulty: DIFFS[this.diffIndex], laps: LAPS[this.lapsIndex], track: (TRACKS[this.trackIndex] || TRACKS[0]).id };
   }
 
   _toSelect() { bus.emit('ui:confirm'); this.showSelect(); this.h.onScreen && this.h.onScreen('select'); }
@@ -277,7 +282,7 @@ export class Menu {
   }
   _confirmChar() {
     bus.emit('ui:confirm');
-    this.zone = 'opts'; this.optIndex = 2;
+    this.zone = 'opts'; this.optIndex = 3;
     const c = this.cards[this.charIndex].card;
     c.classList.remove('picked'); void c.offsetWidth; c.classList.add('picked');
     this._refreshFocus();
@@ -299,6 +304,11 @@ export class Menu {
     if (!this.optEls) return;
     this.optEls[0].querySelector('.opt-val').textContent = DIFF_LABEL[DIFFS[this.diffIndex]];
     this.optEls[1].querySelector('.opt-val').textContent = `${LAPS[this.lapsIndex]} LAP${LAPS[this.lapsIndex] > 1 ? 'S' : ''}`;
+    const tr = TRACKS[this.trackIndex] || TRACKS[0];
+    const hard = tr.difficulty === 'hard';
+    this.optEls[2].querySelector('.opt-val').textContent = tr.name.toUpperCase();
+    this.optEls[2].querySelector('.opt-lbl').textContent = hard ? 'HARD TRACK' : 'TRACK';
+    this.optEls[2].classList.toggle('hard', hard);
   }
   _refreshFocus() {
     this.cards.forEach((c, j) => c.card.classList.toggle('focus', this.zone === 'grid' && j === this.charIndex));
@@ -307,6 +317,7 @@ export class Menu {
   _changeOpt(d) {
     if (this.optIndex === 0) this.diffIndex = (this.diffIndex + d + DIFFS.length) % DIFFS.length;
     else if (this.optIndex === 1) this.lapsIndex = (this.lapsIndex + d + LAPS.length) % LAPS.length;
+    else if (this.optIndex === 2) this.trackIndex = (this.trackIndex + d + TRACKS.length) % TRACKS.length;
     else return;
     bus.emit('ui:move');
     this._refreshOpts(); this._refreshFocus();
@@ -315,7 +326,7 @@ export class Menu {
   }
   _start() {
     if (this.screen !== 'select') return;
-    try { localStorage.setItem('tkr-settings', JSON.stringify({ charIndex: this.charIndex, diffIndex: this.diffIndex, lapsIndex: this.lapsIndex })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('tkr-settings', JSON.stringify({ charIndex: this.charIndex, diffIndex: this.diffIndex, lapsIndex: this.lapsIndex, track: (TRACKS[this.trackIndex] || TRACKS[0]).id })); } catch (e) { /* ignore */ }
     bus.emit('ui:confirm');
     this.h.onStart && this.h.onStart(this.settings);
   }
@@ -377,11 +388,11 @@ export class Menu {
         if (up) {
           if (this.optIndex === 0) { this.zone = 'grid'; } else this.optIndex--;
           bus.emit('ui:move'); this._refreshFocus();
-        } else if (down) { this.optIndex = Math.min(2, this.optIndex + 1); bus.emit('ui:move'); this._refreshFocus(); }
+        } else if (down) { this.optIndex = Math.min(3, this.optIndex + 1); bus.emit('ui:move'); this._refreshFocus(); }
         else if (left) {
-          if (this.optIndex === 2) { this.zone = 'grid'; bus.emit('ui:move'); this._refreshFocus(); } else this._changeOpt(-1);
-        } else if (right) { if (this.optIndex < 2) this._changeOpt(1); }
-        else if (isEnter && !e.repeat) { if (this.optIndex === 2) this._start(); else this._changeOpt(1); }
+          if (this.optIndex === 3) { this.zone = 'grid'; bus.emit('ui:move'); this._refreshFocus(); } else this._changeOpt(-1);
+        } else if (right) { if (this.optIndex < 3) this._changeOpt(1); }
+        else if (isEnter && !e.repeat) { if (this.optIndex === 3) this._start(); else this._changeOpt(1); }
       }
       return;
     }

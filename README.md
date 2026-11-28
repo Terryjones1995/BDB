@@ -45,6 +45,12 @@ It's BridgeMind's game (MIT, https://github.com/bridge-mind/turbo-kart-rally), c
 Patch's port `blendi/turbo-kart-rally` (commit 24da027). Our remix on Patch is `terry/turbo-kart-rally`.
 Its LICENSE and CREDITS.md are in `kart/`.
 - Race: you against seven AI drivers, as in the original.
+- Six tracks, picked on the race setup screen (and by the host in an online lobby): Palm Cove Circuit (the
+  original), plus five long ones built in the same code-generated style: Dune Canyon, Frostpeak Pass, Neon City,
+  Jungle Temple and Volcano Gauntlet (hard: narrow road, hairpins, lava that puts you back on the road). Layouts
+  and looks live in `kart/src/tracks.js`; `track.js` and `environment.js` build them.
+- Hold the item button to keep a banana or shell behind you (it blocks shots from behind), release to throw;
+  hold back while releasing to throw a shell backwards. Online, any racer can pause the race for everyone.
 - Online: up to 8 friends in a room (create a room, share the code or the `kart/?room=CODE` link), with AI
   filling empty grid slots. It runs on the BDB Supabase server's realtime channels (`api.bigdickb.ca`,
   public anon key in `kart/src/net-config.js`); no tables. Each player's browser drives its own kart and the

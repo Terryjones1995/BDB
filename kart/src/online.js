@@ -4,11 +4,13 @@
 // check types, ranges, lengths and ownership, and anything that fails is dropped silently.
 import { SUPABASE_URL, SUPABASE_KEY } from './net-config.js';
 import { CHARACTERS, ITEMS } from './config.js';
+import { TRACKS } from './tracks.js';
 
 export const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const MAX_HUMANS = 8;
 export const MAX_KARTS = 8;
 export const LAP_CHOICES = [1, 2, 3, 5];
+export const TRACK_IDS = TRACKS.map((t) => t.id); // which tracks a race may name
 const MAX_FRAME = 16384;          // bytes; larger game frames are dropped unparsed
 const MAX_PRESENCE_FRAME = 262144; // presence frames may be bigger (one oversized meta must not hide the room)
 const MAX_SEND = 8000;            // bytes; we never send more than this
@@ -62,6 +64,8 @@ export function validateStart(p, from, ctx) {
   if (!p || typeof p !== 'object' || from !== ctx.hostId) return null;
   if (typeof p.race !== 'string' || !RACE_RE.test(p.race)) return null;
   if (!LAP_CHOICES.includes(p.laps)) return null;
+  const track = p.track == null ? 'palm' : p.track; // an older page sends no track: Palm Cove
+  if (typeof track !== 'string' || !TRACK_IDS.includes(track)) return null;
   if (!Array.isArray(p.grid) || p.grid.length < 1 || p.grid.length > MAX_KARTS) return null;
   const n = p.grid.length;
   const seenK = new Set(), seenOwner = new Set();
@@ -79,7 +83,7 @@ export function validateStart(p, from, ctx) {
     grid.push({ k: g.k, owner: g.owner, char: g.char, name: sanitizeName(g.name, 'Racer') });
   }
   if (!seenOwner.size) return null;
-  return { race: p.race, laps: p.laps, grid };
+  return { race: p.race, laps: p.laps, track, grid };
 }
 
 function ownsKart(from, k, ctx) {
@@ -191,7 +195,7 @@ export function validateItemBlock(p, from, ctx) {
 }
 
 function validMeta(key, m) {
-  if (!m || typeof m !== 'object' || m.v !== 1 || m.id !== key || !ID_RE.test(key)) return null;
+  if (!m || typeof m !== 'object' || m.v !== 2 || m.id !== key || !ID_RE.test(key)) return null;
   if (!fin(m.joinedAt)) return null;
   return {
     id: key,
@@ -368,7 +372,7 @@ export class OnlineSession {
   _track() {
     const ws = this.ws;
     if (!ws || ws.readyState !== 1) return;
-    const payload = { id: this.myId, name: this.profile.name, char: this.profile.char, joinedAt: this.joinedAt, st: this.profile.st, v: 1 };
+    const payload = { id: this.myId, name: this.profile.name, char: this.profile.char, joinedAt: this.joinedAt, st: this.profile.st, v: 2 }; // v2: races carry a track
     try { this._raw(ws, this.topic, 'presence', { type: 'presence', event: 'track', payload }, this.joinRef); } catch (e) { /* ignore */ }
   }
 
