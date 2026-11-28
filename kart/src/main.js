@@ -173,11 +173,11 @@ const RACE_STATES = new Set(['intro', 'countdown', 'racing', 'finished']);
 // ---------------------------------------------------------------------------------------------
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function buildWorld({ mode, characterIndex = 0, difficulty = 'normal', laps = RACE.laps, online = null }) {
+function buildWorld({ mode, characterIndex = 0, difficulty = 'normal', laps = RACE.laps, online = null, track = null }) {
   if (!mods.track || !mods.track.createTrack) throw new Error('track.js unavailable');
   if (!mods.kart || !mods.kart.Kart) throw new Error('kart.js unavailable');
   const w = { mode, difficulty, laps, karts: [], ais: [], playerAI: null, player: null, scene: new THREE.Scene() };
-  w.track = mods.track.createTrack(w.scene, renderer);
+  w.track = mods.track.createTrack(w.scene, renderer, track || (online && online.track) || 'palm');
   if (online) buildOnlineRoster(w, online);
   else buildLocalRoster(w, { mode, characterIndex, difficulty, laps });
   return finishWorld(w);

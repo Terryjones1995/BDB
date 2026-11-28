@@ -1,48 +1,16 @@
 // Track (Agent 1 — World). See ARCHITECTURE.md §1 for the contract.
-// createTrack(scene, renderer) -> Track
+// createTrack(scene, renderer, trackId = 'palm') -> Track. Layouts and looks live in tracks.js.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { bus } from './events.js';
 import * as TX from './track-textures.js';
 import { createEnvironment } from './environment.js';
+import { TRACKS, getTrackDef, trackPoints, riverPolyline } from './tracks.js';
 
-const TRACK_NAME = 'Palm Cove Circuit';
-const SCALE = 1.15;
-const N = 2000;                 // centerline samples
-const HALF_W = 12;              // road half width (roadWidth = 24)
+export { TRACKS };
+
 const GRID_CELL = 40;
-
-// Control points [x, y, z] (x/z scaled by SCALE). Race direction = list order. CP0 = start/finish line.
-const CP = [
-  [0, 0, -60],      // 0  start / finish (main straight, heading +Z)
-  [0, 0, 60],       // 1
-  [2, 0, 175],      // 2
-  [22, 1, 258],     // 3  big sweeping left
-  [80, 3, 302],     // 4
-  [160, 5, 296],    // 5
-  [230, 6, 252],    // 6  sweeping right
-  [262, 6, 182],    // 7
-  [238, 5, 118],    // 8  S-bend
-  [292, 4, 64],     // 9
-  [258, 4, 4],      // 10
-  [296, 6, -62],    // 11 climb to the bridge
-  [304, 10, -140],  // 12 bridge over the lagoon
-  [284, 10, -212],  // 13
-  [226, 6, -262],   // 14 downhill jump
-  [150, 3, -284],   // 15
-  [66, 1, -300],    // 16
-  [-20, 0, -318],   // 17 into the hairpin
-  [-96, 0, -322],   // 18
-  [-128, 0, -292],  // 19 hairpin apex
-  [-106, 0, -256],  // 20
-  [-50, 0, -236],   // 21
-  [-8, 0, -196],    // 22
-  [0, 0, -140],     // 23
-];
-
-// Lagoon crossed by the bridge (world coords). Shared with environment.
-const LAKE = { x: 405, z: -205, r: 125 };
-const WATER_LEVEL = -1;
+const TARGET_DS = 1.06;         // centerline sample spacing for tracks that don't pin `samples`
 
 const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const wrapAngle = (a) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
@@ -65,7 +33,28 @@ function smoothCircular(arr, radius, passes = 1) {
   return src;
 }
 
-export function createTrack(scene, renderer) {
+// distance from (x, z) to a polyline [[x, z], ...]
+function polylineDist(pl, x, z) {
+  let best = Infinity;
+  for (let k = 0; k < pl.length - 1; k++) {
+    const [ax, az] = pl[k], [bx, bz] = pl[k + 1];
+    const sx = bx - ax, sz = bz - az, L2 = sx * sx + sz * sz || 1;
+    const f = clamp(((x - ax) * sx + (z - az) * sz) / L2, 0, 1);
+    best = Math.min(best, Math.hypot(x - ax - sx * f, z - az - sz * f));
+  }
+  return best;
+}
+
+export function createTrack(scene, renderer, trackId = 'palm') {
+  const def = getTrackDef(trackId);
+  const look = def.look || {};
+  const HALF_W = def.halfWidth || 12;
+  const LAKE = def.lake || null;
+  const RIVER = def.river ? { width: def.river.width || 40, points: riverPolyline(def) } : null;
+  const WATER_LEVEL = typeof def.waterLevel === 'number' ? def.waterLevel : -1;
+  const WALL_MARGIN = look.wallMargin ?? 7;
+  const LAVA = def.lava || null;
+
   const root = new THREE.Group();
   root.name = 'track';
   scene.add(root);
@@ -73,11 +62,13 @@ export function createTrack(scene, renderer) {
   const track = {};
 
   // ------------------------------------------------------------------ centerline
-  const pts = CP.map(([x, y, z]) => new THREE.Vector3(x * SCALE, y, z * SCALE));
+  const layoutPts = trackPoints(def);
+  const pts = layoutPts.points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
   const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal', 0.5);
-  curve.arcLengthDivisions = 6000;
+  curve.arcLengthDivisions = Math.max(6000, pts.length * 20);
   curve.updateArcLengths();
   const length = curve.getLength();
+  const N = def.samples || Math.max(2000, Math.round(length / TARGET_DS));
   const ds = length / N;
 
   const px = new Float32Array(N), py = new Float32Array(N), pz = new Float32Array(N);
@@ -102,44 +93,18 @@ export function createTrack(scene, renderer) {
   const kS = smoothCircular(kRaw, 6, 2);
   const kWide = smoothCircular(kRaw, 22, 3);
 
-  // bridge factor (over the lagoon)
+  // bridge factor (over the lagoon / river)
   let bridge = new Float32Array(N);
-  for (let i = 0; i < N; i++) {
-    const d = Math.hypot(px[i] - LAKE.x, pz[i] - LAKE.z);
-    bridge[i] = 1 - smoothstep(LAKE.r - 5, LAKE.r + 28, d);
+  if (LAKE) {
+    for (let i = 0; i < N; i++) {
+      const d = Math.hypot(px[i] - LAKE.x, pz[i] - LAKE.z);
+      bridge[i] = 1 - smoothstep(LAKE.r - 5, LAKE.r + 28, d);
+    }
+  } else if (RIVER) {
+    const hw = RIVER.width / 2;
+    for (let i = 0; i < N; i++) bridge[i] = 1 - smoothstep(hw - 5, hw + 28, polylineDist(RIVER.points, px[i], pz[i]));
   }
   bridge = smoothCircular(bridge, 8, 1);
-
-  // wall offsets (distance from centerline to barrier inner face)
-  const wallBase = (side) => {
-    const w = new Float32Array(N);
-    for (let i = 0; i < N; i++) {
-      const outer = side > 0 ? Math.max(0, kS[i]) : Math.max(0, -kS[i]);
-      w[i] = HALF_W + 7 + Math.min(6, outer * 700);
-    }
-    return w;
-  };
-  const innerClamp = (w, side) => {
-    for (let i = 0; i < N; i++) {
-      const inner = side > 0 ? Math.max(0, -kS[i]) : Math.max(0, kS[i]);
-      if (inner > 1e-4) w[i] = Math.min(w[i], 1 / inner - 5);
-      w[i] = Math.max(HALF_W + 1.5, w[i]);
-      w[i] = w[i] * (1 - bridge[i]) + (HALF_W + 1.2) * bridge[i];
-    }
-    return w;
-  };
-  let wallR = innerClamp(smoothCircular(innerClamp(wallBase(1), 1), 18, 2), 1);
-  let wallL = innerClamp(smoothCircular(innerClamp(wallBase(-1), -1), 18, 2), -1);
-  const maxWall = Math.max(...wallR, ...wallL);
-
-  // racing line lateral offsets
-  const maxOff = HALF_W - 3;
-  const apex = new Float32Array(N);
-  for (let i = 0; i < N; i++) apex[i] = -clamp(kWide[i] * 160, -1, 1) * maxOff;
-  const lookA = Math.round(32 / ds);
-  let race = new Float32Array(N);
-  for (let i = 0; i < N; i++) race[i] = clamp(apex[i] - 0.55 * apex[(i + lookA) % N], -maxOff, maxOff);
-  race = smoothCircular(race, 14, 2);
 
   // ------------------------------------------------------------------ spatial grid
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -185,6 +150,67 @@ export function createTrack(scene, renderer) {
     return best;
   }
 
+  // ------------------------------------------------------------------ features
+  const nearestToCP = (f) => { const [x, , z] = layoutPts.at(f); return nearestGrid(x, z); };
+
+  // Gaps: a jump over a sunken trough (dip = metres below the road surface). A full-width ramp sits just before.
+  const dip = new Float32Array(N);
+  const dipSlope = new Float32Array(N);
+  const gapMask = new Uint8Array(N);
+  const gaps = [];
+  for (const g of def.gaps || []) {
+    const len = Math.max(8, Math.round((g.len || 22) / ds));
+    const wallS = Math.max(2, Math.round((g.wall || 3) / ds));
+    const s0 = nearestToCP(g.at);
+    gaps.push({ s0, len, depth: g.depth || 6 });
+    for (let k = 0; k <= len; k++) {
+      const i = (s0 + k) % N;
+      const e = Math.min(k, len - k) / wallS;
+      dip[i] = Math.max(dip[i], (g.depth || 6) * smoothstep(0, 1, e));
+      gapMask[i] = 1;
+    }
+  }
+  for (let i = 0; i < N; i++) dipSlope[i] = (dip[(i + 1) % N] - dip[(i - 1 + N) % N]) / (2 * ds);
+
+  // wall offsets (distance from centerline to barrier inner face)
+  const wallBase = (side) => {
+    const w = new Float32Array(N);
+    for (let i = 0; i < N; i++) {
+      const outer = side > 0 ? Math.max(0, kS[i]) : Math.max(0, -kS[i]);
+      w[i] = HALF_W + WALL_MARGIN + Math.min(6, outer * 700);
+    }
+    return w;
+  };
+  const innerClamp = (w, side) => {
+    for (let i = 0; i < N; i++) {
+      const inner = side > 0 ? Math.max(0, -kS[i]) : Math.max(0, kS[i]);
+      if (inner > 1e-4) w[i] = Math.min(w[i], 1 / inner - 5);
+      w[i] = Math.max(HALF_W + 1.5, w[i]);
+      w[i] = w[i] * (1 - bridge[i]) + (HALF_W + 1.2) * bridge[i];
+    }
+    return w;
+  };
+  let wallR = innerClamp(smoothCircular(innerClamp(wallBase(1), 1), 18, 2), 1);
+  let wallL = innerClamp(smoothCircular(innerClamp(wallBase(-1), -1), 18, 2), -1);
+  const maxWall = Math.max(...wallR, ...wallL);
+
+  // racing line lateral offsets
+  const maxOff = HALF_W - 3;
+  const apex = new Float32Array(N);
+  for (let i = 0; i < N; i++) apex[i] = -clamp(kWide[i] * 160, -1, 1) * maxOff;
+  const lookA = Math.round(32 / ds);
+  let race = new Float32Array(N);
+  for (let i = 0; i < N; i++) race[i] = clamp(apex[i] - 0.55 * apex[(i + lookA) % N], -maxOff, maxOff);
+  race = smoothCircular(race, 14, 2);
+  // fly straight over gaps
+  for (const g of gaps) {
+    const pre = Math.round(60 / ds);
+    for (let k = -pre; k <= g.len + 10; k++) {
+      const i = ((g.s0 + k) % N + N) % N;
+      race[i] *= k < 0 ? smoothstep(0, 1, -k / pre) : 0;
+    }
+  }
+
   const WIN = 45;
   function nearest(x, z, hintT) {
     if (typeof hintT === 'number' && isFinite(hintT)) {
@@ -226,50 +252,39 @@ export function createTrack(scene, renderer) {
   const lerpArr = (arr, a, b, f) => arr[a] + (arr[b] - arr[a]) * f;
   const idxAtDist = (d) => ((((d / ds) % N) + N) % N);
 
-  // ------------------------------------------------------------------ features
-  const nearestToCP = (cpf) => {
-    const i0 = Math.floor(cpf) % CP.length, i1 = (i0 + 1) % CP.length, f = cpf - Math.floor(cpf);
-    const x = (CP[i0][0] + (CP[i1][0] - CP[i0][0]) * f) * SCALE;
-    const z = (CP[i0][2] + (CP[i1][2] - CP[i0][2]) * f) * SCALE;
-    return nearestGrid(x, z);
-  };
-
   // Boost pads: s0/len in samples, lateral centre, half width
   const PAD_LEN = Math.max(3, Math.round(7 / ds));
   const boostPads = [];
   const addPad = (sIdx, lat) => boostPads.push({ s0: ((sIdx % N) + N) % N, len: PAD_LEN, lat, hw: 2.6 });
   const padStep = Math.round(16 / ds);
-  { // cluster A — exit of the S-bend (staggered trio)
-    const i = nearestToCP(10.45);
-    addPad(i, -6); addPad(i + padStep, 0); addPad(i + padStep * 2, 6);
-  }
-  { // cluster B — hairpin exit (pair, then centre)
-    const i = nearestToCP(20.55);
-    addPad(i, -4.5); addPad(i, 4.5); addPad(i + padStep * 2, 0);
-  }
-  { // cluster C — lined up before the sweeper jump
-    const i = nearestToCP(4.15);
-    addPad(i, race[i]); addPad(i + padStep, race[(i + padStep) % N]);
+  for (const c of def.pads || []) {
+    const i = nearestToCP(c.at);
+    for (const [k, lat] of c.pads) {
+      const s = i + padStep * k;
+      addPad(s, lat === 'race' ? race[s % N] : lat);
+    }
   }
 
   // Jump ramps
   const RAMP_LEN = Math.max(4, Math.round(9 / ds));
   const ramps = [];
   const addRamp = (sIdx, hw = 10, h = 1.7) => ramps.push({ s0: ((sIdx % N) + N) % N, len: RAMP_LEN, hw, h });
-  addRamp(nearestToCP(14.35));                // downhill after the bridge
-  addRamp(nearestToCP(4.65), 9, 1.5);         // top of the big sweeper
+  for (const r of def.ramps || []) addRamp(nearestToCP(r.at), r.hw, r.h);
+  for (const g of gaps) addRamp(g.s0 - RAMP_LEN - Math.round(2 / ds), HALF_W, 2.2);
 
   // Item box rows
   const itemBoxPositions = [];
-  const itemRowIdx = [1.25, 6.5, 9.2, 12.5, 16.4, 21.6].map(nearestToCP);
+  const itemRowIdx = (def.itemRows || []).map(nearestToCP);
+  const itemLats = def.itemLats || [-8, -4, 0, 4, 8];
   for (const i of itemRowIdx) {
-    for (const lat of [-8, -4, 0, 4, 8]) {
+    for (const lat of itemLats) {
       itemBoxPositions.push(new THREE.Vector3(px[i] + rx[i] * lat, py[i] + 1.4, pz[i] + rz[i] * lat));
     }
   }
 
   // ------------------------------------------------------------------ public API
   const wrapDelta = (s, s0) => { let d = s - s0; if (d < 0) d += N; return d; };
+  const lavaEdge = LAVA ? HALF_W + (LAVA.shoulder ?? 2) : Infinity;
 
   function getSurfaceInfo(pos, hintT) {
     if (!pos || !isFinite(pos.x) || !isFinite(pos.z)) {
@@ -283,6 +298,13 @@ export function createTrack(scene, renderer) {
     // slope normal = right × tangent
     const Tx = lerpArr(tx, a, b, f), Ty = lerpArr(ty, a, b, f), Tz = lerpArr(tz, a, b, f);
     const normal = new THREE.Vector3(-pr.rz * Ty, pr.rz * Tx - pr.rx * Tz, pr.rx * Ty).normalize();
+    if (gapMask[a] || gapMask[b]) {
+      // inside a jump gap: the trough floor, sandy and slow
+      height -= lerpArr(dip, a, b, f);
+      const sl = -lerpArr(dipSlope, a, b, f);
+      normal.set(normal.x - Tx * sl, normal.y - Ty * sl, normal.z - Tz * sl).normalize();
+      return { height, normal, surface: 'offroad', t, lateral: lat, onRoad: false };
+    }
     const onRoad = Math.abs(lat) <= HALF_W;
     let surface = onRoad ? 'road' : 'offroad';
     if (onRoad) {
@@ -303,6 +325,8 @@ export function createTrack(scene, renderer) {
           if (wrapDelta(pr.s, p.s0) <= p.len && Math.abs(lat - p.lat) <= p.hw) { surface = 'boost'; break; }
         }
       }
+    } else if (Math.abs(lat) > lavaEdge && lerpArr(bridge, a, b, f) < 0.5) {
+      return { height, normal, surface, t, lateral: lat, onRoad, hazard: 'lava' };
     }
     return { height, normal, surface, t, lateral: lat, onRoad };
   }
@@ -334,11 +358,12 @@ export function createTrack(scene, renderer) {
 
   // Start grid: staggered 2-wide, pole (index 0) nearest the line.
   const startPositions = [];
+  const gridLat = Math.min(4.5, HALF_W - 3);
   for (let k = 0; k < 8; k++) {
     const back = 8 + k * 5.2;
     const s = idxAtDist(length - back);
     const a = Math.floor(s) % N, b = (a + 1) % N, f = s - Math.floor(s);
-    const lat = k % 2 === 0 ? -4.5 : 4.5;
+    const lat = k % 2 === 0 ? -gridLat : gridLat;
     const x = lerpArr(px, a, b, f) + lerpArr(rx, a, b, f) * lat;
     const z = lerpArr(pz, a, b, f) + lerpArr(rz, a, b, f) * lat;
     startPositions.push({
@@ -418,20 +443,28 @@ export function createTrack(scene, renderer) {
     disposables.push(geo);
     return mesh;
   };
-  const mat = (m) => { disposables.push(m); if (m.map) disposables.push(m.map); return m; };
+  const mat = (m) => { disposables.push(m); if (m.map) disposables.push(m.map); if (m.emissiveMap && m.emissiveMap !== m.map) disposables.push(m.emissiveMap); return m; };
+  const hasGap = gaps.length > 0;
+  const notGap = (i) => !gapMask[i];
 
   // ------------------------------------------------------------------ road surface
-  const asphaltTex = TX.makeAsphaltTexture();
-  const roadMat = mat(new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: 0.88, metalness: 0.0 }));
-  addMesh(extrude(0, N, () => [[-HALF_W, 0], [0, 0], [HALF_W, 0]], { across: [0, 0.5, 1], alongScale: 22, step: 1 }), roadMat, { name: 'road' });
+  const asphaltTex = TX.makeAsphaltTexture(look.asphalt);
+  const roadMat = mat(new THREE.MeshStandardMaterial({ map: asphaltTex, roughness: look.roadRoughness ?? 0.88, metalness: 0.0 }));
+  const roadProfile = () => [[-HALF_W, 0], [0, 0], [HALF_W, 0]];
+  if (!hasGap) addMesh(extrude(0, N, roadProfile, { across: [0, 0.5, 1], alongScale: 22, step: 1 }), roadMat, { name: 'road' });
+  else {
+    const geos = runs(notGap, 5).map(([a, b]) => extrude(a, b, roadProfile, { across: [0, 0.5, 1], alongScale: 22, step: 1 }));
+    addMesh(mergeGeometries(geos), roadMat, { name: 'road' });
+    geos.forEach((g) => g.dispose());
+  }
 
-  // Curbs through corners (raised red/white rumble strips)
-  const curbMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeCurbTexture(), roughness: 0.6 }));
+  // Curbs through corners (raised rumble strips)
+  const curbMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeCurbTexture(look.curb), roughness: 0.6 }));
   const curbMask = new Uint8Array(N);
   for (let i = 0; i < N; i++) if (Math.abs(kS[i]) > 1 / 240 && bridge[i] < 0.2) {
     for (let k = -30; k <= 30; k++) curbMask[(i + k + N) % N] = 1;
   }
-  for (let i = 0; i < N; i++) if (bridge[i] > 0.05) curbMask[i] = 0;
+  for (let i = 0; i < N; i++) if (bridge[i] > 0.05 || gapMask[i]) curbMask[i] = 0;
   const curbGeos = [];
   for (const [a, b] of runs((i) => curbMask[i], 10)) {
     curbGeos.push(extrude(a, b, () => [[HALF_W - 1.4, 0.0], [HALF_W - 1.1, 0.08], [HALF_W + 0.7, 0.08], [HALF_W + 0.9, -0.05]], { across: [0, 0.15, 0.9, 1], alongScale: 4 }));
@@ -440,14 +473,28 @@ export function createTrack(scene, renderer) {
   if (curbGeos.length) addMesh(mergeGeometries(curbGeos), curbMat, { name: 'curbs' });
   curbGeos.forEach((g) => g.dispose());
 
-  // Offroad bands (grass) + bridge deck edge (concrete)
-  const grassMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeGrassTexture(), roughness: 1 }));
+  // Offroad bands (grass / sand / snow / pavement) + bridge deck edge (concrete); volcano: basalt shoulder + lava
+  const offTex = look.offroad === 'sand' ? TX.makeSandTexture(look.offroadColors)
+    : look.offroad === 'snow' ? TX.makeSnowTexture()
+      : look.offroad === 'pavement' ? TX.makePavementTexture()
+        : look.offroad === 'basalt' ? TX.makeBasaltTexture()
+          : TX.makeGrassTexture(look.offroadColors);
+  const grassMat = mat(new THREE.MeshStandardMaterial({ map: offTex, roughness: 1 }));
   grassMat.map.repeat.set(1, 1);
   const concreteMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeConcreteTexture(), roughness: 0.9 }));
-  const bandGeos = [], deckGeos = [];
-  for (const [a, b] of runs((i) => bridge[i] < 0.5, 5)) {
-    bandGeos.push(extrude(a, b, (i) => [[HALF_W - 0.2, -0.03], [wallR[i] + 0.35, -0.03]], { acrossScale: 6, alongScale: 6 }));
-    bandGeos.push(extrude(a, b, (i) => [[-wallL[i] - 0.35, -0.03], [-HALF_W + 0.2, -0.03]], { acrossScale: 6, alongScale: 6 }));
+  const bandGeos = [], deckGeos = [], lavaGeos = [];
+  const bandOk = (i) => bridge[i] < 0.5 && !gapMask[i];
+  for (const [a, b] of runs(bandOk, 5)) {
+    if (LAVA) {
+      const e = lavaEdge;
+      bandGeos.push(extrude(a, b, () => [[HALF_W - 0.2, -0.03], [e, -0.03], [e + 0.5, -0.6]], { acrossScale: 6, alongScale: 6 }));
+      bandGeos.push(extrude(a, b, () => [[-e - 0.5, -0.6], [-e, -0.03], [-HALF_W + 0.2, -0.03]], { acrossScale: 6, alongScale: 6 }));
+      lavaGeos.push(extrude(a, b, (i) => [[e, -0.45], [wallR[i] + 0.35, -0.45]], { acrossScale: 10, alongScale: 10 }));
+      lavaGeos.push(extrude(a, b, (i) => [[-wallL[i] - 0.35, -0.45], [-e, -0.45]], { acrossScale: 10, alongScale: 10 }));
+    } else {
+      bandGeos.push(extrude(a, b, (i) => [[HALF_W - 0.2, -0.03], [wallR[i] + 0.35, -0.03]], { acrossScale: 6, alongScale: 6 }));
+      bandGeos.push(extrude(a, b, (i) => [[-wallL[i] - 0.35, -0.03], [-HALF_W + 0.2, -0.03]], { acrossScale: 6, alongScale: 6 }));
+    }
   }
   const bridgeRuns = runs((i) => bridge[i] >= 0.5, 5);
   for (const [a, b] of bridgeRuns) {
@@ -461,6 +508,26 @@ export function createTrack(scene, renderer) {
   if (bandGeos.length) addMesh(mergeGeometries(bandGeos), grassMat, { name: 'offroad' });
   if (deckGeos.length) addMesh(mergeGeometries(deckGeos), concreteMat, { name: 'deck', cast: true });
   bandGeos.forEach((g) => g.dispose()); deckGeos.forEach((g) => g.dispose());
+  let lavaTex = null;
+  if (lavaGeos.length) {
+    lavaTex = TX.makeLavaTexture();
+    const lavaMat = mat(new THREE.MeshBasicMaterial({ map: lavaTex, toneMapped: false }));
+    lavaMat.color.setScalar(1.35);
+    addMesh(mergeGeometries(lavaGeos), lavaMat, { name: 'lava', receive: false });
+    lavaGeos.forEach((g) => g.dispose());
+  }
+
+  // Jump gap trough: rocky floor following the dip, with cliff faces where the road breaks off
+  if (hasGap) {
+    const rockMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRockTexture(look.gapRock), roughness: 0.95 }));
+    const geos = [];
+    for (const g of gaps) {
+      const a = g.s0, b = g.s0 + g.len;
+      geos.push(extrude(a, b, (i) => [[-wallL[i] - 0.4, -dip[i] - 0.02], [0, -dip[i] - 0.02], [wallR[i] + 0.4, -dip[i] - 0.02]], { acrossScale: 5, alongScale: 5 }));
+    }
+    addMesh(mergeGeometries(geos), rockMat, { name: 'gap', cast: true });
+    geos.forEach((g) => g.dispose());
+  }
 
   // ------------------------------------------------------------------ barriers
   // type per side: 'rail' (bridge), 'tires' (outside of tight corners), 'wall'
@@ -471,15 +538,20 @@ export function createTrack(scene, renderer) {
       const outer = side > 0 ? kS[i] > 1 / 55 : kS[i] < -1 / 55;
       if (outer) for (let k = -18; k <= 18; k++) tight[(i + k + N) % N] = 1;
     }
-    for (let i = 0; i < N; i++) typ[i] = bridge[i] >= 0.5 ? 'rail' : tight[i] ? 'tires' : 'wall';
+    for (let i = 0; i < N; i++) typ[i] = bridge[i] >= 0.5 ? 'rail' : tight[i] && !look.noTires ? 'tires' : 'wall';
     return typ;
   };
   const typeR = barrierType(1), typeL = barrierType(-1);
 
-  const wallTex = TX.makeBarrierTexture();
+  const wallTex = TX.makeBarrierTexture(look.barrier);
   const wallMat = mat(new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.55 }));
-  const wallTopMat = mat(new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }));
-  const railMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRailTexture(), roughness: 0.45 }));
+  if (look.barrierGlow) {
+    wallMat.emissiveMap = wallTex;
+    wallMat.emissive.setHex(0xffffff);
+    wallMat.emissiveIntensity = look.barrierGlow;
+  }
+  const wallTopMat = mat(new THREE.MeshStandardMaterial({ color: look.wallTop ?? 0xf2f2f2, roughness: 0.5 }));
+  const railMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRailTexture(look.rail), roughness: 0.45 }));
   const WALL_H = 1.25, WALL_T = 0.7, TEX_LEN = 9.6;
   const vMap = (y) => (y + 0.05) / (WALL_H + 0.05);
   const wallFaces = [], wallTops = [], railFaces = [];
@@ -488,17 +560,18 @@ export function createTrack(scene, renderer) {
     const W = side > 0 ? wallR : wallL;
     for (const kind of ['wall', 'rail']) {
       const faces = kind === 'wall' ? wallFaces : railFaces;
-      const bottom = kind === 'rail' ? -2.4 : -1.5;
+      const bottom0 = kind === 'rail' ? -2.4 : -1.5;
+      const bot = hasGap ? (i) => bottom0 - dip[i] : () => bottom0;
       const h = kind === 'rail' ? 1.1 : WALL_H;
       for (const [a, b] of runs((i) => typ[i] === kind, 4)) {
         if (side > 0) {
-          faces.push(extrude(a, b, (i) => [[W[i], bottom], [W[i], h]], { across: [vMap(bottom), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
+          faces.push(extrude(a, b, (i) => [[W[i], bot(i)], [W[i], h]], { across: [vMap(bottom0), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
           wallTops.push(extrude(a, b, (i) => [[W[i], h], [W[i] + WALL_T, h]], { across: [0, 1], alongScale: TEX_LEN }));
-          faces.push(extrude(a, b, (i) => [[W[i] + WALL_T, h], [W[i] + WALL_T, bottom]], { across: [vMap(h), vMap(bottom)], alongScale: TEX_LEN, swap: true }));
+          faces.push(extrude(a, b, (i) => [[W[i] + WALL_T, h], [W[i] + WALL_T, bot(i)]], { across: [vMap(h), vMap(bottom0)], alongScale: TEX_LEN, swap: true }));
         } else {
-          faces.push(extrude(a, b, (i) => [[-W[i] - WALL_T, bottom], [-W[i] - WALL_T, h]], { across: [vMap(bottom), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
+          faces.push(extrude(a, b, (i) => [[-W[i] - WALL_T, bot(i)], [-W[i] - WALL_T, h]], { across: [vMap(bottom0), vMap(h)], alongScale: TEX_LEN, alongSign: -1, swap: true }));
           wallTops.push(extrude(a, b, (i) => [[-W[i] - WALL_T, h], [-W[i], h]], { across: [0, 1], alongScale: TEX_LEN }));
-          faces.push(extrude(a, b, (i) => [[-W[i], h], [-W[i], bottom]], { across: [vMap(h), vMap(bottom)], alongScale: TEX_LEN, swap: true }));
+          faces.push(extrude(a, b, (i) => [[-W[i], h], [-W[i], bot(i)]], { across: [vMap(h), vMap(bottom0)], alongScale: TEX_LEN, swap: true }));
         }
       }
     }
@@ -531,9 +604,10 @@ export function createTrack(scene, renderer) {
         }
       }
     }
-    const colors = [new THREE.Color(0xe8322f), new THREE.Color(0xf7f7f7), new THREE.Color(0x1e6fe8), new THREE.Color(0xf7f7f7)];
-    const dark = new THREE.Color(0x2a2c31);
-    const im = new THREE.InstancedMesh(tireGeo, tireMat, places.length * 3);
+    const tc = look.tires || [0xe8322f, 0xf7f7f7, 0x1e6fe8, 0xf7f7f7];
+    const colors = tc.map((c) => new THREE.Color(c));
+    const dark = new THREE.Color(look.tireDark ?? 0x2a2c31);
+    const im = new THREE.InstancedMesh(tireGeo, tireMat, Math.max(1, places.length * 3));
     const m4 = new THREE.Matrix4();
     let n = 0;
     for (const p of places) {
@@ -555,7 +629,7 @@ export function createTrack(scene, renderer) {
   // Bridge piers
   {
     const pierGeo = new THREE.BoxGeometry(1, 1, 1);
-    const pierMat = mat(new THREE.MeshStandardMaterial({ color: 0xd9d4c7, roughness: 0.85 }));
+    const pierMat = mat(new THREE.MeshStandardMaterial({ color: look.pier ?? 0xd9d4c7, roughness: 0.85 }));
     const mats = [];
     for (const [a, b] of bridgeRuns) {
       const span = Math.round(26 / ds);
@@ -590,8 +664,8 @@ export function createTrack(scene, renderer) {
     geos.forEach((g) => g.dispose());
   }
   {
-    const rampMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRampTexture(), roughness: 0.5, side: THREE.DoubleSide }));
-    const sideMat = mat(new THREE.MeshStandardMaterial({ color: 0xffc21a, roughness: 0.6, side: THREE.DoubleSide }));
+    const rampMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeRampTexture(look.ramp), roughness: 0.5, side: THREE.DoubleSide }));
+    const sideMat = mat(new THREE.MeshStandardMaterial({ color: look.rampSide ?? 0xffc21a, roughness: 0.6, side: THREE.DoubleSide }));
     const tops = [], sides = [];
     for (const r of ramps) {
       const hAt = (ii) => r.h * clamp((ii - r.s0) / r.len, 0, 1);
@@ -634,13 +708,14 @@ export function createTrack(scene, renderer) {
 
   // Gantry arch with banner + start lights
   const lamps = [];
+  const G = look.gantry || {};
   {
     const g = new THREE.Group();
     g.position.set(px[0], py[0], pz[0]);
     g.rotation.y = head[0];
     // local frame: +Z forward, +X = left (right is -X)
     const xL = wallL[0] + 2.2, xR = -(wallR[0] + 2.2);
-    const pillarMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeStripeTexture('#ffffff', '#e8322f', 10), roughness: 0.5 }));
+    const pillarMat = mat(new THREE.MeshStandardMaterial({ map: TX.makeStripeTexture(G.stripeA || '#ffffff', G.stripeB || '#e8322f', 10), roughness: 0.5 }));
     pillarMat.map.rotation = Math.PI / 2;
     const pGeo = new THREE.CylinderGeometry(0.9, 1.1, 12, 16);
     disposables.push(pGeo);
@@ -649,10 +724,11 @@ export function createTrack(scene, renderer) {
       p.position.set(x, 6, 0); p.castShadow = true; g.add(p);
     }
     const span = xL - xR + 2.5;
-    const bannerTex = TX.makeBannerTexture('BDB KARTS');
+    const bannerTex = TX.makeBannerTexture(G.title || 'BDB KARTS', G.banner);
     disposables.push(bannerTex);
-    const beamSide = mat(new THREE.MeshStandardMaterial({ color: 0xc81e1e, roughness: 0.5 }));
-    const bannerMat = mat(new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.5, emissive: 0x220000 }));
+    const beamSide = mat(new THREE.MeshStandardMaterial({ color: G.beam ?? 0xc81e1e, roughness: 0.5 }));
+    const bannerMat = mat(new THREE.MeshStandardMaterial({ map: bannerTex, roughness: 0.5, emissive: G.emissive ?? 0x220000 }));
+    if (G.glow) { bannerMat.emissiveMap = bannerTex; bannerMat.emissive.setHex(0xffffff); bannerMat.emissiveIntensity = G.glow; }
     const beamGeo = new THREE.BoxGeometry(span, 3, 1.4);
     disposables.push(beamGeo);
     const beam = new THREE.Mesh(beamGeo, [beamSide, beamSide, beamSide, beamSide, bannerMat, bannerMat]);
@@ -700,15 +776,21 @@ export function createTrack(scene, renderer) {
   const layout = {
     N, ds, length, px, py, pz, rx, rz, tx, tz, head, kS, wallL, wallR, bridge, halfWidth: HALF_W,
     nearest: (x, z, noFallback = false) => { const i = nearestGrid(x, z, noFallback); return { i, d2: _nd2 }; },
-    lake: LAKE, waterLevel: WATER_LEVEL,
+    lake: LAKE || { x: 1e7, z: 1e7, r: 1 }, river: RIVER, waterLevel: WATER_LEVEL,
     bounds: { minX, maxX, minZ, maxZ },
     boostPads, ramps, startPositions,
+    dip, gaps, lavaEdge: LAVA ? lavaEdge : 0,
+    env: def.env || { kind: 'coast' },
+    at: layoutPts.at,
   };
   const env = createEnvironment(scene, renderer, root, layout);
 
   // ------------------------------------------------------------------ Track object
   Object.assign(track, {
-    name: TRACK_NAME,
+    id: def.id,
+    name: def.name,
+    theme: def.theme,
+    difficulty: def.difficulty,
     curve,
     length,
     roadWidth: HALF_W * 2,
@@ -734,6 +816,7 @@ export function createTrack(scene, renderer) {
       try {
         const tt = typeof time === 'number' ? time : 0;
         boostTex.offset.y = -((tt * 1.6) % 1);
+        if (lavaTex) { lavaTex.offset.y = -((tt * 0.05) % 1); lavaTex.offset.x = Math.sin(tt * 0.3) * 0.03; }
         if (lampTimer > 0) { lampTimer -= dt || 0; if (lampTimer <= 0) setLamps(0, 0); }
         env.update(dt || 0, tt);
       } catch (e) { /* never throw in the frame loop */ }
