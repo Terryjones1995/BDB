@@ -279,7 +279,11 @@ export function createEnvironment(scene, renderer, root, L) {
     let n = natural(x, z);
     const c = corridorAt(x, z);
     if (!COAST) n += extraH(c);
-    return c.w > 0 ? lerp(n, c.y - 0.6, c.w) : n;
+    const h = c.w > 0 ? lerp(n, c.y - 0.6, c.w) : n;
+    // bridge approaches: the corridor fades out toward a bridge, so the natural ground would rise over the road
+    // there; keep it below the road out to just past the walls, then let it climb back to the bank
+    if (!COAST && c.i >= 0 && L.bridge[c.i] > 0) return Math.min(h, c.y - 0.6 + Math.max(0, c.d - c.wall - 2) * 0.6);
+    return h;
   }
 
   const T_SIZE = COAST ? 1900 : Math.ceil(2 * Math.max(HX, HZ) * 1.1);
@@ -687,7 +691,8 @@ export function createEnvironment(scene, renderer, root, L) {
     const SEG_LEN = 10;
     for (const def of defs) {
       const i0 = ((nSteps(def.from) % L.N) + L.N) % L.N, i1 = ((nSteps(def.to) % L.N) + L.N) % L.N;
-      const depth = 4 + def.tiers * 1.6 + 4;
+      const setback = def.setback || 0;   // extra gap behind the wall (keeps the intro flyover clear of the roof)
+      const depth = 4 + def.tiers * 1.6 + 4 + setback;
       standZones.push({ i0, i1, side: def.side, depth });
       const segSamples = nSteps(SEG_LEN);
       const total = nSteps(def.to - def.from);
@@ -699,7 +704,7 @@ export function createEnvironment(scene, renderer, root, L) {
         const rotY = Math.atan2(right.x, right.z);   // local +Z = outward, local X along track
         const place = (g, lx, ly, lz) => {
           g.rotateY(rotY);
-          const off = right.clone().multiplyScalar(wall + 3 + lz);
+          const off = right.clone().multiplyScalar(wall + 3 + setback + lz);
           const along = new THREE.Vector3(-right.z, 0, right.x).multiplyScalar(lx);
           g.translate(base.x + off.x + along.x, base.y + ly, base.z + off.z + along.z);
           return g;
@@ -713,7 +718,7 @@ export function createEnvironment(scene, renderer, root, L) {
           for (let c = 0; c < 6; c++) {
             if (rnd() < 0.12) continue;
             crowd.push({
-              p: base.clone().addScaledVector(right, wall + 3 + 0.5 + t * 1.6 + 0.8 + (rnd() - 0.5) * 0.3)
+              p: base.clone().addScaledVector(right, wall + 3 + setback + 0.5 + t * 1.6 + 0.8 + (rnd() - 0.5) * 0.3)
                 .addScaledVector(new THREE.Vector3(-right.z, 0, right.x), (c - 2.5) * (SEG_LEN / 6) + (rnd() - 0.5) * 0.6)
                 .setY(base.y + top),
               rot: rotY + Math.PI,
@@ -1175,8 +1180,8 @@ export function createEnvironment(scene, renderer, root, L) {
       }
       g.setAttribute('color', new THREE.BufferAttribute(col, 3));
       g.computeVertexNormals();
-      // local X across the road: rotate so the arch plane is perpendicular to the track
-      g.rotateY(a.h + Math.PI / 2);
+      // the torus spans local X: rotate so the arch plane is perpendicular to the track
+      g.rotateY(a.h);   // local X -> (cos h, 0, -sin h) = across the road (same as the jungle gate beam)
       const off = (L.wallR[a.i] - L.wallL[a.i]) / 2;
       g.translate(a.x + L.rx[a.i] * off, a.y - 3, a.z + L.rz[a.i] * off);
       const am = new THREE.Mesh(keep(g), vcolMat());
@@ -1309,7 +1314,7 @@ export function createEnvironment(scene, renderer, root, L) {
         const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512;
         const ctx = cv.getContext('2d');
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 512, 512);
-        const words = [['ARCADE', '#ff3df0'], ['NOODLES', '#3dfcff'], ['HOTEL', '#ffe23d'], ['24H', '#5dff6a'], ['TURBO', '#ff5a3d'], ['DINER', '#ff3d8b'], ['GARAGE', '#3d9bff'], ['BDB', '#ffffff']];
+        const words = [['ARCADE', '#ff3df0'], ['NOODLES', '#3dfcff'], ['HOTEL', '#ffe23d'], ['24H', '#5dff6a'], ['PIZZA', '#ff5a3d'], ['DINER', '#ff3d8b'], ['GARAGE', '#3d9bff'], ['BDB', '#ffffff']];
         words.forEach(([w, col], k) => {
           const x = (k % 2) * 256, y = Math.floor(k / 2) * 128;
           ctx.strokeStyle = col; ctx.lineWidth = 6; ctx.strokeRect(x + 10, y + 10, 236, 108);
@@ -1415,34 +1420,67 @@ export function createEnvironment(scene, renderer, root, L) {
       const y = heightAt(x, z);
       if (y < WATER + 0.4) return;
       const dense = fbm(x * 0.01 + 5, z * 0.01 - 2, 3);
-      if (big.length < 420 && s.d > 8 && rnd() < 0.3 + dense * 0.3) { big.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 0.9 + rnd() * 0.6, hue: rnd() }); return; }
-      if (round.length < 700 && rnd() < 0.45) { round.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.1 + rnd() * 0.8, hue: rnd() }); return; }
-      if (palms.length < 110 && (y < WATER + 5 || rnd() < 0.15)) { palms.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.5, tilt: (rnd() - 0.5) * 0.35, tilt2: (rnd() - 0.5) * 0.35 }); return; }
-      if (ferns.length < 1400 && (s.d < 50 || rnd() < 0.4)) { ferns.push({ x, y: y - 0.1, z, r: rnd() * 6.28, s: 0.7 + rnd() * 0.8 }); return; }
+      if (big.length < 200 && s.d > 8 && rnd() < 0.3 + dense * 0.3) { big.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 0.9 + rnd() * 0.6, hue: rnd() }); return; }
+      if (round.length < 300 && rnd() < 0.45) { round.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.1 + rnd() * 0.8, hue: rnd() }); return; }
+      if (palms.length < 80 && (y < WATER + 5 || rnd() < 0.15)) { palms.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.5, tilt: (rnd() - 0.5) * 0.35, tilt2: (rnd() - 0.5) * 0.35 }); return; }
+      if (ferns.length < 600 && (s.d < 50 || rnd() < 0.4)) { ferns.push({ x, y: y - 0.1, z, r: rnd() * 6.28, s: 0.7 + rnd() * 0.8 }); return; }
       if (rocks.length < 140 && rnd() < 0.1) { const sc = 0.8 + rnd() * rnd() * 3; rocks.push({ x, y: y - sc * 0.3, z, r: rnd() * 6.28, s: sc, sy: 0.6, tilt: rnd() * 0.3 }); return; }
       if (flowers.length < 1200 && s.d < 40) for (let k = 0; k < 4; k++) flowers.push({ x: x + (rnd() - 0.5) * 3, y: y + 0.15, z: z + (rnd() - 0.5) * 3, r: rnd() * 6.28, s: 0.8 + rnd() * 0.6, c: rnd() });
-      if (big.length >= 420 && round.length >= 700 && palms.length >= 200 && ferns.length >= 1400 && rocks.length >= 140) return false;
+      if (big.length >= 200 && round.length >= 300 && palms.length >= 80 && ferns.length >= 600 && rocks.length >= 140 && flowers.length >= 1200) return false;
     });
-    {   // dense band of jungle just beyond the barriers
+    {   // walls of jungle just beyond the barriers: two staggered rows of canopy trees every few metres
       const rnd = mulberry(63);
-      for (let k = 0; k < 9000; k++) {
-        const i = Math.floor(rnd() * L.N), side = rnd() < 0.5 ? 1 : -1;
-        const wall = side > 0 ? L.wallR[i] : L.wallL[i];
-        const lat = side * (wall + 6 + rnd() * rnd() * 90);
-        const x = L.px[i] + L.rx[i] * lat, z = L.pz[i] + L.rz[i] * lat;
-        if (!spot(x, z, 5).ok) continue;
-        const y = heightAt(x, z);
-        if (y < WATER + 0.4) continue;
-        const pick = rnd();
-        if (pick < 0.3 && big.length < 760) big.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 0.9 + rnd() * 0.6, hue: rnd() });
-        else if (pick < 0.7 && round.length < 820) round.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.1 + rnd() * 0.8, hue: rnd() });
-        else if (pick < 0.8 && palms.length < 160) palms.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.5, tilt: (rnd() - 0.5) * 0.35, tilt2: (rnd() - 0.5) * 0.35 });
-        else if (ferns.length < 1700) ferns.push({ x, y: y - 0.1, z, r: rnd() * 6.28, s: 0.8 + rnd() * 0.9 });
+      const step = Math.max(1, Math.round(8 / L.ds));
+      for (let i0 = 0, n = 0; i0 < L.N; i0 += step, n++) {
+        for (const side of [1, -1]) {
+          for (let row = 0; row < 2; row++) {
+            if (row === 1 && n % 2) continue;   // outer row every other step
+            const i = (i0 + Math.floor(rnd() * step)) % L.N;
+            const wall = side > 0 ? L.wallR[i] : L.wallL[i];
+            const lat = side * (wall + (row ? 15 + rnd() * 10 : 6 + rnd() * 4));
+            const x = L.px[i] + L.rx[i] * lat, z = L.pz[i] + L.rz[i] * lat;
+            if (!spot(x, z, 5).ok) continue;
+            const y = heightAt(x, z);
+            if (y < WATER + 0.4) continue;
+            const pick = rnd();
+            if (pick < 0.45) big.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.6, hue: rnd() });
+            else if (pick < 0.9) round.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.3 + rnd() * 0.8, hue: rnd() });
+            else palms.push({ x, y: y - 0.3, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.5, tilt: (rnd() - 0.5) * 0.35, tilt2: (rnd() - 0.5) * 0.35 });
+          }
+        }
       }
+      // undergrowth: ferns hugging the barrier
+      const fstep = Math.max(1, Math.round(4 / L.ds));
+      for (let i0 = 0; i0 < L.N; i0 += fstep) {
+        for (const side of [1, -1]) {
+          const i = (i0 + Math.floor(rnd() * fstep)) % L.N;
+          const wall = side > 0 ? L.wallR[i] : L.wallL[i];
+          const lat = side * (wall + 1.6 + rnd() * 3.5);
+          const x = L.px[i] + L.rx[i] * lat, z = L.pz[i] + L.rz[i] * lat;
+          if (!spot(x, z, 1.2).ok) continue;
+          const y = heightAt(x, z);
+          if (y < WATER + 0.4) continue;
+          ferns.push({ x, y: y - 0.1, z, r: rnd() * 6.28, s: 1.0 + rnd() * 0.9 });
+        }
+      }
+    }
+    {   // a low, lumpy bank of bushes right behind the barriers (one merged strip; not beside the grandstands)
+      const nearStand = (i) => standZones.some((zn) => (zn.i0 <= zn.i1 ? i >= zn.i0 - 20 && i <= zn.i1 + 20 : i >= zn.i0 - 20 || i <= zn.i1 + 20));
+      const g = sideStrip([[0, 0.2], [0.7, 1.7], [2.4, 2.6], [4.4, 2.0], [6.2, -0.8]], 0x2c6a26, { skip: nearStand, step: Math.max(1, Math.round(2.5 / L.ds)) });
+      const pos = g.attributes.position;
+      for (let k = 0; k < pos.count; k++) {
+        const j = k % 5;
+        if (j < 1 || j > 3) continue;
+        pos.setY(k, pos.getY(k) + (fbm(pos.getX(k) * 0.11, pos.getZ(k) * 0.11, 2) - 0.45) * 2.6);
+      }
+      g.computeVertexNormals();
+      const bush = new THREE.Mesh(g, vcolMat());
+      bush.receiveShadow = true; bush.name = 'bushBank';
+      root.add(bush);
     }
     const trunkMat = flat({ color: 0x6e4a2e });
     const leafMat = flat({ color: 0xffffff });
-    const greens = [0x2f8f3a, 0x3fa040, 0x237a33, 0x4cae45, 0x2e9a50, 0x5bb83e];
+    const greens = [0x1f6e2a, 0x287d30, 0x175f25, 0x2f8a35, 0x207438, 0x3a8f2c];   // deep rainforest greens
     // tall rainforest tree: long trunk + broad flat canopy layers
     const bigTrunk = keep(stripUV(new THREE.CylinderGeometry(0.45, 0.8, 11, 6).translate(0, 5.5, 0)));
     const bigCanopy = keep(mergeAll([

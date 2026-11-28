@@ -174,8 +174,8 @@ export function trackOutline(id, n = 96) {
   const out = [];
   for (let k = 0; k < n; k++) {
     const [x, , z] = points[Math.floor((k / n) * points.length)];
-    // mirror x so the outline reads like the in-game minimap (driver's left = +X)
-    out.push({ x: 0.5 + (-(x - (minX + maxX) / 2)) / span, y: 0.5 + (z - (minZ + maxZ) / 2) / span });
+    // same orientation as the in-game HUD minimap (screen x = world x, screen y = world z)
+    out.push({ x: 0.5 + (x - (minX + maxX) / 2) / span, y: 0.5 + (z - (minZ + maxZ) / 2) / span });
   }
   return out;
 }
@@ -289,7 +289,7 @@ export const TRACKS = [
       barrier: [
         { bg: '#f08a24', fg: '#ffffff', text: 'DUNE' },
         { bg: '#ffffff', fg: '#c8522a', text: 'CANYON' },
-        { bg: '#c8522a', fg: '#ffe9b8', text: 'TURBO' },
+        { bg: '#c8522a', fg: '#ffe9b8', text: 'BDB' },
         { bg: '#ffd21f', fg: '#8a3a12', text: '★ GO! ★' },
       ],
       rail: ['#fbf3e3', '#e8642f'],
@@ -315,6 +315,7 @@ export const TRACKS = [
       canyon: [[6.6, 11.3], [16.3, 18.7]],
       canyonH: 34,
       arch: { at: 8.5 },
+      stands: [{ from: -150, to: 70, side: 1, tiers: 8 }, { from: -70, to: 45, side: -1, tiers: 6, setback: 10 }],   // setback: intro orbit clears the roof
       ring: { shape: 'mesa', colors: [0xc8693a, 0xe08d50, 0xb5552e, 0xf0b073], rad: 170, hgt: 300, count: 26, haze: 0.35 },
       clouds: { count: 12, color: 0xffffff, emissive: 0xb8a088, y: 240 },
       seatCols: [0xf08a24, 0xfbf3e3, 0xc8522a, 0xffd21f],
@@ -373,7 +374,7 @@ export const TRACKS = [
       barrier: [
         { bg: '#2f7fe0', fg: '#ffffff', text: 'FROST' },
         { bg: '#ffffff', fg: '#2f7fe0', text: 'PEAK' },
-        { bg: '#7fd0ff', fg: '#1b3a66', text: 'TURBO' },
+        { bg: '#7fd0ff', fg: '#1b3a66', text: 'BDB' },
         { bg: '#1b3a66', fg: '#ffffff', text: '★ GO! ★' },
       ],
       rail: ['#f4f9ff', '#2f7fe0'],
@@ -397,6 +398,7 @@ export const TRACKS = [
       baseLevel: -8,
       corridor: [4, 50],
       peak: { at: 9.5, lat: -170, r: 210, h: 140 },
+      stands: [{ from: -150, to: 70, side: 1, tiers: 8 }, { from: -70, to: 45, side: -1, tiers: 6, setback: 10 }],   // setback: intro orbit clears the roof
       ring: { colors: [0x8d9db2, 0xb9c7d8, 0xffffff], snowLine0: 0.25, snowLine: 0.45, rad: 170, hgt: 380, count: 24, haze: 0.28 },
       clouds: { count: 30, color: 0xf2f6fb, emissive: 0x8a96a8, y: 170 },
       seatCols: [0x2f7fe0, 0xf4f9ff, 0x7fd0ff, 0x1b3a66],
@@ -462,7 +464,7 @@ export const TRACKS = [
       barrier: [
         { bg: '#12061f', fg: '#ff3df0', text: 'NEON' },
         { bg: '#06121f', fg: '#3dfcff', text: 'CITY' },
-        { bg: '#1a1206', fg: '#ffe23d', text: 'TURBO' },
+        { bg: '#1a1206', fg: '#ffe23d', text: 'KARTS' },
         { bg: '#061a0c', fg: '#5dff6a', text: '★ GO! ★' },
       ],
       barrierGlow: 1.6,
@@ -493,7 +495,7 @@ export const TRACKS = [
       roofCols: [0x1b1d2a, 0xff3df0],
       standWall: 0x3a3e4a,
       standBack: 0x2a2d3a,
-      stands: [{ from: -150, to: 70, side: 1, tiers: 6 }, { from: -70, to: 45, side: -1, tiers: 5 }],
+      stands: [{ from: -150, to: 70, side: 1, tiers: 6 }, { from: -70, to: 45, side: -1, tiers: 5, setback: 14 }],   // setback: intro orbit clears the roof
     },
   },
 
@@ -548,13 +550,13 @@ export const TRACKS = [
     ],
     itemRows: [1.2, 4.2, 7.5, 10.5, 13.6, 17.2, 19.6, 22.5],
     look: {
-      offroadColors: { base: '#4f9a35', specks: ['#3f8a2b', '#5fae3e', '#47922f', '#6bbb48', '#367a26'], flowers: ['#ff3d6d', '#ffd84a', '#ff8ad8'] },
-      asphalt: { base: '#5d5a52', specks: ['#4f4c45', '#6c6960', '#78756b', '#45423c', '#625f57'] },
+      offroadColors: { base: '#3f8030', specks: ['#336f26', '#4c9038', '#3a7a2b', '#56983f', '#2c6522'], flowers: ['#ff3d6d', '#ffd84a', '#ff8ad8'] },   // shaded jungle grass
+      asphalt: { base: '#5d5a52', specks: ['#4f4c45', '#6c6960', '#78756b', '#45423c', '#625f57'], centre: '#f2e8c8', edge: '#f2e8c8' },
       curb: ['#e8b62f', '#3a6b2a'],
       barrier: [
         { bg: '#2f8f3a', fg: '#ffe36b', text: 'JUNGLE' },
         { bg: '#ffe36b', fg: '#2f6b2a', text: 'TEMPLE' },
-        { bg: '#c8522a', fg: '#ffffff', text: 'TURBO' },
+        { bg: '#c8522a', fg: '#ffffff', text: 'BDB' },
         { bg: '#ffffff', fg: '#2f8f3a', text: '★ GO! ★' },
       ],
       rail: ['#f2ead2', '#8a5a2a'],
@@ -567,20 +569,21 @@ export const TRACKS = [
     },
     env: {
       kind: 'jungle',
-      sky: { top: 0x4a9ad0, horizon: 0xe6efc8, bottom: 0xc9dcb0, sun: 0xfff0c0 },
+      sky: { top: 0x6f9fb0, horizon: 0xeadfae, bottom: 0xcfc596, sun: 0xffe0a0 },   // warm, hazy, humid
       sunDir: [0.4, 0.68, 0.45],
-      fog: [260, 1250],
-      fogColor: 0xd9e6bc,
-      hemi: [0xf0f6d0, 0x5a7a3a, 1.2],
-      sunLight: [0xffe8b8, 2.6],
+      fog: [140, 900],
+      fogColor: 0xdcd3a2,
+      hemi: [0xfff0c4, 0x4a6428, 1.15],
+      sunLight: [0xffd99a, 2.5],
       envGround: 0x3f7a2e,
-      ground: { a: 0x3f8f2e, b: 0x5aa83a, high: 0x2f7a2a, rock: 0x7d8a6a, near: 0x5aa83a, low: 0x8a7a4a, lowFrom: 1.0, lowTo: -1.5 },
+      ground: { a: 0x2c6a24, b: 0x3a7c2c, high: 0x22581f, rock: 0x6f7a5a, near: 0x3a7c2c, low: 0x7a6a3a, lowFrom: 1.0, lowTo: -1.5 },   // shaded forest floor
       water: { deep: 0x1d6b5a, shallow: 0x52b39a, sky: 0xcfe8d0 },
       baseLevel: -8,
       corridor: [4, 50],
       temple: { at: 8.5, lat: 95 },
       gates: [8.3, 12.4],
       ruins: [7.5, 13],
+      stands: [{ from: -150, to: 70, side: 1, tiers: 8 }, { from: -70, to: 45, side: -1, tiers: 6, setback: 10 }],   // setback: intro orbit clears the roof
       ring: { colors: [0x2f7a3a, 0x3f8a45, 0x5a9a55], snowLine0: 0.6, snowLine: 0.95, rad: 210, hgt: 170, count: 26, haze: 0.4 },
       clouds: { count: 40, color: 0xffffff, emissive: 0xa8b098, y: 150 },
       seatCols: [0x2f8f3a, 0xffe36b, 0xc8522a, 0xf2ead2],
@@ -660,7 +663,7 @@ export const TRACKS = [
       barrier: [
         { bg: '#1f1a1a', fg: '#ff7a1a', text: 'VOLCANO' },
         { bg: '#ff5a1a', fg: '#1f1a1a', text: 'DANGER' },
-        { bg: '#ffb000', fg: '#1f1a1a', text: 'TURBO' },
+        { bg: '#ffb000', fg: '#1f1a1a', text: 'KARTS' },
         { bg: '#1f1a1a', fg: '#ffb000', text: '★ HOT ★' },
       ],
       barrierGlow: 0.5,
@@ -692,7 +695,7 @@ export const TRACKS = [
       roofCols: [0x1f1a1a, 0xff5a1a],
       standWall: 0x3a3232,
       standBack: 0x2a2424,
-      stands: [{ from: -90, to: 50, side: 1, tiers: 6 }, { from: -60, to: 40, side: -1, tiers: 5 }],
+      stands: [{ from: -90, to: 50, side: 1, tiers: 6 }, { from: -60, to: 40, side: -1, tiers: 5, setback: 14 }],   // setback: intro orbit clears the roof
       flagCols: [0xff7a1a, 0xffb000, 0x1f1a1a, 0xff3a1a],
     },
   },
